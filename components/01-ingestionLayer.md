@@ -972,7 +972,7 @@ list of MmCIFIngestionInput
 
 # 9. Non-Responsibilities
 
-Component #1 is not responsible for:
+Component 01 is not responsible for:
   - canonicalization
   - normalization
   - metadata integration
