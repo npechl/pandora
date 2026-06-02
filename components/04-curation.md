@@ -1,5 +1,3 @@
-# 04-datasetConstructionAndCurationLayer.md
-
 # Component 04 — Dataset Construction & Curation Layer
 
 ## Purpose
@@ -1002,8 +1000,7 @@ DatasetCurationPolicy:
 
 # 11. Non-Responsibilities
 
-```yaml
-not_responsible_for:
+Component 04 is not responsible for:
   - train_test_splitting
   - leakage_safe_partitioning
   - similarity_clustering
@@ -1013,16 +1010,9 @@ not_responsible_for:
   - graph_generation
   - embeddings
   - task_specific_labels
-```
 
 ---
 
 # 12. Component Definition
 
-```yaml
-definition: >
-  The Dataset Construction & Curation Layer transforms collections
-  of annotated structures into reproducible curated datasets using
-  explicit curation policies and provenance-aware filtering
-  operations.
-```
+The Dataset Construction & Curation Layer transforms collections of annotated structures into reproducible curated datasets using explicit curation policies and provenance-aware filtering operations.
