@@ -1,5 +1,3 @@
-# 02-canonicalisation.md
-
 # Component 02 — Canonical Structure Object Layer
 
 ## Purpose
@@ -909,8 +907,7 @@ list of MmCIFIngestionResult
 
 # 8. Non-Responsibilities
 
-```yaml
-not_responsible_for:
+Component 02 is not responsible for:
   - metadata integration
   - UniProt mapping
   - SIFTS integration
@@ -919,15 +916,9 @@ not_responsible_for:
   - graph generation
   - embeddings
   - ML-ready exports
-```
 
 ---
 
 # 9. Component Definition
+The Canonical Structure Object Layer converts parsed structural records into standardized, provenance-preserving canonical structure representations using explicit canonicalization policies.
 
-```yaml
-definition: >
-  The Canonical Structure Object Layer converts parsed structural
-  records into standardized, provenance-preserving canonical
-  structure representations using explicit canonicalization policies.
-```
