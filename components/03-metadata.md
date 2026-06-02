@@ -1,5 +1,3 @@
-# 03-metadataAndAnnotationLayer.md
-
 # Component 03 — Metadata Integration & Derived Annotation Layer
 
 ## Purpose
@@ -1154,8 +1152,7 @@ AnnotationPluginPolicy:
 
 # 10. Non-Responsibilities
 
-```yaml
-not_responsible_for:
+Component 03 is not responsible for:
   - canonical structure modification
   - dataset filtering
   - leakage-safe splitting
@@ -1164,16 +1161,9 @@ not_responsible_for:
   - graph generation
   - model training
   - automatic biological inference outside plugin scope
-```
 
 ---
 
 # 11. Component Definition
 
-```yaml
-definition: >
-  The Metadata Integration & Derived Annotation Layer attaches
-  provenance-aware metadata to canonical structures and optionally
-  applies user-defined plugin-style derived annotations for
-  task-specific structural analyses.
-```
+The Metadata Integration & Derived Annotation Layer attaches provenance-aware metadata to canonical structures and optionally applies user-defined plugin-style derived annotations for task-specific structural analyses.
