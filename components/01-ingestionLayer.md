@@ -1,5 +1,3 @@
-# 01-ingestionLayer.md
-
 # Component 01 — mmCIF Ingestion Layer
 
 ## Purpose
