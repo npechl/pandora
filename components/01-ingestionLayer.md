@@ -1,5 +1,3 @@
-# 01-ingestionLayer.md
-
 # Component 01 — mmCIF Ingestion Layer
 
 ## Purpose
@@ -974,8 +972,7 @@ list of MmCIFIngestionInput
 
 # 9. Non-Responsibilities
 
-```yaml
-not_responsible_for:
+Component 01 is not responsible for:
   - canonicalization
   - normalization
   - metadata integration
@@ -987,14 +984,9 @@ not_responsible_for:
   - graph generation
   - embeddings
   - ML-ready exports
-```
 
 ---
 
 # 10. Component Definition
 
-```yaml
-definition: >
-  The mmCIF Ingestion Layer converts raw PDBe/PDB mmCIF files
-  into parsed structural records with diagnostics and provenance.
-```
+The mmCIF Ingestion Layer converts raw PDBe/PDB mmCIF files into parsed structural records with diagnostics and provenance.
