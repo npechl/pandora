@@ -7,7 +7,7 @@ structures into reproducible, curated datasets suitable for downstream analyses.
 
 This component is responsible for:
 
-* dataset construction,
+* dataset construction at structure, chain, interface, and residue granularity,
 * structure selection and filtering,
 * exact deduplication,
 * inclusion and exclusion criteria,
@@ -26,8 +26,16 @@ MmCIFIngestionResult
   → CanonicalStructureResult
   → MetadataAnnotatedStructure
   → AnnotatedStructureWithPlugins
-  → Dataset
+  → Dataset                  [structure-level]
+      → ChainDataset         [chain-level]
+          → ResidueDataset   [residue-level]
+      → InterfaceDataset     [interface-level]
+          → ResidueDataset   [residue-level]
 ```
+
+Extraction is always a downstream step from the structure-level `Dataset`.
+Chain and interface datasets are independent siblings; residue datasets
+can be extracted from either.
 
 ---
 
@@ -37,7 +45,28 @@ MmCIFIngestionResult
 
 Components 1–3 focus on individual structures.
 
-Component 4 introduces the concept of a `Dataset` as a first-class object.
+Component 4 introduces the concept of a `Dataset` as a first-class object
+and provides four granularity levels: structure, chain, interface, and
+residue.
+
+---
+
+## Multi-level granularity
+
+Different ML tasks require different units of analysis:
+
+* **Structure-level** — fold classification, global structure quality,
+  structure-based drug design at entry level.
+* **Chain-level** — sequence models, secondary structure prediction,
+  homology detection, protein language model pre-training.
+* **Interface-level** — protein-protein interaction prediction, binding
+  affinity models, antibody-antigen studies, docking benchmarks.
+* **Residue-level** — binding site prediction, mutation effect prediction,
+  contact map prediction, solvent accessibility tasks.
+
+Extraction always starts from a curated structure-level `Dataset`. Each
+level is a typed, self-contained record that embeds the data needed for
+downstream ML without requiring access to the parent structure.
 
 ---
 
@@ -50,6 +79,7 @@ Users explicitly define:
 * selection criteria,
 * filtering criteria,
 * exact deduplication strategies,
+* extraction granularity and rules,
 * and provenance requirements.
 
 ---
@@ -89,7 +119,7 @@ They do not exclude whole structures.
 Component 4 determines:
 
 ```text
-Which structures enter the dataset?
+Which structures (or chains, interfaces, residues) enter the dataset?
 ```
 
 Component 5 determines:
@@ -117,7 +147,7 @@ DatasetConstructionInput:
   # skipped and recorded in excluded_items with reason_code UPSTREAM_FAILURE.
 
   curation_policy: DatasetCurationPolicy
-  # See Section 10 for the full policy schema.
+  # See Section 11 for the full policy schema.
 ```
 
 ---
@@ -137,13 +167,7 @@ DatasetConstructionBatchInput:
 
   parallel_options:
     max_workers: int | null
-    # Number of concurrent dataset-construction jobs in parallel mode.
-    # null uses the system default.
-    # Ignored in sequential mode.
-
     fail_fast: bool
-    # If true, abort remaining jobs on the first failure.
-    # If false (default), isolate failures and continue.
 ```
 
 ---
@@ -152,14 +176,20 @@ DatasetConstructionBatchInput:
 
 ## 4.1 ExclusionRecord
 
-Records a structure that was removed from the dataset and the reason for
-its removal.
+Records a unit (structure, chain, interface, or residue) that was removed
+from the dataset and the reason for its removal.
 
 ```yaml
 ExclusionRecord:
-  entry_id: string
+  unit_id: string
+  # entry_id for structures; chain_id for chains;
+  # interface_id for interfaces; residue_id for residues.
+
+  granularity: string
+  # structure | chain | interface | residue
 
   reason_code: string
+  # ── Structure-level ────────────────────────────────────────────────
   # UPSTREAM_FAILURE      — input had status "failed" from C01/C02/C03.
   # RESOLUTION_THRESHOLD  — resolution exceeded max_resolution.
   # NULL_RESOLUTION       — resolution is null and null_resolution_behavior
@@ -168,23 +198,28 @@ ExclusionRecord:
   # INCOMPLETE_CHAIN      — chain fails allow_incomplete_chains rule.
   # MISSING_RESIDUES      — missing residues not permitted by policy.
   # MISSING_ATOMS         — missing atoms not permitted by policy.
-  # METHOD_EXCLUDED       — experimental method not in include_experimental_methods
-  #                         or present in exclude_experimental_methods.
-  # SOURCE_EXCLUDED       — source not in include_sources or in exclude_sources.
-  # BIOMOLECULE_EXCLUDED  — biomolecule type not in include_biomolecules.
-  # ORGANISM_EXCLUDED     — organism taxon in exclude_taxa, or not in include_taxa
-  #                         when include_taxa is non-empty.
-  # MISSING_TAXONOMY      — taxonomy metadata unavailable and organism filtering
-  #                         is required.
+  # METHOD_EXCLUDED       — experimental method excluded by policy.
+  # SOURCE_EXCLUDED       — source excluded by policy.
+  # BIOMOLECULE_EXCLUDED  — biomolecule type excluded by policy.
+  # ORGANISM_EXCLUDED     — organism taxon excluded by policy.
+  # MISSING_TAXONOMY      — taxonomy metadata unavailable.
   # DUPLICATE             — removed by deduplication.
+  # ── Chain-level ────────────────────────────────────────────────────
+  # CHAIN_TYPE_EXCLUDED   — chain type not enabled in include_chain_types.
+  # CHAIN_LENGTH_EXCLUDED — chain shorter than chain_extraction_rules.min_chain_length.
+  # ── Interface-level ────────────────────────────────────────────────
+  # MISSING_INTERFACE_ANNOTATIONS — interface annotations not found in
+  #                         derived_annotations. Run pandora.builtin.interfaces
+  #                         plugin in C03 before extracting interfaces.
+  # INTERFACE_TYPE_EXCLUDED       — interface type not enabled in interface_types.
+  # INTERFACE_BELOW_MIN_CONTACTS  — fewer contact residues than min_contact_residues.
+  # INTERFACE_BELOW_MIN_AREA      — interface area below min_interface_area.
+  # ── Residue-level ──────────────────────────────────────────────────
+  # RESIDUE_TYPE_EXCLUDED  — residue type not enabled in include_residue_types.
+  # INCOMPLETE_BACKBONE    — residue excluded due to require_full_backbone: true.
 
   reason_message: string
-  # Human-readable description including the offending value.
-  # e.g. "Resolution 3.2 Å exceeds max_resolution threshold of 2.5 Å"
-
   applied_rule: string | null
-  # The policy field that triggered this exclusion.
-  # e.g. "quality_rules.max_resolution"
 ```
 
 ---
@@ -194,39 +229,23 @@ ExclusionRecord:
 ```yaml
 DeduplicationReport:
   enabled: bool
-
   strategy: string
-  # entry_id   — exact match on entry_id string.
-  # exact_hash — SHA-256 of the serialised CanonicalStructure content.
-
+  # entry_id | exact_hash
   duplicates_found: int
-
   removed_items: list[ExclusionRecord]
-  # All items have reason_code == "DUPLICATE".
-  # reason_message identifies the retained representative entry.
 ```
 
 ---
 
 ## 4.3 AppliedFilterRecord
 
-Records a single filter operation applied during dataset construction,
-including how many structures it removed.
-
 ```yaml
 AppliedFilterRecord:
   filter_name: string
-  # The policy field name. e.g. "max_resolution", "include_taxa"
-
   filter_category: string
-  # quality | selection | content | organism | deduplication
-
+  # quality | selection | content | organism | deduplication | extraction
   filter_value: object
-  # The configured threshold or value, serialised for provenance.
-  # e.g. { max_resolution: 2.5 } or { include_taxa: ["9606"] }
-
   structures_excluded: int
-  # Number of structures removed by this filter alone.
 ```
 
 ---
@@ -236,24 +255,189 @@ AppliedFilterRecord:
 ```yaml
 SelectionSummary:
   applied_filters: list[AppliedFilterRecord]
-  # Ordered list of all filters that were active, including those that
-  # excluded zero structures.
+```
+
+---
+
+## 4.5 ChainRecord
+
+A self-contained chain-level record. One record per polymer chain per
+structure. Embeds all data needed for downstream ML without access to
+the parent structure.
+
+```yaml
+ChainRecord:
+  chain_id: string
+  # Canonical chain_id from the parent CanonicalStructure.
+
+  entry_id: string
+  # Parent PDB entry_id.
+
+  chain_type: string
+  # protein | rna | dna
+
+  entity_id: string
+  # Canonical entity_id of the polymer entity this chain belongs to.
+
+  sequence: string
+  # One-letter canonical amino acid or nucleotide sequence.
+  # Sourced from Entity.sequence in the parent CanonicalStructure.
+
+  chain_length: int
+  # Number of residues in the sequence.
+
+  residues: list[Residue]
+  # All Residue records for this chain from the parent CanonicalStructure.
+
+  metadata:
+    archive_metadata: ArchiveMetadata | null
+    # Inherited from the parent structure (resolution, method, dates, etc.).
+
+    uniprot_mappings: list[UniProtMapping]
+    # Chain-specific UniProt mappings, filtered from the parent
+    # BiologicalMappings by this chain_id.
+
+    sifts_mappings: list[SIFTSMapping]
+    # Chain-specific SIFTS mappings.
+
+    taxonomy: TaxonomyRecord | null
+    # Organism of the source entity for this chain.
+
+  derived_annotations: list[AnnotationLayer]
+  # Annotation layers from the parent structure that apply to this chain.
+  # Layers are filtered by chain_id where applicable.
+
+  parent_entry_id: string
+  # Explicit reference to the parent Dataset entry.
+
+  applied_policy:
+    policy_id: string
+    policy_name: string
+    policy_version: string
+```
+
+---
+
+## 4.6 InterfaceRecord
+
+A self-contained interface-level record representing a physical contact
+between two polymer chains. One record per chain pair per structure.
+
+```yaml
+InterfaceRecord:
+  interface_id: string
+  # Format: "{entry_id}_{chain_id_1}_{chain_id_2}"
+  # chain_id_1 < chain_id_2 lexicographically.
+
+  entry_id: string
+
+  chain_id_1: string
+  chain_id_2: string
+
+  interface_type: string
+  # protein_protein | protein_rna | protein_dna | protein_ligand
+
+  chain_record_1: ChainRecord
+  chain_record_2: ChainRecord
+  # Full ChainRecord for each partner.
+
+  interface_residues_chain_1: list[string]
+  # Residue_ids (canonical) of chain_1 residues in contact with chain_2.
+
+  interface_residues_chain_2: list[string]
+  # Residue_ids (canonical) of chain_2 residues in contact with chain_1.
+
+  contact_count: int
+  # Number of inter-chain residue pairs in contact.
+
+  interface_area: float | null
+  # Buried surface area in Å². null if not computed by the interface plugin.
+
+  source_annotation_layer: AnnotationLayer | null
+  # The AnnotationLayer from pandora.builtin.interfaces that produced
+  # this interface record.
+
+  metadata:
+    archive_metadata: ArchiveMetadata | null
+    # Inherited from the parent structure.
+
+  parent_entry_id: string
+
+  applied_policy:
+    policy_id: string
+    policy_name: string
+    policy_version: string
+```
+
+---
+
+## 4.7 ResidueRecord
+
+A self-contained residue-level record. One record per residue per chain.
+Can be extracted from a structure-level `Dataset` or a `ChainDataset`.
+
+```yaml
+ResidueRecord:
+  residue_id: string
+  # Canonical residue_id from the parent structure.
+
+  entry_id: string
+  chain_id: string
+
+  seq_id: int | null
+  # Canonical sequence number. null for non-polymer residues.
+
+  comp_id: string
+  # Three-letter chemical component code (e.g. "ALA", "GLY").
+
+  residue_type: string
+  # amino_acid | nucleotide | non_standard
+
+  atoms: list[Atom]
+  # All atom records for this residue.
+
+  neighboring_residues: list[NeighborReference] | null
+  # References to residues within context_radius Å.
+  # null when context_radius is not set in extraction policy.
+
+  metadata:
+    archive_metadata: ArchiveMetadata | null
+    # Inherited from the parent structure.
+
+  derived_annotations: list[AnnotationLayer]
+  # Residue-level annotation layers (e.g. secondary structure,
+  # solvent exposure) from the parent structure.
+
+  parent_entry_id: string
+  parent_chain_id: string
+
+  applied_policy:
+    policy_id: string
+    policy_name: string
+    policy_version: string
+
+NeighborReference:
+  residue_id: string
+  chain_id: string
+  distance: float
+  # Distance in Å between Cα atoms (or equivalent for non-standard residues).
 ```
 
 ---
 
 # 5. Output Schemas
 
-## 5.1 Dataset object
+## 5.1 Dataset (structure-level)
 
 ```yaml
 Dataset:
   dataset_id: string
   dataset_name: string
   dataset_version: string
+  granularity: string
+  # Always "structure" for this type.
 
   structures: list[AnnotatedStructureWithPlugins]
-  # Final curated set after all filtering and deduplication.
 
   counts:
     total_input: int
@@ -262,10 +446,7 @@ Dataset:
     total_duplicates_removed: int
 
   selection_summary: SelectionSummary
-
   excluded_items: list[ExclusionRecord]
-  # Every structure that was removed, with reason codes.
-
   deduplication_report: DeduplicationReport
 
   applied_policy:
@@ -279,24 +460,132 @@ Dataset:
 
   provenance:
     created_at: string | null
-    # ISO 8601 timestamp.
-
     source_count: int
-    # Number of unique entry_ids in the input.
-
     input_sources: list[string]
-    # Provider names from input structures.
-    # e.g. ["pdbe", "pdb"]
 ```
 
 ---
 
-## 5.2 Batch dataset construction result
+## 5.2 ChainDataset
+
+```yaml
+ChainDataset:
+  dataset_id: string
+  dataset_name: string
+  dataset_version: string
+  granularity: string
+  # Always "chain" for this type.
+
+  chains: list[ChainRecord]
+
+  source_dataset_id: string
+  # dataset_id of the structure-level Dataset this was extracted from.
+
+  counts:
+    total_structures_input: int
+    total_chains_extracted: int
+    total_chains_excluded: int
+
+  excluded_items: list[ExclusionRecord]
+  # Chains excluded by chain_extraction_rules.
+
+  applied_policy:
+    policy_id: string
+    policy_name: string
+    policy_version: string
+
+  diagnostics:
+    warnings: list[Diagnostic]
+    errors: list[Diagnostic]
+
+  provenance:
+    created_at: string
+    source_dataset_id: string
+```
+
+---
+
+## 5.3 InterfaceDataset
+
+```yaml
+InterfaceDataset:
+  dataset_id: string
+  dataset_name: string
+  dataset_version: string
+  granularity: string
+  # Always "interface" for this type.
+
+  interfaces: list[InterfaceRecord]
+
+  source_dataset_id: string
+
+  counts:
+    total_structures_input: int
+    total_interfaces_extracted: int
+    total_interfaces_excluded: int
+
+  excluded_items: list[ExclusionRecord]
+
+  applied_policy:
+    policy_id: string
+    policy_name: string
+    policy_version: string
+
+  diagnostics:
+    warnings: list[Diagnostic]
+    errors: list[Diagnostic]
+
+  provenance:
+    created_at: string
+    source_dataset_id: string
+```
+
+---
+
+## 5.4 ResidueDataset
+
+```yaml
+ResidueDataset:
+  dataset_id: string
+  dataset_name: string
+  dataset_version: string
+  granularity: string
+  # Always "residue" for this type.
+
+  residues: list[ResidueRecord]
+
+  source_dataset_id: string
+  source_granularity: string
+  # "structure" or "chain" — which level this was extracted from.
+
+  counts:
+    total_source_units_input: int
+    total_residues_extracted: int
+    total_residues_excluded: int
+
+  excluded_items: list[ExclusionRecord]
+
+  applied_policy:
+    policy_id: string
+    policy_name: string
+    policy_version: string
+
+  diagnostics:
+    warnings: list[Diagnostic]
+    errors: list[Diagnostic]
+
+  provenance:
+    created_at: string
+    source_dataset_id: string
+```
+
+---
+
+## 5.5 Batch dataset construction result
 
 ```yaml
 DatasetConstructionBatchResult:
   mode: string
-  # sequential | parallel
 
   summary:
     total: int
@@ -306,13 +595,8 @@ DatasetConstructionBatchResult:
 
   results:
     - dataset_id: string
-
       status: string
-      # success | warning | failed
-
       dataset: Dataset | null
-      # null when status == "failed".
-
       diagnostics:
         warnings: list[Diagnostic]
         errors: list[Diagnostic]
@@ -323,7 +607,7 @@ DatasetConstructionBatchResult:
 # 6. V1 Filter Definitions
 
 This section defines the behaviour contract for each filter type applied
-during dataset construction.
+during structure-level dataset construction.
 
 ## 6.1 Resolution filter
 
@@ -335,9 +619,7 @@ resolution_filter:
     - resolution > max_resolution
     - resolution is null AND null_resolution_behavior == "exclude"
   null_resolution_behavior: string
-  # exclude (default) — structures with null resolution are excluded.
-  #                     Emits NULL_RESOLUTION_EXCLUDED warning.
-  # include           — structures with null resolution are retained.
+  # exclude (default) | include
   notes: >
     NMR and some EM structures have null resolution. The default
     "exclude" behaviour is conservative. Set to "include" to retain
@@ -354,9 +636,6 @@ chain_length_filter:
   checks: minimum polymer chain length across all chains in the structure
   excludes_when:
     - all polymer chains have fewer than min_chain_length residues
-  notes: >
-    A structure is excluded only if ALL polymer chains are shorter than
-    the threshold. Structures with at least one qualifying chain are retained.
 ```
 
 ---
@@ -399,8 +678,8 @@ method_filter:
     - include_experimental_methods is non-empty AND method not in list
     - method is in exclude_experimental_methods
   notes: >
-    If both include and exclude lists are non-empty and a method appears
-    in both, exclusion takes precedence.
+    If both lists are non-empty and a method appears in both,
+    exclusion takes precedence.
 ```
 
 ---
@@ -414,21 +693,12 @@ organism_filter:
     - organism_rules.exclude_taxa
   checks: biological_mappings.taxonomy.ncbi_taxon_id
   taxon_id_format: >
-    NCBI taxon IDs as strings (e.g. "9606" for Homo sapiens,
-    "10090" for Mus musculus). Scientific names are not supported
-    as filter values in V1 to avoid ambiguity.
+    NCBI taxon IDs as strings (e.g. "9606" for Homo sapiens).
+    Matching is ancestry-aware.
   excludes_when:
-    - include_taxa is non-empty AND taxon_id not in include_taxa
-      (and no ancestor taxon_id in include_taxa)
-    - taxon_id in exclude_taxa (or any ancestor taxon_id in exclude_taxa)
-    - taxonomy metadata is unavailable AND either filter list is non-empty
-      (reason_code: MISSING_TAXONOMY)
-  notes: >
-    Taxon matching is ancestry-aware: specifying "9606" (Homo sapiens)
-    also matches any entry whose taxonomy lineage includes 9606.
-    Specify a higher-level taxon ID to match all organisms in that clade.
-    If include_taxa is empty, all organisms are included (subject to
-    exclude_taxa).
+    - include_taxa non-empty AND taxon_id not in lineage
+    - taxon_id in exclude_taxa lineage
+    - taxonomy unavailable AND either filter list is non-empty
 ```
 
 ---
@@ -440,15 +710,7 @@ biomolecule_filter:
   policy_field: selection_rules.include_biomolecules
   checks: entity types in canonical_structure.entities
   excludes_when:
-    - include_biomolecules.proteins: false AND structure has only protein entities
-    - include_biomolecules.rna: false AND structure has only RNA entities
-    - include_biomolecules.dna: false AND structure has only DNA entities
-    - include_biomolecules.complexes: false AND structure has entities of
-      multiple types
-  notes: >
-    A structure is retained if it contains at least one entity type that
-    is enabled in include_biomolecules. All flags false results in an
-    empty dataset (a configuration error).
+    - no entity type in structure matches any enabled biomolecule flag
 ```
 
 ---
@@ -459,60 +721,136 @@ biomolecule_filter:
 content_filters:
   policy_field: content_rules
   behaviour: >
-    Content rules do NOT exclude structures. They control what is retained
-    within each structure's content after the structure has been selected.
+    Content rules do NOT exclude structures. They strip content
+    from retained structures after selection.
   actions:
-    keep_ligands: false     → remove Ligand records where is_water: false,
-                              is_ion: false
-    keep_waters: false      → remove Ligand records where is_water: true
-    keep_ions: false        → remove Ligand records where is_ion: true
+    keep_ligands: false          → remove non-water, non-ion Ligand records
+    keep_waters: false           → remove Ligand records where is_water: true
+    keep_ions: false             → remove Ligand records where is_ion: true
     keep_nonpolymer_entities: false → remove all non-polymer entity content
 ```
 
 ---
 
-# 7. Public Functions
+# 7. V1 Extraction Definitions
 
-## 7.1 `build_dataset()`
+This section defines the behaviour contract for each extraction type
+applied after structure-level curation.
+
+## 7.1 Chain extraction
+
+```yaml
+chain_extraction:
+  input: Dataset (structure-level)
+  output: ChainDataset
+  policy_field: extraction_rules.chain_extraction_rules
+
+  for_each_structure_in_dataset:
+    for_each_chain_in_canonical_structure:
+      if chain.chain_type not in include_chain_types:
+        exclude with CHAIN_TYPE_EXCLUDED
+      if chain_length < min_chain_length:
+        exclude with CHAIN_LENGTH_EXCLUDED
+      else:
+        create ChainRecord:
+          - embed sequence and residues from CanonicalStructure
+          - filter UniProtMapping and SIFTSMapping to this chain_id
+          - inherit archive_metadata and taxonomy from parent structure
+          - filter derived_annotations to layers applicable to this chain
+
+  notes: >
+    Each polymer chain produces one ChainRecord regardless of
+    how many chains share the same entity. A homo-dimer with two
+    chains A and B of the same sequence produces two ChainRecords.
+```
+
+---
+
+## 7.2 Interface extraction
+
+```yaml
+interface_extraction:
+  input: Dataset (structure-level)
+  output: InterfaceDataset
+  policy_field: extraction_rules.interface_extraction_rules
+
+  precondition: >
+    Each structure in the Dataset must have an AnnotationLayer with
+    layer_type == "interface_annotations" in derived_annotations.
+    This requires that pandora.builtin.interfaces was applied in C03.
+    If the annotation is absent, the structure is skipped with
+    MISSING_INTERFACE_ANNOTATIONS.
+
+  for_each_structure_in_dataset:
+    read interface_annotations layer from derived_annotations
+    for_each_interface_in_annotation_layer:
+      determine interface_type from chain entity types
+      if interface_type not in enabled interface_types:
+        exclude with INTERFACE_TYPE_EXCLUDED
+      if contact_count < min_contact_residues:
+        exclude with INTERFACE_BELOW_MIN_CONTACTS
+      if interface_area < min_interface_area (when set):
+        exclude with INTERFACE_BELOW_MIN_AREA
+      else:
+        create InterfaceRecord:
+          - build ChainRecord for each partner chain
+          - embed contact residue lists and geometry
+          - inherit archive_metadata from parent structure
+```
+
+---
+
+## 7.3 Residue extraction
+
+```yaml
+residue_extraction:
+  input: Dataset (structure-level) OR ChainDataset
+  output: ResidueDataset
+  policy_field: extraction_rules.residue_extraction_rules
+
+  for_each_source_unit:
+    for_each_residue_in_unit:
+      determine residue_type from comp_id
+      if residue_type not in include_residue_types:
+        exclude with RESIDUE_TYPE_EXCLUDED
+      if require_full_backbone: true AND backbone atoms incomplete:
+        exclude with INCOMPLETE_BACKBONE
+      else:
+        create ResidueRecord:
+          - embed atoms for this residue
+          - if context_radius is set:
+              find all residues with Cα within context_radius Å
+              populate neighboring_residues as list[NeighborReference]
+          - inherit archive_metadata from parent
+          - filter derived_annotations to residue-level layers
+
+  notes: >
+    Backbone completeness check requires N, CA, C, O atoms all present
+    for amino acid residues.
+```
+
+---
+
+# 8. Public Functions
+
+## 8.1 `build_dataset()`
 
 ### Responsibility
 
-Construct a curated dataset from a collection of annotated structures.
-This is the main orchestrator for Component 04.
+Construct a curated structure-level dataset from annotated structures.
+This is the main orchestrator and must always be run before extraction.
 
 ### Internal Workflow
 
 ```text
-1. Reject upstream failures:
-   Structures with status "failed" from C01/C02/C03 are moved to
-   excluded_items with reason_code UPSTREAM_FAILURE.
-
-2. Apply selection_rules:
-   apply_selection_rules()
-     — filter by source, biomolecule type, experimental method
-
-3. Apply quality_rules:
-   apply_quality_filters()
-     — resolution, chain length, completeness (missing atoms/residues/chains)
-
-4. Apply organism_rules:
-   apply_organism_filters()
-     — include/exclude by NCBI taxon ID
-
-5. Apply content_rules:
-   apply_content_filters()
-     — strip ligands, waters, ions from retained structures per policy
-
-6. Apply deduplication_rules (if enabled):
-   deduplicate_dataset()
-     — entry_id: remove entries with identical entry_id strings
-     — exact_hash: remove entries with identical SHA-256 of CanonicalStructure
-
-7. Validate:
-   validate_dataset()
-
-8. Assemble Dataset with counts, SelectionSummary, ExclusionRecords,
-   DeduplicationReport, and provenance.
+1. Reject upstream failures.
+2. apply_selection_rules()
+3. apply_quality_filters()
+4. apply_organism_filters()
+5. apply_content_filters()
+6. deduplicate_dataset()  (if enabled)
+7. validate_dataset()
+8. Assemble Dataset.
 ```
 
 ### Input Schema
@@ -531,19 +869,119 @@ build_dataset_result:
 
 ---
 
-## 7.2 `filter_dataset()`
+## 8.2 `extract_chain_records()`
 
 ### Responsibility
 
-Apply one or more explicit filter operations to a structure list or existing
-dataset.
+Extract individual polymer chains from a structure-level `Dataset`,
+producing a `ChainDataset`. One `ChainRecord` is created per qualifying
+polymer chain per structure.
+
+### Input Schema
+
+```yaml
+extract_chain_records:
+  dataset: Dataset
+  extraction_rules:
+    include_chain_types:
+      proteins: bool
+      rna: bool
+      dna: bool
+    min_chain_length: int | null
+```
+
+### Output Schema
+
+```yaml
+extract_chain_records_result:
+  chain_dataset: ChainDataset
+```
+
+---
+
+## 8.3 `extract_interface_records()`
+
+### Responsibility
+
+Extract chain-chain interfaces from a structure-level `Dataset`, producing
+an `InterfaceDataset`. Requires that `pandora.builtin.interfaces` was run
+in C03 for every structure in the dataset.
+
+### Input Schema
+
+```yaml
+extract_interface_records:
+  dataset: Dataset
+  extraction_rules:
+    interface_types:
+      protein_protein: bool
+      protein_rna: bool
+      protein_dna: bool
+      protein_ligand: bool
+    min_contact_residues: int | null
+    min_interface_area: float | null
+```
+
+### Output Schema
+
+```yaml
+extract_interface_records_result:
+  interface_dataset: InterfaceDataset
+```
+
+### Notes
+
+Structures without interface annotations are recorded in
+`excluded_items` with reason_code `MISSING_INTERFACE_ANNOTATIONS`
+and skipped. The run does not fail unless all structures are missing
+annotations.
+
+---
+
+## 8.4 `extract_residue_records()`
+
+### Responsibility
+
+Extract individual residues from a structure-level `Dataset` or a
+`ChainDataset`, producing a `ResidueDataset`.
+
+### Input Schema
+
+```yaml
+extract_residue_records:
+  source: Dataset | ChainDataset
+
+  extraction_rules:
+    include_residue_types:
+      standard_amino_acids: bool
+      non_standard: bool
+      nucleotides: bool
+    require_full_backbone: bool
+    context_radius: float | null
+    # Å. Populate neighboring_residues within this radius.
+    # null = no context enrichment.
+```
+
+### Output Schema
+
+```yaml
+extract_residue_records_result:
+  residue_dataset: ResidueDataset
+```
+
+---
+
+## 8.5 `filter_dataset()`
+
+### Responsibility
+
+Apply explicit filter operations to a structure list.
 
 ### Input Schema
 
 ```yaml
 filter_dataset:
   structures: list[AnnotatedStructureWithPlugins]
-
   filters: list[FilterSpec]
 ```
 
@@ -552,11 +990,7 @@ FilterSpec:
   filter_type: string
   # resolution | chain_length | completeness | experimental_method |
   # organism | biomolecule_type | source
-  # See Section 6 for behaviour contracts per filter_type.
-
   parameters: object
-  # Type-specific parameters matching the corresponding policy field.
-  # e.g. { max_resolution: 2.5, null_resolution_behavior: "exclude" }
 ```
 
 ### Output Schema
@@ -565,7 +999,6 @@ FilterSpec:
 filter_dataset_result:
   retained: list[AnnotatedStructureWithPlugins]
   excluded: list[ExclusionRecord]
-
   diagnostics:
     warnings: list[Diagnostic]
     errors: list[Diagnostic]
@@ -573,32 +1006,22 @@ filter_dataset_result:
 
 ---
 
-## 7.3 `deduplicate_dataset()`
+## 8.6 `deduplicate_dataset()`
 
 ### Responsibility
 
-Remove exact duplicate structures according to the deduplication strategy.
-
-Supported strategies are `entry_id` and `exact_hash` only.
-Similarity-based deduplication (sequence identity, structure identity)
-requires pairwise similarity computation and is handled by Component 05.
+Remove exact duplicate structures. Supports `entry_id` and `exact_hash`
+strategies. Similarity-based deduplication belongs to Component 05.
 
 ### Input Schema
 
 ```yaml
 deduplicate_dataset:
   structures: list[AnnotatedStructureWithPlugins]
-
   deduplication_rules:
     enabled: bool
-
     strategy: string
-    # entry_id   — exact match on entry_id string.
-    #              The first occurrence is retained; subsequent duplicates
-    #              are removed.
-    # exact_hash — SHA-256 of the serialised CanonicalStructure content.
-    #              Structurally identical entries are removed regardless of
-    #              entry_id.
+    # entry_id | exact_hash
 ```
 
 ### Output Schema
@@ -611,61 +1034,45 @@ deduplicate_dataset_result:
 
 ---
 
-## 7.4 `validate_dataset()`
+## 8.7 `validate_dataset()`
 
 ### Responsibility
 
-Validate dataset consistency, provenance completeness, and policy compliance.
+Validate dataset consistency, provenance completeness, and policy
+compliance.
 
 ### V1 Validation Rules
 
 ```yaml
 error_rules:
   EMPTY_DATASET:
-    condition: "Dataset.structures is empty after all filtering and deduplication."
+    condition: "Dataset.structures is empty after filtering and deduplication."
     result_status: invalid
-
   ALL_BIOMOLECULES_EXCLUDED:
-    condition: "All include_biomolecules flags are false in the policy."
+    condition: "All include_biomolecules flags are false."
     result_status: invalid
-
   PROVENANCE_INCOMPLETE:
-    condition: "A provenance record_* rule is true but the corresponding
-                field in Dataset.provenance is null."
+    condition: "A record_* flag is true but the corresponding field is null."
     result_status: invalid
 
 warning_rules:
   HIGH_EXCLUSION_RATE:
     condition: "More than 50% of total_input structures were excluded."
     result_status: warning
-
   AGGRESSIVE_DEDUPLICATION:
     condition: "More than 30% of structures were removed by deduplication."
     result_status: warning
-
   EMPTY_SOURCE_CONTRIBUTION:
-    condition: "An entry in include_sources contributed zero structures
-                to the final dataset."
+    condition: "An include_source contributed zero structures."
     result_status: warning
-
   NULL_RESOLUTION_EXCLUDED:
     condition: "max_resolution is set and structures with null resolution
-                were excluded (NMR or EM structures may be affected)."
+                were excluded."
     result_status: warning
-
   MISSING_TAXONOMY_SKIPPED:
     condition: "Organism filtering was active but some structures had no
-                taxonomy metadata and were excluded with MISSING_TAXONOMY."
+                taxonomy metadata."
     result_status: warning
-```
-
-### Status determination
-
-```yaml
-status_rules:
-  failed:  Any error_rule fires.
-  warning: No error_rules fire, but one or more warning_rules fire.
-  valid:   No rules fire.
 ```
 
 ### Input Schema
@@ -682,7 +1089,6 @@ validate_dataset:
 validate_dataset_result:
   validation_status: string
   # valid | warning | invalid
-
   diagnostics:
     warnings: list[Diagnostic]
     errors: list[Diagnostic]
@@ -690,26 +1096,19 @@ validate_dataset_result:
 
 ---
 
-## 7.5 `build_dataset_many()`
+## 8.8 `build_dataset_many()`
 
 ### Responsibility
 
 Construct multiple independent datasets from multiple
 `DatasetConstructionInput` jobs.
 
-Each element in `batches` is an independent job producing one `Dataset`.
-This is not a single large pool of structures — it is N inputs producing
-N datasets.
-
 ### Input Schema
 
 ```yaml
 build_dataset_many:
   batches: list[DatasetConstructionInput]
-
   mode: string
-  # sequential | parallel
-
   parallel_options:
     max_workers: int | null
     fail_fast: bool
@@ -724,13 +1123,9 @@ build_dataset_many_result:
 
 ---
 
-# 8. Internal Helper Functions
+# 9. Internal Helper Functions
 
-## 8.1 `apply_selection_rules()`
-
-### Responsibility
-
-Filter structures by source, biomolecule type, and experimental method.
+## 9.1 `apply_selection_rules()`
 
 ### Input
 
@@ -759,11 +1154,7 @@ apply_selection_rules_result:
 
 ---
 
-## 8.2 `apply_quality_filters()`
-
-### Responsibility
-
-Filter structures by resolution, chain length, and completeness.
+## 9.2 `apply_quality_filters()`
 
 ### Input
 
@@ -789,12 +1180,7 @@ apply_quality_filters_result:
 
 ---
 
-## 8.3 `apply_content_filters()`
-
-### Responsibility
-
-Strip ligand, water, ion, and non-polymer content from retained structures
-according to content rules. Does not exclude whole structures.
+## 9.3 `apply_content_filters()`
 
 ### Input
 
@@ -813,16 +1199,11 @@ apply_content_filters:
 ```yaml
 apply_content_filters_result:
   structures: list[AnnotatedStructureWithPlugins]
-  # Same list length as input; content of individual structures may differ.
 ```
 
 ---
 
-## 8.4 `apply_organism_filters()`
-
-### Responsibility
-
-Filter structures by NCBI taxon ID using inclusion and exclusion lists.
+## 9.4 `apply_organism_filters()`
 
 ### Input
 
@@ -831,9 +1212,7 @@ apply_organism_filters:
   structures: list[AnnotatedStructureWithPlugins]
   organism_rules:
     include_taxa: list[string]
-    # NCBI taxon IDs as strings. Empty list = include all.
     exclude_taxa: list[string]
-    # NCBI taxon IDs as strings. Empty list = exclude none.
 ```
 
 ### Output
@@ -846,12 +1225,7 @@ apply_organism_filters_result:
 
 ---
 
-## 8.5 `summarize_exclusions()`
-
-### Responsibility
-
-Aggregate all `ExclusionRecord` lists from each filter step into a unified
-list and compute per-filter exclusion counts for `SelectionSummary`.
+## 9.5 `summarize_exclusions()`
 
 ### Input
 
@@ -871,12 +1245,7 @@ summarize_exclusions_result:
 
 ---
 
-## 8.6 `build_dataset_provenance()`
-
-### Responsibility
-
-Construct the provenance record for the `Dataset` from input structures
-and applied policy.
+## 9.6 `build_dataset_provenance()`
 
 ### Input
 
@@ -892,36 +1261,110 @@ build_dataset_provenance:
 build_dataset_provenance_result:
   provenance:
     created_at: string
-    # ISO 8601 timestamp.
     source_count: int
     input_sources: list[string]
 ```
 
 ---
 
-# 9. Dataset Unit
+## 9.7 `extract_chain_from_structure()`
 
-## V1 Dataset Unit
+Internal helper used by `extract_chain_records()`. Extracts one
+`ChainRecord` from one structure for a given chain_id.
+
+### Input
 
 ```yaml
-dataset_unit:
-  AnnotatedStructureWithPlugins
+extract_chain_from_structure:
+  structure: AnnotatedStructureWithPlugins
+  chain_id: string
+  policy: DatasetCurationPolicy
 ```
 
-The initial dataset abstraction is structure-based.
+### Output
 
-Future downstream components may generate:
-
-* chain-level datasets,
-* interface-level datasets,
-* residue-level datasets,
-* task-specific datasets.
+```yaml
+extract_chain_from_structure_result:
+  chain_record: ChainRecord | null
+  # null if the chain is excluded by extraction_rules.
+  exclusion: ExclusionRecord | null
+```
 
 ---
 
-# 10. Policy Schema
+## 9.8 `extract_interfaces_from_structure()`
 
-## 10.1 DatasetCurationPolicy
+Internal helper used by `extract_interface_records()`. Extracts all
+qualifying `InterfaceRecord` objects from one structure.
+
+### Input
+
+```yaml
+extract_interfaces_from_structure:
+  structure: AnnotatedStructureWithPlugins
+  extraction_rules: object
+  # interface_extraction_rules sub-schema
+```
+
+### Output
+
+```yaml
+extract_interfaces_from_structure_result:
+  interface_records: list[InterfaceRecord]
+  excluded: list[ExclusionRecord]
+```
+
+---
+
+## 9.9 `extract_residues_from_chain()`
+
+Internal helper used by `extract_residue_records()`. Extracts all
+qualifying `ResidueRecord` objects from one `ChainRecord`.
+
+### Input
+
+```yaml
+extract_residues_from_chain:
+  chain_record: ChainRecord
+  extraction_rules: object
+  # residue_extraction_rules sub-schema
+```
+
+### Output
+
+```yaml
+extract_residues_from_chain_result:
+  residue_records: list[ResidueRecord]
+  excluded: list[ExclusionRecord]
+```
+
+---
+
+# 10. Dataset Units
+
+| Granularity | Type | Unit | Primary use cases |
+|-------------|------|------|-------------------|
+| Structure | `Dataset` | `AnnotatedStructureWithPlugins` | Fold classification, global quality, structure-based drug design |
+| Chain | `ChainDataset` | `ChainRecord` | Sequence models, secondary structure, homology detection, LM pre-training |
+| Interface | `InterfaceDataset` | `InterfaceRecord` | PPI prediction, binding affinity, antibody-antigen, docking benchmarks |
+| Residue | `ResidueDataset` | `ResidueRecord` | Binding site prediction, mutation effects, contact maps, solvent exposure |
+
+Extraction hierarchy:
+
+```text
+Dataset
+  └── extract_chain_records()    → ChainDataset
+        └── extract_residue_records() → ResidueDataset
+  └── extract_interface_records() → InterfaceDataset
+        └── (residues can be accessed via chain_record_1/chain_record_2)
+  └── extract_residue_records()  → ResidueDataset (direct from structures)
+```
+
+---
+
+# 11. Policy Schema
+
+## 11.1 DatasetCurationPolicy
 
 ```yaml
 DatasetCurationPolicy:
@@ -932,35 +1375,20 @@ DatasetCurationPolicy:
 
   selection_rules:
     include_sources: list[string]
-    # e.g. ["pdbe", "pdb"]. Empty list = include all sources.
-
     exclude_sources: list[string]
-    # e.g. []. Empty list = exclude no sources.
-
     include_biomolecules:
       proteins: bool
       rna: bool
       dna: bool
       complexes: bool
-
     include_experimental_methods: list[string]
-    # Valid values defined in Section 6.4.
-    # Empty list = include all methods.
-
     exclude_experimental_methods: list[string]
-    # Empty list = exclude no methods.
 
   quality_rules:
     max_resolution: float | null
-    # null = no resolution filter applied.
-
     null_resolution_behavior: string
     # exclude (default) | include
-    # Behaviour when max_resolution is set and a structure has null resolution.
-
     min_chain_length: int | null
-    # null = no chain length filter applied.
-
     allow_incomplete_chains: bool
     allow_missing_residues: bool
     allow_missing_atoms: bool
@@ -973,21 +1401,51 @@ DatasetCurationPolicy:
 
   organism_rules:
     include_taxa: list[string]
-    # NCBI taxon IDs as strings. Empty list = include all organisms.
     exclude_taxa: list[string]
-    # NCBI taxon IDs as strings. Empty list = exclude no organisms.
 
   deduplication_rules:
     enabled: bool
-
     strategy: string
-    # entry_id   — remove entries with identical entry_id.
-    # exact_hash — remove entries with identical CanonicalStructure content
-    #              (SHA-256 hash).
-    #
-    # Note: similarity-based deduplication (sequence_identity,
-    # structure_identity) is NOT supported here. It requires pairwise
-    # similarity computation and is handled by Component 05.
+    # entry_id | exact_hash
+
+  extraction_rules:
+    granularity: string
+    # structure  — no extraction; Dataset is the final output (default).
+    # chain      — run extract_chain_records() after build_dataset().
+    # interface  — run extract_interface_records() after build_dataset().
+    # residue    — run extract_residue_records() after build_dataset().
+    #              Set source_granularity to "structure" or "chain".
+
+    chain_extraction_rules:
+      include_chain_types:
+        proteins: bool
+        rna: bool
+        dna: bool
+      min_chain_length: int | null
+      # Overrides quality_rules.min_chain_length at chain level when set.
+
+    interface_extraction_rules:
+      interface_types:
+        protein_protein: bool
+        protein_rna: bool
+        protein_dna: bool
+        protein_ligand: bool
+      min_contact_residues: int | null
+      min_interface_area: float | null
+      # Å². null = no minimum area filter.
+
+    residue_extraction_rules:
+      source_granularity: string
+      # structure — extract directly from structures in Dataset.
+      # chain     — extract from ChainDataset (requires chain extraction first).
+      include_residue_types:
+        standard_amino_acids: bool
+        non_standard: bool
+        nucleotides: bool
+      require_full_backbone: bool
+      # If true, exclude residues missing any backbone atom (N, CA, C, O).
+      context_radius: float | null
+      # Å. Populate ResidueRecord.neighboring_residues within this radius.
 
   provenance_rules:
     record_filters: bool
@@ -998,9 +1456,10 @@ DatasetCurationPolicy:
 
 ---
 
-# 11. Non-Responsibilities
+# 12. Non-Responsibilities
 
-Component 04 is not responsible for:
+```yaml
+not_responsible_for:
   - train_test_splitting
   - leakage_safe_partitioning
   - similarity_clustering
@@ -1010,9 +1469,15 @@ Component 04 is not responsible for:
   - graph_generation
   - embeddings
   - task_specific_labels
+  - interface_geometry_computation   # computed by pandora.builtin.interfaces in C03
+```
 
 ---
 
-# 12. Component Definition
+# 13. Component Definition
 
-The Dataset Construction & Curation Layer transforms collections of annotated structures into reproducible curated datasets using explicit curation policies and provenance-aware filtering operations.
+The Dataset Construction & Curation Layer transforms collections of
+annotated structures into reproducible curated datasets using explicit
+curation policies and provenance-aware filtering operations. It supports
+four granularity levels — structure, chain, interface, and residue — each
+producing a self-contained typed dataset suitable for downstream ML tasks.

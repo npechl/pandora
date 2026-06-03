@@ -29,7 +29,7 @@ MmCIFIngestionResult
   → CanonicalStructureResult
   → MetadataAnnotatedStructure
   → AnnotatedStructureWithPlugins
-  → Dataset
+  → PandoraDataset (Dataset | ChainDataset | InterfaceDataset | ResidueDataset)
   → LeakageSafeDataset
   → PandoraArtifact
 ```
@@ -221,6 +221,9 @@ PipelineCurationProvenance:
   curation_policy_id: string
   curation_policy_name: string
   curation_policy_version: string
+  granularity: string
+  # Granularity of items in the curated dataset.
+  # Values: structure | chain | interface | residue
   total_input: int
   total_selected: int
   total_excluded: int
@@ -322,7 +325,11 @@ PandoraManifest:
   dataset_summary:
     dataset_id: string
     dataset_version: string
-    total_structures: int
+    granularity: string
+    # Values: structure | chain | interface | residue
+    total_items: int
+    # Number of items in the leakage-safe dataset. Item type is
+    # determined by granularity (structures, chains, interfaces, or residues).
     train_count: int
     validation_count: int
     test_count: int
@@ -447,11 +454,17 @@ ReproducibilityReport:
   lineage: list[string]
   # Ordered list of human-readable pipeline step summaries.
   # Format: "{step_number} {step_name}: {brief description}"
-  # e.g. ["01 ingestion: 150 structures from pdbe",
-  #        "02 canonicalization: 150 structures (policy: default_v1)",
-  #        "03 metadata: pdbe, sifts, uniprot retrieved",
-  #        "04 curation: 120 selected, 30 excluded",
-  #        "05 splitting: train=84, val=18, test=18 (leakage: clean)"]
+  # e.g. structure-level:
+  #   ["01 ingestion: 150 structures from pdbe",
+  #    "02 canonicalization: 150 structures (policy: default_v1)",
+  #    "03 metadata: pdbe, sifts, uniprot retrieved",
+  #    "04 curation (structure): 120 selected, 30 excluded",
+  #    "05 splitting: train=84, val=18, test=18 (leakage: clean)"]
+  #
+  # e.g. chain-level:
+  #   ["04 curation (chain): 847 chains selected, 23 excluded",
+  #    "05 splitting: train=593, val=127, test=127 (leakage: clean)"]
+  # Note: steps 01–03 will be null when source is a ChainDataset.
 
   reproducibility_risks: list[Diagnostic]
   # Warnings about missing provenance fields or reproducibility weaknesses.
@@ -502,18 +515,30 @@ pipeline stages by traversing the `LeakageSafeDataset` object hierarchy.
 ```text
 1. Extract pipeline provenance:
    aggregate_pipeline_provenance(leakage_safe_dataset, provenance_policy)
-   Traversal path per stage:
-     ingestion:     leakage_safe_dataset
-                    .source_dataset.structures[*]
-                    .canonical_structure_result.provenance
-     canonicalization: .canonical_structure_result.applied_policy
-                       .canonical_structure_result.provenance.canonicalized_at
-     metadata:      .metadata_annotations.provenance_metadata.sources
-     annotation:    .applied_plugins + .derived_annotations[*].plugin_id
-     curation:      leakage_safe_dataset.source_dataset
-                    (.applied_policy, .selection_summary, .deduplication_report)
-     splitting:     leakage_safe_dataset
-                    (.applied_policy, .partition_summary, .provenance)
+
+   When source_dataset.granularity == "structure":
+     ingestion:        source_dataset.structures[*]
+                       .canonical_structure_result.provenance
+     canonicalization: source_dataset.structures[*]
+                       .canonical_structure_result.applied_policy
+                       and .provenance.canonicalized_at
+     metadata:         source_dataset.structures[*]
+                       .metadata_annotations.provenance_metadata.sources
+     annotation:       source_dataset.structures[*]
+                       .applied_plugins + .derived_annotations[*].plugin_id
+
+   When source_dataset.granularity in ("chain", "interface", "residue"):
+     ingestion, canonicalization, metadata, annotation:
+       null — recorded as null with UPSTREAM_PROVENANCE_NOT_EMBEDDED warning.
+       ChainDataset/InterfaceDataset/ResidueDataset do not embed the upstream
+       AnnotatedStructureWithPlugins objects; only the extracted_from_dataset_id
+       reference is available.
+
+   For all granularities:
+     curation:   source_dataset
+                 (.applied_policy, .selection_summary, .deduplication_report)
+     splitting:  leakage_safe_dataset
+                 (.applied_policy, .partition_summary, .provenance)
 
 2. Aggregate source releases (if record_source_releases: true):
    aggregate_source_releases(leakage_safe_dataset)
@@ -607,9 +632,11 @@ serialization:
            before hashing.
 
   split_checksum:
-    input: JSON array of three sorted lists of entry_id strings:
+    input: JSON array of three sorted lists of item identifier strings:
            [sorted(train), sorted(validation), sorted(test)]
            serialised with sorted keys and no whitespace.
+           # Identifier format is granularity-dependent:
+           # entry_id for structure, "{entry_id}_{chain_id}" for chain, etc.
 
 output_format: lowercase hex string (64 characters for SHA-256).
 ```
@@ -906,6 +933,14 @@ warning_rules:
   PARTIAL_METADATA_SOURCES:
     condition: "Not all requested metadata sources have status 'success'."
     message: "One or more metadata sources had partial or failed retrieval."
+
+  UPSTREAM_PROVENANCE_NOT_EMBEDDED:
+    condition: "source_dataset.granularity != 'structure' AND
+                provenance_policy.record_execution_timestamps: true."
+    message: "Chain/interface/residue datasets do not embed upstream
+              AnnotatedStructureWithPlugins objects. Ingestion, canonicalization,
+              metadata, and annotation provenance fields will be null. Only
+              curation and splitting provenance are available at this granularity."
 ```
 
 ---

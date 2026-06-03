@@ -23,7 +23,7 @@ the dataset itself. It operates on the output of Component 4.
 # 1. Architectural Role
 
 ```text
-Dataset
+PandoraDataset (Dataset | ChainDataset | InterfaceDataset | ResidueDataset)
   → SimilarityRelationship
   → SimilarityNetwork
   → SimilarityClusters
@@ -79,11 +79,30 @@ All artifacts are inspectable and reproducible.
 
 # 3. Input Schemas
 
+## 3.0 PandoraDataset — Union Type
+
+Component 05 accepts any dataset produced by Component 04, regardless of
+granularity level.
+
+```yaml
+PandoraDataset:
+  # Dataset | ChainDataset | InterfaceDataset | ResidueDataset
+  # Discriminated by the granularity field:
+  #   Dataset:           granularity = "structure"
+  #   ChainDataset:      granularity = "chain"
+  #   InterfaceDataset:  granularity = "interface"
+  #   ResidueDataset:    granularity = "residue"
+  # All four types share: dataset_id, dataset_version,
+  # applied_policy, provenance, and granularity.
+```
+
+---
+
 ## 3.1 Leakage analysis input
 
 ```yaml
 LeakageAnalysisInput:
-  dataset: Dataset
+  dataset: PandoraDataset
 
   leakage_policy: LeakagePolicy
   # See Section 8 for the full policy schema and strategy definitions.
@@ -96,7 +115,7 @@ LeakageAnalysisInput:
 ```yaml
 LeakageAnalysisBatchInput:
   datasets:
-    - Dataset
+    - PandoraDataset
   # Each element is an independent splitting job producing one
   # LeakageSafeDataset.
 
@@ -127,12 +146,15 @@ A single pairwise similarity record between two structures.
 ```yaml
 SimilarityRelationship:
   source_id: string
-  # entry_id of the first structure.
-
-  target_id: string
-  # entry_id of the second structure.
+  # Item identifier of the first item. Format depends on granularity:
+  #   structure:  entry_id (e.g. "1abc")
+  #   chain:      "{entry_id}_{chain_id}" (e.g. "1abc_A")
+  #   interface:  "{entry_id}_{chain_id_1}_{chain_id_2}" (e.g. "1abc_A_B")
   # source_id and target_id are always ordered lexicographically
   # (source_id < target_id) to avoid duplicate pairs.
+
+  target_id: string
+  # Item identifier of the second item. Same format as source_id.
 
   similarity_type: string
   # sequence_similarity | structure_similarity | custom
@@ -185,7 +207,9 @@ SimilarityNetwork:
   # The threshold is applied when constructing edges (see below).
 
   nodes: list[string]
-  # All entry_ids in the source dataset, including isolates (no edges).
+  # All item identifiers in the source dataset, including isolates (no edges).
+  # Format matches the SimilarityRelationship identifier format for the
+  # dataset's granularity.
 
   edges: list[SimilarityEdge]
   # Relationships with score >= policy threshold that form graph edges.
@@ -245,7 +269,9 @@ Cluster:
   cluster_id: string
 
   members: list[string]
-  # entry_ids of all structures in this cluster.
+  # Item identifiers of all items in this cluster.
+  # Format matches the SimilarityRelationship identifier format for the
+  # dataset's granularity.
 
   cluster_size: int
 
@@ -266,10 +292,17 @@ LeakageSafeDataset:
   dataset_name: string
   dataset_version: string
 
-  source_dataset: Dataset
-  # The full curated Dataset from Component 4.
-  # Use source_dataset.structures filtered by entry_id to retrieve the
-  # AnnotatedStructureWithPlugins for any entry in a partition.
+  granularity: string
+  # Granularity of items in the partition lists.
+  # Values: structure | chain | interface | residue
+  # Matches source_dataset.granularity.
+
+  source_dataset: PandoraDataset
+  # The curated dataset from Component 4. Retrieve items by identifier:
+  #   Dataset:           source_dataset.structures filtered by entry_id
+  #   ChainDataset:      source_dataset.chains filtered by chain_id
+  #   InterfaceDataset:  source_dataset.interfaces filtered by interface_id
+  #   ResidueDataset:    source_dataset.residues filtered by residue_id
 
   similarity_network: SimilarityNetwork
   similarity_clusters: SimilarityClusters
@@ -278,9 +311,12 @@ LeakageSafeDataset:
     train: list[string]
     validation: list[string]
     test: list[string]
-    # All lists contain entry_id strings.
-    # To retrieve structures: look up each entry_id in
-    # source_dataset.structures.
+    # All lists contain item identifier strings.
+    # Format depends on granularity:
+    #   structure:  entry_id (e.g. "1abc")
+    #   chain:      "{entry_id}_{chain_id}" (e.g. "1abc_A")
+    #   interface:  "{entry_id}_{chain_id_1}_{chain_id_2}" (e.g. "1abc_A_B")
+    # To retrieve items: look up each identifier in source_dataset.
 
   partition_summary:
     train_count: int
@@ -388,7 +424,7 @@ return merged list of SimilarityRelationship records
 
 ```yaml
 compute_similarity_relationships:
-  dataset: Dataset
+  dataset: PandoraDataset
   leakage_policy: LeakagePolicy
 ```
 
@@ -516,7 +552,7 @@ UNBALANCED_PARTITION_WARNING if deviation > 5%.
 
 ```yaml
 partition_dataset:
-  dataset: Dataset
+  dataset: PandoraDataset
   clusters: SimilarityClusters
   leakage_policy: LeakagePolicy
 ```
@@ -712,7 +748,11 @@ its output to `SimilarityRelationship` records.
 
 ```yaml
 run_sequence_similarity_engine:
-  dataset: Dataset
+  dataset: PandoraDataset
+  # Sequence extraction per granularity:
+  #   Dataset:      representative chain sequences from AnnotatedStructureWithPlugins
+  #   ChainDataset: ChainRecord.sequence fed directly to MMseqs2
+  # InterfaceDataset/ResidueDataset: use structure_similarity instead.
   sequence_similarity_rules:
     engine: string
     threshold: float | null
@@ -743,7 +783,12 @@ its output to `SimilarityRelationship` records.
 
 ```yaml
 run_structure_similarity_engine:
-  dataset: Dataset
+  dataset: PandoraDataset
+  # Coordinate extraction per granularity:
+  #   Dataset:           all-atom coordinates from AnnotatedStructureWithPlugins
+  #   ChainDataset:      per-chain backbone coordinates from ChainRecord.residues
+  #   InterfaceDataset:  interface partner coordinates from InterfaceRecord
+  # ResidueDataset: structure_similarity not supported in V1.
   structure_similarity_rules:
     engine: string
     threshold: float | null
@@ -869,7 +914,7 @@ Construct the provenance record for the `LeakageSafeDataset`.
 
 ```yaml
 record_split_provenance:
-  dataset: Dataset
+  dataset: PandoraDataset
   policy: LeakagePolicy
   engine_versions: list[string]
 ```
@@ -902,6 +947,17 @@ supported_similarity_types:
     score_metric: TM-score
     score_range: [0.0, 1.0]
 ```
+
+## Recommended similarity type per granularity
+
+| Granularity | Recommended similarity | Engine | Notes |
+|-------------|----------------------|--------|-------|
+| structure | sequence_similarity | MMseqs2 | Fast; representative chain sequence per entry |
+| structure | structure_similarity | Foldseek | Use when fold-level leakage matters |
+| chain | sequence_similarity | MMseqs2 | Primary use case; `ChainRecord.sequence` fed directly |
+| chain | structure_similarity | Foldseek | Optional; use for fold-level cluster separation |
+| interface | structure_similarity | Foldseek | Interface geometry comparison |
+| residue | — | — | Not recommended in V1; inherit splits from chain level |
 
 ## Future support
 
