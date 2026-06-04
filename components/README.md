@@ -1,4 +1,4 @@
-# Pandora — Architecture Diagram
+# Architecture Diagram
 
 ```mermaid
 flowchart TD
