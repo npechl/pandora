@@ -3,12 +3,18 @@ from __future__ import annotations
 
 import typer
 
-from pandora.cli import c01
+from pandora.cli.c01 import ingest
 
 app = typer.Typer(
     name="pandora",
-    help="Pandora — AI-ready structural biology dataset pipeline.",
+    help="A toolkit for building AI-ready structural biology datasets.",
     no_args_is_help=True,
 )
 
-app.add_typer(c01.app, name="c01")
+
+@app.callback()
+def _root() -> None:  # noqa: D401 — prevents Typer from collapsing a single command into the root
+    """A toolkit for building AI-ready structural biology datasets."""
+
+
+app.command("ingest")(ingest)
