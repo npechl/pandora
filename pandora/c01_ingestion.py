@@ -42,7 +42,7 @@ _METALS: frozenset[str] = frozenset({
 })
 
 _PROVIDER_URLS: dict[str, str] = {
-    "pdbe": "https://www.ebi.ac.uk/pdbe/entry-files/download/{id}.cif",
+    "pdbe": "https://www.ebi.ac.uk/pdbe/entry-files/download/{id}_updated.cif",
     "pdb":  "https://files.rcsb.org/download/{id}.cif",
 }
 
