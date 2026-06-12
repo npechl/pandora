@@ -970,7 +970,95 @@ list of MmCIFIngestionInput
 
 ---
 
-# 9. Non-Responsibilities
+# 9. External Data Adapters
+
+Pandora is a library — every function is independently callable. Users who
+have already parsed protein structures from other tools do not need to go
+through `fetch_mmCIF()` or `parse_mmCIF()`. The adapter functions below
+convert external data into the `ParsedStructure` schema so that callers can
+enter the library at Component 02 (canonicalization) or later.
+
+## 9.1 `from_raw_bytes()`
+
+### Responsibility
+
+Wrap pre-loaded mmCIF bytes into the `ingest_mmCIF()` workflow, bypassing
+the fetch step. Equivalent to passing `raw_content` directly to
+`ingest_mmCIF()`.
+
+### Input Schema
+
+```yaml
+from_raw_bytes:
+  entry_id: string
+  raw_bytes: bytes
+  # mmCIF content as raw bytes (gzip or plain).
+  decompress: bool
+  # If true, decompress gzip bytes before parsing.
+  provider: string
+  # pdbe | pdb | local | custom
+  # Used for provenance only; no fetch occurs.
+```
+
+### Output Schema
+
+```yaml
+from_raw_bytes_result:
+  result: MmCIFIngestionResult
+```
+
+---
+
+## 9.2 `from_parsed_structure()`
+
+### Responsibility
+
+Wrap an externally produced `ParsedStructure` object (e.g. built from
+BioPython, MDAnalysis, or a custom parser) into a `MmCIFIngestionResult`
+so it can be passed directly to `canonicalize_structure()` (C02) or later.
+
+The resulting `MmCIFIngestionResult` has `status="success"`,
+`provenance.provider="external"`, and `provenance.from_cache=false`.
+No fetch or parse steps are performed.
+
+Callers are responsible for ensuring their `ParsedStructure` conforms to
+the schemas defined in Section 2.
+
+### Input Schema
+
+```yaml
+from_parsed_structure:
+  entry_id: string
+  parsed_structure: ParsedStructure
+  provider: string
+  # "external" or any informational label. Used for provenance only.
+  source_uri: string | null
+  # Optional informational URI for provenance tracking.
+```
+
+### Output Schema
+
+```yaml
+from_parsed_structure_result:
+  result: MmCIFIngestionResult
+  # status == "success"
+  # parsed_structure == the provided ParsedStructure
+  # diagnostics == empty DiagnosticBundle
+  # provenance.provider == provider
+  # provenance.from_cache == false
+  # provenance.retrieved_at == null
+```
+
+### Notes
+
+This adapter intentionally skips `validate_mmCIF()`. Callers who want
+validation applied to their external structure can call
+`validate_mmCIF(parsed_structure)` directly before or after using this
+adapter.
+
+---
+
+# 10. Non-Responsibilities
 
 Component 01 is not responsible for:
   - canonicalization
@@ -987,6 +1075,6 @@ Component 01 is not responsible for:
 
 ---
 
-# 10. Component Definition
+# 11. Component Definition
 
-The mmCIF Ingestion Layer converts raw PDBe/PDB mmCIF files into parsed structural records with diagnostics and provenance.
+The mmCIF Ingestion Layer converts raw PDBe/PDB mmCIF files into parsed structural records with diagnostics and provenance. It also exposes adapter functions that allow externally parsed structures to enter the library at any downstream stage without going through the fetch and parse steps.
