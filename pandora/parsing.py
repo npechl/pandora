@@ -1,7 +1,3 @@
-
-
-
-
 import gemmi
 
 from pandora.schemas.common import Diagnostic, DiagnosticBundle, ResultStatus
@@ -206,9 +202,7 @@ _ENTITY_TYPE_MAP = {
 #         "warning" if diag.warnings else "success",
 #     )
 
-
-# ── mmcif_to_structure helpers ───────────────────────────────────────────────
-
+# mmcif_to_structure helpers --------------------------------------------
 _NULL_CIF  = frozenset({".", "?"})
 _SKIP_RAW  = frozenset({"_atom_site", "_atom_site_anisou"})
 
@@ -253,11 +247,10 @@ def _extract_raw(block: object) -> dict[str, list[dict[str, str | None]]]:
     return raw
 
 
-# ── mmcif_to_structure ───────────────────────────────────────────────────────
-
+# mmcif_to_structure ----------------------------------
 def mmcif_to_structure(
     path_to_mmcif: str,
-    entry_id: str = "",
+    # entry_id: str = "",
     model_num: int = 1,
 ) -> tuple[Structure | None, DiagnosticBundle, ResultStatus]:
     """Convert raw mmCIF text to a Structure (mmCIF data model)."""
@@ -266,8 +259,8 @@ def mmcif_to_structure(
     if not path_to_mmcif.strip():
         diag.errors.append(Diagnostic(
             code="EMPTY_CONTENT", severity="error",
-            message="mmCIF content is empty",
-            entry_id=entry_id or None,
+            message="mmCIF content is empty"
+            # entry_id=entry_id or None,
         ))
         return None, diag, "failed"
     
@@ -276,7 +269,8 @@ def mmcif_to_structure(
     except Exception as exc:
         diag.errors.append(Diagnostic(
             code="PARSE_ERROR", severity="error",
-            message=str(exc), entry_id=entry_id or None,
+            message=str(exc)
+            # entry_id=entry_id or None,
         ))
         return None, diag, "failed"
 
@@ -286,21 +280,22 @@ def mmcif_to_structure(
     except Exception as exc:
         diag.errors.append(Diagnostic(
             code="CIF_PARSE_ERROR", severity="error",
-            message=str(exc), entry_id=entry_id or None,
+            message=str(exc)
+            # entry_id=entry_id or None,
         ))
         return None, diag, "failed"
 
     if len(st) == 0:
         diag.errors.append(Diagnostic(
             code="NO_MODEL", severity="error",
-            message="Structure contains no models",
-            entry_id=entry_id or None,
+            message="Structure contains no models"
+            # entry_id=entry_id or None,
         ))
         return None, diag, "failed"
 
-    eid = entry_id or st.name
+    eid = st.name
 
-    # ── Select model ─────────────────────────────────────────────────────────
+    # Select model --------------------------
     model = next((m for m in st if m.num == model_num), None)
     if model is None:
         model = st[0]
@@ -310,21 +305,21 @@ def mmcif_to_structure(
             entry_id=eid,
         ))
 
-    # ── Entry ─────────────────────────────────────────────────────────────────
+    # Entry ------------------------------------------
     raw_title = block.find_value("_struct.title")
     entry = EntryRecord(
         id=eid,
         title=_cs(raw_title) if raw_title else None,
     )
 
-    # ── Subchain to entity lookup ──────────────────────────────────────────────
+    # Subchain to entity lookup -----------------------
     subchain_to_entity: dict[str, str] = {
         sc: ent.name
         for ent in st.entities
         for sc in ent.subchains
     }
 
-    # ── Entity metadata from cif ──────────────────────────────────────────────
+    # Entity metadata from cif ------------------------------
     entity_desc_map: dict[str, tuple[str | None, float | None, str | None]] = {}
     try:
         for row in block.find("_entity.", ["id", "pdbx_description", "formula_weight", "src_method"]):
@@ -360,7 +355,7 @@ def mmcif_to_structure(
             poly=entity_poly_map.get(ent.name),
         ))
 
-    # ── Atoms + asym tracking ─────────────────────────────────────────────────
+    # Atoms + asym tracking ----------------------------------------------
     asym_auth_map: dict[str, str] = {}   # label_asym_id → auth_asym_id
     atoms_out: list[AtomSiteRecord] = []
     _serial = 0
@@ -414,7 +409,7 @@ def mmcif_to_structure(
             message="No atoms found in structure", entry_id=eid,
         ))
 
-    # ── Asym units ────────────────────────────────────────────────────────────
+    # Asym units ------------------------------------------------
     seen_asyms: set[str] = set()
     asym_units: list[AsymRecord] = []
     for ent in st.entities:
@@ -427,7 +422,7 @@ def mmcif_to_structure(
                     auth_id=asym_auth_map.get(sc),
                 ))
 
-    # ── Connections ───────────────────────────────────────────────────────────
+    # Connections -------------------------------------------
     connections_out: list[ConnRecord] = []
     try:
         for row in block.find("_struct_conn.", [
@@ -469,7 +464,7 @@ def mmcif_to_structure(
     except Exception:
         pass
 
-    # ── Assemblies ────────────────────────────────────────────────────────────
+    # Assemblies ------------------------------------
     asm_meta: dict[str, dict] = {}
     try:
         for row in block.find("_pdbx_struct_assembly.", [
@@ -519,7 +514,7 @@ def mmcif_to_structure(
             operators=operators,
         ))
 
-    # ── Secondary structure ───────────────────────────────────────────────────
+    # Secondary structure --------------------------------
     conf_records: list[ConfRecord] = []
     try:
         for row in block.find("_struct_conf.", [
