@@ -3,13 +3,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from pandora.schemas.c04_curation import (
+from archive.schemas.c04_curation import (
     ChainDataset,
     Dataset,
     InterfaceDataset,
     ResidueDataset,
 )
-from pandora.schemas.c05_splitting import (
+from archive.schemas.c05_splitting import (
     Cluster,
     ClusteringSummary,
     GraphStatistics,

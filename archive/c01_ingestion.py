@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import gemmi
 import httpx
 
-from pandora.schemas.c01_ingestion import (
+from archive.schemas.c01_ingestion import (
     Assembly,
     AssemblyGen,
     Atom,

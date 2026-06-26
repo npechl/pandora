@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from pandora.schemas.c01_ingestion import MmCIFIngestionResult, ParallelOptions
-from pandora.schemas.c02_canonicalization import (
+from archive.schemas.c01_ingestion import MmCIFIngestionResult, ParallelOptions
+from archive.schemas.c02_canonicalization import (
     AltlocSelectionMapping,
     AssemblyMapping,
     CanonicalizationBatchResult,

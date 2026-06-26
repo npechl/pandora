@@ -5,8 +5,8 @@ import uuid
 from datetime import datetime, timezone
 
 import pandora
-from pandora.schemas.c05_splitting import LeakageSafeDataset
-from pandora.schemas.c06_provenance import (
+from archive.schemas.c05_splitting import LeakageSafeDataset
+from archive.schemas.c06_provenance import (
     ArtifactChecksums,
     ArtifactProvenance,
     DatasetSummary,

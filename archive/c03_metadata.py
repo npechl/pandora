@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from pandora.schemas.c02_canonicalization import CanonicalStructureResult
-from pandora.schemas.c03_metadata import (
+from archive.schemas.c02_canonicalization import CanonicalStructureResult
+from archive.schemas.c03_metadata import (
     AnnotatedStructureProvenance,
     AnnotatedStructureWithPlugins,
     AnnotationPluginPolicy,
