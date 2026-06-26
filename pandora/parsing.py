@@ -15,7 +15,7 @@ from pandora.schemas.structure import (
     EntryRecord,
     SheetStrandRecord,
     SSRecord,
-    Structure,
+    Structure
 )
 
 _ENTITY_TYPE_MAP = {
