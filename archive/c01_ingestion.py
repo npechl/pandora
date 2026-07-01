@@ -1,11 +1,11 @@
 """Component 01 — mmCIF Ingestion: public functions."""
+
 from __future__ import annotations
 
 import gzip
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import gemmi
 import httpx
@@ -31,28 +31,82 @@ from pandora.schemas.common import Diagnostic, DiagnosticBundle
 
 
 # Metals for simple is_ion detection (single-atom residue whose element is a metal)
-_METALS: frozenset[str] = frozenset({
-    "LI", "NA", "K", "RB", "CS", "BE", "MG", "CA", "SR", "BA",
-    "SC", "TI", "V", "CR", "MN", "FE", "CO", "NI", "CU", "ZN",
-    "Y", "ZR", "NB", "MO", "RU", "RH", "PD", "AG", "CD",
-    "HF", "TA", "W", "RE", "OS", "IR", "PT", "AU", "HG",
-    "AL", "GA", "IN", "SN", "TL", "PB", "BI",
-    "LA", "CE", "PR", "ND", "SM", "EU", "GD", "TB", "DY",
-    "HO", "ER", "TM", "YB", "LU",
-})
+_METALS: frozenset[str] = frozenset(
+    {
+        "LI",
+        "NA",
+        "K",
+        "RB",
+        "CS",
+        "BE",
+        "MG",
+        "CA",
+        "SR",
+        "BA",
+        "SC",
+        "TI",
+        "V",
+        "CR",
+        "MN",
+        "FE",
+        "CO",
+        "NI",
+        "CU",
+        "ZN",
+        "Y",
+        "ZR",
+        "NB",
+        "MO",
+        "RU",
+        "RH",
+        "PD",
+        "AG",
+        "CD",
+        "HF",
+        "TA",
+        "W",
+        "RE",
+        "OS",
+        "IR",
+        "PT",
+        "AU",
+        "HG",
+        "AL",
+        "GA",
+        "IN",
+        "SN",
+        "TL",
+        "PB",
+        "BI",
+        "LA",
+        "CE",
+        "PR",
+        "ND",
+        "SM",
+        "EU",
+        "GD",
+        "TB",
+        "DY",
+        "HO",
+        "ER",
+        "TM",
+        "YB",
+        "LU",
+    }
+)
 
 _PROVIDER_URLS: dict[str, str] = {
     "pdbe": "https://www.ebi.ac.uk/pdbe/entry-files/download/{id}_updated.cif",
-    "pdb":  "https://files.rcsb.org/download/{id}.cif",
+    "pdb": "https://files.rcsb.org/download/{id}.cif",
 }
 
 _CACHE_DIR = Path.home() / ".pandora" / "cache" / "mmcif"
 
 _ENTITY_TYPE_MAP = {
-    gemmi.EntityType.Polymer:    "polymer",
+    gemmi.EntityType.Polymer: "polymer",
     gemmi.EntityType.NonPolymer: "non-polymer",
-    gemmi.EntityType.Water:      "water",
-    gemmi.EntityType.Branched:   "branched",
+    gemmi.EntityType.Water: "water",
+    gemmi.EntityType.Branched: "branched",
 }
 
 
@@ -77,6 +131,7 @@ def _entity_sequence(ent: gemmi.Entity) -> str | None:
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
 
 def fetch_mmcif(
     entry_id: str,
@@ -119,13 +174,17 @@ def fetch_mmcif(
         fmt_id = entry_id.lower() if provider == "pdbe" else entry_id.upper()
         url = _PROVIDER_URLS[provider].format(id=fmt_id)
     else:
-        raise ValueError(f"provider={provider!r} requires an explicit source_uri")
+        raise ValueError(
+            f"provider={provider!r} requires an explicit source_uri"
+        )
 
     resp = httpx.get(url, follow_redirects=True, timeout=60.0)
     resp.raise_for_status()
     raw_bytes = resp.content
 
-    if fetch_options.decompress and (url.endswith(".gz") or raw_bytes[:2] == b"\x1f\x8b"):
+    if fetch_options.decompress and (
+        url.endswith(".gz") or raw_bytes[:2] == b"\x1f\x8b"
+    ):
         raw_bytes = gzip.decompress(raw_bytes)
     content = raw_bytes.decode("utf-8")
 
@@ -149,26 +208,40 @@ def parse_mmcif(
     diag = DiagnosticBundle()
 
     if not raw_content.strip():
-        diag.errors.append(Diagnostic(
-            code="EMPTY_CONTENT", severity="error",
-            message="mmCIF content is empty", entry_id=entry_id or None,
-        ))
+        diag.errors.append(
+            Diagnostic(
+                code="EMPTY_CONTENT",
+                severity="error",
+                message="mmCIF content is empty",
+                entry_id=entry_id or None,
+            )
+        )
         return None, diag, "failed"
 
     try:
-        st = gemmi.read_structure_string(raw_content, format=gemmi.CoorFormat.Mmcif)
+        st = gemmi.read_structure_string(
+            raw_content, format=gemmi.CoorFormat.Mmcif
+        )
     except Exception as exc:
-        diag.errors.append(Diagnostic(
-            code="PARSE_ERROR", severity="error",
-            message=str(exc), entry_id=entry_id or None,
-        ))
+        diag.errors.append(
+            Diagnostic(
+                code="PARSE_ERROR",
+                severity="error",
+                message=str(exc),
+                entry_id=entry_id or None,
+            )
+        )
         return None, diag, "failed"
 
     if len(st) == 0:
-        diag.errors.append(Diagnostic(
-            code="NO_MODEL", severity="error",
-            message="Structure contains no models", entry_id=entry_id or None,
-        ))
+        diag.errors.append(
+            Diagnostic(
+                code="NO_MODEL",
+                severity="error",
+                message="Structure contains no models",
+                entry_id=entry_id or None,
+            )
+        )
         return None, diag, "failed"
 
     model = st[0]
@@ -197,7 +270,9 @@ def parse_mmcif(
             entity_id = subchain_to_entity.get(sc_name, "")
             for ent in st.entities:
                 if sc_name in ent.subchains:
-                    chain_type = _ENTITY_TYPE_MAP.get(ent.entity_type, "non-polymer")
+                    chain_type = _ENTITY_TYPE_MAP.get(
+                        ent.entity_type, "non-polymer"
+                    )
                     break
             break  # use the first subchain only for chain-level metadata
 
@@ -210,26 +285,34 @@ def parse_mmcif(
             atoms_in_res: list[Atom] = []
             for atom in res:
                 _serial += 1
-                altloc = atom.altloc if atom.altloc not in ("\x00", " ", "") else None
-                atoms_in_res.append(Atom(
-                    atom_id=f"{rid}:{atom.name}:{_serial}",
-                    atom_name=atom.name,
-                    element=atom.element.name,
-                    x=atom.pos.x,
-                    y=atom.pos.y,
-                    z=atom.pos.z,
-                    occupancy=atom.occ,
-                    b_factor=atom.b_iso,
-                    altloc=altloc,
-                    residue_id=rid,
-                    chain_id=chain.name,
-                ))
+                altloc = (
+                    atom.altloc
+                    if atom.altloc not in ("\x00", " ", "")
+                    else None
+                )
+                atoms_in_res.append(
+                    Atom(
+                        atom_id=f"{rid}:{atom.name}:{_serial}",
+                        atom_name=atom.name,
+                        element=atom.element.name,
+                        x=atom.pos.x,
+                        y=atom.pos.y,
+                        z=atom.pos.z,
+                        occupancy=atom.occ,
+                        b_factor=atom.b_iso,
+                        altloc=altloc,
+                        residue_id=rid,
+                        chain_id=chain.name,
+                    )
+                )
             atoms_out.extend(atoms_in_res)
 
             try:
                 seq_id_num: int | None = res.seqid.num
                 ins = res.seqid.icode
-                ins_code: str | None = ins if ins not in (" ", "\x00", "") else None
+                ins_code: str | None = (
+                    ins if ins not in (" ", "\x00", "") else None
+                )
             except Exception:
                 seq_id_num, ins_code = None, None
 
@@ -248,39 +331,53 @@ def parse_mmcif(
 
             if not is_polymer and not is_water:
                 atom_names = [a.element.name.upper() for a in res]
-                ligands_out.append(Ligand(
-                    ligand_id=rid,
-                    chem_comp_id=res.name,
-                    chain_id=chain.name,
-                    residue_id=rid,
-                    is_water=False,
-                    is_ion=(len(atom_names) == 1 and atom_names[0] in _METALS),
-                ))
+                ligands_out.append(
+                    Ligand(
+                        ligand_id=rid,
+                        chem_comp_id=res.name,
+                        chain_id=chain.name,
+                        residue_id=rid,
+                        is_water=False,
+                        is_ion=(
+                            len(atom_names) == 1 and atom_names[0] in _METALS
+                        ),
+                    )
+                )
 
         if not residues_in_chain:
-            diag.warnings.append(Diagnostic(
-                code="EMPTY_CHAIN", severity="warning",
-                message=f"Chain {chain.name!r} has no residues",
-                entry_id=eid, context={"chain_id": chain.name},
-            ))
+            diag.warnings.append(
+                Diagnostic(
+                    code="EMPTY_CHAIN",
+                    severity="warning",
+                    message=f"Chain {chain.name!r} has no residues",
+                    entry_id=eid,
+                    context={"chain_id": chain.name},
+                )
+            )
 
-        chains_out.append(Chain(
-            chain_id=chain.name,        # auth_asym_id; C02 normalises to label_asym_id
-            auth_chain_id=chain.name,
-            entity_id=entity_id,
-            chain_type=chain_type,      # type: ignore[arg-type]
-            residues=residues_in_chain,
-        ))
+        chains_out.append(
+            Chain(
+                chain_id=chain.name,  # auth_asym_id; C02 normalises to label_asym_id
+                auth_chain_id=chain.name,
+                entity_id=entity_id,
+                chain_type=chain_type,  # type: ignore[arg-type]
+                residues=residues_in_chain,
+            )
+        )
 
     entities_out: list[Entity] = []
     for ent in st.entities:
-        entities_out.append(Entity(
-            entity_id=ent.name,
-            entity_type=_ENTITY_TYPE_MAP.get(ent.entity_type, "non-polymer"),
-            description=None,
-            chain_ids=list(ent.subchains),
-            sequence=_entity_sequence(ent),
-        ))
+        entities_out.append(
+            Entity(
+                entity_id=ent.name,
+                entity_type=_ENTITY_TYPE_MAP.get(
+                    ent.entity_type, "non-polymer"
+                ),
+                description=None,
+                chain_ids=list(ent.subchains),
+                sequence=_entity_sequence(ent),
+            )
+        )
 
     assemblies_out: list[Assembly] = []
     for asm in st.assemblies:
@@ -291,16 +388,22 @@ def parse_mmcif(
             )
             for gen in asm.generators
         ]
-        assemblies_out.append(Assembly(
-            assembly_id=asm.name,
-            assembly_gen=gens,
-        ))
+        assemblies_out.append(
+            Assembly(
+                assembly_id=asm.name,
+                assembly_gen=gens,
+            )
+        )
 
     if not atoms_out:
-        diag.warnings.append(Diagnostic(
-            code="MISSING_ATOM_SITE", severity="warning",
-            message="No atoms found in structure", entry_id=eid,
-        ))
+        diag.warnings.append(
+            Diagnostic(
+                code="MISSING_ATOM_SITE",
+                severity="warning",
+                message="No atoms found in structure",
+                entry_id=eid,
+            )
+        )
 
     return (
         ParsedStructure(

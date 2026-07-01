@@ -11,6 +11,7 @@ from .c05_splitting import LeakageSafeDataset
 
 # ── Per-stage provenance sub-schemas ──────────────────────────────────────────
 
+
 class TimestampRange(BaseModel):
     earliest: str | None = None
     latest: str | None = None
@@ -27,7 +28,9 @@ class PipelineCanonicalizationProvenance(BaseModel):
     policy_id: str
     policy_name: str
     policy_version: str
-    canonicalized_at_range: TimestampRange = Field(default_factory=TimestampRange)
+    canonicalized_at_range: TimestampRange = Field(
+        default_factory=TimestampRange
+    )
 
 
 class PipelineMetadataProvenance(BaseModel):
@@ -94,6 +97,7 @@ class PipelineProvenance(BaseModel):
     because upstream AnnotatedStructureWithPlugins objects are not embedded
     (UPSTREAM_PROVENANCE_NOT_EMBEDDED).
     """
+
     ingestion: PipelineIngestionProvenance | None = None
     canonicalization: PipelineCanonicalizationProvenance | None = None
     metadata_integration: PipelineMetadataProvenance | None = None
@@ -103,6 +107,7 @@ class PipelineProvenance(BaseModel):
 
 
 # ── Source releases & policy versions ─────────────────────────────────────────
+
 
 class ExternalSourceRelease(BaseModel):
     source_name: str
@@ -134,8 +139,11 @@ class PolicyProvenanceRecord(BaseModel):
 
 # ── Provenance bundle ──────────────────────────────────────────────────────────
 
+
 class ProvenanceBundle(BaseModel):
-    pipeline_provenance: PipelineProvenance = Field(default_factory=PipelineProvenance)
+    pipeline_provenance: PipelineProvenance = Field(
+        default_factory=PipelineProvenance
+    )
     source_release_provenance: SourceReleaseProvenanceRecord = Field(
         default_factory=SourceReleaseProvenanceRecord
     )
@@ -145,6 +153,7 @@ class ProvenanceBundle(BaseModel):
 
 
 # ── Manifest ───────────────────────────────────────────────────────────────────
+
 
 class DatasetSummary(BaseModel):
     dataset_id: str
@@ -176,12 +185,15 @@ class PandoraManifest(BaseModel):
     source_releases: SourceReleaseProvenanceRecord = Field(
         default_factory=SourceReleaseProvenanceRecord
     )
-    policies: PolicyProvenanceRecord = Field(default_factory=PolicyProvenanceRecord)
+    policies: PolicyProvenanceRecord = Field(
+        default_factory=PolicyProvenanceRecord
+    )
     pipeline_steps: list[str] = Field(default_factory=list)
     checksums: ManifestChecksums = Field(default_factory=ManifestChecksums)
 
 
 # ── Reproducibility report ─────────────────────────────────────────────────────
+
 
 class ReproducibilityReportSummary(BaseModel):
     pipeline_steps: int
@@ -199,6 +211,7 @@ class ReproducibilityReport(BaseModel):
 
 
 # ── PandoraArtifact ────────────────────────────────────────────────────────────
+
 
 class ArtifactChecksums(BaseModel):
     artifact_checksum: str | None = None
@@ -245,6 +258,7 @@ class ReproducibilityBatchResult(BaseModel):
 
 
 # ── Policy schemas ─────────────────────────────────────────────────────────────
+
 
 class ProvenancePolicy(BaseModel):
     policy_id: str

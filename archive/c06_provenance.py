@@ -1,4 +1,5 @@
 """Component 06 — Provenance & Reproducibility: public functions."""
+
 from __future__ import annotations
 
 import uuid
@@ -37,6 +38,7 @@ def _policy_ref(policy: ProvenancePolicy) -> AppliedPolicyRef:
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
 
 def assemble_provenance(
     artifact_id: str,
@@ -92,7 +94,9 @@ def finalize_artifact(
     """Assemble provenance, generate manifest, and return a sealed PandoraArtifact."""
     # TODO: implement export per export_policy (YAML/JSON manifest, lineage graph,
     #   checksum bundle) per spec Section 5
-    provenance = assemble_provenance(artifact_id, leakage_safe_dataset, provenance_policy)
+    provenance = assemble_provenance(
+        artifact_id, leakage_safe_dataset, provenance_policy
+    )
     manifest = generate_manifest(
         artifact_id, leakage_safe_dataset, provenance, provenance_policy
     )

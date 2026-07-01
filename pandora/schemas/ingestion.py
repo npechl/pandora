@@ -1,5 +1,3 @@
-
-
 from typing import Literal
 
 from pydantic import BaseModel
@@ -14,6 +12,7 @@ class FetchOptions(BaseModel):
     decompress: bool = True
     max_age_seconds: int | None = None
     stale_behavior: StaleBehavior = "use_stale"
+
 
 class IngestionProvenance(BaseModel):
     provider: str

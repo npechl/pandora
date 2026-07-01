@@ -9,6 +9,7 @@ from .common import DiagnosticBundle, ResultStatus
 
 # ── Core structural types ────────────────────────────────────────────────────
 
+
 class Atom(BaseModel):
     atom_id: str
     atom_name: str
@@ -115,6 +116,7 @@ class MmCIFBatchInput(BaseModel):
 
 
 # ── Output schemas ───────────────────────────────────────────────────────────
+
 
 class IngestionProvenance(BaseModel):
     provider: str

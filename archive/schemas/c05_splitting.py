@@ -28,7 +28,9 @@ PandoraDataset = Annotated[
 
 # ── Similarity relationship ────────────────────────────────────────────────────
 
-SimilarityType = Literal["sequence_similarity", "structure_similarity", "custom"]
+SimilarityType = Literal[
+    "sequence_similarity", "structure_similarity", "custom"
+]
 
 
 class SimilarityMethod(BaseModel):
@@ -56,6 +58,7 @@ class SimilarityRelationship(BaseModel):
 
 
 # ── Similarity network ─────────────────────────────────────────────────────────
+
 
 class SimilarityEdge(BaseModel):
     source_id: str
@@ -90,6 +93,7 @@ class SimilarityNetwork(BaseModel):
 
 # ── Clusters ───────────────────────────────────────────────────────────────────
 
+
 class Cluster(BaseModel):
     cluster_id: str
     members: list[str]
@@ -120,6 +124,7 @@ class SimilarityClusters(BaseModel):
 
 
 # ── Leakage-safe dataset ───────────────────────────────────────────────────────
+
 
 class Partitions(BaseModel):
     train: list[str] = Field(default_factory=list)
@@ -186,6 +191,7 @@ class LeakageAnalysisBatchResult(BaseModel):
 
 
 # ── Policy schema ──────────────────────────────────────────────────────────────
+
 
 class SequenceSimilarityRules(BaseModel):
     enabled: bool = True

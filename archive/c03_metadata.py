@@ -1,4 +1,5 @@
 """Component 03 — Metadata & Annotation: public functions."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -36,7 +37,10 @@ def _policy_ref(policy: MetadataIntegrationPolicy) -> AppliedPolicyRef:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def retrieve_metadata(entry_id: str, policy: MetadataIntegrationPolicy) -> MetadataRecord:
+
+def retrieve_metadata(
+    entry_id: str, policy: MetadataIntegrationPolicy
+) -> MetadataRecord:
     # TODO: implement — fetch from PDBe, SIFTS, UniProt, taxonomy APIs per
     #   policy.include_sources and policy.include_categories
     return MetadataRecord(
@@ -62,7 +66,9 @@ def attach_metadata(
         canonical_structure_result=canonical_structure_result,
         metadata_annotations=annotations,
         applied_metadata_policy=_policy_ref(policy),
-        provenance=MetadataAnnotatedStructureProvenance(retrieved_at=_now_iso()),
+        provenance=MetadataAnnotatedStructureProvenance(
+            retrieved_at=_now_iso()
+        ),
     )
 
 
@@ -96,11 +102,13 @@ def attach_metadata_many(
     items: list[MetadataAndAnnotationBatchResultItem] = []
     for result in canonical_results:
         if result.status == "failed":
-            items.append(MetadataAndAnnotationBatchResultItem(
-                entry_id=result.entry_id,
-                status="failed",
-                annotated_structure=None,
-            ))
+            items.append(
+                MetadataAndAnnotationBatchResultItem(
+                    entry_id=result.entry_id,
+                    status="failed",
+                    annotated_structure=None,
+                )
+            )
             continue
         meta = attach_metadata(result, metadata_policy)
         if plugin_policy is not None and plugins:
@@ -110,17 +118,23 @@ def attach_metadata_many(
                 canonical_structure_result=meta.canonical_structure_result,
                 metadata_annotations=meta.metadata_annotations,
                 applied_metadata_policy=meta.applied_metadata_policy,
-                provenance=AnnotatedStructureProvenance(retrieved_at=_now_iso()),
+                provenance=AnnotatedStructureProvenance(
+                    retrieved_at=_now_iso()
+                ),
             )
-        items.append(MetadataAndAnnotationBatchResultItem(
-            entry_id=result.entry_id,
-            status=result.status,
-            annotated_structure=annotated,
-        ))
+        items.append(
+            MetadataAndAnnotationBatchResultItem(
+                entry_id=result.entry_id,
+                status=result.status,
+                annotated_structure=annotated,
+            )
+        )
     summary = MetadataAndAnnotationBatchSummary(
         total=len(items),
         success=sum(1 for i in items if i.status == "success"),
         warning=sum(1 for i in items if i.status == "warning"),
         failed=sum(1 for i in items if i.status == "failed"),
     )
-    return MetadataAndAnnotationBatchResult(mode=mode, summary=summary, results=items)
+    return MetadataAndAnnotationBatchResult(
+        mode=mode, summary=summary, results=items
+    )

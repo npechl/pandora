@@ -4,11 +4,12 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from .common import AppliedPolicyRef, Diagnostic, DiagnosticBundle, ResultStatus
+from .common import AppliedPolicyRef, DiagnosticBundle, ResultStatus
 from .c02_canonicalization import CanonicalStructureResult
 
 
 # ── Metadata category schemas ──────────────────────────────────────────────────
+
 
 class UnitCell(BaseModel):
     a: float | None = None
@@ -119,12 +120,17 @@ class MetadataRecord(BaseModel):
     archive_metadata: ArchiveMetadata | None = None
     biological_mappings: BiologicalMappings | None = None
     structural_annotations: StructuralAnnotations | None = None
-    provenance_metadata: ProvenanceMetadata = Field(default_factory=ProvenanceMetadata)
-    retrieval_status: MetadataRetrievalStatus = Field(default_factory=MetadataRetrievalStatus)
+    provenance_metadata: ProvenanceMetadata = Field(
+        default_factory=ProvenanceMetadata
+    )
+    retrieval_status: MetadataRetrievalStatus = Field(
+        default_factory=MetadataRetrievalStatus
+    )
     diagnostics: DiagnosticBundle = Field(default_factory=DiagnosticBundle)
 
 
 # ── Annotation layer & plugin ──────────────────────────────────────────────────
+
 
 class AnnotationLayer(BaseModel):
     layer_name: str
@@ -156,11 +162,14 @@ class AnnotationPluginResult(BaseModel):
 
 # ── Output schemas ─────────────────────────────────────────────────────────────
 
+
 class MetadataAnnotations(BaseModel):
     archive_metadata: ArchiveMetadata | None = None
     biological_mappings: BiologicalMappings | None = None
     structural_annotations: StructuralAnnotations | None = None
-    provenance_metadata: ProvenanceMetadata = Field(default_factory=ProvenanceMetadata)
+    provenance_metadata: ProvenanceMetadata = Field(
+        default_factory=ProvenanceMetadata
+    )
 
 
 class MetadataAnnotatedStructureProvenance(BaseModel):
@@ -170,7 +179,9 @@ class MetadataAnnotatedStructureProvenance(BaseModel):
 
 class MetadataAnnotatedStructure(BaseModel):
     canonical_structure_result: CanonicalStructureResult
-    metadata_annotations: MetadataAnnotations = Field(default_factory=MetadataAnnotations)
+    metadata_annotations: MetadataAnnotations = Field(
+        default_factory=MetadataAnnotations
+    )
     applied_metadata_policy: AppliedPolicyRef
     diagnostics: DiagnosticBundle = Field(default_factory=DiagnosticBundle)
     provenance: MetadataAnnotatedStructureProvenance = Field(
@@ -186,7 +197,9 @@ class AnnotatedStructureProvenance(BaseModel):
 
 class AnnotatedStructureWithPlugins(BaseModel):
     canonical_structure_result: CanonicalStructureResult
-    metadata_annotations: MetadataAnnotations = Field(default_factory=MetadataAnnotations)
+    metadata_annotations: MetadataAnnotations = Field(
+        default_factory=MetadataAnnotations
+    )
     derived_annotations: list[AnnotationLayer] = Field(default_factory=list)
     applied_metadata_policy: AppliedPolicyRef
     applied_plugins: list[Plugin] = Field(default_factory=list)
@@ -217,6 +230,7 @@ class MetadataAndAnnotationBatchResult(BaseModel):
 
 
 # ── Policy schemas ─────────────────────────────────────────────────────────────
+
 
 class MetadataIncludeSources(BaseModel):
     pdbe: bool = True
@@ -250,12 +264,18 @@ class MetadataIntegrationPolicy(BaseModel):
     policy_name: str
     policy_version: str
     description: str = ""
-    include_sources: MetadataIncludeSources = Field(default_factory=MetadataIncludeSources)
+    include_sources: MetadataIncludeSources = Field(
+        default_factory=MetadataIncludeSources
+    )
     include_categories: MetadataIncludeCategories = Field(
         default_factory=MetadataIncludeCategories
     )
-    retrieval_rules: MetadataRetrievalRules = Field(default_factory=MetadataRetrievalRules)
-    provenance_rules: MetadataProvenanceRules = Field(default_factory=MetadataProvenanceRules)
+    retrieval_rules: MetadataRetrievalRules = Field(
+        default_factory=MetadataRetrievalRules
+    )
+    provenance_rules: MetadataProvenanceRules = Field(
+        default_factory=MetadataProvenanceRules
+    )
 
 
 class PluginExecutionParallelOptions(BaseModel):
@@ -283,5 +303,9 @@ class AnnotationPluginPolicy(BaseModel):
     policy_name: str
     policy_version: str
     description: str = ""
-    execution_rules: PluginExecutionRules = Field(default_factory=PluginExecutionRules)
-    provenance_rules: PluginProvenanceRules = Field(default_factory=PluginProvenanceRules)
+    execution_rules: PluginExecutionRules = Field(
+        default_factory=PluginExecutionRules
+    )
+    provenance_rules: PluginProvenanceRules = Field(
+        default_factory=PluginProvenanceRules
+    )

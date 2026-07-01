@@ -18,6 +18,7 @@ from .c03_metadata import (
 
 # ── Exclusion & deduplication records ─────────────────────────────────────────
 
+
 class ExclusionRecord(BaseModel):
     unit_id: str
     granularity: Literal["structure", "chain", "interface", "residue"]
@@ -36,7 +37,12 @@ class DeduplicationReport(BaseModel):
 class AppliedFilterRecord(BaseModel):
     filter_name: str
     filter_category: Literal[
-        "quality", "selection", "content", "organism", "deduplication", "extraction"
+        "quality",
+        "selection",
+        "content",
+        "organism",
+        "deduplication",
+        "extraction",
     ]
     filter_value: dict[str, Any] = Field(default_factory=dict)
     structures_excluded: int
@@ -47,6 +53,7 @@ class SelectionSummary(BaseModel):
 
 
 # ── Chain, interface, residue records ─────────────────────────────────────────
+
 
 class ChainRecordMetadata(BaseModel):
     archive_metadata: ArchiveMetadata | None = None
@@ -88,7 +95,9 @@ class InterfaceRecord(BaseModel):
     contact_count: int
     interface_area: float | None = None
     source_annotation_layer: AnnotationLayer | None = None
-    metadata: InterfaceRecordMetadata = Field(default_factory=InterfaceRecordMetadata)
+    metadata: InterfaceRecordMetadata = Field(
+        default_factory=InterfaceRecordMetadata
+    )
     parent_entry_id: str
     applied_policy: AppliedPolicyRef
 
@@ -112,7 +121,9 @@ class ResidueRecord(BaseModel):
     residue_type: Literal["amino_acid", "nucleotide", "non_standard"]
     atoms: list[Atom] = Field(default_factory=list)
     neighboring_residues: list[NeighborReference] | None = None
-    metadata: ResidueRecordMetadata = Field(default_factory=ResidueRecordMetadata)
+    metadata: ResidueRecordMetadata = Field(
+        default_factory=ResidueRecordMetadata
+    )
     derived_annotations: list[AnnotationLayer] = Field(default_factory=list)
     parent_entry_id: str
     parent_chain_id: str
@@ -120,6 +131,7 @@ class ResidueRecord(BaseModel):
 
 
 # ── Dataset output schemas ─────────────────────────────────────────────────────
+
 
 class DatasetCounts(BaseModel):
     total_input: int
@@ -139,9 +151,13 @@ class Dataset(BaseModel):
     dataset_name: str
     dataset_version: str
     granularity: Literal["structure"] = "structure"
-    structures: list[AnnotatedStructureWithPlugins] = Field(default_factory=list)
+    structures: list[AnnotatedStructureWithPlugins] = Field(
+        default_factory=list
+    )
     counts: DatasetCounts
-    selection_summary: SelectionSummary = Field(default_factory=SelectionSummary)
+    selection_summary: SelectionSummary = Field(
+        default_factory=SelectionSummary
+    )
     excluded_items: list[ExclusionRecord] = Field(default_factory=list)
     deduplication_report: DeduplicationReport
     applied_policy: AppliedPolicyRef
@@ -247,6 +263,7 @@ class DatasetConstructionBatchResult(BaseModel):
 
 # ── Policy schema ──────────────────────────────────────────────────────────────
 
+
 class IncludeBiomolecules(BaseModel):
     proteins: bool = True
     rna: bool = False
@@ -257,7 +274,9 @@ class IncludeBiomolecules(BaseModel):
 class SelectionRules(BaseModel):
     include_sources: list[str] = Field(default_factory=list)
     exclude_sources: list[str] = Field(default_factory=list)
-    include_biomolecules: IncludeBiomolecules = Field(default_factory=IncludeBiomolecules)
+    include_biomolecules: IncludeBiomolecules = Field(
+        default_factory=IncludeBiomolecules
+    )
     include_experimental_methods: list[str] = Field(default_factory=list)
     exclude_experimental_methods: list[str] = Field(default_factory=list)
 
@@ -295,7 +314,9 @@ class IncludeChainTypes(BaseModel):
 
 
 class ChainExtractionRules(BaseModel):
-    include_chain_types: IncludeChainTypes = Field(default_factory=IncludeChainTypes)
+    include_chain_types: IncludeChainTypes = Field(
+        default_factory=IncludeChainTypes
+    )
     min_chain_length: int | None = None
 
 
@@ -320,13 +341,17 @@ class IncludeResidueTypes(BaseModel):
 
 class ResidueExtractionRules(BaseModel):
     source_granularity: Literal["structure", "chain"] = "chain"
-    include_residue_types: IncludeResidueTypes = Field(default_factory=IncludeResidueTypes)
+    include_residue_types: IncludeResidueTypes = Field(
+        default_factory=IncludeResidueTypes
+    )
     require_full_backbone: bool = True
     context_radius: float | None = None
 
 
 class ExtractionRules(BaseModel):
-    granularity: Literal["structure", "chain", "interface", "residue"] = "structure"
+    granularity: Literal["structure", "chain", "interface", "residue"] = (
+        "structure"
+    )
     chain_extraction_rules: ChainExtractionRules = Field(
         default_factory=ChainExtractionRules
     )
@@ -354,7 +379,9 @@ class DatasetCurationPolicy(BaseModel):
     quality_rules: QualityRules = Field(default_factory=QualityRules)
     content_rules: ContentRules = Field(default_factory=ContentRules)
     organism_rules: OrganismRules = Field(default_factory=OrganismRules)
-    deduplication_rules: DeduplicationRules = Field(default_factory=DeduplicationRules)
+    deduplication_rules: DeduplicationRules = Field(
+        default_factory=DeduplicationRules
+    )
     extraction_rules: ExtractionRules = Field(default_factory=ExtractionRules)
     provenance_rules: CurationProvenanceRules = Field(
         default_factory=CurationProvenanceRules

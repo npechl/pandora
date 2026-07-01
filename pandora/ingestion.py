@@ -1,5 +1,3 @@
-
-
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -13,15 +11,20 @@ from pandora.schemas.ingestion import (
 
 _PROVIDER_URLS: dict[str, str] = {
     "pdbe": "https://www.ebi.ac.uk/pdbe/entry-files/download/{id}_updated.cif",
-    "pdb":  "https://files.rcsb.org/download/{id}.cif",
+    "pdb": "https://files.rcsb.org/download/{id}.cif",
 }
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
+
 def fetch_pdb():
     """Fetch a raw mmCIF file from a provider URL or local path, with optional disk cache."""
-    raise NotImplementedError("fetch_pdb() is not supported; use fetch_mmcif() instead.")
+    raise NotImplementedError(
+        "fetch_pdb() is not supported; use fetch_mmcif() instead."
+    )
+
 
 def fetch_mmcif(
     entry_id: str,
@@ -38,7 +41,9 @@ def fetch_mmcif(
         fmt_id = entry_id.lower() if provider == "pdbe" else entry_id.upper()
         url = _PROVIDER_URLS[provider].format(id=fmt_id)
     else:
-        raise ValueError(f"provider={provider!r} requires an explicit source_uri or one of 'pdbe' or 'pdb'")
+        raise ValueError(
+            f"provider={provider!r} requires an explicit source_uri or one of 'pdbe' or 'pdb'"
+        )
 
     try:
         resp = httpx.get(url, follow_redirects=True, timeout=60.0)
@@ -48,9 +53,7 @@ def fetch_mmcif(
             f"HTTP {exc.response.status_code} fetching {url}"
         ) from exc
     except httpx.RequestError as exc:
-        raise RuntimeError(
-            f"Network error fetching {url}: {exc}"
-        ) from exc
+        raise RuntimeError(f"Network error fetching {url}: {exc}") from exc
 
     raw_bytes = resp.content
     is_gzipped = url.endswith(".gz") or raw_bytes[:2] == b"\x1f\x8b"

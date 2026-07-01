@@ -1,4 +1,5 @@
 """Component 05 — Similarity & Leakage-Safe Splitting: public functions."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -7,7 +8,6 @@ from archive.schemas.c04_curation import (
     ChainDataset,
     Dataset,
     InterfaceDataset,
-    ResidueDataset,
 )
 from archive.schemas.c05_splitting import (
     Cluster,
@@ -55,6 +55,7 @@ def _get_item_ids(dataset: PandoraDataset) -> list[str]:
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
 
 def compute_similarity_relationships(
     dataset: PandoraDataset,

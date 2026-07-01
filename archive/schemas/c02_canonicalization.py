@@ -10,8 +10,10 @@ from .c01_ingestion import Atom, Assembly, Chain, Entity, Ligand, Residue
 
 # ── Canonical structure ────────────────────────────────────────────────────────
 
+
 class CanonicalStructure(BaseModel):
     """Reuses C01 structural types; all identifier fields reflect canonical values."""
+
     atoms: list[Atom] = Field(default_factory=list)
     residues: list[Residue] = Field(default_factory=list)
     chains: list[Chain] = Field(default_factory=list)
@@ -21,6 +23,7 @@ class CanonicalStructure(BaseModel):
 
 
 # ── Mapping schemas ────────────────────────────────────────────────────────────
+
 
 class ChainIdMappingItem(BaseModel):
     canonical_chain_id: str
@@ -69,7 +72,10 @@ class AltlocSelectionMappingItem(BaseModel):
     selected_altloc: str
     available_altlocs: list[str]
     selection_reason: Literal[
-        "best_occupancy", "first_alphabetical", "last_alphabetical", "user_defined"
+        "best_occupancy",
+        "first_alphabetical",
+        "last_alphabetical",
+        "user_defined",
     ]
 
 
@@ -79,7 +85,9 @@ class AltlocSelectionMapping(BaseModel):
 
 class CanonicalMappings(BaseModel):
     chain_id_mapping: ChainIdMapping = Field(default_factory=ChainIdMapping)
-    residue_number_mapping: ResidueNumberMapping = Field(default_factory=ResidueNumberMapping)
+    residue_number_mapping: ResidueNumberMapping = Field(
+        default_factory=ResidueNumberMapping
+    )
     assembly_mapping: AssemblyMapping = Field(default_factory=AssemblyMapping)
     entity_mapping: EntityMapping = Field(default_factory=EntityMapping)
     altloc_selection_mapping: AltlocSelectionMapping = Field(
@@ -88,6 +96,7 @@ class CanonicalMappings(BaseModel):
 
 
 # ── Output schemas ─────────────────────────────────────────────────────────────
+
 
 class CanonicalStructureProvenance(BaseModel):
     provider: str
@@ -124,17 +133,28 @@ class CanonicalizationBatchResult(BaseModel):
 ChainIdStrategy = Literal["preserve", "remap", "use_auth_chain_id"]
 ResidueNumberingStrategy = Literal["preserve", "use_auth_seq", "renumber"]
 AssemblyIdStrategy = Literal["preserve", "remap", "standardize"]
-MissingAtomsStrategy = Literal["preserve", "annotate", "drop_partial_residue", "impute"]
-MissingResiduesStrategy = Literal["preserve", "annotate", "drop_chain_segment", "impute"]
-IncompleteChainStrategy = Literal["preserve", "exclude", "truncate_to_complete_regions"]
+MissingAtomsStrategy = Literal[
+    "preserve", "annotate", "drop_partial_residue", "impute"
+]
+MissingResiduesStrategy = Literal[
+    "preserve", "annotate", "drop_chain_segment", "impute"
+]
+IncompleteChainStrategy = Literal[
+    "preserve", "exclude", "truncate_to_complete_regions"
+]
 AltlocStrategy = Literal[
     "preserve", "select_best_occupancy", "select_first", "select_user_defined"
 ]
 AltlocTieBreaker = Literal[
-    "alphabetical_first", "alphabetical_last", "lowest_b_factor", "highest_b_factor"
+    "alphabetical_first",
+    "alphabetical_last",
+    "lowest_b_factor",
+    "highest_b_factor",
 ]
 AssemblyStrategy = Literal[
-    "preserve_as_reported", "standardize_biological_assembly", "select_first_assembly"
+    "preserve_as_reported",
+    "standardize_biological_assembly",
+    "select_first_assembly",
 ]
 PreferredAssemblySource = Literal["author", "pdbe", "pdbx", "first"]
 EntityStrategy = Literal["preserve", "standardize", "merge_equivalent_entities"]
@@ -157,7 +177,9 @@ class AssemblyIdRules(BaseModel):
 
 class IdentifierRules(BaseModel):
     chain_id: ChainIdRules = Field(default_factory=ChainIdRules)
-    residue_numbering: ResidueNumberingRules = Field(default_factory=ResidueNumberingRules)
+    residue_numbering: ResidueNumberingRules = Field(
+        default_factory=ResidueNumberingRules
+    )
     assembly_id: AssemblyIdRules = Field(default_factory=AssemblyIdRules)
 
 
@@ -178,8 +200,12 @@ class IncompleteChainRules(BaseModel):
 
 class MissingDataRules(BaseModel):
     missing_atoms: MissingAtomsRules = Field(default_factory=MissingAtomsRules)
-    missing_residues: MissingResiduesRules = Field(default_factory=MissingResiduesRules)
-    incomplete_chains: IncompleteChainRules = Field(default_factory=IncompleteChainRules)
+    missing_residues: MissingResiduesRules = Field(
+        default_factory=MissingResiduesRules
+    )
+    incomplete_chains: IncompleteChainRules = Field(
+        default_factory=IncompleteChainRules
+    )
 
 
 class AltlocRules(BaseModel):
@@ -226,7 +252,9 @@ class CanonicalizationPolicy(BaseModel):
     policy_version: str
     description: str = ""
     identifier_rules: IdentifierRules = Field(default_factory=IdentifierRules)
-    missing_data_rules: MissingDataRules = Field(default_factory=MissingDataRules)
+    missing_data_rules: MissingDataRules = Field(
+        default_factory=MissingDataRules
+    )
     altloc_rules: AltlocRules = Field(default_factory=AltlocRules)
     assembly_rules: AssemblyRules = Field(default_factory=AssemblyRules)
     entity_rules: EntityRules = Field(default_factory=EntityRules)

@@ -25,7 +25,7 @@ from pandora.schemas.canonicalization import (
     EntityMappingItem,
     ResidueNumberMapping,
     ResidueNumberMappingItem,
-    CanonicalizationProvenance
+    CanonicalizationProvenance,
 )
 
 from pandora.schemas.common import Diagnostic, DiagnosticBundle
@@ -34,8 +34,9 @@ from pandora.schemas.common import Diagnostic, DiagnosticBundle
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
+
 # dump function for remap ----------------
-def _sequential_chain_ids() -> Iterator[str] :
+def _sequential_chain_ids() -> Iterator[str]:
     letters = string.ascii_uppercase
     for c in letters:
         yield c
@@ -45,6 +46,7 @@ def _sequential_chain_ids() -> Iterator[str] :
 
 
 # normalize_chain_ids ------------------------
+
 
 def _normalize_chain_ids(
     asym_units: list[AsymRecord],
@@ -65,11 +67,13 @@ def _normalize_chain_ids(
 
         chain_map[asym.id] = canonical
         if record:
-            mapping.items.append(ChainIdMappingItem(
-                canonical_chain_id=canonical,
-                original_chain_id=asym.id,
-                original_auth_chain_id=asym.auth_id or asym.id,
-            ))
+            mapping.items.append(
+                ChainIdMappingItem(
+                    canonical_chain_id=canonical,
+                    original_chain_id=asym.id,
+                    original_auth_chain_id=asym.auth_id or asym.id,
+                )
+            )
 
     return chain_map, mapping
 
@@ -80,15 +84,24 @@ def _apply_chain_map(
     structure: Structure,
     chain_map: dict[str, str],
 ) -> tuple[list[AtomSiteRecord], list[AsymRecord], Structure]:
-    
+
     new_atoms = [
-        a.model_copy(update={"label_asym_id": chain_map.get(a.label_asym_id, a.label_asym_id)})
-        if chain_map.get(a.label_asym_id, a.label_asym_id) != a.label_asym_id else a
+        a.model_copy(
+            update={
+                "label_asym_id": chain_map.get(a.label_asym_id, a.label_asym_id)
+            }
+        )
+        if chain_map.get(a.label_asym_id, a.label_asym_id) != a.label_asym_id
+        else a
         for a in atoms
     ]
-    
+
     new_asyms = [
-        AsymRecord(id=chain_map.get(a.id, a.id), entity_id=a.entity_id, auth_id=a.auth_id)
+        AsymRecord(
+            id=chain_map.get(a.id, a.id),
+            entity_id=a.entity_id,
+            auth_id=a.auth_id,
+        )
         for a in asym_units
     ]
 
@@ -97,35 +110,59 @@ def _apply_chain_map(
     for asm in structure.assemblies:
         new_gens = []
         for gen in asm.generators:
-            new_asym_list = [chain_map.get(aid, aid) for aid in gen.asym_id_list]
-            new_gens.append(gen.model_copy(update={"asym_id_list": new_asym_list}))
+            new_asym_list = [
+                chain_map.get(aid, aid) for aid in gen.asym_id_list
+            ]
+            new_gens.append(
+                gen.model_copy(update={"asym_id_list": new_asym_list})
+            )
         new_assemblies.append(asm.model_copy(update={"generators": new_gens}))
 
     # Update connections
     new_conns = []
     for conn in structure.connections:
-        p1 = conn.ptnr1.model_copy(update={
-            "label_asym_id": chain_map.get(conn.ptnr1.label_asym_id, conn.ptnr1.label_asym_id)
-        })
-        p2 = conn.ptnr2.model_copy(update={
-            "label_asym_id": chain_map.get(conn.ptnr2.label_asym_id, conn.ptnr2.label_asym_id)
-        })
+        p1 = conn.ptnr1.model_copy(
+            update={
+                "label_asym_id": chain_map.get(
+                    conn.ptnr1.label_asym_id, conn.ptnr1.label_asym_id
+                )
+            }
+        )
+        p2 = conn.ptnr2.model_copy(
+            update={
+                "label_asym_id": chain_map.get(
+                    conn.ptnr2.label_asym_id, conn.ptnr2.label_asym_id
+                )
+            }
+        )
         new_conns.append(conn.model_copy(update={"ptnr1": p1, "ptnr2": p2}))
 
     # Update secondary structure
     new_conf = [
-        r.model_copy(update={
-            "beg_label_asym_id": chain_map.get(r.beg_label_asym_id, r.beg_label_asym_id),
-            "end_label_asym_id": chain_map.get(r.end_label_asym_id, r.end_label_asym_id),
-        })
+        r.model_copy(
+            update={
+                "beg_label_asym_id": chain_map.get(
+                    r.beg_label_asym_id, r.beg_label_asym_id
+                ),
+                "end_label_asym_id": chain_map.get(
+                    r.end_label_asym_id, r.end_label_asym_id
+                ),
+            }
+        )
         for r in structure.secondary_structure.conf_records
     ]
 
     new_strands = [
-        r.model_copy(update={
-            "beg_label_asym_id": chain_map.get(r.beg_label_asym_id, r.beg_label_asym_id),
-            "end_label_asym_id": chain_map.get(r.end_label_asym_id, r.end_label_asym_id),
-        })
+        r.model_copy(
+            update={
+                "beg_label_asym_id": chain_map.get(
+                    r.beg_label_asym_id, r.beg_label_asym_id
+                ),
+                "end_label_asym_id": chain_map.get(
+                    r.end_label_asym_id, r.end_label_asym_id
+                ),
+            }
+        )
         for r in structure.secondary_structure.sheet_strands
     ]
 
@@ -133,16 +170,19 @@ def _apply_chain_map(
         update={"conf_records": new_conf, "sheet_strands": new_strands}
     )
 
-    new_structure = structure.model_copy(update={
-        "assemblies": new_assemblies,
-        "connections": new_conns,
-        "secondary_structure": new_ss,
-    })
+    new_structure = structure.model_copy(
+        update={
+            "assemblies": new_assemblies,
+            "connections": new_conns,
+            "secondary_structure": new_ss,
+        }
+    )
 
     return new_atoms, new_asyms, new_structure
 
 
 # normalize_residue_numbering ------------------------
+
 
 def _normalize_residue_numbering(
     atoms: list[AtomSiteRecord],
@@ -181,15 +221,23 @@ def _normalize_residue_numbering(
             key = (a.label_asym_id, a.label_seq_id, a.auth_seq_id)
             if record and key not in seen:
                 seen.add(key)
-                mapping.items.append(ResidueNumberMappingItem(
-                    canonical_chain_id=chain_map.get(a.label_asym_id, a.label_asym_id),
-                    canonical_seq_id=new_seq or 0,
-                    original_chain_id=a.label_asym_id,
-                    original_seq_id=a.label_seq_id,
-                    original_auth_seq_id=a.auth_seq_id or "",
-                    original_insertion_code=a.pdbx_PDB_ins_code,
-                ))
-            result.append(a.model_copy(update={"label_seq_id": new_seq, "pdbx_PDB_ins_code": ins}))
+                mapping.items.append(
+                    ResidueNumberMappingItem(
+                        canonical_chain_id=chain_map.get(
+                            a.label_asym_id, a.label_asym_id
+                        ),
+                        canonical_seq_id=new_seq or 0,
+                        original_chain_id=a.label_asym_id,
+                        original_seq_id=a.label_seq_id,
+                        original_auth_seq_id=a.auth_seq_id or "",
+                        original_insertion_code=a.pdbx_PDB_ins_code,
+                    )
+                )
+            result.append(
+                a.model_copy(
+                    update={"label_seq_id": new_seq, "pdbx_PDB_ins_code": ins}
+                )
+            )
         return result, mapping
 
     # strategy == "renumber"
@@ -214,20 +262,29 @@ def _normalize_residue_numbering(
         key = (a.label_asym_id, a.label_seq_id, a.auth_seq_id)
         if record and key not in seen:
             seen.add(key)
-            mapping.items.append(ResidueNumberMappingItem(
-                canonical_chain_id=chain_map.get(a.label_asym_id, a.label_asym_id),
-                canonical_seq_id=new_seq or 0,
-                original_chain_id=a.label_asym_id,
-                original_seq_id=a.label_seq_id,
-                original_auth_seq_id=a.auth_seq_id or "",
-                original_insertion_code=a.pdbx_PDB_ins_code,
-            ))
-        result.append(a.model_copy(update={"label_seq_id": new_seq, "pdbx_PDB_ins_code": None}))
+            mapping.items.append(
+                ResidueNumberMappingItem(
+                    canonical_chain_id=chain_map.get(
+                        a.label_asym_id, a.label_asym_id
+                    ),
+                    canonical_seq_id=new_seq or 0,
+                    original_chain_id=a.label_asym_id,
+                    original_seq_id=a.label_seq_id,
+                    original_auth_seq_id=a.auth_seq_id or "",
+                    original_insertion_code=a.pdbx_PDB_ins_code,
+                )
+            )
+        result.append(
+            a.model_copy(
+                update={"label_seq_id": new_seq, "pdbx_PDB_ins_code": None}
+            )
+        )
 
     return result, mapping
 
 
 # normalize_assemblies ------------------------------
+
 
 def _normalize_assemblies(
     assemblies: list[AssemblyRecord],
@@ -247,10 +304,12 @@ def _normalize_assemblies(
     if id_strategy == "preserve":
         if record:
             for asm in result:
-                mapping.items.append(AssemblyMappingItem(
-                    canonical_assembly_id=asm.id,
-                    original_assembly_id=asm.id,
-                ))
+                mapping.items.append(
+                    AssemblyMappingItem(
+                        canonical_assembly_id=asm.id,
+                        original_assembly_id=asm.id,
+                    )
+                )
         return result, mapping
 
     # remap or standardize → sequential integers
@@ -258,10 +317,12 @@ def _normalize_assemblies(
     for i, asm in enumerate(result, 1):
         new_id = str(i)
         if record:
-            mapping.items.append(AssemblyMappingItem(
-                canonical_assembly_id=new_id,
-                original_assembly_id=asm.id,
-            ))
+            mapping.items.append(
+                AssemblyMappingItem(
+                    canonical_assembly_id=new_id,
+                    original_assembly_id=asm.id,
+                )
+            )
         new_result.append(asm.model_copy(update={"id": new_id}))
 
     return new_result, mapping
@@ -286,7 +347,9 @@ def _handle_missing_atoms(
     hetatm: list[AtomSiteRecord] = []
     for a in atoms:
         if a.group_PDB == "ATOM":
-            polymer_by_residue[(a.label_asym_id, a.label_seq_id, a.label_comp_id)].append(a)
+            polymer_by_residue[
+                (a.label_asym_id, a.label_seq_id, a.label_comp_id)
+            ].append(a)
         else:
             hetatm.append(a)
 
@@ -297,14 +360,20 @@ def _handle_missing_atoms(
         if missing:
             asym_id, seq_id, comp_id = key
             if rules.record_missingness:
-                diagnostics.warnings.append(Diagnostic(
-                    code="MISSING_ATOMS",
-                    severity="warning",
-                    message=f"Residue {comp_id} {seq_id} in chain {asym_id} missing backbone atoms",
-                    entry_id=entry_id,
-                    context={"chain": asym_id, "seq_id": seq_id, "comp_id": comp_id,
-                             "missing": sorted(missing)},
-                ))
+                diagnostics.warnings.append(
+                    Diagnostic(
+                        code="MISSING_ATOMS",
+                        severity="warning",
+                        message=f"Residue {comp_id} {seq_id} in chain {asym_id} missing backbone atoms",
+                        entry_id=entry_id,
+                        context={
+                            "chain": asym_id,
+                            "seq_id": seq_id,
+                            "comp_id": comp_id,
+                            "missing": sorted(missing),
+                        },
+                    )
+                )
             if strategy == "drop_partial_residue":
                 continue
         result.extend(res_atoms)
@@ -340,20 +409,22 @@ def _handle_missing_residues(
             if sorted_ids[i + 1] - sorted_ids[i] > 1:
                 gap_chains.add(chain)
                 if record:
-                    diagnostics.warnings.append(Diagnostic(
-                        code="SEQUENCE_GAP",
-                        severity="warning",
-                        message=(
-                            f"Sequence gap in chain {chain} between "
-                            f"residues {sorted_ids[i]} and {sorted_ids[i + 1]}"
-                        ),
-                        entry_id=entry_id,
-                        context={
-                            "chain": chain,
-                            "gap_start": sorted_ids[i],
-                            "gap_end": sorted_ids[i + 1],
-                        },
-                    ))
+                    diagnostics.warnings.append(
+                        Diagnostic(
+                            code="SEQUENCE_GAP",
+                            severity="warning",
+                            message=(
+                                f"Sequence gap in chain {chain} between "
+                                f"residues {sorted_ids[i]} and {sorted_ids[i + 1]}"
+                            ),
+                            entry_id=entry_id,
+                            context={
+                                "chain": chain,
+                                "gap_start": sorted_ids[i],
+                                "gap_end": sorted_ids[i + 1],
+                            },
+                        )
+                    )
 
     if strategy == "drop_chain_segment" and gap_chains:
         return [a for a in atoms if a.label_asym_id not in gap_chains]
@@ -421,6 +492,7 @@ def _handle_incomplete_chains(
 
 # resolve_altlocs ------------------------------
 
+
 def _resolve_altlocs(
     atoms: list[AtomSiteRecord],
     rules,
@@ -432,7 +504,9 @@ def _resolve_altlocs(
         return atoms, mapping
 
     no_alt: list[AtomSiteRecord] = []
-    by_residue: dict[tuple, dict[str, list[AtomSiteRecord]]] = defaultdict(lambda: defaultdict(list))
+    by_residue: dict[tuple, dict[str, list[AtomSiteRecord]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
 
     for a in atoms:
         alt = a.label_alt_id
@@ -455,6 +529,7 @@ def _resolve_altlocs(
             udl = rules.user_defined_altloc
             selected = udl if udl in altlocs else altlocs[0]
         else:  # select_best_occupancy
+
             def _mean_occ(alt: str) -> float:
                 grp = alt_groups[alt]
                 return sum(a.occupancy for a in grp) / len(grp)
@@ -470,14 +545,18 @@ def _resolve_altlocs(
                 if tb == "alphabetical_last":
                     selected = max(tied)
                 elif tb == "lowest_b_factor":
+
                     def _mean_b(alt: str) -> float:
                         grp = alt_groups[alt]
                         return sum(a.B_iso_or_equiv for a in grp) / len(grp)
+
                     selected = min(tied, key=_mean_b)
                 elif tb == "highest_b_factor":
+
                     def _mean_b(alt: str) -> float:
                         grp = alt_groups[alt]
                         return sum(a.B_iso_or_equiv for a in grp) / len(grp)
+
                     selected = max(tied, key=_mean_b)
                 else:  # alphabetical_first
                     selected = min(tied)
@@ -491,18 +570,23 @@ def _resolve_altlocs(
                 "select_user_defined": "user_defined",
                 "select_best_occupancy": "best_occupancy",
             }
-            mapping.items.append(AltlocSelectionMappingItem(
-                canonical_chain_id=asym_id,
-                residue_id=f"{seq_id}:{comp_id}",
-                selected_altloc=selected,
-                available_altlocs=altlocs,
-                selection_reason=reason_map.get(strategy, "first_alphabetical"),
-            ))
+            mapping.items.append(
+                AltlocSelectionMappingItem(
+                    canonical_chain_id=asym_id,
+                    residue_id=f"{seq_id}:{comp_id}",
+                    selected_altloc=selected,
+                    available_altlocs=altlocs,
+                    selection_reason=reason_map.get(
+                        strategy, "first_alphabetical"
+                    ),
+                )
+            )
 
     return result, mapping
 
 
 # normalize_entities -----------------------------------
+
 
 def _normalize_entities(
     entities: list[EntityRecord],
@@ -510,16 +594,20 @@ def _normalize_entities(
     atoms: list[AtomSiteRecord],
     rules,
     record: bool,
-) -> tuple[list[EntityRecord], list[AsymRecord], list[AtomSiteRecord], EntityMapping]:
+) -> tuple[
+    list[EntityRecord], list[AsymRecord], list[AtomSiteRecord], EntityMapping
+]:
     mapping = EntityMapping()
 
     if rules.strategy == "preserve":
         if record:
             for ent in entities:
-                mapping.items.append(EntityMappingItem(
-                    canonical_entity_id=ent.id,
-                    original_entity_ids=[ent.id],
-                ))
+                mapping.items.append(
+                    EntityMappingItem(
+                        canonical_entity_id=ent.id,
+                        original_entity_ids=[ent.id],
+                    )
+                )
         return entities, asym_units, atoms, mapping
 
     entity_id_map: dict[str, str] = {}
@@ -532,10 +620,12 @@ def _normalize_entities(
             new_entities.append(ent.model_copy(update={"id": new_id}))
             if record:
                 orig = ent.id if rules.preserve_original_entity_ids else new_id
-                mapping.items.append(EntityMappingItem(
-                    canonical_entity_id=new_id,
-                    original_entity_ids=[orig],
-                ))
+                mapping.items.append(
+                    EntityMappingItem(
+                        canonical_entity_id=new_id,
+                        original_entity_ids=[orig],
+                    )
+                )
 
     elif rules.strategy == "merge_equivalent_entities":
         seq_to_id: dict[str, str] = {}
@@ -563,20 +653,31 @@ def _normalize_entities(
 
         if record:
             for cid, orig_ids in merged_orig.items():
-                mapping.items.append(EntityMappingItem(
-                    canonical_entity_id=cid,
-                    original_entity_ids=orig_ids,
-                ))
+                mapping.items.append(
+                    EntityMappingItem(
+                        canonical_entity_id=cid,
+                        original_entity_ids=orig_ids,
+                    )
+                )
     else:
         return entities, asym_units, atoms, mapping
 
     new_asyms = [
-        a.model_copy(update={"entity_id": entity_id_map.get(a.entity_id, a.entity_id)})
+        a.model_copy(
+            update={"entity_id": entity_id_map.get(a.entity_id, a.entity_id)}
+        )
         for a in asym_units
     ]
     new_atoms = [
-        a.model_copy(update={"label_entity_id": entity_id_map.get(a.label_entity_id, a.label_entity_id)})
-        if entity_id_map.get(a.label_entity_id, a.label_entity_id) != a.label_entity_id
+        a.model_copy(
+            update={
+                "label_entity_id": entity_id_map.get(
+                    a.label_entity_id, a.label_entity_id
+                )
+            }
+        )
+        if entity_id_map.get(a.label_entity_id, a.label_entity_id)
+        != a.label_entity_id
         else a
         for a in atoms
     ]
@@ -584,6 +685,7 @@ def _normalize_entities(
 
 
 # filter_ligands ---------------------------
+
 
 def _filter_ligands(
     atoms: list[AtomSiteRecord],
@@ -600,11 +702,24 @@ def _filter_ligands(
     }
     asym_entity: dict[str, str] = {a.id: a.entity_id for a in asym_units}
 
-    _ION_KEYWORDS = frozenset({
-        "ION", "ZINC", "CALCIUM", "MAGNESIUM", "SODIUM", "POTASSIUM",
-        "IRON", "COPPER", "MANGANESE", "COBALT", "NICKEL", "CHLORIDE",
-        "SULFATE", "PHOSPHATE",
-    })
+    _ION_KEYWORDS = frozenset(
+        {
+            "ION",
+            "ZINC",
+            "CALCIUM",
+            "MAGNESIUM",
+            "SODIUM",
+            "POTASSIUM",
+            "IRON",
+            "COPPER",
+            "MANGANESE",
+            "COBALT",
+            "NICKEL",
+            "CHLORIDE",
+            "SULFATE",
+            "PHOSPHATE",
+        }
+    )
 
     def _keep(asym_id: str) -> bool:
         eid = asym_entity.get(asym_id)
@@ -630,6 +745,7 @@ def _filter_ligands(
 
 # validate_canonical_structure ------------------------------
 
+
 def _validate(
     atoms: list[AtomSiteRecord],
     asym_units: list[AsymRecord],
@@ -639,27 +755,31 @@ def _validate(
 ) -> str:
     chain_ids = [a.id for a in asym_units]
     if len(chain_ids) != len(set(chain_ids)):
-        diagnostics.errors.append(Diagnostic(
-            code="CANONICAL_CHAIN_ID_COLLISION",
-            severity="error",
-            message="Duplicate canonical chain IDs",
-            entry_id=entry_id,
-        ))
+        diagnostics.errors.append(
+            Diagnostic(
+                code="CANONICAL_CHAIN_ID_COLLISION",
+                severity="error",
+                message="Duplicate canonical chain IDs",
+                entry_id=entry_id,
+            )
+        )
 
     chain_res_keys: dict[str, set] = defaultdict(set)
     for a in atoms:
         if a.group_PDB == "ATOM" and a.label_seq_id is not None:
             rk = (a.label_seq_id, a.pdbx_PDB_ins_code)
             if rk in chain_res_keys[a.label_asym_id]:
-                diagnostics.errors.append(Diagnostic(
-                    code="RESIDUE_NUMBER_COLLISION",
-                    severity="error",
-                    message=(
-                        f"Residue number collision in chain {a.label_asym_id} "
-                        f"at seq_id {a.label_seq_id}"
-                    ),
-                    entry_id=entry_id,
-                ))
+                diagnostics.errors.append(
+                    Diagnostic(
+                        code="RESIDUE_NUMBER_COLLISION",
+                        severity="error",
+                        message=(
+                            f"Residue number collision in chain {a.label_asym_id} "
+                            f"at seq_id {a.label_seq_id}"
+                        ),
+                        entry_id=entry_id,
+                    )
+                )
             chain_res_keys[a.label_asym_id].add(rk)
 
     if rules.strictness == "strict":
@@ -681,6 +801,7 @@ def _validate(
 
 
 # Public function ----------------------------------
+
 
 def canonicalize_structure(
     structure: Structure,
@@ -709,7 +830,9 @@ def canonicalize_structure(
     chain_map, chain_id_mapping = _normalize_chain_ids(
         asym_units, ir.chain_id.strategy, record
     )
-    atoms, asym_units, structure = _apply_chain_map(atoms, asym_units, structure, chain_map)
+    atoms, asym_units, structure = _apply_chain_map(
+        atoms, asym_units, structure, chain_map
+    )
     assemblies = list(structure.assemblies)
     if ir.chain_id.strategy != "preserve":
         transforms.append(f"chain_id:{ir.chain_id.strategy}")
@@ -729,23 +852,32 @@ def canonicalize_structure(
     assemblies, assembly_mapping = _normalize_assemblies(
         assemblies, asmr, ir.assembly_id.strategy, record
     )
-    if ir.assembly_id.strategy != "preserve" or asmr.strategy != "preserve_as_reported":
+    if (
+        ir.assembly_id.strategy != "preserve"
+        or asmr.strategy != "preserve_as_reported"
+    ):
         transforms.append(
             f"assembly:{asmr.strategy}/id:{ir.assembly_id.strategy}"
         )
 
     # handle_missing_atoms ---------------------------------------
-    atoms = _handle_missing_atoms(atoms, mdr.missing_atoms, diagnostics, structure.entry_id)
+    atoms = _handle_missing_atoms(
+        atoms, mdr.missing_atoms, diagnostics, structure.entry_id
+    )
     if mdr.missing_atoms.strategy not in ("preserve",):
         transforms.append(f"missing_atoms:{mdr.missing_atoms.strategy}")
 
     # handle_missing_residues ---------------------------------------
-    atoms = _handle_missing_residues(atoms, mdr.missing_residues, diagnostics, structure.entry_id)
+    atoms = _handle_missing_residues(
+        atoms, mdr.missing_residues, diagnostics, structure.entry_id
+    )
     if mdr.missing_residues.strategy not in ("preserve",):
         transforms.append(f"missing_residues:{mdr.missing_residues.strategy}")
 
     # handle_incomplete_chains -------------------------------------
-    atoms, asym_units = _handle_incomplete_chains(atoms, asym_units, mdr.incomplete_chains)
+    atoms, asym_units = _handle_incomplete_chains(
+        atoms, asym_units, mdr.incomplete_chains
+    )
     if mdr.incomplete_chains.strategy != "preserve":
         transforms.append(f"incomplete_chains:{mdr.incomplete_chains.strategy}")
 
@@ -769,12 +901,14 @@ def canonicalize_structure(
     # validate_canonical_structure ---------------------------------------
     _validate(atoms, asym_units, vr, diagnostics, structure.entry_id)
 
-    canonical = structure.model_copy(update={
-        "atoms": atoms,
-        "asym_units": asym_units,
-        "entities": entities,
-        "assemblies": assemblies,
-    })
+    canonical = structure.model_copy(
+        update={
+            "atoms": atoms,
+            "asym_units": asym_units,
+            "entities": entities,
+            "assemblies": assemblies,
+        }
+    )
 
     mappings = CanonicalMappings(
         chain_id_mapping=chain_id_mapping,
@@ -793,7 +927,9 @@ def canonicalize_structure(
         report={
             "warnings": len(diagnostics.warnings),
             "errors": len(diagnostics.errors),
-        } if pr.emit_canonicalization_report else {},
+        }
+        if pr.emit_canonicalization_report
+        else {},
     )
 
     return canonical, mappings, provenance

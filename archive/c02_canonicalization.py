@@ -1,4 +1,5 @@
 """Component 02 — Canonical Structure: public functions."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -34,6 +35,7 @@ def _policy_ref(policy: CanonicalizationPolicy) -> AppliedPolicyRef:
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
+
 
 def canonicalize_structure(
     ingestion_result: MmCIFIngestionResult,
@@ -114,4 +116,6 @@ def canonicalize_many_structures(
         warning=sum(1 for r in results if r.status == "warning"),
         failed=sum(1 for r in results if r.status == "failed"),
     )
-    return CanonicalizationBatchResult(mode=mode, summary=summary, results=results)
+    return CanonicalizationBatchResult(
+        mode=mode, summary=summary, results=results
+    )

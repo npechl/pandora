@@ -25,7 +25,9 @@ ingestion_prov = fetch_mmcif(
 
 print(f"Fetched : {ingestion_prov.source_uri}")
 print(f"Written : {MMCIF_PATH}")
-print(f"Provider: {ingestion_prov.provider}  cached={ingestion_prov.from_cache}")
+print(
+    f"Provider: {ingestion_prov.provider}  cached={ingestion_prov.from_cache}"
+)
 
 structure, diag, status = mmcif_to_structure(str(MMCIF_PATH))
 
@@ -55,7 +57,7 @@ policy = CanonicalizationPolicy(
         residue_numbering=ResidueNumberingRules(strategy="preserve"),
     ),
     altloc_rules=AltlocRules(strategy="select_best_occupancy"),
-    ligand_rules=LigandRules(strategy="preserve", keep_waters=False)
+    ligand_rules=LigandRules(strategy="preserve", keep_waters=False),
 )
 
 canonical, mappings, canon_prov = canonicalize_structure(structure, policy)
@@ -65,6 +67,10 @@ print(f"  atoms    : {len(canonical.atoms)}")
 print(f"  transforms: {canon_prov.transforms or ['none']}")
 
 if mappings.altloc_selection_mapping.items:
-    print(f"  altloc selections: {len(mappings.altloc_selection_mapping.items)}")
+    print(
+        f"  altloc selections: {len(mappings.altloc_selection_mapping.items)}"
+    )
     for item in mappings.altloc_selection_mapping.items[:3]:
-        print(f"    chain={item.canonical_chain_id} res={item.residue_id} → altloc={item.selected_altloc} ({item.selection_reason})")
+        print(
+            f"    chain={item.canonical_chain_id} res={item.residue_id} → altloc={item.selected_altloc} ({item.selection_reason})"
+        )

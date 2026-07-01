@@ -1,4 +1,5 @@
 """Component 04 — Dataset Curation: public functions."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -37,6 +38,7 @@ def _policy_ref(policy: DatasetCurationPolicy) -> AppliedPolicyRef:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
+
 def build_dataset(
     annotated_structures: list[AnnotatedStructureWithPlugins],
     policy: DatasetCurationPolicy,
@@ -71,7 +73,9 @@ def build_dataset(
     )
 
 
-def extract_chains(dataset: Dataset, policy: DatasetCurationPolicy) -> ChainDataset:
+def extract_chains(
+    dataset: Dataset, policy: DatasetCurationPolicy
+) -> ChainDataset:
     """Extract chain-level records from a structure-level Dataset."""
     # TODO: implement — iterate AnnotatedStructureWithPlugins, build ChainRecord
     #   per policy.extraction_rules.chain_extraction_rules
@@ -95,7 +99,9 @@ def extract_chains(dataset: Dataset, policy: DatasetCurationPolicy) -> ChainData
     )
 
 
-def extract_interfaces(dataset: Dataset, policy: DatasetCurationPolicy) -> InterfaceDataset:
+def extract_interfaces(
+    dataset: Dataset, policy: DatasetCurationPolicy
+) -> InterfaceDataset:
     """Extract interface-level records from a structure-level Dataset."""
     # TODO: implement — detect interfaces using BSA/contact criteria per
     #   policy.extraction_rules.interface_extraction_rules (requires FreeSASA)

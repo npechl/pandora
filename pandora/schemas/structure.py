@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 EntityType = Literal["polymer", "non-polymer", "water", "branched"]
-ConnType   = Literal["disulf", "covale", "hydrog", "metalc"]
+ConnType = Literal["disulf", "covale", "hydrog", "metalc"]
 
 
 class EntryRecord(BaseModel):
@@ -31,9 +31,9 @@ class EntityRecord(BaseModel):
 
 
 class AsymRecord(BaseModel):
-    id: str            # label_asym_id
+    id: str  # label_asym_id
     entity_id: str
-    auth_id: str | None = None   # auth_asym_id
+    auth_id: str | None = None  # auth_asym_id
 
 
 class AtomSiteRecord(BaseModel):
@@ -82,8 +82,8 @@ class ConnRecord(BaseModel):
 class AssemblyOperRecord(BaseModel):
     id: str
     type: str | None = None
-    matrix: list[list[float]] | None = None   # 3×3 rotation
-    vector: list[float] | None = None          # translation
+    matrix: list[list[float]] | None = None  # 3×3 rotation
+    vector: list[float] | None = None  # translation
 
 
 class AssemblyGenRecord(BaseModel):
@@ -104,6 +104,7 @@ class AssemblyRecord(BaseModel):
 
 class ConfRecord(BaseModel):
     """One row from _struct_conf (HELX_P, TURN_P, STRN, etc.)."""
+
     id: str
     conf_type_id: str
     beg_label_asym_id: str
