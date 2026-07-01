@@ -20,7 +20,8 @@ def _now_iso() -> str:
 
 
 def fetch_pdb():
-    """Fetch a raw mmCIF file from a provider URL or local path, with optional disk cache."""
+    """Fetch a raw mmCIF file from a provider URL or local path, with
+    optional disk cache."""
     raise NotImplementedError(
         "fetch_pdb() is not supported; use fetch_mmcif() instead."
     )
@@ -33,7 +34,8 @@ def fetch_mmcif(
     output_dir: Path,
     fetch_options: FetchOptions = FetchOptions(),
 ) -> IngestionProvenance:
-    """Fetch a raw mmCIF file from a provider URL, write it to output_dir, return provenance."""
+    """Fetch a raw mmCIF file from a provider URL, write it to
+    output_dir, return provenance."""
 
     if source_uri:
         url = source_uri
@@ -42,7 +44,8 @@ def fetch_mmcif(
         url = _PROVIDER_URLS[provider].format(id=fmt_id)
     else:
         raise ValueError(
-            f"provider={provider!r} requires an explicit source_uri or one of 'pdbe' or 'pdb'"
+            f"provider={provider!r} requires an explicit source_uri "
+            f"or one of 'pdbe' or 'pdb'"
         )
 
     try:
@@ -76,8 +79,9 @@ def fetch_mmcif(
         try:
             content = raw_bytes.decode("utf-8")
         except UnicodeDecodeError as exc:
+            decompressed = "decompressed " if fetch_options.decompress else ""
             raise RuntimeError(
-                f"Failed to decode {'decompressed ' if fetch_options.decompress else ''}response from {url} as UTF-8"
+                f"Failed to decode {decompressed}response from {url} as UTF-8"
             ) from exc
         out_path = output_dir / f"{entry_id.lower()}.cif"
         out_path.write_text(content, encoding="utf-8")

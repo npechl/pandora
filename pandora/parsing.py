@@ -43,7 +43,9 @@ _ENTITY_TYPE_MAP = {
 #         return None, diag, "failed"
 
 #     try:
-#         st = gemmi.read_structure_string(raw_content, format=gemmi.CoorFormat.Mmcif)
+#         st = gemmi.read_structure_string(
+#             raw_content, format=gemmi.CoorFormat.Mmcif
+#         )
 #     except Exception as exc:
 #         diag.errors.append(Diagnostic(
 #             code="PARSE_ERROR", severity="error",
@@ -84,7 +86,9 @@ _ENTITY_TYPE_MAP = {
 #             entity_id = subchain_to_entity.get(sc_name, "")
 #             for ent in st.entities:
 #                 if sc_name in ent.subchains:
-#                     chain_type = _ENTITY_TYPE_MAP.get(ent.entity_type, "non-polymer")
+#                     chain_type = _ENTITY_TYPE_MAP.get(
+#                         ent.entity_type, "non-polymer"
+#                     )
 #                     break
 #             break  # use the first subchain only for chain-level metadata
 
@@ -97,7 +101,11 @@ _ENTITY_TYPE_MAP = {
 #             atoms_in_res: list[Atom] = []
 #             for atom in res:
 #                 _serial += 1
-#                 altloc = atom.altloc if atom.altloc not in ("\x00", " ", "") else None
+#                 altloc = (
+#                     atom.altloc
+#                     if atom.altloc not in ("\x00", " ", "")
+#                     else None
+#                 )
 #                 atoms_in_res.append(Atom(
 #                     atom_id=f"{rid}:{atom.name}:{_serial}",
 #                     atom_name=atom.name,
@@ -116,7 +124,9 @@ _ENTITY_TYPE_MAP = {
 #             try:
 #                 seq_id_num: int | None = res.seqid.num
 #                 ins = res.seqid.icode
-#                 ins_code: str | None = ins if ins not in (" ", "\x00", "") else None
+#                 ins_code: str | None = (
+#                     ins if ins not in (" ", "\x00", "") else None
+#                 )
 #             except Exception:
 #                 seq_id_num, ins_code = None, None
 
@@ -141,7 +151,9 @@ _ENTITY_TYPE_MAP = {
 #                     chain_id=chain.name,
 #                     residue_id=rid,
 #                     is_water=False,
-#                     is_ion=(len(atom_names) == 1 and atom_names[0] in _METALS),
+#                     is_ion=(
+#                         len(atom_names) == 1 and atom_names[0] in _METALS
+#                     ),
 #                 ))
 
 #         if not residues_in_chain:
@@ -152,7 +164,8 @@ _ENTITY_TYPE_MAP = {
 #             ))
 
 #         chains_out.append(Chain(
-#             chain_id=chain.name,        # auth_asym_id; C02 normalises to label_asym_id
+#             chain_id=chain.name,  # auth_asym_id; C02 normalises
+#                                   # to label_asym_id
 #             auth_chain_id=chain.name,
 #             entity_id=entity_id,
 #             chain_type=chain_type,      # type: ignore[arg-type]
@@ -315,7 +328,10 @@ def mmcif_to_structure(
             Diagnostic(
                 code="MODEL_NOT_FOUND",
                 severity="warning",
-                message=f"Model {model_num} not found; falling back to model {model.num}",
+                message=(
+                    f"Model {model_num} not found; falling back "
+                    f"to model {model.num}"
+                ),
                 entry_id=eid,
             )
         )

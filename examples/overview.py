@@ -72,5 +72,7 @@ if mappings.altloc_selection_mapping.items:
     )
     for item in mappings.altloc_selection_mapping.items[:3]:
         print(
-            f"    chain={item.canonical_chain_id} res={item.residue_id} → altloc={item.selected_altloc} ({item.selection_reason})"
+            f"    chain={item.canonical_chain_id} res={item.residue_id} "
+            f"→ altloc={item.selected_altloc} "
+            f"({item.selection_reason})"
         )

@@ -298,8 +298,9 @@ def _normalize_assemblies(
     if assembly_rules.strategy == "select_first_assembly" and result:
         result = [result[0]]
 
-    # standardize_biological_assembly: without external metadata we keep order as-is;
-    # the preferred assembly (if annotated) would be identified from pdbx flags in raw data.
+    # standardize_biological_assembly: without external metadata we keep
+    # order as-is; the preferred assembly (if annotated) would be
+    # identified from pdbx flags in raw data.
 
     if id_strategy == "preserve":
         if record:
@@ -364,7 +365,10 @@ def _handle_missing_atoms(
                     Diagnostic(
                         code="MISSING_ATOMS",
                         severity="warning",
-                        message=f"Residue {comp_id} {seq_id} in chain {asym_id} missing backbone atoms",
+                        message=(
+                            f"Residue {comp_id} {seq_id} in chain "
+                            f"{asym_id} missing backbone atoms"
+                        ),
                         entry_id=entry_id,
                         context={
                             "chain": asym_id,
@@ -415,7 +419,8 @@ def _handle_missing_residues(
                             severity="warning",
                             message=(
                                 f"Sequence gap in chain {chain} between "
-                                f"residues {sorted_ids[i]} and {sorted_ids[i + 1]}"
+                                f"residues {sorted_ids[i]} and "
+                                f"{sorted_ids[i + 1]}"
                             ),
                             entry_id=entry_id,
                             context={
@@ -462,7 +467,8 @@ def _handle_incomplete_chains(
             [a for a in asym_units if a.id in keep],
         )
 
-    # truncate_to_complete_regions: keep longest contiguous run per incomplete chain
+    # truncate_to_complete_regions: keep longest contiguous run per
+    # incomplete chain
     keep_ids: dict[str, set[int]] = {}
     for chain in incomplete:
         s = sorted(chain_seq_ids[chain])
@@ -774,8 +780,9 @@ def _validate(
                         code="RESIDUE_NUMBER_COLLISION",
                         severity="error",
                         message=(
-                            f"Residue number collision in chain {a.label_asym_id} "
-                            f"at seq_id {a.label_seq_id}"
+                            f"Residue number collision in chain "
+                            f"{a.label_asym_id} at seq_id "
+                            f"{a.label_seq_id}"
                         ),
                         entry_id=entry_id,
                     )

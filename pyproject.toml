@@ -46,6 +46,7 @@ testpaths = ["tests"]
 [tool.ruff]
 # Set the maximum line length to 80.
 line-length = 80
+extend-exclude = ["archive"]
 
 [tool.ruff.lint]
 # Add the `line-too-long` rule to the enforced rule set. By default, Ruff omits rules that
