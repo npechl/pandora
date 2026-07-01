@@ -725,7 +725,7 @@ def canonicalize_structure(
     if ir.residue_numbering.strategy != "preserve":
         transforms.append(f"residue_numbering:{ir.residue_numbering.strategy}")
 
-    # ── 3. normalize_assemblies ───────────────────────────────────────────────
+    # normalize_assemblies --------------------------------
     assemblies, assembly_mapping = _normalize_assemblies(
         assemblies, asmr, ir.assembly_id.strategy, record
     )
@@ -734,39 +734,39 @@ def canonicalize_structure(
             f"assembly:{asmr.strategy}/id:{ir.assembly_id.strategy}"
         )
 
-    # ── 4a. handle_missing_atoms ──────────────────────────────────────────────
+    # handle_missing_atoms ---------------------------------------
     atoms = _handle_missing_atoms(atoms, mdr.missing_atoms, diagnostics, structure.entry_id)
     if mdr.missing_atoms.strategy not in ("preserve",):
         transforms.append(f"missing_atoms:{mdr.missing_atoms.strategy}")
 
-    # ── 4b. handle_missing_residues ───────────────────────────────────────────
+    # handle_missing_residues ---------------------------------------
     atoms = _handle_missing_residues(atoms, mdr.missing_residues, diagnostics, structure.entry_id)
     if mdr.missing_residues.strategy not in ("preserve",):
         transforms.append(f"missing_residues:{mdr.missing_residues.strategy}")
 
-    # ── 4c. handle_incomplete_chains ─────────────────────────────────────────
+    # handle_incomplete_chains -------------------------------------
     atoms, asym_units = _handle_incomplete_chains(atoms, asym_units, mdr.incomplete_chains)
     if mdr.incomplete_chains.strategy != "preserve":
         transforms.append(f"incomplete_chains:{mdr.incomplete_chains.strategy}")
 
-    # ── 5. resolve_altlocs ────────────────────────────────────────────────────
+    # esolve_altlocs ------------------------------
     atoms, altloc_selection_mapping = _resolve_altlocs(atoms, ar)
     if ar.strategy != "preserve":
         transforms.append(f"altloc:{ar.strategy}")
 
-    # ── 6. normalize_entities ─────────────────────────────────────────────────
+    # normalize_entities ---------------------------------------
     entities, asym_units, atoms, entity_mapping = _normalize_entities(
         entities, asym_units, atoms, er, record
     )
     if er.strategy != "preserve":
         transforms.append(f"entity:{er.strategy}")
 
-    # ── 7. filter_ligands ─────────────────────────────────────────────────────
+    # filter_ligands ---------------------------------------
     atoms, asym_units = _filter_ligands(atoms, asym_units, entities, lr)
     if lr.strategy != "preserve":
         transforms.append(f"ligands:{lr.strategy}")
 
-    # ── 8. validate_canonical_structure ───────────────────────────────────────
+    # validate_canonical_structure ---------------------------------------
     _validate(atoms, asym_units, vr, diagnostics, structure.entry_id)
 
     canonical = structure.model_copy(update={
