@@ -14,7 +14,6 @@ from pandora.schemas.canonicalization import (
 
 ENTRY_ID = "1cbs"
 MMCIF_DIR = Path("./examples/mmcif")
-MMCIF_PATH = MMCIF_DIR / f"{ENTRY_ID}.cif"
 
 ingestion_prov = fetch_mmcif(
     entry_id=ENTRY_ID,
@@ -24,28 +23,17 @@ ingestion_prov = fetch_mmcif(
 )
 
 print(f"Fetched : {ingestion_prov.source_uri}")
-print(f"Written : {MMCIF_PATH}")
 print(
     f"Provider: {ingestion_prov.provider}  cached={ingestion_prov.from_cache}"
 )
 
-structure, diag, status = mmcif_to_structure(str(MMCIF_PATH))
-
-if structure is None:
-    print(f"Parse failed ({status}):")
-    for e in diag.errors:
-        print(f"  ERROR {e.code}: {e.message}")
-    raise SystemExit(1)
+structure, diag, status = mmcif_to_structure(str(MMCIF_DIR / f"{ENTRY_ID}.cif"))
 
 print(f"\nParsed  : {structure.entry_id}  (status={status})")
 print(f"  chains   : {len(structure.asym_units)}")
 print(f"  entities : {len(structure.entities)}")
 print(f"  atoms    : {len(structure.atoms)}")
 print(f"  assemblies: {len(structure.assemblies)}")
-
-if diag.warnings:
-    for w in diag.warnings:
-        print(f"  WARN {w.code}: {w.message}")
 
 
 policy = CanonicalizationPolicy(
