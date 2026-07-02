@@ -9,6 +9,8 @@ from pandora.schemas.canonicalization import (
     ChainIdRules,
     ResidueNumberingRules,
     AltlocRules,
+    AssemblyRules,
+    EntityRules,
     LigandRules,
 )
 
@@ -29,16 +31,12 @@ print(
 
 structure, diag, status = mmcif_to_structure(str(MMCIF_DIR / f"{ENTRY_ID}.cif"))
 
-print(f"\nParsed  : {structure.entry_id}  (status={status})")
-print(f"  chains   : {len(structure.asym_units)}")
-print(f"  entities : {len(structure.entities)}")
-print(f"  atoms    : {len(structure.atoms)}")
-print(f"  assemblies: {len(structure.assemblies)}")
 
+# Example 1: preserve everything as reported -----------------------------
 
-policy = CanonicalizationPolicy(
-    policy_id="overview-v1",
-    policy_name="Overview Example Policy",
+preserve_policy = CanonicalizationPolicy(
+    policy_id="overview-preserve",
+    policy_name="Preserve As Reported",
     policy_version="1.0.0",
     identifier_rules=IdentifierRules(
         chain_id=ChainIdRules(strategy="preserve"),
@@ -48,19 +46,51 @@ policy = CanonicalizationPolicy(
     ligand_rules=LigandRules(strategy="preserve", keep_waters=False),
 )
 
-canonical, mappings, canon_prov = canonicalize_structure(structure, policy)
+canonical, mappings, canon_prov = canonicalize_structure(
+    structure, preserve_policy
+)
 
-print(f"\nCanonical: {canonical.entry_id}  (policy={canon_prov.policy_id})")
-print(f"  atoms    : {len(canonical.atoms)}")
-print(f"  transforms: {canon_prov.transforms or ['none']}")
+# Example 2: remap identifiers and renumber residues ---------------------
 
-if mappings.altloc_selection_mapping.items:
-    print(
-        f"  altloc selections: {len(mappings.altloc_selection_mapping.items)}"
-    )
-    for item in mappings.altloc_selection_mapping.items[:3]:
-        print(
-            f"    chain={item.canonical_chain_id} res={item.residue_id} "
-            f"→ altloc={item.selected_altloc} "
-            f"({item.selection_reason})"
-        )
+remap_policy = CanonicalizationPolicy(
+    policy_id="overview-remap",
+    policy_name="Remap Chains And Renumber",
+    policy_version="1.0.0",
+    identifier_rules=IdentifierRules(
+        chain_id=ChainIdRules(strategy="remap"),
+        residue_numbering=ResidueNumberingRules(strategy="renumber"),
+    ),
+    altloc_rules=AltlocRules(
+        strategy="select_best_occupancy", tie_breaker="lowest_b_factor"
+    ),
+    entity_rules=EntityRules(strategy="merge_equivalent_entities"),
+    ligand_rules=LigandRules(
+        strategy="filter", keep_waters=False, keep_ions=False
+    ),
+)
+canonical, mappings, canon_prov = canonicalize_structure(
+    structure, remap_policy
+)
+
+
+# Example 3: author-centric identifiers, first altloc, strict validation --
+
+author_policy = CanonicalizationPolicy(
+    policy_id="overview-author",
+    policy_name="Author Identifiers",
+    policy_version="1.0.0",
+    identifier_rules=IdentifierRules(
+        chain_id=ChainIdRules(strategy="use_auth_chain_id"),
+        residue_numbering=ResidueNumberingRules(strategy="use_auth_seq"),
+    ),
+    altloc_rules=AltlocRules(strategy="select_first"),
+    assembly_rules=AssemblyRules(
+        strategy="standardize_biological_assembly",
+        preferred_assembly_source="author",
+    ),
+    ligand_rules=LigandRules(strategy="annotate_only"),
+)
+
+canonical, mappings, canon_prov = canonicalize_structure(
+    structure, author_policy
+)
