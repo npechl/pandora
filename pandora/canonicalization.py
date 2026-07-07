@@ -701,8 +701,10 @@ def _filter_ligands(
     asym_units: list[AsymRecord],
     entities: list[EntityRecord],
     rules,
+    diagnostics: DiagnosticBundle,
+    entry_id: str,
 ) -> tuple[list[AtomSiteRecord], list[AsymRecord]]:
-    if rules.strategy != "filter":
+    if rules.strategy not in ("filter", "annotate_only"):
         return atoms, asym_units
 
     entity_type: dict[str, str] = {e.id: e.type for e in entities}
@@ -737,6 +739,8 @@ def _filter_ligands(
         etype = entity_type.get(eid, "polymer")
         if etype == "polymer":
             return True
+        if rules.strategy == "annotate_only":
+            return False
         if etype == "water":
             return rules.keep_waters
         desc = entity_desc.get(eid, "")
@@ -746,6 +750,30 @@ def _filter_ligands(
         return rules.keep_nonpolymer_ligands
 
     keep = {a.id for a in asym_units if _keep(a.id)}
+
+    if rules.strategy == "annotate_only":
+        for a in asym_units:
+            if a.id in keep:
+                continue
+            eid = asym_entity.get(a.id)
+            diagnostics.warnings.append(
+                Diagnostic(
+                    code="LIGAND_ANNOTATED_ONLY",
+                    severity="warning",
+                    message=(
+                        f"Ligand in asym {a.id} excluded from canonical "
+                        "structure (ligand_rules.strategy=annotate_only)"
+                    ),
+                    entry_id=entry_id,
+                    context={
+                        "asym_id": a.id,
+                        "entity_id": eid,
+                        "entity_type": entity_type.get(eid, "polymer"),
+                        "description": entity_desc.get(eid, ""),
+                    },
+                )
+            )
+
     return (
         [a for a in atoms if a.label_asym_id in keep],
         [a for a in asym_units if a.id in keep],
@@ -904,7 +932,9 @@ def canonicalize_structure(
         transforms.append(f"entity:{er.strategy}")
 
     # filter_ligands ---------------------------------------
-    atoms, asym_units = _filter_ligands(atoms, asym_units, entities, lr)
+    atoms, asym_units = _filter_ligands(
+        atoms, asym_units, entities, lr, diagnostics, structure.entry_id
+    )
     if lr.strategy != "preserve":
         transforms.append(f"ligands:{lr.strategy}")
 
