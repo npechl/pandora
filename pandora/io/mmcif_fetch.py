@@ -92,3 +92,26 @@ def fetch_mmcif(
         retrieved_at=_now_iso(),
         from_cache=False,
     )
+
+def fetch_list_mmcif(
+    entry_ids: list[str],
+    provider: str,
+    source_uri: str | None,
+    output_dir: Path,
+    fetch_options: FetchOptions = FetchOptions(),
+) -> list[IngestionProvenance]:
+    """Fetch a list of raw mmCIF files from a provider URL, write them to
+    output_dir, return provenance for each."""
+
+    provenance_list = []
+    for entry_id in entry_ids:
+        provenance = fetch_mmcif(
+            entry_id=entry_id,
+            provider=provider,
+            source_uri=source_uri,
+            output_dir=output_dir,
+            fetch_options=fetch_options,
+        )
+        provenance_list.append(provenance)
+
+    return provenance_list
