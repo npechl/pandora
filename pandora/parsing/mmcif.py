@@ -246,17 +246,25 @@ def _extract_raw(block: object) -> dict[str, list[dict[str, str | None]]]:
     raw: dict[str, list[dict[str, str | None]]] = {}
     for item in block:  # type: ignore[union-attr]
         loop = getattr(item, "loop", None)
-        if loop is None or not loop.tags:
+        if loop is not None and loop.tags:
+            category = loop.tags[0].rsplit(".", 1)[0]
+            if category in _SKIP_RAW:
+                continue
+            col_names = [t.rsplit(".", 1)[1] for t in loop.tags]
+            n_cols = len(col_names)
+            raw[category] = [
+                {col_names[j]: _cs(loop[i, j]) for j in range(n_cols)}
+                for i in range(loop.length())
+            ]
             continue
-        category = loop.tags[0].rsplit(".", 1)[0]
-        if category in _SKIP_RAW:
-            continue
-        col_names = [t.rsplit(".", 1)[1] for t in loop.tags]
-        n_cols = len(col_names)
-        raw[category] = [
-            {col_names[j]: _cs(loop[i, j]) for j in range(n_cols)}
-            for i in range(loop.length())
-        ]
+
+        pair = getattr(item, "pair", None)
+        if pair:
+            tag, value = pair
+            category, col_name = tag.rsplit(".", 1)
+            if category in _SKIP_RAW:
+                continue
+            raw.setdefault(category, [{}])[0][col_name] = _cs(value)
     return raw
 
 

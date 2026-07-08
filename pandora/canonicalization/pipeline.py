@@ -35,12 +35,10 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-
-
-
 # normalize_chain_ids ------------------------
 
-# dump function for remap 
+
+# dump function for remap
 def _sequential_chain_ids() -> Iterator[str]:
     letters = string.ascii_uppercase
     for c in letters:
@@ -48,6 +46,7 @@ def _sequential_chain_ids() -> Iterator[str]:
     for c1 in letters:
         for c2 in letters:
             yield c1 + c2
+
 
 def _normalize_chain_ids(
     asym_units: list[AsymRecord],
@@ -331,6 +330,7 @@ def _normalize_assemblies(
 
 
 # normalize_entities -----------------------------------
+
 
 def _normalize_entities(
     entities: list[EntityRecord],
@@ -688,9 +688,6 @@ def _resolve_altlocs(
             )
 
     return result, mapping
-
-
-
 
 
 # filter_ligands ---------------------------
