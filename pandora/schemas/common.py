@@ -25,6 +25,7 @@ class DiagnosticBundle(BaseModel):
 
 class AppliedPolicyRef(BaseModel):
     """Compact reference to a policy that was applied at a pipeline stage."""
+
     policy_id: str
     policy_name: str
     policy_version: str

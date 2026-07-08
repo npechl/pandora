@@ -14,7 +14,8 @@ This component is responsible for:
 * recording source release versions,
 * computing integrity checksums,
 * tracking lineage from raw archive data to final split artifacts,
-* and exporting reproducibility bundles.
+* and exporting reproducibility bundles in either embedded or by-reference
+  artifact mode.
 
 This component does **not** perform ingestion, canonicalization, metadata
 retrieval, annotation, curation, or splitting. It only records, assembles,
@@ -31,7 +32,7 @@ MmCIFIngestionResult
   → AnnotatedStructureWithPlugins
   → PandoraDataset (Dataset | ChainDataset | InterfaceDataset | ResidueDataset)
   → LeakageSafeDataset
-  → PandoraArtifact
+  → PandoraArtifact (embedded or by-reference)
 ```
 
 ---
@@ -42,8 +43,11 @@ MmCIFIngestionResult
 
 Every preceding component contributes provenance data.
 
-Component 6 centralises that information into one reproducible artifact by
-traversing the `LeakageSafeDataset` object hierarchy.
+Component 6 centralises that information into one reproducible artifact.
+When the source dataset is in-memory, it traverses the
+`LeakageSafeDataset` object hierarchy directly. When the source dataset is
+materialized, it reads provenance metadata fields from the dataset without
+loading atom-coordinate records.
 
 ---
 
@@ -67,30 +71,78 @@ not been modified after generation.
 
 ---
 
-## Dataset versioning is optional
+## Two artifact storage modes
 
-Pandora prefers lineage and policy provenance over manual dataset version
-numbering. The identity of a generated artifact is primarily defined by
-source releases, policies, software version, and transformations applied.
+**Embedded mode** — default for small datasets (~≤10K structures).
+
+`PandoraArtifact.leakage_safe_dataset` holds the full `LeakageSafeDataset`
+as a nested Python object. The artifact is self-contained and shareable as
+a single serialized file (e.g. JSON or pickle), but may become impractically
+large for datasets with many structures.
+
+**By-reference mode** — required for large datasets (>10K structures), or
+when the source dataset was in materialized mode.
+
+`PandoraArtifact.leakage_safe_dataset` is null. Instead, the artifact holds
+an `ArtifactStoreRef` pointing to a directory on disk that contains:
+
+```text
+{store_root}/
+  manifest.json       — PandoraManifest (always present)
+  manifest.yaml       — Optional; emitted when emit_manifest_yaml: true
+  provenance.json     — ProvenanceBundle serialised to JSON
+  checksums.json      — ArtifactChecksums
+  splits/
+    train.parquet     — Item identifiers for the train split
+    validation.parquet
+    test.parquet
+```
+
+The `splits/` Parquet files contain only the partition item identifier
+strings — not full atom-coordinate records. Structure data remains in the
+C04 `DatasetStore` (referenced via `LeakageSafeDataset.source_dataset_ref`).
+
+The artifact mode is set automatically based on whether
+`LeakageSafeDataset.source_dataset` is non-null (embedded) or
+`LeakageSafeDataset.source_dataset_ref` is non-null (by-reference). It can
+also be overridden explicitly via `ExportPolicy.artifact_mode`.
 
 ---
 
-## Artifact embedding contract
+## Provenance depth depends on granularity
 
-In V1, `PandoraArtifact.leakage_safe_dataset` is embedded **by value** —
-the full nested object is stored, including `source_dataset.structures`.
-This makes the artifact self-contained and shareable without external
-dependencies, but may produce large files for datasets with many structures.
+For structure-level datasets, Component 06 traverses the full object
+hierarchy to collect per-entry ingestion, canonicalization, metadata, and
+annotation provenance.
 
-Users who need lightweight artifacts may serialise structure data separately
-and retain only the partition entry_id lists. This is a user-side concern;
-Pandora does not implement a by-reference artifact mode in V1.
+For chain/interface/residue-level datasets, the upstream
+`AnnotatedStructureWithPlugins` objects are not embedded in the dataset.
+Only curation and splitting provenance are available. This is recorded as
+an `UPSTREAM_PROVENANCE_NOT_EMBEDDED` warning in the reproducibility report.
 
 ---
 
-# 3. Input Schemas
+# 3. ArtifactStoreRef Schema
 
-## 3.1 Reproducibility input
+```yaml
+ArtifactStoreRef:
+  artifact_id: string
+  # Matches PandoraArtifact.artifact_id.
+
+  store_root: string
+  # Absolute path to the artifact store root directory.
+  # Contains the directory layout described in Section 2 above.
+
+  store_format: string
+  # parquet
+  # V1: split files are always Parquet.
+```
+
+---
+
+# 4. Input Schemas
+
+## 4.1 Reproducibility input
 
 ```yaml
 ReproducibilityInput:
@@ -105,7 +157,7 @@ ReproducibilityInput:
 
 ---
 
-## 3.2 Batch reproducibility input
+## 4.2 Batch reproducibility input
 
 ```yaml
 ReproducibilityBatchInput:
@@ -120,22 +172,18 @@ ReproducibilityBatchInput:
 
   parallel_options:
     max_workers: int | null
-    # Number of concurrent artifact-building jobs in parallel mode.
-    # null uses the system default.
     fail_fast: bool
-    # If true, abort remaining jobs on the first failure.
-    # If false (default), isolate failures and continue.
 ```
 
 ---
 
-# 4. Provenance Sub-Schemas
+# 5. Provenance Sub-Schemas
 
 These schemas define the typed content of each provenance category within
 `ProvenanceBundle`. Each is populated by traversing the corresponding
 fields in the `LeakageSafeDataset` hierarchy.
 
-## 4.1 PipelineIngestionProvenance
+## 5.1 PipelineIngestionProvenance
 
 Sourced from `AnnotatedStructureWithPlugins.canonical_structure_result.provenance`
 (representative sample — one record per unique provider/source_uri pair).
@@ -155,7 +203,7 @@ PipelineIngestionProvenance:
 
 ---
 
-## 4.2 PipelineCanonicalizationProvenance
+## 5.2 PipelineCanonicalizationProvenance
 
 Sourced from `AnnotatedStructureWithPlugins.canonical_structure_result`.
 
@@ -172,7 +220,7 @@ PipelineCanonicalizationProvenance:
 
 ---
 
-## 4.3 PipelineMetadataProvenance
+## 5.3 PipelineMetadataProvenance
 
 Sourced from `AnnotatedStructureWithPlugins.metadata_annotations.provenance_metadata`.
 
@@ -190,7 +238,7 @@ PipelineMetadataProvenance:
 
 ---
 
-## 4.4 PipelineAnnotationProvenance
+## 5.4 PipelineAnnotationProvenance
 
 Sourced from `AnnotatedStructureWithPlugins.applied_plugins` and
 `derived_annotations`.
@@ -212,9 +260,10 @@ PluginProvenanceRecord:
 
 ---
 
-## 4.5 PipelineCurationProvenance
+## 5.5 PipelineCurationProvenance
 
-Sourced from `LeakageSafeDataset.source_dataset`.
+Sourced from `LeakageSafeDataset.source_dataset` (in-memory) or
+`LeakageSafeDataset.source_dataset_ref` metadata (materialized).
 
 ```yaml
 PipelineCurationProvenance:
@@ -222,24 +271,20 @@ PipelineCurationProvenance:
   curation_policy_name: string
   curation_policy_version: string
   granularity: string
-  # Granularity of items in the curated dataset.
-  # Values: structure | chain | interface | residue
   total_input: int
   total_selected: int
   total_excluded: int
   total_duplicates_removed: int
   filters_applied: list[AppliedFilterRecord]
-  # References AppliedFilterRecord from Component 04.
   exclusions: list[ExclusionRecord]
-  # References ExclusionRecord from Component 04.
   deduplication_strategy: string | null
 ```
 
 ---
 
-## 4.6 PipelineSplittingProvenance
+## 5.6 PipelineSplittingProvenance
 
-Sourced from `LeakageSafeDataset` and `LeakageSafeDataset.similarity_clusters`.
+Sourced from `LeakageSafeDataset`.
 
 ```yaml
 PipelineSplittingProvenance:
@@ -266,7 +311,7 @@ PipelineSplittingProvenance:
 
 ---
 
-## 4.7 SourceReleaseProvenanceRecord
+## 5.7 SourceReleaseProvenanceRecord
 
 ```yaml
 SourceReleaseProvenanceRecord:
@@ -284,7 +329,7 @@ ExternalSourceRelease:
 
 ---
 
-## 4.8 PolicyProvenanceRecord
+## 5.8 PolicyProvenanceRecord
 
 ```yaml
 PolicyProvenanceRecord:
@@ -304,23 +349,26 @@ PolicyProvenanceRecord:
 
 ---
 
-# 5. Manifest Schema
+# 6. Manifest Schema
 
 The `PandoraManifest` is the primary machine-readable artifact shared
 between researchers for reproducibility. It is a compact summary — it does
-not embed full structure data.
+not embed full structure data in either artifact mode.
 
 ```yaml
 PandoraManifest:
   manifest_id: string
-  manifest_format: string
-  # yaml | json
+  manifest_format: list[string]
+  # ["json"] | ["yaml"] | ["json", "yaml"]
+  # Records which formats were emitted.
 
   pandora_version: string
   generated_at: string
   # ISO 8601 timestamp.
 
   artifact_id: string
+  artifact_mode: string
+  # embedded | by_reference
 
   dataset_summary:
     dataset_id: string
@@ -328,8 +376,6 @@ PandoraManifest:
     granularity: string
     # Values: structure | chain | interface | residue
     total_items: int
-    # Number of items in the leakage-safe dataset. Item type is
-    # determined by granularity (structures, chains, interfaces, or residues).
     train_count: int
     validation_count: int
     test_count: int
@@ -346,6 +392,19 @@ PandoraManifest:
   # e.g. ["ingestion", "canonicalization", "metadata_integration",
   #        "annotation", "curation", "splitting"]
 
+  by_reference_layout: object | null
+  # Populated in by_reference mode only.
+  # Describes the file layout of the ArtifactStore:
+  #   store_root: string
+  #   files:
+  #     manifest_json: string | null   (relative path)
+  #     manifest_yaml: string | null   (relative path)
+  #     provenance_json: string        (relative path)
+  #     checksums_json: string         (relative path)
+  #     train_parquet: string          (relative path)
+  #     validation_parquet: string     (relative path)
+  #     test_parquet: string           (relative path)
+
   checksums:
     artifact_checksum: string | null
     manifest_checksum: string | null
@@ -356,24 +415,32 @@ PandoraManifest:
 
 ---
 
-# 6. Output Schemas
+# 7. Output Schemas
 
-## 6.1 Pandora artifact
+## 7.1 Pandora artifact
 
 ```yaml
 PandoraArtifact:
   artifact_id: string
   artifact_name: string | null
 
-  leakage_safe_dataset: LeakageSafeDataset
-  # Embedded by value in V1. See Section 2 (Artifact embedding contract).
+  artifact_mode: string
+  # embedded     — leakage_safe_dataset is populated; artifact_store_ref is null.
+  # by_reference — leakage_safe_dataset is null; artifact_store_ref is populated.
+
+  leakage_safe_dataset: LeakageSafeDataset | null
+  # Non-null in embedded mode.
+  # null in by_reference mode — data lives in artifact_store_ref.
+
+  artifact_store_ref: ArtifactStoreRef | null
+  # null in embedded mode.
+  # Non-null in by_reference mode. Points to the store directory containing
+  # manifest.json, provenance.json, checksums.json, and splits/ Parquet files.
 
   provenance_bundle: ProvenanceBundle
 
   manifest: PandoraManifest
-  # When export_policy.emit_manifest_yaml and/or emit_manifest_json are true,
-  # this manifest is also serialised to disk in the requested format(s).
-  # Both formats can be emitted simultaneously.
+  # Always populated in memory. Serialised to disk according to export_policy.
 
   checksums:
     artifact_checksum: string | null
@@ -394,20 +461,17 @@ PandoraArtifact:
     generated_at: string
     # ISO 8601 timestamp. Always populated.
     pandora_version: string
-    # Pandora software version. Always populated (non-nullable).
+    # Always populated (non-nullable).
 ```
 
 ---
 
-## 6.2 Provenance bundle
+## 7.2 Provenance bundle
 
 ```yaml
 ProvenanceBundle:
   pipeline_provenance:
     ingestion: PipelineIngestionProvenance | null
-    # null when provenance_policy.record_execution_timestamps: false
-    # and no ingestion metadata is available.
-
     canonicalization: PipelineCanonicalizationProvenance | null
     metadata_integration: PipelineMetadataProvenance | null
     annotation_plugins: PipelineAnnotationProvenance | null
@@ -417,24 +481,15 @@ ProvenanceBundle:
     # in ProvenancePolicy, or when data is unavailable.
 
   source_release_provenance: SourceReleaseProvenanceRecord
-  # Empty lists / null fields when record_source_releases: false.
-
   policy_provenance: PolicyProvenanceRecord
-  # All fields null when record_policy_versions: false.
-
   annotation_provenance: PipelineAnnotationProvenance | null
-  # null when record_annotation_plugin_versions: false.
-
   curation_provenance: PipelineCurationProvenance | null
-  # null when record_curation_history: false.
-
   splitting_provenance: PipelineSplittingProvenance | null
-  # null when record_split_history: false.
 ```
 
 ---
 
-## 6.3 Reproducibility report
+## 7.3 Reproducibility report
 
 ```yaml
 ReproducibilityReport:
@@ -443,11 +498,10 @@ ReproducibilityReport:
 
   summary:
     pipeline_steps: int
-    # Number of pipeline steps recorded in provenance.
     source_count: int
     # Number of unique source providers used.
     policy_count: int
-    # Number of distinct policies applied (one per component).
+    # Number of distinct policies applied.
     plugin_count: int
     # Number of annotation plugins applied.
 
@@ -461,19 +515,18 @@ ReproducibilityReport:
   #    "04 curation (structure): 120 selected, 30 excluded",
   #    "05 splitting: train=84, val=18, test=18 (leakage: clean)"]
   #
-  # e.g. chain-level:
+  # chain-level:
   #   ["04 curation (chain): 847 chains selected, 23 excluded",
   #    "05 splitting: train=593, val=127, test=127 (leakage: clean)"]
-  # Note: steps 01–03 will be null when source is a ChainDataset.
+  # Note: steps 01-03 will be null when source is a ChainDataset.
 
   reproducibility_risks: list[Diagnostic]
   # Warnings about missing provenance fields or reproducibility weaknesses.
-  # e.g. missing engine version, null source release, incomplete timestamps.
 ```
 
 ---
 
-## 6.4 Batch output
+## 7.4 Batch output
 
 ```yaml
 ReproducibilityBatchResult:
@@ -501,14 +554,21 @@ ReproducibilityBatchResult:
 
 ---
 
-# 7. Public Functions
+# 8. Public Functions
 
-## 7.1 `build_provenance_bundle()`
+## 8.1 `build_provenance_bundle()`
 
 ### Responsibility
 
 Aggregate provenance from the leakage-safe dataset and all upstream
-pipeline stages by traversing the `LeakageSafeDataset` object hierarchy.
+pipeline stages.
+
+In embedded mode, traverses the `LeakageSafeDataset` object hierarchy
+directly.
+
+In by-reference mode (when `source_dataset` is null and
+`source_dataset_ref` is non-null), reads provenance metadata from the
+dataset's schema fields without loading atom-coordinate records.
 
 ### Internal Workflow
 
@@ -516,26 +576,23 @@ pipeline stages by traversing the `LeakageSafeDataset` object hierarchy.
 1. Extract pipeline provenance:
    aggregate_pipeline_provenance(leakage_safe_dataset, provenance_policy)
 
-   When source_dataset.granularity == "structure":
+   When source_dataset.granularity == "structure" (in-memory only):
      ingestion:        source_dataset.structures[*]
                        .canonical_structure_result.provenance
      canonicalization: source_dataset.structures[*]
                        .canonical_structure_result.applied_policy
-                       and .provenance.canonicalized_at
      metadata:         source_dataset.structures[*]
                        .metadata_annotations.provenance_metadata.sources
      annotation:       source_dataset.structures[*]
-                       .applied_plugins + .derived_annotations[*].plugin_id
+                       .applied_plugins + .derived_annotations[*]
 
-   When source_dataset.granularity in ("chain", "interface", "residue"):
+   When source_dataset is null (materialized mode) OR
+   when source_dataset.granularity in ("chain", "interface", "residue"):
      ingestion, canonicalization, metadata, annotation:
        null — recorded as null with UPSTREAM_PROVENANCE_NOT_EMBEDDED warning.
-       ChainDataset/InterfaceDataset/ResidueDataset do not embed the upstream
-       AnnotatedStructureWithPlugins objects; only the extracted_from_dataset_id
-       reference is available.
 
-   For all granularities:
-     curation:   source_dataset
+   For all cases:
+     curation:   source_dataset (or source_dataset_ref metadata)
                  (.applied_policy, .selection_summary, .deduplication_report)
      splitting:  leakage_safe_dataset
                  (.applied_policy, .partition_summary, .provenance)
@@ -550,8 +607,6 @@ pipeline stages by traversing the `LeakageSafeDataset` object hierarchy.
    aggregate_plugin_versions(leakage_safe_dataset)
 
 5. Assemble and return ProvenanceBundle.
-   Fields controlled by record_* flags are set to null when the
-   corresponding flag is false.
 ```
 
 ### Input Schema
@@ -571,24 +626,23 @@ build_provenance_bundle_result:
 
 ---
 
-## 7.2 `generate_manifest()`
+## 8.2 `generate_manifest()`
 
 ### Responsibility
 
 Generate a `PandoraManifest` describing the artifact, its dataset summary,
 source releases, policy versions, and (optionally) checksums.
 
-### Notes
+In by-reference mode, also populates `manifest.by_reference_layout` with
+the expected file paths within the `ArtifactStore`.
 
 When `export_policy.emit_manifest_yaml: true`, the manifest is serialised
-to a `.yaml` file.
+to `{store_root}/manifest.yaml`.
 
 When `export_policy.emit_manifest_json: true`, the manifest is serialised
-to a `.json` file.
+to `{store_root}/manifest.json`.
 
-Both flags can be `true` simultaneously — both files will be generated.
-The `manifest_format` field in `PandoraManifest` records which formats
-were requested (as a comma-separated string, e.g. `"yaml,json"`).
+Both flags can be `true` simultaneously.
 
 ### Input Schema
 
@@ -597,6 +651,12 @@ generate_manifest:
   leakage_safe_dataset: LeakageSafeDataset
   provenance_bundle: ProvenanceBundle
   export_policy: ExportPolicy
+  artifact_id: string
+  artifact_mode: string
+  # embedded | by_reference
+  store_root: string | null
+  # Required when artifact_mode == "by_reference". Path to the artifact
+  # store root directory where files will be written.
 ```
 
 ### Output Schema
@@ -608,7 +668,7 @@ generate_manifest_result:
 
 ---
 
-## 7.3 `compute_checksums()`
+## 8.3 `compute_checksums()`
 
 ### Responsibility
 
@@ -622,21 +682,24 @@ checksum_algorithm: SHA-256
 
 serialization:
   artifact_checksum:
-    input: PandoraArtifact serialised to JSON with sorted keys and no
-           whitespace, with the checksums.artifact_checksum field set to null
-           before hashing (to avoid circular dependency).
+    input: >
+      PandoraArtifact serialised to JSON with sorted keys and no
+      whitespace, with checksums.artifact_checksum set to null before
+      hashing (to avoid circular dependency).
 
   manifest_checksum:
-    input: PandoraManifest serialised to JSON with sorted keys and no
-           whitespace, with manifest.checksums.manifest_checksum set to null
-           before hashing.
+    input: >
+      PandoraManifest serialised to JSON with sorted keys and no
+      whitespace, with manifest.checksums.manifest_checksum set to null
+      before hashing.
 
   split_checksum:
-    input: JSON array of three sorted lists of item identifier strings:
-           [sorted(train), sorted(validation), sorted(test)]
-           serialised with sorted keys and no whitespace.
-           # Identifier format is granularity-dependent:
-           # entry_id for structure, "{entry_id}_{chain_id}" for chain, etc.
+    input: >
+      JSON array of three sorted lists of item identifier strings:
+      [sorted(train), sorted(validation), sorted(test)]
+      serialised with sorted keys and no whitespace.
+      In by_reference mode, the lists are read from the splits/ Parquet
+      files before computing the checksum.
 
 output_format: lowercase hex string (64 characters for SHA-256).
 ```
@@ -665,38 +728,66 @@ compute_checksums_result:
 
 ---
 
-## 7.4 `build_pandora_artifact()`
+## 8.4 `build_pandora_artifact()`
 
 ### Responsibility
 
 Construct the final `PandoraArtifact` from the leakage-safe dataset.
 This is the main orchestrator for Component 06.
 
+### Artifact mode selection
+
+```text
+If export_policy.artifact_mode is explicitly set:
+    Use the specified mode.
+Else:
+    If leakage_safe_dataset.source_dataset is non-null:
+        Use "embedded".
+    Else (source_dataset is null, source_dataset_ref is non-null):
+        Use "by_reference".
+```
+
 ### Internal Workflow
 
 ```text
-1. Build provenance bundle:
+1. Determine artifact_mode from export_policy or dataset mode (see above).
+
+2. Build provenance bundle:
    build_provenance_bundle(leakage_safe_dataset, provenance_policy)
    → ProvenanceBundle
 
-2. Generate manifest:
-   generate_manifest(leakage_safe_dataset, provenance_bundle, export_policy)
+3. If artifact_mode == "by_reference":
+   a. Initialise artifact store directory at export_policy.store_root.
+   b. Write split Parquet files:
+      splits/train.parquet, splits/validation.parquet, splits/test.parquet
+      (item identifier strings only — no atom coordinates).
+   c. Write provenance.json.
+
+4. Generate manifest:
+   generate_manifest(leakage_safe_dataset, provenance_bundle,
+                     export_policy, artifact_id, artifact_mode, store_root)
    → PandoraManifest
 
-3. Compute checksums (if record_checksums: true):
+5. Compute checksums (if record_checksums: true):
    compute_checksums(manifest, leakage_safe_dataset, export_policy)
    → checksums
 
-4. Assemble PandoraArtifact with:
-     leakage_safe_dataset, provenance_bundle, manifest, checksums,
-     applied_policy, provenance (generated_at, pandora_version)
+6. Write checksums.json to store_root (by_reference mode only).
 
-5. Export provenance report (if emit_provenance_report: true):
+7. Assemble PandoraArtifact:
+   - embedded mode:
+       leakage_safe_dataset = leakage_safe_dataset
+       artifact_store_ref = null
+   - by_reference mode:
+       leakage_safe_dataset = null
+       artifact_store_ref = ArtifactStoreRef(artifact_id, store_root)
+
+8. Export provenance report (if emit_provenance_report: true):
    export_provenance_report(artifact, export_policy)
    → ReproducibilityReport
    Attach to artifact.reproducibility_report.
 
-6. Return PandoraArtifact.
+9. Return PandoraArtifact.
 ```
 
 ### Input Schema
@@ -715,7 +806,7 @@ build_pandora_artifact_result:
 
 ---
 
-## 7.5 `export_provenance_report()`
+## 8.5 `export_provenance_report()`
 
 ### Responsibility
 
@@ -739,7 +830,7 @@ export_provenance_report_result:
 
 ---
 
-## 7.6 `build_pandora_artifact_many()`
+## 8.6 `build_pandora_artifact_many()`
 
 ### Responsibility
 
@@ -761,14 +852,12 @@ build_pandora_artifact_many_result:
 
 ---
 
-# 8. Internal Helper Functions
+# 9. Internal Helper Functions
 
-## 8.1 `aggregate_pipeline_provenance()`
-
-### Responsibility
+## 9.1 `aggregate_pipeline_provenance()`
 
 Traverse the `LeakageSafeDataset` hierarchy and collect per-stage
-provenance records into the six `Pipeline*Provenance` sub-schemas.
+provenance records.
 
 ### Input
 
@@ -792,12 +881,10 @@ aggregate_pipeline_provenance_result:
 
 ---
 
-## 8.2 `aggregate_source_releases()`
+## 9.2 `aggregate_source_releases()`
 
-### Responsibility
-
-Collect archive and reference database release versions from the metadata
-provenance records in the dataset.
+Collect archive and reference database release versions from metadata
+provenance records.
 
 ### Input
 
@@ -815,9 +902,7 @@ aggregate_source_releases_result:
 
 ---
 
-## 8.3 `aggregate_policy_versions()`
-
-### Responsibility
+## 9.3 `aggregate_policy_versions()`
 
 Collect all policy identifiers and versions applied across the pipeline.
 
@@ -837,12 +922,9 @@ aggregate_policy_versions_result:
 
 ---
 
-## 8.4 `aggregate_plugin_versions()`
+## 9.4 `aggregate_plugin_versions()`
 
-### Responsibility
-
-Collect annotation plugin identities, versions, and configurations from
-the annotated structures in the dataset.
+Collect annotation plugin identities and versions from the dataset.
 
 ### Input
 
@@ -860,12 +942,9 @@ aggregate_plugin_versions_result:
 
 ---
 
-## 8.5 `build_lineage_graph()`
+## 9.5 `build_lineage_graph()`
 
-### Responsibility
-
-Construct the ordered `lineage` list for `ReproducibilityReport` from the
-assembled `ProvenanceBundle`.
+Construct the ordered `lineage` list for `ReproducibilityReport`.
 
 ### Input
 
@@ -880,18 +959,14 @@ build_lineage_graph:
 ```yaml
 build_lineage_graph_result:
   lineage: list[string]
-  # Ordered list of pipeline step summaries.
-  # Format: "{step_number} {step_name}: {brief description}"
 ```
 
 ---
 
-## 8.6 `summarize_reproducibility_risks()`
-
-### Responsibility
+## 9.6 `summarize_reproducibility_risks()`
 
 Inspect the `ProvenanceBundle` for missing or null fields that weaken
-reproducibility guarantees and emit a `list[Diagnostic]`.
+reproducibility guarantees.
 
 ### Input
 
@@ -935,22 +1010,20 @@ warning_rules:
     message: "One or more metadata sources had partial or failed retrieval."
 
   UPSTREAM_PROVENANCE_NOT_EMBEDDED:
-    condition: "source_dataset.granularity != 'structure' AND
-                provenance_policy.record_execution_timestamps: true."
-    message: "Chain/interface/residue datasets do not embed upstream
-              AnnotatedStructureWithPlugins objects. Ingestion, canonicalization,
-              metadata, and annotation provenance fields will be null. Only
-              curation and splitting provenance are available at this granularity."
+    condition: "source_dataset.granularity != 'structure' OR
+                leakage_safe_dataset.source_dataset is null."
+    message: "Chain/interface/residue datasets and materialized datasets do
+              not embed upstream AnnotatedStructureWithPlugins objects.
+              Ingestion, canonicalization, metadata, and annotation provenance
+              fields will be null. Only curation and splitting provenance are
+              available."
 ```
 
 ---
 
-# 9. Provenance Fields Reference
+# 10. Provenance Fields Reference
 
-This section maps each upstream component's provenance output to the
-`ProvenanceBundle` field that records it.
-
-## 9.1 Ingestion provenance
+## 10.1 Ingestion provenance
 
 | Field | Source | ProvenanceBundle path |
 |-------|--------|-----------------------|
@@ -961,7 +1034,7 @@ This section maps each upstream component's provenance output to the
 
 ---
 
-## 9.2 Canonicalization provenance
+## 10.2 Canonicalization provenance
 
 | Field | Source | ProvenanceBundle path |
 |-------|--------|-----------------------|
@@ -971,7 +1044,7 @@ This section maps each upstream component's provenance output to the
 
 ---
 
-## 9.3 Metadata provenance
+## 10.3 Metadata provenance
 
 | Field | Source | ProvenanceBundle path |
 |-------|--------|-----------------------|
@@ -982,7 +1055,7 @@ This section maps each upstream component's provenance output to the
 
 ---
 
-## 9.4 Annotation provenance
+## 10.4 Annotation provenance
 
 | Field | Source | ProvenanceBundle path |
 |-------|--------|-----------------------|
@@ -992,7 +1065,7 @@ This section maps each upstream component's provenance output to the
 
 ---
 
-## 9.5 Dataset curation provenance
+## 10.5 Dataset curation provenance
 
 | Field | Source | ProvenanceBundle path |
 |-------|--------|-----------------------|
@@ -1003,7 +1076,7 @@ This section maps each upstream component's provenance output to the
 
 ---
 
-## 9.6 Leakage splitting provenance
+## 10.6 Leakage splitting provenance
 
 | Field | Source | ProvenanceBundle path |
 |-------|--------|-----------------------|
@@ -1015,9 +1088,9 @@ This section maps each upstream component's provenance output to the
 
 ---
 
-# 10. Policy Schemas
+# 11. Policy Schemas
 
-## 10.1 ProvenancePolicy
+## 11.1 ProvenancePolicy
 
 ```yaml
 ProvenancePolicy:
@@ -1028,8 +1101,7 @@ ProvenancePolicy:
 
   record_software_versions: bool
   # If false, pandora_version is still recorded (non-nullable).
-  # This flag controls whether dependency versions (e.g. gemmi, biopython)
-  # are included.
+  # This flag controls whether dependency versions (gemmi, etc.) are included.
 
   record_policy_versions: bool
   # If false, PolicyProvenanceRecord fields are null.
@@ -1056,17 +1128,26 @@ ProvenancePolicy:
 
 ---
 
-## 10.2 ExportPolicy
+## 11.2 ExportPolicy
 
 ```yaml
 ExportPolicy:
+  artifact_mode: string | null
+  # embedded     — force embedded mode regardless of dataset mode.
+  # by_reference — force by_reference mode regardless of dataset mode.
+  # null         — auto-select based on dataset.source_dataset (see Section 8.4).
+
+  store_root: string | null
+  # Required when artifact_mode == "by_reference" or when auto-selection
+  # results in by_reference mode.
+  # Absolute path to the artifact store root directory.
+
   emit_manifest_yaml: bool
-  # If true, serialise PandoraManifest to a .yaml file.
+  # If true, serialise PandoraManifest to {store_root}/manifest.yaml.
 
   emit_manifest_json: bool
-  # If true, serialise PandoraManifest to a .json file.
-  # emit_manifest_yaml and emit_manifest_json can both be true;
-  # both files will be generated.
+  # If true, serialise PandoraManifest to {store_root}/manifest.json.
+  # Both emit_manifest_yaml and emit_manifest_json can be true.
 
   emit_provenance_report: bool
   # If true, generate ReproducibilityReport and attach to the artifact.
@@ -1076,13 +1157,13 @@ ExportPolicy:
   # If false, all checksum fields are null.
 
   emit_lineage_graph: bool
-  # If true, populate ReproducibilityReport.lineage with ordered
-  # pipeline step summaries. Requires emit_provenance_report: true.
+  # If true, populate ReproducibilityReport.lineage.
+  # Requires emit_provenance_report: true.
 ```
 
 ---
 
-# 11. Non-Responsibilities
+# 12. Non-Responsibilities
 
 Component 06 is not responsible for:
   - ingestion
@@ -1096,6 +1177,12 @@ Component 06 is not responsible for:
 
 ---
 
-# 12. Component Definition
+# 13. Component Definition
 
-The Provenance & Reproducibility Layer aggregates pipeline provenance into reproducibility manifests, integrity checksums, lineage records, and exportable Pandora artifacts so that generated datasets can be audited and reproduced exactly.
+The Provenance & Reproducibility Layer aggregates pipeline provenance into
+reproducibility manifests, integrity checksums, lineage records, and
+exportable Pandora artifacts. It supports two artifact storage modes:
+embedded (for small datasets, where the full LeakageSafeDataset is held in
+the artifact object) and by-reference (for large datasets, where the artifact
+is a lightweight manifest and checksums pointing to split Parquet files in an
+ArtifactStore directory on disk).
