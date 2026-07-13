@@ -39,7 +39,9 @@ def is_stale(path: Path, max_age_seconds: int | None) -> bool:
 
 
 def mtime_iso(path: Path) -> str:
-    return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
+    return datetime.fromtimestamp(
+        path.stat().st_mtime, tz=timezone.utc
+    ).isoformat()
 
 
 def resolve_cache_hit(

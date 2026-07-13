@@ -103,6 +103,7 @@ def fetch_mmcif(
         from_cache=False,
     )
 
+
 def fetch_list_mmcif(
     entry_ids: list[str],
     provider: str,
