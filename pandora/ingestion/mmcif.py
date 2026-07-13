@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import gzip
 import httpx
 
+from pandora.ingestion.cache import mtime_iso, resolve_cache_hit
 from pandora.schemas.ingestion import (
     FetchOptions,
     IngestionProvenance,
@@ -19,23 +20,17 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def fetch_pdb():
-    """Fetch a raw mmCIF file from a provider URL or local path, with
-    optional disk cache."""
-    raise NotImplementedError(
-        "fetch_pdb() is not supported; use fetch_mmcif() instead."
-    )
-
-
 def fetch_mmcif(
     entry_id: str,
     provider: str,
     source_uri: str | None,
     output_dir: Path,
-    fetch_options: FetchOptions = FetchOptions(),
+    fetch_options: FetchOptions | None = None,
 ) -> IngestionProvenance:
     """Fetch a raw mmCIF file from a provider URL, write it to
     output_dir, return provenance."""
+
+    fetch_options = fetch_options or FetchOptions()
 
     if source_uri:
         url = source_uri
@@ -47,6 +42,21 @@ def fetch_mmcif(
             f"provider={provider!r} requires an explicit source_uri "
             f"or one of 'pdbe' or 'pdb'"
         )
+
+    if fetch_options.use_cache:
+        cached = resolve_cache_hit(
+            entry_id=entry_id,
+            output_dir=output_dir,
+            max_age_seconds=fetch_options.max_age_seconds,
+            stale_behavior=fetch_options.stale_behavior,
+        )
+        if cached is not None:
+            return IngestionProvenance(
+                provider=provider,
+                source_uri=url,
+                retrieved_at=mtime_iso(cached),
+                from_cache=True,
+            )
 
     try:
         resp = httpx.get(url, follow_redirects=True, timeout=60.0)
@@ -93,25 +103,37 @@ def fetch_mmcif(
         from_cache=False,
     )
 
+
 def fetch_list_mmcif(
     entry_ids: list[str],
     provider: str,
     source_uri: str | None,
     output_dir: Path,
-    fetch_options: FetchOptions = FetchOptions(),
+    fetch_options: FetchOptions | None = None,
 ) -> list[IngestionProvenance]:
     """Fetch a list of raw mmCIF files from a provider URL, write them to
-    output_dir, return provenance for each."""
+    output_dir, return provenance for each.
+
+    If fetch_options.allow_partial is True, entries that fail to fetch are
+    skipped instead of aborting the whole batch.
+    """
+
+    fetch_options = fetch_options or FetchOptions()
 
     provenance_list = []
     for entry_id in entry_ids:
-        provenance = fetch_mmcif(
-            entry_id=entry_id,
-            provider=provider,
-            source_uri=source_uri,
-            output_dir=output_dir,
-            fetch_options=fetch_options,
-        )
+        try:
+            provenance = fetch_mmcif(
+                entry_id=entry_id,
+                provider=provider,
+                source_uri=source_uri,
+                output_dir=output_dir,
+                fetch_options=fetch_options,
+            )
+        except (RuntimeError, ValueError):
+            if fetch_options.allow_partial:
+                continue
+            raise
         provenance_list.append(provenance)
 
     return provenance_list
