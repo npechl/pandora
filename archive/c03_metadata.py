@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from archive.schemas.c02_canonicalization import CanonicalStructureResult
+from archive.schemas.c02_canonicalisation import CanonicalStructureResult
 from archive.schemas.c03_metadata import (
     AnnotatedStructureProvenance,
     AnnotatedStructureWithPlugins,

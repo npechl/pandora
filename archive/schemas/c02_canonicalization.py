@@ -102,7 +102,7 @@ class CanonicalStructureProvenance(BaseModel):
     provider: str
     source_uri: str | None = None
     retrieved_at: str | None = None
-    canonicalized_at: str | None = None
+    canonicalised_at: str | None = None
 
 
 class CanonicalStructureResult(BaseModel):
@@ -115,16 +115,16 @@ class CanonicalStructureResult(BaseModel):
     provenance: CanonicalStructureProvenance
 
 
-class CanonicalizationBatchSummary(BaseModel):
+class canonicalisationBatchSummary(BaseModel):
     total: int
     success: int
     warning: int
     failed: int
 
 
-class CanonicalizationBatchResult(BaseModel):
+class canonicalisationBatchResult(BaseModel):
     mode: Literal["sequential", "parallel"]
-    summary: CanonicalizationBatchSummary
+    summary: canonicalisationBatchSummary
     results: list[CanonicalStructureResult]
 
 
@@ -239,14 +239,14 @@ class ValidationRules(BaseModel):
     warnings_as_errors: bool = False
 
 
-class CanonicalizationProvenanceRules(BaseModel):
+class canonicalisationProvenanceRules(BaseModel):
     record_original_mappings: bool = True
     record_transforms: bool = True
     record_policy_application: bool = True
-    emit_canonicalization_report: bool = False
+    emit_canonicalisation_report: bool = False
 
 
-class CanonicalizationPolicy(BaseModel):
+class canonicalisationPolicy(BaseModel):
     policy_id: str
     policy_name: str
     policy_version: str
@@ -260,6 +260,6 @@ class CanonicalizationPolicy(BaseModel):
     entity_rules: EntityRules = Field(default_factory=EntityRules)
     ligand_rules: LigandRules = Field(default_factory=LigandRules)
     validation_rules: ValidationRules = Field(default_factory=ValidationRules)
-    provenance_rules: CanonicalizationProvenanceRules = Field(
-        default_factory=CanonicalizationProvenanceRules
+    provenance_rules: canonicalisationProvenanceRules = Field(
+        default_factory=canonicalisationProvenanceRules
     )

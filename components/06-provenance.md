@@ -17,7 +17,7 @@ This component is responsible for:
 * and exporting reproducibility bundles in either embedded or by-reference
   artifact mode.
 
-This component does **not** perform ingestion, canonicalization, metadata
+This component does **not** perform ingestion, canonicalisation, metadata
 retrieval, annotation, curation, or splitting. It only records, assembles,
 and exports the provenance of those steps.
 
@@ -112,7 +112,7 @@ also be overridden explicitly via `ExportPolicy.artifact_mode`.
 ## Provenance depth depends on granularity
 
 For structure-level datasets, Component 06 traverses the full object
-hierarchy to collect per-entry ingestion, canonicalization, metadata, and
+hierarchy to collect per-entry ingestion, canonicalisation, metadata, and
 annotation provenance.
 
 For chain/interface/residue-level datasets, the upstream
@@ -203,16 +203,16 @@ PipelineIngestionProvenance:
 
 ---
 
-## 5.2 PipelineCanonicalizationProvenance
+## 5.2 PipelinecanonicalisationProvenance
 
 Sourced from `AnnotatedStructureWithPlugins.canonical_structure_result`.
 
 ```yaml
-PipelineCanonicalizationProvenance:
+PipelinecanonicalisationProvenance:
   policy_id: string
   policy_name: string
   policy_version: string
-  canonicalized_at_range:
+  canonicalised_at_range:
     earliest: string | null
     latest: string | null
   # ISO 8601 timestamps.
@@ -333,8 +333,8 @@ ExternalSourceRelease:
 
 ```yaml
 PolicyProvenanceRecord:
-  canonicalization_policy_id: string | null
-  canonicalization_policy_version: string | null
+  canonicalisation_policy_id: string | null
+  canonicalisation_policy_version: string | null
   metadata_policy_id: string | null
   metadata_policy_version: string | null
   annotation_plugin_policy_id: string | null
@@ -389,7 +389,7 @@ PandoraManifest:
 
   pipeline_steps: list[string]
   # Ordered list of pipeline steps applied.
-  # e.g. ["ingestion", "canonicalization", "metadata_integration",
+  # e.g. ["ingestion", "canonicalisation", "metadata_integration",
   #        "annotation", "curation", "splitting"]
 
   by_reference_layout: object | null
@@ -472,7 +472,7 @@ PandoraArtifact:
 ProvenanceBundle:
   pipeline_provenance:
     ingestion: PipelineIngestionProvenance | null
-    canonicalization: PipelineCanonicalizationProvenance | null
+    canonicalisation: PipelinecanonicalisationProvenance | null
     metadata_integration: PipelineMetadataProvenance | null
     annotation_plugins: PipelineAnnotationProvenance | null
     dataset_curation: PipelineCurationProvenance | null
@@ -510,7 +510,7 @@ ReproducibilityReport:
   # Format: "{step_number} {step_name}: {brief description}"
   # e.g. structure-level:
   #   ["01 ingestion: 150 structures from pdbe",
-  #    "02 canonicalization: 150 structures (policy: default_v1)",
+  #    "02 canonicalisation: 150 structures (policy: default_v1)",
   #    "03 metadata: pdbe, sifts, uniprot retrieved",
   #    "04 curation (structure): 120 selected, 30 excluded",
   #    "05 splitting: train=84, val=18, test=18 (leakage: clean)"]
@@ -579,7 +579,7 @@ dataset's schema fields without loading atom-coordinate records.
    When source_dataset.granularity == "structure" (in-memory only):
      ingestion:        source_dataset.structures[*]
                        .canonical_structure_result.provenance
-     canonicalization: source_dataset.structures[*]
+     canonicalisation: source_dataset.structures[*]
                        .canonical_structure_result.applied_policy
      metadata:         source_dataset.structures[*]
                        .metadata_annotations.provenance_metadata.sources
@@ -588,7 +588,7 @@ dataset's schema fields without loading atom-coordinate records.
 
    When source_dataset is null (materialized mode) OR
    when source_dataset.granularity in ("chain", "interface", "residue"):
-     ingestion, canonicalization, metadata, annotation:
+     ingestion, canonicalisation, metadata, annotation:
        null — recorded as null with UPSTREAM_PROVENANCE_NOT_EMBEDDED warning.
 
    For all cases:
@@ -872,7 +872,7 @@ aggregate_pipeline_provenance:
 ```yaml
 aggregate_pipeline_provenance_result:
   ingestion: PipelineIngestionProvenance | null
-  canonicalization: PipelineCanonicalizationProvenance | null
+  canonicalisation: PipelinecanonicalisationProvenance | null
   metadata_integration: PipelineMetadataProvenance | null
   annotation_plugins: PipelineAnnotationProvenance | null
   dataset_curation: PipelineCurationProvenance | null
@@ -997,9 +997,9 @@ warning_rules:
     message: "Archive release version not recorded. Dataset identity cannot
               be fully verified against a specific archive snapshot."
 
-  NULL_CANONICALIZATION_TIMESTAMP:
-    condition: "canonicalization.canonicalized_at_range.earliest is null."
-    message: "Canonicalization timestamps not recorded."
+  NULL_canonicalisation_TIMESTAMP:
+    condition: "canonicalisation.canonicalised_at_range.earliest is null."
+    message: "canonicalisation timestamps not recorded."
 
   MISSING_PANDORA_VERSION:
     condition: "PandoraArtifact.provenance.pandora_version is null."
@@ -1014,7 +1014,7 @@ warning_rules:
                 leakage_safe_dataset.source_dataset is null."
     message: "Chain/interface/residue datasets and materialized datasets do
               not embed upstream AnnotatedStructureWithPlugins objects.
-              Ingestion, canonicalization, metadata, and annotation provenance
+              Ingestion, canonicalisation, metadata, and annotation provenance
               fields will be null. Only curation and splitting provenance are
               available."
 ```
@@ -1034,13 +1034,13 @@ warning_rules:
 
 ---
 
-## 10.2 Canonicalization provenance
+## 10.2 canonicalisation provenance
 
 | Field | Source | ProvenanceBundle path |
 |-------|--------|-----------------------|
-| Policy ID | `CanonicalStructureResult.applied_policy.policy_id` | `pipeline_provenance.canonicalization.policy_id` |
-| Policy version | `CanonicalStructureResult.applied_policy.policy_version` | `pipeline_provenance.canonicalization.policy_version` |
-| Timestamp | `CanonicalStructureResult.provenance.canonicalized_at` | `pipeline_provenance.canonicalization.canonicalized_at_range` |
+| Policy ID | `CanonicalStructureResult.applied_policy.policy_id` | `pipeline_provenance.canonicalisation.policy_id` |
+| Policy version | `CanonicalStructureResult.applied_policy.policy_version` | `pipeline_provenance.canonicalisation.policy_version` |
+| Timestamp | `CanonicalStructureResult.provenance.canonicalised_at` | `pipeline_provenance.canonicalisation.canonicalised_at_range` |
 
 ---
 
@@ -1167,7 +1167,7 @@ ExportPolicy:
 
 Component 06 is not responsible for:
   - ingestion
-  - canonicalization
+  - canonicalisation
   - metadata_retrieval
   - annotation_computation
   - dataset_curation

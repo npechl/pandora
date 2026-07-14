@@ -63,7 +63,7 @@ class ResidueNumberMapping(BaseModel):
     items: list[ResidueNumberMappingItem] = Field(default_factory=list)
 
 
-# Canonicalization rules ----------------------
+# canonicalisation rules ----------------------
 
 ChainIdStrategy = Literal["preserve", "remap", "use_auth_chain_id"]
 ResidueNumberingStrategy = Literal["preserve", "use_auth_seq", "renumber"]
@@ -174,14 +174,14 @@ class ValidationRules(BaseModel):
     warnings_as_errors: bool = False
 
 
-# Canonicalization classes --------------------
+# canonicalisation classes --------------------
 
 
-class CanonicalizationProvenanceRules(BaseModel):
+class canonicalisationProvenanceRules(BaseModel):
     record_original_mappings: bool = True
     record_transforms: bool = True
     record_policy_application: bool = True
-    emit_canonicalization_report: bool = False
+    emit_canonicalisation_report: bool = False
 
 
 class CanonicalMappings(BaseModel):
@@ -196,7 +196,7 @@ class CanonicalMappings(BaseModel):
     )
 
 
-class CanonicalizationPolicy(BaseModel):
+class canonicalisationPolicy(BaseModel):
     policy_id: str
     policy_name: str
     policy_version: str
@@ -210,13 +210,13 @@ class CanonicalizationPolicy(BaseModel):
     entity_rules: EntityRules = Field(default_factory=EntityRules)
     ligand_rules: LigandRules = Field(default_factory=LigandRules)
     validation_rules: ValidationRules = Field(default_factory=ValidationRules)
-    provenance_rules: CanonicalizationProvenanceRules = Field(
-        default_factory=CanonicalizationProvenanceRules
+    provenance_rules: canonicalisationProvenanceRules = Field(
+        default_factory=canonicalisationProvenanceRules
     )
 
 
-class CanonicalizationProvenance(BaseModel):
-    canonicalized_at: str
+class canonicalisationProvenance(BaseModel):
+    canonicalised_at: str
     policy_id: str
     policy_name: str
     policy_version: str

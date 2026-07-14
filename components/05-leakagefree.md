@@ -1210,7 +1210,7 @@ LeakagePolicy:
 Component 05 is not responsible for:
   - dataset_construction
   - metadata_integration
-  - canonicalization
+  - canonicalisation
   - graph_generation
   - embeddings
   - model_training
