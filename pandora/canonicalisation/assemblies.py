@@ -1,6 +1,6 @@
 
 from pandora.schemas.structure import AssemblyRecord
-from pandora.schemas.canonicalization import (
+from pandora.schemas.canonicalisation import (
     AssemblyMapping,
     AssemblyMappingItem,
 )

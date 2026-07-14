@@ -9,7 +9,7 @@ from pandora.schemas.structure import (
     AtomSiteRecord,
     Structure,
 )
-from pandora.schemas.canonicalization import (
+from pandora.schemas.canonicalisation import (
     ChainIdMapping,
     ChainIdMappingItem,
 )

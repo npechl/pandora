@@ -3,7 +3,7 @@ from collections import defaultdict
 
 from pandora.schemas.structure import AtomSiteRecord
 
-from pandora.schemas.canonicalization import (
+from pandora.schemas.canonicalisation import (
     AltlocSelectionMapping,
     AltlocSelectionMappingItem,
 )

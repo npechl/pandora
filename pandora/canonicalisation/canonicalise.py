@@ -9,38 +9,38 @@ from pandora.schemas.structure import (
     EntityRecord,
     Structure,
 )
-from pandora.schemas.canonicalization import (
-    CanonicalizationPolicy,
+from pandora.schemas.canonicalisation import (
+    canonicalisationPolicy,
     CanonicalMappings,
-    CanonicalizationProvenance,
+    canonicalisationProvenance,
 )
 
 from pandora.schemas.common import DiagnosticBundle
 
-from pandora.canonicalization.altlocs import _resolve_altlocs
-from pandora.canonicalization.assemblies import _normalize_assemblies
-from pandora.canonicalization.chain_ids import (
+from pandora.canonicalisation.altlocs import _resolve_altlocs
+from pandora.canonicalisation.assemblies import _normalize_assemblies
+from pandora.canonicalisation.chain_ids import (
     _normalize_chain_ids,
     _apply_chain_map,
 )
-from pandora.canonicalization.entities import _normalize_entities
-from pandora.canonicalization.residues import _normalize_residue_numbering
-from pandora.canonicalization.missing_data import (
+from pandora.canonicalisation.entities import _normalize_entities
+from pandora.canonicalisation.residues import _normalize_residue_numbering
+from pandora.canonicalisation.missing_data import (
     _handle_missing_atoms,
     _handle_missing_residues,
     _handle_incomplete_chains,
 )
-from pandora.canonicalization.ligands import _filter_ligands
-from pandora.canonicalization.validation import _validate
+from pandora.canonicalisation.ligands import _filter_ligands
+from pandora.canonicalisation.validation import _validate
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def canonicalize_structure(
+def canonicalise_structure(
     structure: Structure,
-    policy: CanonicalizationPolicy,
-) -> tuple[Structure, CanonicalMappings, CanonicalizationProvenance]:
+    policy: canonicalisationPolicy,
+) -> tuple[Structure, CanonicalMappings, canonicalisationProvenance]:
     """Convert a parsed structure into a canonical structure."""
     ir = policy.identifier_rules
     mdr = policy.missing_data_rules
@@ -154,8 +154,8 @@ def canonicalize_structure(
         altloc_selection_mapping=altloc_selection_mapping,
     )
 
-    provenance = CanonicalizationProvenance(
-        canonicalized_at=_now_iso(),
+    provenance = canonicalisationProvenance(
+        canonicalised_at=_now_iso(),
         policy_id=policy.policy_id,
         policy_name=policy.policy_name,
         policy_version=policy.policy_version,
@@ -164,7 +164,7 @@ def canonicalize_structure(
             "warnings": len(diagnostics.warnings),
             "errors": len(diagnostics.errors),
         }
-        if pr.emit_canonicalization_report
+        if pr.emit_canonicalisation_report
         else {},
     )
 

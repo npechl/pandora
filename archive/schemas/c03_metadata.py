@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from .common import AppliedPolicyRef, DiagnosticBundle, ResultStatus
-from .c02_canonicalization import CanonicalStructureResult
+from .c02_canonicalisation import CanonicalStructureResult
 
 
 # ── Metadata category schemas ──────────────────────────────────────────────────

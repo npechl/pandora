@@ -7,7 +7,7 @@ from pandora.schemas.structure import (
     AtomSiteRecord,
     EntityRecord,
 )
-from pandora.schemas.canonicalization import (
+from pandora.schemas.canonicalisation import (
     EntityMapping,
     EntityMappingItem,
 )

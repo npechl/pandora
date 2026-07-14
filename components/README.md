@@ -37,7 +37,7 @@ flowchart TD
     I01["MmCIFIngestionResult\n───────────────────────\nstatus · diagnostics · provenance\natoms · residues · chains\nentities · assemblies · ligands"]
 
     %% ── C02 ─────────────────────────────────────────────────────────────────
-    C02["🔧 C02 · Canonicalization\ncanonicalize_structure()  ★\nvalidate_canonical_structure()"]
+    C02["🔧 C02 · canonicalisation\ncanonicalise_structure()  ★\nvalidate_canonical_structure()"]
 
     I02["CanonicalStructureResult\n───────────────────────\ncanonical_structure\ncanonical_mappings\napplied_policy · provenance"]
 
@@ -107,7 +107,7 @@ flowchart TD
 | Component | Key functions | Input | Output |
 |-----------|--------------|-------|--------|
 | **01 · Ingestion** | `fetch_mmCIF`, `parse_mmCIF`, `validate_mmCIF`, `ingest_mmCIF` | Raw mmCIF (PDBe/PDB/local/bytes) | `MmCIFIngestionResult` |
-| **02 · Canonicalization** | `canonicalize_structure`, `validate_canonical_structure` | `MmCIFIngestionResult` + CanonicalizationPolicy | `CanonicalStructureResult` |
+| **02 · canonicalisation** | `canonicalise_structure`, `validate_canonical_structure` | `MmCIFIngestionResult` + canonicalisationPolicy | `CanonicalStructureResult` |
 | **03 · Metadata & Annotation** | `attach_metadata`, `apply_annotation_plugins` | `CanonicalStructureResult` + Metadata/Plugin Policies | `AnnotatedStructureWithPlugins` |
 | **04 · Curation** | `build_dataset`, `extract_chain_records`, `materialize_dataset` | `[AnnotatedStructureWithPlugins]` + CurationPolicy | `PandoraDataset` (in-memory or materialized) |
 | **05 · Splitting** | `compute_similarity_relationships`, `cluster_similar_items`, `partition_dataset`, `build_leakage_safe_dataset` | `PandoraDataset` or `DatasetStoreRef` + LeakagePolicy | `LeakageSafeDataset` |
@@ -130,7 +130,7 @@ same library functions that users can call directly.
 
 ```python
 # Call any function independently
-result = canonicalize_structure(my_ingestion_result, policy)
+result = canonicalise_structure(my_ingestion_result, policy)
 dataset = build_dataset(my_annotated_structures, curation_policy)
 artifact = build_pandora_artifact(leakage_safe_dataset, prov_policy, export_policy)
 ```
@@ -144,7 +144,7 @@ the expected Pandora schemas with sensible provenance defaults.
 | Entry stage | Adapter | External input |
 |-------------|---------|----------------|
 | C01 (parse) | `from_raw_bytes(bytes)` | Pre-loaded mmCIF bytes |
-| C02 (canonicalize) | `from_parsed_structure(structure, entry_id)` | BioPython / MDAnalysis / custom parsed structure |
+| C02 (canonicalise) | `from_parsed_structure(structure, entry_id)` | BioPython / MDAnalysis / custom parsed structure |
 | C04 (curate) | `from_canonical_structures(results, policy)` | list of CanonicalStructureResult without metadata |
 | C04 (curate) | `from_annotated_structures(structures, policy)` | External annotated structure list |
 
@@ -238,5 +238,5 @@ objects applied, and Pandora software version.
 - Every component accepts a **policy object** that makes all decisions
   explicit and reproducible.
 
-- All batch variants (`ingest_list_mmCIF`, `canonicalize_many_structures`, …)
+- All batch variants (`ingest_list_mmCIF`, `canonicalise_many_structures`, …)
   are thin orchestration wrappers over the single-entry functions.
