@@ -217,5 +217,5 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-
+# Regenerable dev dataset (see scripts/build_dev_dataset.py)
 datasets/dev/mmcif/

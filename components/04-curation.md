@@ -757,7 +757,7 @@ completeness_filters:
     - quality_rules.allow_incomplete_chains
     - quality_rules.allow_missing_residues
     - quality_rules.allow_missing_atoms
-  checks: diagnostics from C01 (parse) and C02 (canonicalization)
+  checks: diagnostics from C01 (parse) and C02 (canonicalisation)
   excludes_when:
     - allow_incomplete_chains: false AND structure has INCOMPLETE_CHAIN diagnostic
     - allow_missing_residues: false AND structure has SEQUENCE_GAP diagnostic

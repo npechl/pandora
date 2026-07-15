@@ -84,7 +84,25 @@ def mmcif_to_structure(
     # entry_id: str = "",
     model_num: int = 1,
 ) -> tuple[Structure | None, DiagnosticBundle, ResultStatus]:
-    """Convert raw mmCIF text to a Structure (mmCIF data model)."""
+    """Convert raw mmCIF text to a Structure (mmCIF data model).
+
+    Parses the mmCIF file with gemmi, selects the requested model
+    (falling back to the first model with a warning if not found),
+    and extracts entities, atoms, asym units, connections, assemblies,
+    and secondary structure into Pandora's typed `Structure` schema.
+    Any other mmCIF categories are preserved verbatim in `Structure.raw`.
+
+    Args:
+        path_to_mmcif: Path to the mmCIF file on disk.
+        model_num: Which model number to select from a multi-model
+            entry.
+
+    Returns:
+        A tuple of:
+            - The parsed `Structure`, or `None` if parsing failed.
+            - A `DiagnosticBundle` of warnings/errors encountered.
+            - A `ResultStatus`: "success", "warning", or "failed".
+    """
     diag = DiagnosticBundle()
 
     if not path_to_mmcif.strip():

@@ -28,7 +28,34 @@ def fetch_mmcif(
     fetch_options: FetchOptions | None = None,
 ) -> IngestionProvenance:
     """Fetch a raw mmCIF file from a provider URL, write it to
-    output_dir, return provenance."""
+    output_dir, return provenance.
+
+    Resolves the download URL from `source_uri` or from `provider`
+    ("pdbe"/"pdb"), reuses a cached file when one is fresh (per
+    `fetch_options`), otherwise downloads it, optionally decompresses
+    it, and writes it to `output_dir`.
+
+    Args:
+        entry_id: The PDB/PDBe entry identifier (e.g. "1abc").
+        provider: One of "pdbe" or "pdb", used to build the download
+            URL when `source_uri` is not given.
+        source_uri: An explicit URL to fetch from, overriding
+            `provider`'s default URL template.
+        output_dir: Directory to write the downloaded (or cached) file
+            into; created if missing.
+        fetch_options: Caching/decompression/retry options. Defaults
+            to `FetchOptions()` when not given.
+
+    Returns:
+        `IngestionProvenance` describing the provider, source URL,
+        retrieval timestamp, and whether the result came from cache.
+
+    Raises:
+        ValueError: If `provider` is not "pdbe"/"pdb" and no
+            `source_uri` was given.
+        RuntimeError: If the HTTP request fails, or the response
+            cannot be decompressed/decoded.
+    """
 
     fetch_options = fetch_options or FetchOptions()
 
@@ -114,8 +141,32 @@ def fetch_list_mmcif(
     """Fetch a list of raw mmCIF files from a provider URL, write them to
     output_dir, return provenance for each.
 
-    If fetch_options.allow_partial is True, entries that fail to fetch are
-    skipped instead of aborting the whole batch.
+    Calls `fetch_mmcif()` once per entry ID. If
+    `fetch_options.allow_partial` is True, entries that fail to fetch
+    (`RuntimeError` or `ValueError`) are skipped instead of aborting
+    the whole batch.
+
+    Args:
+        entry_ids: The PDB/PDBe entry identifiers to fetch.
+        provider: One of "pdbe" or "pdb", used to build the download
+            URL when `source_uri` is not given.
+        source_uri: An explicit URL to fetch from, overriding
+            `provider`'s default URL template, applied to every entry.
+        output_dir: Directory to write the downloaded (or cached)
+            files into; created if missing.
+        fetch_options: Caching/decompression/retry options, including
+            `allow_partial`. Defaults to `FetchOptions()` when not
+            given.
+
+    Returns:
+        A list of `IngestionProvenance`, one per successfully fetched
+        entry, in the same order as `entry_ids` (with failed entries
+        omitted when `allow_partial` is True).
+
+    Raises:
+        ValueError: If `provider` is invalid and no `source_uri` was
+            given, and `allow_partial` is False.
+        RuntimeError: If a fetch fails and `allow_partial` is False.
     """
 
     fetch_options = fetch_options or FetchOptions()
