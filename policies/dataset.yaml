@@ -1,0 +1,91 @@
+DatasetCurationPolicy:
+  policy_id: string
+  policy_name: string
+  policy_version: string
+  description: string
+
+  execution_mode: string
+  # in_memory    — default; accumulate structures in memory.
+  # materialized — stream structures to disk; requires store in input.
+  # If not specified, defaults to in_memory when no store is provided in
+  # DatasetConstructionInput, and materialized when a store is provided.
+
+  selection_rules:
+    include_sources: list[string]
+    exclude_sources: list[string]
+    include_biomolecules:
+      proteins: bool
+      rna: bool
+      dna: bool
+      complexes: bool
+    include_experimental_methods: list[string]
+    exclude_experimental_methods: list[string]
+
+  quality_rules:
+    max_resolution: float | null
+    null_resolution_behavior: string
+    # exclude (default) | include
+    min_chain_length: int | null
+    allow_incomplete_chains: bool
+    allow_missing_residues: bool
+    allow_missing_atoms: bool
+
+  content_rules:
+    keep_ligands: bool
+    keep_waters: bool
+    keep_ions: bool
+    keep_nonpolymer_entities: bool
+
+  organism_rules:
+    include_taxa: list[string]
+    exclude_taxa: list[string]
+
+  deduplication_rules:
+    enabled: bool
+    strategy: string
+    # entry_id | exact_hash
+
+  extraction_rules:
+    granularity: string
+    # structure  — no extraction; Dataset is the final output (default).
+    # chain      — run extract_chain_records() after build_dataset().
+    # interface  — run extract_interface_records() after build_dataset().
+    # residue    — run extract_residue_records() after build_dataset().
+    #              Set source_granularity to "structure" or "chain".
+
+    chain_extraction_rules:
+      include_chain_types:
+        proteins: bool
+        rna: bool
+        dna: bool
+      min_chain_length: int | null
+      # Overrides quality_rules.min_chain_length at chain level when set.
+
+    interface_extraction_rules:
+      interface_types:
+        protein_protein: bool
+        protein_rna: bool
+        protein_dna: bool
+        protein_ligand: bool
+      min_contact_residues: int | null
+      min_interface_area: float | null
+      # Å². null = no minimum area filter.
+
+    residue_extraction_rules:
+      source_granularity: string
+      # structure — extract directly from structures in Dataset.
+      # chain     — extract from ChainDataset (requires chain extraction first).
+      include_residue_types:
+        standard_amino_acids: bool
+        non_standard: bool
+        nucleotides: bool
+      require_full_backbone: bool
+      # If true, exclude residues missing any backbone atom (N, CA, C, O).
+      context_radius: float | null
+      # Å. Populate ResidueRecord.neighboring_residues within this radius.
+
+  provenance_rules:
+    record_filters: bool
+    record_exclusions: bool
+    record_dataset_version: bool
+    record_input_sources: bool

@@ -1,0 +1,174 @@
+CanonicalisationPolicy:
+  policy_id: string
+  policy_name: string
+  policy_version: string
+  description: string
+
+  identifier_rules:
+    chain_id:
+      strategy: string
+      # preserve           — Keep original label_asym_id as canonical chain_id.
+      # remap              — Reassign chain IDs to sequential single-character
+      #                      labels (A, B, C, ... Z, AA, AB, ...).
+      # use_auth_chain_id  — Use auth_asym_id as the canonical chain_id.
+
+    residue_numbering:
+      strategy: string
+      # preserve      — Keep original label_seq_id as canonical seq_id.
+      # use_auth_seq  — Use auth_seq_id (integer part only, insertion codes
+      #                 stripped) as the canonical seq_id.
+      # renumber      — Renumber residues sequentially from 1 within each
+      #                 chain, ignoring gaps in the original numbering.
+
+      preserve_insertion_codes: bool
+      # If true, insertion codes are retained in Residue.insertion_code.
+      # If false, insertion codes are stripped (collapsed into seq_id).
+      # Only relevant when strategy is "preserve" or "use_auth_seq".
+
+    assembly_id:
+      strategy: string
+      # preserve      — Keep original _pdbx_struct_assembly.id values.
+      # remap         — Reassign assembly IDs to sequential integers (1, 2, ...).
+      # standardize   — Use the preferred biological assembly as assembly "1";
+      #                 renumber remaining assemblies sequentially.
+
+  missing_data_rules:
+    missing_atoms:
+      strategy: string
+      # preserve             — Keep residues with missing atoms as-is.
+      # annotate             — Flag residues with missing atoms in diagnostics
+      #                        but retain them unchanged.
+      # drop_partial_residue — Remove any residue where one or more non-hydrogen
+      #                        atoms are absent.
+      # impute               — Attempt to fill missing atom coordinates using
+      #                        ideal geometry. Requires allow_imputation: true.
+
+      allow_imputation: bool
+      # Must be true for strategy "impute". Ignored otherwise.
+
+      record_missingness: bool
+      # If true, emit a MISSING_ATOMS diagnostic for every affected residue.
+
+    missing_residues:
+      strategy: string
+      # preserve           — Keep sequence gaps as-is.
+      # annotate           — Flag gaps in diagnostics but retain the chain.
+      # drop_chain_segment — Remove chain segments that contain sequence gaps.
+      # impute             — Attempt to model missing residues using sequence
+      #                      and ideal geometry. Requires allow_imputation: true.
+
+      record_gaps: bool
+      # If true, emit a SEQUENCE_GAP diagnostic for every detected gap.
+
+    incomplete_chains:
+      strategy: string
+      # preserve                    — Keep chains regardless of completeness.
+      # exclude                     — Remove chains with missing terminal or
+      #                               internal segments.
+      # truncate_to_complete_regions — Retain only contiguous complete segments;
+      #                               discard terminal incomplete regions.
+
+  altloc_rules:
+    strategy: string
+    # preserve              — Retain all altloc variants. All atoms with an
+    #                         altloc label are kept. AltlocSelectionMapping
+    #                         will be empty.
+    # select_best_occupancy — Select the altloc with the highest occupancy per
+    #                         residue. Apply tie_breaker on equal occupancies.
+    # select_first          — Select the altloc with the lowest alphabetical
+    #                         label (A before B).
+    # select_user_defined   — Select the altloc label specified in
+    #                         user_defined_altloc.
+
+    tie_breaker: string
+    # Used when strategy == "select_best_occupancy" and two altlocs have
+    # equal occupancy.
+    #
+    # alphabetical_first — Select the altloc with the lowest alphabetical label.
+    # alphabetical_last  — Select the altloc with the highest alphabetical label.
+    # lowest_b_factor    — Select the altloc with the lowest average B-factor.
+    # highest_b_factor   — Select the altloc with the highest average B-factor.
+
+    user_defined_altloc: string | null
+    # The specific altloc label to select when strategy == "select_user_defined".
+    # e.g. "A", "B". null for all other strategies.
+
+    record_selection: bool
+    # If true, populate AltlocSelectionMapping for every residue where
+    # resolution was applied.
+
+  assembly_rules:
+    strategy: string
+    # preserve_as_reported          — Use assemblies exactly as reported in
+    #                                 the mmCIF file.
+    # standardize_biological_assembly — Prefer the assembly annotated as the
+    #                                 preferred biological unit per
+    #                                 preferred_assembly_source. Other
+    #                                 assemblies are retained but renumbered.
+    # select_first_assembly         — Retain only the first listed assembly
+    #                                 (assembly_id "1" in the source file).
+    #                                 All others are discarded.
+
+    preferred_assembly_source: string
+    # Used when strategy == "standardize_biological_assembly".
+    #
+    # author — Use the assembly flagged by the depositing author as preferred.
+    # pdbe   — Use the PDBe-annotated preferred biological assembly.
+    # pdbx   — Use the pdbx_struct_assembly preferred flag from the mmCIF file.
+    # first  — Fall back to the first listed assembly if no preferred flag exists.
+
+    record_original_assembly_mapping: bool
+    # If true, populate AssemblyMapping for every assembly.
+
+  entity_rules:
+    strategy: string
+    # preserve                  — Keep original entity IDs unchanged.
+    # standardize               — Renumber entity IDs sequentially (1, 2, ...).
+    # merge_equivalent_entities — Merge entities with identical canonical
+    #                             sequences or compositions into a single entity.
+    #                             EntityMapping will reflect the merge.
+
+    preserve_original_entity_ids: bool
+    # If true, the original entity_id is retained in EntityMapping even when
+    # strategy == "standardize".
+
+  ligand_rules:
+    strategy: string
+    # preserve      — Include all non-polymer, non-water entities as Ligand records.
+    # filter        — Apply keep_waters / keep_ions / keep_nonpolymer_ligands to
+    #                 determine which ligands to include.
+    # annotate_only — Ligands are recorded in diagnostics but excluded from
+    #                 CanonicalStructure.ligands.
+
+    keep_waters: bool
+    keep_ions: bool
+    keep_nonpolymer_ligands: bool
+    # Active when strategy == "filter". Ignored otherwise.
+
+  validation_rules:
+    strictness: string
+    # strict     — All warning_rules are treated as errors.
+    # moderate   — Default behaviour: errors are errors, warnings are warnings.
+    # permissive — Error rules are downgraded to warnings where possible.
+
+    fail_on_unresolved_issues: bool
+    # If true, any unresolved error causes status == "failed".
+
+    warnings_as_errors: bool
+    # If true, any warning diagnostic causes status == "failed".
+    # Equivalent to strictness == "strict" at the result level.
+
+  provenance_rules:
+    record_original_mappings: bool
+    # If true, all mapping schemas are populated.
+    # If false, mapping objects are empty (reduces output size).
+
+    record_transforms: bool
+    # If true, each applied transformation is logged in provenance.
+
+    record_policy_application: bool
+    # If true, the full applied policy is embedded in the result.
+
+    emit_canonicalization_report: bool
+    # If true, a summary of all applied transformations is included
+    # in the diagnostics context.

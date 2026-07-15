@@ -1,0 +1,28 @@
+ExportPolicy:
+  artifact_mode: string | null
+  # embedded     — force embedded mode regardless of dataset mode.
+  # by_reference — force by_reference mode regardless of dataset mode.
+  # null         — auto-select based on dataset.source_dataset (see Section 8.4).
+
+  store_root: string | null
+  # Required when artifact_mode == "by_reference" or when auto-selection
+  # results in by_reference mode.
+  # Absolute path to the artifact store root directory.
+
+  emit_manifest_yaml: bool
+  # If true, serialise PandoraManifest to {store_root}/manifest.yaml.
+
+  emit_manifest_json: bool
+  # If true, serialise PandoraManifest to {store_root}/manifest.json.
+  # Both emit_manifest_yaml and emit_manifest_json can be true.
+
+  emit_provenance_report: bool
+  # If true, generate ReproducibilityReport and attach to the artifact.
+
+  emit_checksum_bundle: bool
+  # If true, compute and populate all checksum fields.
+  # If false, all checksum fields are null.
+
+  emit_lineage_graph: bool
+  # If true, populate ReproducibilityReport.lineage.
+  # Requires emit_provenance_report: true.

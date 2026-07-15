@@ -1,0 +1,26 @@
+AnnotationPluginPolicy:
+  policy_id: string
+  policy_name: string
+  policy_version: string
+  description: string
+
+  execution_rules:
+    mode: string
+    # sequential | parallel
+
+    parallel_options:
+      max_workers: int | null
+      fail_fast: bool
+
+    fail_on_plugin_error: bool
+    # If true, any plugin failure causes the entire annotation step to fail.
+
+    allow_partial_annotation: bool
+    # If true, successfully completed plugin layers are retained even when
+    # other plugins fail.
+    # Only applies when fail_on_plugin_error: false.
+
+  provenance_rules:
+    record_plugin_versions: bool
+    record_plugin_configuration: bool
+    record_execution_history: bool

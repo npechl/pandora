@@ -1,0 +1,88 @@
+LeakagePolicy:
+  policy_id: string
+  policy_name: string
+  policy_version: string
+  description: string
+
+  similarity_rules:
+    sequence_similarity:
+      enabled: bool
+
+      engine: string
+      # Supported: MMseqs2
+
+      threshold: float | null
+      # Minimum score to form a graph edge. Range [0.0, 1.0].
+      # null = include all pairs as edges regardless of score.
+
+      coverage_threshold: float | null
+      # Minimum alignment coverage. Range [0.0, 1.0].
+      # null = no coverage filter.
+
+    structure_similarity:
+      enabled: bool
+
+      engine: string
+      # Supported: Foldseek
+
+      threshold: float | null
+      # Minimum TM-score to form a graph edge. Range [0.0, 1.0].
+
+      coverage_threshold: float | null
+
+  clustering_rules:
+    enabled: bool
+    # If false, each item is its own singleton cluster.
+
+    strategy: string
+    # connected_components — All items transitively connected through
+    #   edges above the similarity threshold form one cluster.
+    #
+    # single_linkage       — Hierarchical agglomerative clustering using
+    #   single linkage (merge two groups if any pair across them has score >=
+    #   threshold). The dendrogram is cut at the similarity threshold.
+    #
+    # custom               — Use a user-supplied clustering function provided
+    #   as custom_clustering_fn. Must accept SimilarityNetwork and return
+    #   list[Cluster].
+
+    min_cluster_size: int | null
+    # Clusters smaller than this value are merged into a residual "small
+    # clusters" group before partitioning.
+    # null = no minimum (singleton clusters are allowed).
+
+    custom_clustering_fn: callable | null
+    # Required when strategy == "custom". Ignored otherwise.
+
+  partition_rules:
+    train_fraction: float
+    validation_fraction: float
+    test_fraction: float
+    # Must sum to 1.0 (within tolerance 0.001). Configuration error if not.
+
+    keep_similar_items_together: bool
+    # If true (default and recommended), all members of a cluster are
+    # assigned to the same split. This is the primary leakage-prevention
+    # mechanism.
+
+    stratify_by_cluster: bool
+    # If true, the greedy bin-packing assignment attempts to distribute
+    # clusters of varying sizes across all splits.
+
+  leakage_rules:
+    forbid_cross_split_similarity: bool
+    # If true, any cross-split similarity edge causes status "failed".
+
+    max_allowed_cross_split_similarity: float | null
+    # Maximum tolerated cross-split similarity score. Range [0.0, 1.0].
+    # null = no tolerance limit (only forbid_cross_split_similarity applies).
+
+    enforce_cluster_isolation: bool
+    # If true, any cluster whose members are split across different
+    # partitions causes status "failed".
+
+  provenance_rules:
+    record_similarity_method: bool
+    record_engine_versions: bool
+    record_thresholds: bool
+    record_partition_history: bool

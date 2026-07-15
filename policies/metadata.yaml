@@ -1,0 +1,37 @@
+MetadataIntegrationPolicy:
+  policy_id: string
+  policy_name: string
+  policy_version: string
+  description: string
+
+  include_sources:
+    pdbe: bool
+    sifts: bool
+    uniprot: bool
+    taxonomy: bool
+
+  include_categories:
+    archive_metadata: bool
+    biological_mappings: bool
+    structural_annotations: bool
+    provenance_metadata: bool
+    # provenance_metadata is always populated regardless of this flag.
+
+  retrieval_rules:
+    eager: bool
+    # If true, all enabled sources are fetched concurrently on first access.
+    # If false, sources are fetched lazily when their category is first read.
+
+    use_cache: bool
+    fail_on_missing: bool
+    # If true, any source failure causes the entire metadata retrieval to fail.
+    # Takes precedence over allow_partial.
+
+    allow_partial: bool
+    # If true, partial results are returned when some sources fail.
+    # Only applies when fail_on_missing: false.
+
+  provenance_rules:
+    record_source_versions: bool
+    record_retrieval_time: bool
+    record_mapping_history: bool
