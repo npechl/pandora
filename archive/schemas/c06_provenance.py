@@ -24,11 +24,11 @@ class PipelineIngestionProvenance(BaseModel):
     from_cache: bool | None = None
 
 
-class PipelineCanonicalizationProvenance(BaseModel):
+class PipelinecanonicalisationProvenance(BaseModel):
     policy_id: str
     policy_name: str
     policy_version: str
-    canonicalized_at_range: TimestampRange = Field(
+    canonicalised_at_range: TimestampRange = Field(
         default_factory=TimestampRange
     )
 
@@ -93,13 +93,13 @@ class PipelineSplittingProvenance(BaseModel):
 class PipelineProvenance(BaseModel):
     """
     Per-stage provenance. For chain/interface/residue granularities,
-    ingestion, canonicalization, metadata, and annotation fields are null
+    ingestion, canonicalisation, metadata, and annotation fields are null
     because upstream AnnotatedStructureWithPlugins objects are not embedded
     (UPSTREAM_PROVENANCE_NOT_EMBEDDED).
     """
 
     ingestion: PipelineIngestionProvenance | None = None
-    canonicalization: PipelineCanonicalizationProvenance | None = None
+    canonicalisation: PipelinecanonicalisationProvenance | None = None
     metadata_integration: PipelineMetadataProvenance | None = None
     annotation_plugins: PipelineAnnotationProvenance | None = None
     dataset_curation: PipelineCurationProvenance | None = None
@@ -123,8 +123,8 @@ class SourceReleaseProvenanceRecord(BaseModel):
 
 
 class PolicyProvenanceRecord(BaseModel):
-    canonicalization_policy_id: str | None = None
-    canonicalization_policy_version: str | None = None
+    canonicalisation_policy_id: str | None = None
+    canonicalisation_policy_version: str | None = None
     metadata_policy_id: str | None = None
     metadata_policy_version: str | None = None
     annotation_plugin_policy_id: str | None = None

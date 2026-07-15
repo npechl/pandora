@@ -16,7 +16,7 @@ This component focuses strictly on ingestion and parsing.
 
 It is **not** responsible for:
 
-* canonicalization,
+* canonicalisation,
 * normalization,
 * metadata enrichment,
 * dataset filtering,
@@ -668,7 +668,7 @@ This function:
 
 This function does NOT:
 
-* canonicalize structures,
+* canonicalise structures,
 * rename chains,
 * normalize residue numbering,
 * resolve alternate conformations,
@@ -976,7 +976,7 @@ Pandora is a library — every function is independently callable. Users who
 have already parsed protein structures from other tools do not need to go
 through `fetch_mmCIF()` or `parse_mmCIF()`. The adapter functions below
 convert external data into the `ParsedStructure` schema so that callers can
-enter the library at Component 02 (canonicalization) or later.
+enter the library at Component 02 (canonicalisation) or later.
 
 ## 9.1 `from_raw_bytes()`
 
@@ -1015,7 +1015,7 @@ from_raw_bytes_result:
 
 Wrap an externally produced `ParsedStructure` object (e.g. built from
 BioPython, MDAnalysis, or a custom parser) into a `MmCIFIngestionResult`
-so it can be passed directly to `canonicalize_structure()` (C02) or later.
+so it can be passed directly to `canonicalise_structure()` (C02) or later.
 
 The resulting `MmCIFIngestionResult` has `status="success"`,
 `provenance.provider="external"`, and `provenance.from_cache=false`.
@@ -1061,7 +1061,7 @@ adapter.
 # 10. Non-Responsibilities
 
 Component 01 is not responsible for:
-  - canonicalization
+  - canonicalisation
   - normalization
   - metadata integration
   - residue renumbering

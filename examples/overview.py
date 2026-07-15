@@ -2,9 +2,9 @@ from pathlib import Path
 
 from pandora.ingestion import fetch_mmcif
 from pandora.parsing import mmcif_to_structure
-from pandora.canonicalization import canonicalize_structure
-from pandora.schemas.canonicalization import (
-    CanonicalizationPolicy,
+from pandora.canonicalisation import canonicalise_structure
+from pandora.schemas.canonicalisation import (
+    canonicalisationPolicy,
     IdentifierRules,
     ChainIdRules,
     ResidueNumberingRules,
@@ -34,7 +34,7 @@ structure, diag, status = mmcif_to_structure(str(MMCIF_DIR / f"{ENTRY_ID}.cif"))
 
 # Example 1: preserve everything as reported -----------------------------
 
-preserve_policy = CanonicalizationPolicy(
+preserve_policy = canonicalisationPolicy(
     policy_id="overview-preserve",
     policy_name="Preserve As Reported",
     policy_version="1.0.0",
@@ -46,13 +46,13 @@ preserve_policy = CanonicalizationPolicy(
     ligand_rules=LigandRules(strategy="preserve", keep_waters=False),
 )
 
-canonical, mappings, canon_prov = canonicalize_structure(
+canonical, mappings, canon_prov = canonicalise_structure(
     structure, preserve_policy
 )
 
 # Example 2: remap identifiers and renumber residues ---------------------
 
-remap_policy = CanonicalizationPolicy(
+remap_policy = canonicalisationPolicy(
     policy_id="overview-remap",
     policy_name="Remap Chains And Renumber",
     policy_version="1.0.0",
@@ -68,14 +68,14 @@ remap_policy = CanonicalizationPolicy(
         strategy="filter", keep_waters=False, keep_ions=False
     ),
 )
-canonical, mappings, canon_prov = canonicalize_structure(
+canonical, mappings, canon_prov = canonicalise_structure(
     structure, remap_policy
 )
 
 
 # Example 3: author-centric identifiers, first altloc, strict validation --
 
-author_policy = CanonicalizationPolicy(
+author_policy = canonicalisationPolicy(
     policy_id="overview-author",
     policy_name="Author Identifiers",
     policy_version="1.0.0",
@@ -91,6 +91,6 @@ author_policy = CanonicalizationPolicy(
     ligand_rules=LigandRules(strategy="annotate_only"),
 )
 
-canonical, mappings, canon_prov = canonicalize_structure(
+canonical, mappings, canon_prov = canonicalise_structure(
     structure, author_policy
 )

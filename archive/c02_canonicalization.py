@@ -5,12 +5,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from archive.schemas.c01_ingestion import MmCIFIngestionResult, ParallelOptions
-from archive.schemas.c02_canonicalization import (
+from archive.schemas.c02_canonicalisation import (
     AltlocSelectionMapping,
     AssemblyMapping,
-    CanonicalizationBatchResult,
-    CanonicalizationBatchSummary,
-    CanonicalizationPolicy,
+    canonicalisationBatchResult,
+    canonicalisationBatchSummary,
+    canonicalisationPolicy,
     CanonicalMappings,
     CanonicalStructure,
     CanonicalStructureProvenance,
@@ -26,7 +26,7 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _policy_ref(policy: CanonicalizationPolicy) -> AppliedPolicyRef:
+def _policy_ref(policy: canonicalisationPolicy) -> AppliedPolicyRef:
     return AppliedPolicyRef(
         policy_id=policy.policy_id,
         policy_name=policy.policy_name,
@@ -37,9 +37,9 @@ def _policy_ref(policy: CanonicalizationPolicy) -> AppliedPolicyRef:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 
-def canonicalize_structure(
+def canonicalise_structure(
     ingestion_result: MmCIFIngestionResult,
-    policy: CanonicalizationPolicy,
+    policy: canonicalisationPolicy,
 ) -> CanonicalStructureResult:
     """Convert a parsed structure into a canonical structure per policy.
 
@@ -80,7 +80,7 @@ def canonicalize_structure(
         entity_mapping=EntityMapping(),
         altloc_selection_mapping=AltlocSelectionMapping(),
     )
-    prov.canonicalized_at = _now_iso()
+    prov.canonicalised_at = _now_iso()
     return CanonicalStructureResult(
         entry_id=ingestion_result.entry_id,
         status=ingestion_result.status,
@@ -94,28 +94,28 @@ def canonicalize_structure(
 def validate_canonical_structure(
     canonical_structure: CanonicalStructure,
     canonical_mappings: CanonicalMappings,
-    policy: CanonicalizationPolicy,
+    policy: canonicalisationPolicy,
 ) -> tuple[str, DiagnosticBundle]:
     # TODO: implement V1 validation rules per spec Section 5.2
     #   (CANONICAL_CHAIN_ID_COLLISION, RESIDUE_NUMBER_COLLISION, ...)
     return "valid", DiagnosticBundle()
 
 
-def canonicalize_many_structures(
+def canonicalise_many_structures(
     ingestion_results: list[MmCIFIngestionResult],
-    policy: CanonicalizationPolicy,
+    policy: canonicalisationPolicy,
     mode: str = "sequential",
     parallel_options: ParallelOptions | None = None,
-) -> CanonicalizationBatchResult:
-    """Canonicalize a batch of ingestion results (sequential or parallel)."""
+) -> canonicalisationBatchResult:
+    """canonicalise a batch of ingestion results (sequential or parallel)."""
     # TODO: implement parallel mode via concurrent.futures
-    results = [canonicalize_structure(r, policy) for r in ingestion_results]
-    summary = CanonicalizationBatchSummary(
+    results = [canonicalise_structure(r, policy) for r in ingestion_results]
+    summary = canonicalisationBatchSummary(
         total=len(results),
         success=sum(1 for r in results if r.status == "success"),
         warning=sum(1 for r in results if r.status == "warning"),
         failed=sum(1 for r in results if r.status == "failed"),
     )
-    return CanonicalizationBatchResult(
+    return canonicalisationBatchResult(
         mode=mode, summary=summary, results=results
     )

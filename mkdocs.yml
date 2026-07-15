@@ -1,0 +1,14 @@
+site_name: My Docs
+
+theme:
+  name: "material"
+  custom_dir: overrides
+
+plugins:
+  - mkdocstrings
+
+nav:
+  - index.md
+  - policies.md
+  - recipies.md
+  - examples.md

@@ -14,7 +14,7 @@ This component is responsible for:
 * assembly normalization,
 * and canonical structural consistency.
 
-This layer uses explicit canonicalization policies so dataset preparation becomes:
+This layer uses explicit canonicalisation policies so dataset preparation becomes:
 
 * reproducible,
 * transparent,
@@ -26,29 +26,29 @@ The output of this component becomes the canonical structure representation used
 
 # 1. Input Schemas
 
-## 1.1 Canonicalization input
+## 1.1 canonicalisation input
 
 ```yaml
-CanonicalizationInput:
+canonicalisationInput:
   ingestion_result: MmCIFIngestionResult
   # Must have status "success" or "warning".
   # Ingestion results with status "failed" are rejected with a
-  # configuration error before canonicalization begins.
+  # configuration error before canonicalisation begins.
 
-  policy: CanonicalizationPolicy
+  policy: canonicalisationPolicy
   # See Section 4 for the full policy schema and strategy definitions.
 ```
 
 ---
 
-## 1.2 Batch canonicalization input
+## 1.2 Batch canonicalisation input
 
 ```yaml
-CanonicalizationBatchInput:
+canonicalisationBatchInput:
   ingestion_results:
     - MmCIFIngestionResult
 
-  policy: CanonicalizationPolicy
+  policy: canonicalisationPolicy
 
   mode: string
   # sequential | parallel
@@ -68,7 +68,7 @@ CanonicalizationBatchInput:
 
 # 2. Canonical Structure Object Schemas
 
-These schemas define the typed records produced by `canonicalize_structure()`.
+These schemas define the typed records produced by `canonicalise_structure()`.
 `CanonicalStructure` reuses the `Atom`, `Residue`, `Chain`, `Entity`,
 `Assembly`, and `Ligand` types defined in Component 01, but all identifier
 fields (`chain_id`, `seq_id`, `assembly_id`, `entity_id`) reflect
@@ -219,9 +219,9 @@ CanonicalStructureResult:
   entry_id: string
 
   status: string
-  # success  — canonicalized and validated without issues.
-  # warning  — canonicalized; non-fatal issues detected.
-  # failed   — canonicalization failed; canonical_structure is null.
+  # success  — canonicalised and validated without issues.
+  # warning  — canonicalised; non-fatal issues detected.
+  # failed   — canonicalisation failed; canonical_structure is null.
 
   canonical_structure: CanonicalStructure | null
   # null when status == "failed".
@@ -248,16 +248,16 @@ CanonicalStructureResult:
     source_uri: string | null
     retrieved_at: string | null
     # ISO 8601 timestamp. Propagated from the ingestion result.
-    canonicalized_at: string | null
-    # ISO 8601 timestamp of when canonicalization was applied.
+    canonicalised_at: string | null
+    # ISO 8601 timestamp of when canonicalisation was applied.
 ```
 
 ---
 
-## 3.2 Batch canonicalization result
+## 3.2 Batch canonicalisation result
 
 ```yaml
-CanonicalizationBatchResult:
+canonicalisationBatchResult:
   mode: string
   # sequential | parallel
 
@@ -295,17 +295,17 @@ CanonicalizationBatchResult:
 
       provenance:
         retrieved_at: string | null
-        canonicalized_at: string | null
+        canonicalised_at: string | null
 ```
 
 ---
 
 # 4. Policy Schema
 
-## 4.1 CanonicalizationPolicy
+## 4.1 canonicalisationPolicy
 
 ```yaml
-CanonicalizationPolicy:
+canonicalisationPolicy:
   policy_id: string
   policy_name: string
   policy_version: string
@@ -476,7 +476,7 @@ CanonicalizationPolicy:
     record_policy_application: bool
     # If true, the full applied policy is embedded in the result.
 
-    emit_canonicalization_report: bool
+    emit_canonicalisation_report: bool
     # If true, a summary of all applied transformations is included
     # in the diagnostics context.
 ```
@@ -485,12 +485,12 @@ CanonicalizationPolicy:
 
 # 5. Public Functions
 
-## 5.1 `canonicalize_structure()`
+## 5.1 `canonicalise_structure()`
 
 ### Responsibility
 
 Convert a parsed structure into a canonical structure according to a
-canonicalization policy.
+canonicalisation policy.
 
 ### Internal Workflow
 
@@ -530,14 +530,14 @@ and altloc resolution operate on already-normalized identifiers.
 ### Input Schema
 
 ```yaml
-canonicalize_structure:
-  input: CanonicalizationInput
+canonicalise_structure:
+  input: canonicalisationInput
 ```
 
 ### Output Schema
 
 ```yaml
-canonicalize_structure_result:
+canonicalise_structure_result:
   result: CanonicalStructureResult
 ```
 
@@ -545,7 +545,7 @@ canonicalize_structure_result:
 
 This function:
 
-* applies canonicalization policies,
+* applies canonicalisation policies,
 * standardizes identifiers,
 * handles missing data,
 * resolves alternate conformations,
@@ -566,7 +566,7 @@ This function does NOT:
 
 ### Responsibility
 
-Validate canonical structures against Pandora canonicalization consistency
+Validate canonical structures against Pandora canonicalisation consistency
 rules.
 
 ### V1 Validation Rules
@@ -648,7 +648,7 @@ status_rules:
 validate_canonical_structure:
   canonical_structure: CanonicalStructure
   canonical_mappings: object
-  policy: CanonicalizationPolicy
+  policy: canonicalisationPolicy
 ```
 
 ### Output Schema
@@ -677,11 +677,11 @@ Validation ensures:
 
 ---
 
-## 5.3 `canonicalize_many_structures()`
+## 5.3 `canonicalise_many_structures()`
 
 ### Responsibility
 
-Run canonicalization for a list of parsed structures.
+Run canonicalisation for a list of parsed structures.
 
 Supports sequential or parallel execution.
 
@@ -689,7 +689,7 @@ Supports sequential or parallel execution.
 
 ```text
 for each ingestion_result:
-    canonicalize_structure(ingestion_result, policy)
+    canonicalise_structure(ingestion_result, policy)
 
 In parallel mode:
     Entries are dispatched to up to max_workers concurrent workers.
@@ -702,22 +702,22 @@ In parallel mode:
 ### Input Schema
 
 ```yaml
-canonicalize_many_structures:
-  input: CanonicalizationBatchInput
+canonicalise_many_structures:
+  input: canonicalisationBatchInput
 ```
 
 ### Output Schema
 
 ```yaml
-canonicalize_many_structures_result:
-  result: CanonicalizationBatchResult
+canonicalise_many_structures_result:
+  result: canonicalisationBatchResult
 ```
 
 ### Notes
 
 This function:
 
-* orchestrates batch canonicalization,
+* orchestrates batch canonicalisation,
 * isolates failures (unless `fail_fast` is true),
 * aggregates diagnostics across all entries,
 * and generates batch summaries.
@@ -898,9 +898,9 @@ MmCIFIngestionResult  [status: success | warning]
 
 ```text
 list of MmCIFIngestionResult
-  → canonicalize_many_structures()
-  → repeated canonicalize_structure()   [sequential or parallel]
-  → CanonicalizationBatchResult
+  → canonicalise_many_structures()
+  → repeated canonicalise_structure()   [sequential or parallel]
+  → canonicalisationBatchResult
 ```
 
 ---
@@ -920,5 +920,5 @@ Component 02 is not responsible for:
 ---
 
 # 9. Component Definition
-The Canonical Structure Object Layer converts parsed structural records into standardized, provenance-preserving canonical structure representations using explicit canonicalization policies.
+The Canonical Structure Object Layer converts parsed structural records into standardized, provenance-preserving canonical structure representations using explicit canonicalisation policies.
 

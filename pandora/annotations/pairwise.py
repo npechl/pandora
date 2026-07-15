@@ -11,7 +11,21 @@ def annotate_pairwise_sequence_identity(
     left: Structure,
     right: Structure,
 ) -> AnnotationLayer:
-    """Compute a simple ungapped sequence identity between two entries."""
+    """Compute a simple ungapped sequence identity between two entries.
+
+    Compares every polymer entity in `left` against every polymer
+    entity in `right` with a position-wise (ungapped, no alignment)
+    identity, then reports the best-scoring pair.
+
+    Args:
+        left: The first structure to compare.
+        right: The second structure to compare.
+
+    Returns:
+        An `AnnotationLayer` of type "pairwise_sequence_identity" whose
+        `data` holds the best identity score, the best-matching entity
+        pair, and every entity-pair comparison.
+    """
 
     comparisons = []
     for left_entity_id, left_sequence in _entity_sequences(left):
