@@ -1,14 +1,34 @@
-site_name: My Docs
+site_name: Pandora
+repo_url: https://github.com/npechl/pandora
+repo_name: npechl/pandora
 
 theme:
   name: "material"
   custom_dir: overrides
+  features:
+    - navigation.sections
+    - content.code.copy
 
 plugins:
-  - mkdocstrings
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            merge_init_into_class: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences
 
 nav:
-  - index.md
-  - policies.md
-  - recipies.md
-  - examples.md
+  - Home: index.md
+  - Policies: policies.md
+  - Recipes: recipes.md
+  - Examples: examples.md
+  - Reference: reference.md
+  - Contributing: contribute.md
