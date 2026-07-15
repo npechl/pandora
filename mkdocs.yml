@@ -10,4 +10,5 @@ plugins:
 nav:
   - index.md
   - policies.md
+  - recipies.md
   - examples.md
