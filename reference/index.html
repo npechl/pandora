@@ -1,0 +1,4117 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../examples/">
+      
+      
+        <link rel="next" href="../contribute/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Reference - Pandora</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Pandora" class="md-header__button md-logo" aria-label="Pandora" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Pandora
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/npechl/pandora" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    npechl/pandora
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Pandora" class="md-nav__button md-logo" aria-label="Pandora" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Pandora
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/npechl/pandora" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    npechl/pandora
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../policies/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Policies
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.ingestion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ingestion
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ingestion">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pandora.ingestion.fetch_list_mmcif" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fetch_list_mmcif
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.ingestion.fetch_mmcif" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fetch_mmcif
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.parsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        parsing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="parsing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pandora.parsing.mmcif_to_structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mmcif_to_structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.canonicalisation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        canonicalisation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="canonicalisation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pandora.canonicalisation.canonicalise_structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        canonicalise_structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        metadata
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="metadata">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.annotate_ligand_contacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_ligand_contacts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.annotate_pairwise_sequence_identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_pairwise_sequence_identity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.annotate_structure_counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_structure_counts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.collect_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        collect_metadata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_entity_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_entity_metadata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_entry_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_entry_metadata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_ligand_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_ligand_metadata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_metadata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_metadata_category" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_metadata_category
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_quality
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_taxonomies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_taxonomies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_taxonomy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_taxonomy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_uniprot_mappings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_uniprot_mappings
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.annotations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="annotations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pandora.annotations.annotate_ligand_contacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_ligand_contacts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.annotations.annotate_pairwise_sequence_identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_pairwise_sequence_identity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.annotations.annotate_structure_counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_structure_counts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#schemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schemas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.schemas.canonicalisation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        canonicalisation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.schemas.structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        structure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pandora.schemas.structure.ConfRecord" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ConfRecord
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.schemas.metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        metadata
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.schemas.annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.schemas.ingestion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ingestion
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.schemas.common" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        common
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="common">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pandora.schemas.common.AppliedPolicyRef" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AppliedPolicyRef
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contribute/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.ingestion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ingestion
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ingestion">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pandora.ingestion.fetch_list_mmcif" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fetch_list_mmcif
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.ingestion.fetch_mmcif" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        fetch_mmcif
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.parsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        parsing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="parsing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pandora.parsing.mmcif_to_structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        mmcif_to_structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.canonicalisation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        canonicalisation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="canonicalisation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pandora.canonicalisation.canonicalise_structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        canonicalise_structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        metadata
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="metadata">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.annotate_ligand_contacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_ligand_contacts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.annotate_pairwise_sequence_identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_pairwise_sequence_identity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.annotate_structure_counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_structure_counts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.collect_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        collect_metadata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_entity_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_entity_metadata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_entry_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_entry_metadata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_ligand_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_ligand_metadata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_metadata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_metadata_category" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_metadata_category
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_quality
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_taxonomies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_taxonomies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_taxonomy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_taxonomy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.metadata.extract_uniprot_mappings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        extract_uniprot_mappings
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.annotations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="annotations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pandora.annotations.annotate_ligand_contacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_ligand_contacts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.annotations.annotate_pairwise_sequence_identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_pairwise_sequence_identity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pandora.annotations.annotate_structure_counts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotate_structure_counts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#schemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schemas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.schemas.canonicalisation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        canonicalisation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.schemas.structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        structure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pandora.schemas.structure.ConfRecord" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ConfRecord
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.schemas.metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        metadata
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.schemas.annotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        annotation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.schemas.ingestion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ingestion
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pandora.schemas.common" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        common
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="common">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pandora.schemas.common.AppliedPolicyRef" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AppliedPolicyRef
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="reference">Reference</h1>
+<p>Auto-generated from docstrings. Only the public API of each package (what's exported via its <code>__init__.py</code>) is shown.</p>
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="pandora.ingestion" class="doc doc-heading">
+            <code>pandora.ingestion</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.ingestion.fetch_list_mmcif" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">fetch_list_mmcif</span><span class="p">(</span><span class="n">entry_ids</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">source_uri</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">,</span> <span class="n">fetch_options</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Fetch a list of raw mmCIF files from a provider URL, write them to
+output_dir, return provenance for each.</p>
+<p>Calls <code>fetch_mmcif()</code> once per entry ID. If
+<code>fetch_options.allow_partial</code> is True, entries that fail to fetch
+(<code>RuntimeError</code> or <code>ValueError</code>) are skipped instead of aborting
+the whole batch.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>entry_ids</code>
+            </td>
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The PDB/PDBe entry identifiers to fetch.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>provider</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>One of "pdbe" or "pdb", used to build the download
+URL when <code>source_uri</code> is not given.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>source_uri</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An explicit URL to fetch from, overriding
+<code>provider</code>'s default URL template, applied to every entry.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>output_dir</code>
+            </td>
+            <td>
+                  <code><span title="pathlib.Path">Path</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Directory to write the downloaded (or cached)
+files into; created if missing.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>fetch_options</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.ingestion.FetchOptions">FetchOptions</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Caching/decompression/retry options, including
+<code>allow_partial</code>. Defaults to <code>FetchOptions()</code> when not
+given.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="pandora.schemas.ingestion.IngestionProvenance">IngestionProvenance</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A list of <code>IngestionProvenance</code>, one per successfully fetched</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="pandora.schemas.ingestion.IngestionProvenance">IngestionProvenance</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>entry, in the same order as <code>entry_ids</code> (with failed entries</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="pandora.schemas.ingestion.IngestionProvenance">IngestionProvenance</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>omitted when <code>allow_partial</code> is True).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>provider</code> is invalid and no <code>source_uri</code> was
+given, and <code>allow_partial</code> is False.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="RuntimeError">RuntimeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If a fetch fails and <code>allow_partial</code> is False.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.ingestion.fetch_mmcif" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">fetch_mmcif</span><span class="p">(</span><span class="n">entry_id</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">source_uri</span><span class="p">,</span> <span class="n">output_dir</span><span class="p">,</span> <span class="n">fetch_options</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Fetch a raw mmCIF file from a provider URL, write it to
+output_dir, return provenance.</p>
+<p>Resolves the download URL from <code>source_uri</code> or from <code>provider</code>
+("pdbe"/"pdb"), reuses a cached file when one is fresh (per
+<code>fetch_options</code>), otherwise downloads it, optionally decompresses
+it, and writes it to <code>output_dir</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>entry_id</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The PDB/PDBe entry identifier (e.g. "1abc").</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>provider</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>One of "pdbe" or "pdb", used to build the download
+URL when <code>source_uri</code> is not given.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>source_uri</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An explicit URL to fetch from, overriding
+<code>provider</code>'s default URL template.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>output_dir</code>
+            </td>
+            <td>
+                  <code><span title="pathlib.Path">Path</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Directory to write the downloaded (or cached) file
+into; created if missing.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>fetch_options</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.ingestion.FetchOptions">FetchOptions</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Caching/decompression/retry options. Defaults
+to <code>FetchOptions()</code> when not given.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.ingestion.IngestionProvenance">IngestionProvenance</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>IngestionProvenance</code> describing the provider, source URL,</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.ingestion.IngestionProvenance">IngestionProvenance</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>retrieval timestamp, and whether the result came from cache.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>provider</code> is not "pdbe"/"pdb" and no
+<code>source_uri</code> was given.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="RuntimeError">RuntimeError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If the HTTP request fails, or the response
+cannot be decompressed/decoded.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="pandora.parsing" class="doc doc-heading">
+            <code>pandora.parsing</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.parsing.mmcif_to_structure" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">mmcif_to_structure</span><span class="p">(</span><span class="n">path_to_mmcif</span><span class="p">,</span> <span class="n">model_num</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Convert raw mmCIF text to a Structure (mmCIF data model).</p>
+<p>Parses the mmCIF file with gemmi, selects the requested model
+(falling back to the first model with a warning if not found),
+and extracts entities, atoms, asym units, connections, assemblies,
+and secondary structure into Pandora's typed <code>Structure</code> schema.
+Any other mmCIF categories are preserved verbatim in <code>Structure.raw</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>path_to_mmcif</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Path to the mmCIF file on disk.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>model_num</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Which model number to select from a multi-model
+entry.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="pandora.schemas.structure.Structure">Structure</span> | None, <span title="pandora.schemas.common.DiagnosticBundle">DiagnosticBundle</span>, <span title="pandora.schemas.common.ResultStatus">ResultStatus</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A tuple of:
+- The parsed <code>Structure</code>, or <code>None</code> if parsing failed.
+- A <code>DiagnosticBundle</code> of warnings/errors encountered.
+- A <code>ResultStatus</code>: "success", "warning", or "failed".</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="pandora.canonicalisation" class="doc doc-heading">
+            <code>pandora.canonicalisation</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.canonicalisation.canonicalise_structure" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">canonicalise_structure</span><span class="p">(</span><span class="n">structure</span><span class="p">,</span> <span class="n">policy</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Convert a parsed structure into a canonical structure.</p>
+<p>Applies chain ID normalization, residue renumbering, assembly and
+entity normalization, missing-data handling, altloc resolution, and
+ligand filtering, in that order, according to the given policy. Each
+step records its mapping (for reversibility) and, if the step's
+strategy deviates from "preserve", appends a transform label to the
+returned provenance.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>structure</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The parsed input structure to canonicalise.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>policy</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.canonicalisation.canonicalisationPolicy">canonicalisationPolicy</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The canonicalisation policy whose rules govern each
+normalization step.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="tuple">tuple</span>[<span title="pandora.schemas.structure.Structure">Structure</span>, <span title="pandora.schemas.canonicalisation.CanonicalMappings">CanonicalMappings</span>, <span title="pandora.schemas.canonicalisation.canonicalisationProvenance">canonicalisationProvenance</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A tuple of:
+- The canonicalised <code>Structure</code>.
+- <code>CanonicalMappings</code> recording original-to-canonical
+  identifier mappings for chains, residues, assemblies,
+  entities, and altloc selections.
+- <code>canonicalisationProvenance</code> describing which policy was
+  applied, which transforms ran, and diagnostic counts.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="pandora.metadata" class="doc doc-heading">
+            <code>pandora.metadata</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.metadata.annotate_ligand_contacts" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">annotate_ligand_contacts</span><span class="p">(</span><span class="n">structure</span><span class="p">,</span> <span class="n">distance_cutoff</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">include_waters</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Compute polymer residues near non-polymer atoms within a cutoff.</p>
+<p>Groups HETATM records into ligands (by asym/auth_seq/comp id) and,
+for each ligand, finds polymer residues with at least one atom
+within <code>distance_cutoff</code> angstroms of a ligand atom.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>structure</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The structure to scan for ligand contacts.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>distance_cutoff</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Contact distance in angstroms.</p>
+              </div>
+            </td>
+            <td>
+                  <code>4.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>include_waters</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, treat water residues as ligands too.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An <code>AnnotationLayer</code> of type "ligand_contacts" whose <code>data</code></p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>holds the cutoff/flags used and, per ligand, the contacting</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>polymer residues with their nearest distance.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.metadata.annotate_pairwise_sequence_identity" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">annotate_pairwise_sequence_identity</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Compute a simple ungapped sequence identity between two entries.</p>
+<p>Compares every polymer entity in <code>left</code> against every polymer
+entity in <code>right</code> with a position-wise (ungapped, no alignment)
+identity, then reports the best-scoring pair.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>left</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The first structure to compare.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>right</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The second structure to compare.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An <code>AnnotationLayer</code> of type "pairwise_sequence_identity" whose</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>data</code> holds the best identity score, the best-matching entity</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>pair, and every entity-pair comparison.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.metadata.annotate_structure_counts" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">annotate_structure_counts</span><span class="p">(</span><span class="n">structure</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Compute simple per-entry counts from the canonical structure.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>structure</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The canonical structure to summarize.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An <code>AnnotationLayer</code> of type "structure_counts" whose <code>data</code></p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>holds atom/residue/asym/entity/assembly/connection counts,</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>secondary-structure record counts, entity-type and atom-group</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>breakdowns, and the altloc atom count.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.metadata.collect_metadata" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">collect_metadata</span><span class="p">(</span><span class="n">structure</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Collect the basic source-backed metadata supported by Pandora today.</p>
+<p>Runs every <code>pandora.metadata.mmcif.extract_*</code> function against the
+structure and assembles the results into one record.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>structure</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The parsed structure to collect metadata from.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.metadata.MetadataRecord">MetadataRecord</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A <code>MetadataRecord</code> combining entry, quality, taxonomy, entity,</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.metadata.MetadataRecord">MetadataRecord</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>ligand, and UniProt-mapping metadata, plus the sorted list of</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.metadata.MetadataRecord">MetadataRecord</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>raw mmCIF category names present in the structure.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.metadata.extract_entity_metadata" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">extract_entity_metadata</span><span class="p">(</span><span class="n">structure</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Extract entity-level descriptions, sequences, and chain membership.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>structure</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The parsed structure to extract entity metadata
+from.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="pandora.schemas.metadata.EntityMetadataRecord">EntityMetadataRecord</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An <code>EntityMetadataRecord</code> per entity, combining <code>_entity</code></p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="pandora.schemas.metadata.EntityMetadataRecord">EntityMetadataRecord</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>fields (EC number, mutation, fragment), polymer sequence data,</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="pandora.schemas.metadata.EntityMetadataRecord">EntityMetadataRecord</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>and the chain (asym) ids belonging to that entity.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.metadata.extract_entry_metadata" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">extract_entry_metadata</span><span class="p">(</span><span class="n">structure</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Extract entry-level source-backed metadata from the parsed structure.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>structure</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The parsed structure to extract metadata from.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.metadata.EntryMetadataRecord">EntryMetadataRecord</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An <code>EntryMetadataRecord</code> with entry id, title, keywords, and</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.metadata.EntryMetadataRecord">EntryMetadataRecord</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>citation details (title, DOI, PubMed id).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.metadata.extract_ligand_metadata" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">extract_ligand_metadata</span><span class="p">(</span><span class="n">structure</span><span class="p">,</span> <span class="n">include_waters</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Extract non-polymer ligand metadata from mmCIF categories.</p>
+<p>Reads <code>_pdbx_entity_nonpoly</code> (joined with <code>_chem_comp</code> for name and
+formula) for one record per distinct (entity, ligand) pair. Falls
+back to deriving ligand records from HETATM records in
+<code>structure.atoms</code> when neither category is present.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>structure</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The parsed structure to extract ligands from.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>include_waters</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, include water molecules as ligands.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="pandora.schemas.metadata.LigandMetadataRecord">LigandMetadataRecord</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A <code>LigandMetadataRecord</code> per distinct ligand entity.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.metadata.extract_metadata" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">extract_metadata</span><span class="p">(</span><span class="n">structure</span><span class="p">,</span> <span class="n">category</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Compatibility wrapper around <code>extract_metadata_category()</code>.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>structure</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The parsed structure to read raw categories from.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>category</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The mmCIF category name (e.g. "_entity").</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>keys</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Iterable">Iterable</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If given, restrict each row to these column names;
+otherwise return every column present in the category.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="pandora.metadata.utils.RawRow">RawRow</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A list of rows, each a mapping from column name to its</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="pandora.metadata.utils.RawRow">RawRow</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>(already null-normalized) string value.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.metadata.extract_metadata_category" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">extract_metadata_category</span><span class="p">(</span><span class="n">structure</span><span class="p">,</span> <span class="n">category</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return raw mmCIF rows for one category.</p>
+<p>This is the escape hatch for metadata that Pandora has not promoted to a
+typed schema yet.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>structure</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The parsed structure to read raw categories from.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>category</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The mmCIF category name (e.g. "_entity").</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>columns</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Iterable">Iterable</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If given, restrict each row to these column names
+(missing columns come back as <code>None</code>); otherwise return
+every column present in the category.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="pandora.metadata.utils.RawRow">RawRow</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A list of rows, each a mapping from column name to its</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="pandora.metadata.utils.RawRow">RawRow</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>(already null-normalized) string value.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.metadata.extract_quality" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">extract_quality</span><span class="p">(</span><span class="n">structure</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Extract experimental quality metrics reported in mmCIF.</p>
+<p>Reads the <code>_exptl</code>, <code>_refine</code>, and <code>_reflns</code> categories for the
+experimental method, resolution, R-work/R-free, reflection counts,
+and mean B-factor.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>structure</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The parsed structure to extract quality data from.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.metadata.QualityRecord">QualityRecord</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A <code>QualityRecord</code>, or <code>None</code> if none of <code>_exptl</code>, <code>_refine</code>,</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.metadata.QualityRecord">QualityRecord</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>or <code>_reflns</code> are present in the structure.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.metadata.extract_taxonomies" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">extract_taxonomies</span><span class="p">(</span><span class="n">structure</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Extract source organism and expression host metadata.</p>
+<p>Reads the <code>_entity_src_gen</code>, <code>_entity_src_nat</code>, and
+<code>_pdbx_entity_src_syn</code> mmCIF categories, covering genetically
+manipulated, naturally isolated, and synthetic sources
+respectively.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>structure</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The parsed structure to extract taxonomies from.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="pandora.schemas.metadata.TaxonomyRecord">TaxonomyRecord</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A <code>TaxonomyRecord</code> per source row found, in category order</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="pandora.schemas.metadata.TaxonomyRecord">TaxonomyRecord</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>(generated, then natural, then synthetic sources).</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.metadata.extract_taxonomy" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">extract_taxonomy</span><span class="p">(</span><span class="n">structure</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return the first taxonomy record, if present.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>structure</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The parsed structure to extract taxonomy from.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.metadata.TaxonomyRecord">TaxonomyRecord</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The first <code>TaxonomyRecord</code> from <code>extract_taxonomies()</code>, or</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.metadata.TaxonomyRecord">TaxonomyRecord</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>None</code> if the structure has no source records.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.metadata.extract_uniprot_mappings" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">extract_uniprot_mappings</span><span class="p">(</span><span class="n">structure</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Extract UniProt/SIFTS mappings reported in the mmCIF file.</p>
+<p>Reads <code>_struct_ref</code>/<code>_struct_ref_seq</code> and
+<code>_pdbx_sifts_unp_segments</code>, deduplicating mappings that describe
+the same entity/asym/accession/range.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>structure</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The parsed structure to extract mappings from.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="pandora.schemas.metadata.UniProtMappingRecord">UniProtMappingRecord</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A <code>UniProtMappingRecord</code> per distinct mapping segment found</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="pandora.schemas.metadata.UniProtMappingRecord">UniProtMappingRecord</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>across both source categories.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="pandora.annotations" class="doc doc-heading">
+            <code>pandora.annotations</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.annotations.annotate_ligand_contacts" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">annotate_ligand_contacts</span><span class="p">(</span><span class="n">structure</span><span class="p">,</span> <span class="n">distance_cutoff</span><span class="o">=</span><span class="mf">4.0</span><span class="p">,</span> <span class="n">include_waters</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Compute polymer residues near non-polymer atoms within a cutoff.</p>
+<p>Groups HETATM records into ligands (by asym/auth_seq/comp id) and,
+for each ligand, finds polymer residues with at least one atom
+within <code>distance_cutoff</code> angstroms of a ligand atom.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>structure</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The structure to scan for ligand contacts.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>distance_cutoff</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Contact distance in angstroms.</p>
+              </div>
+            </td>
+            <td>
+                  <code>4.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>include_waters</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, treat water residues as ligands too.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An <code>AnnotationLayer</code> of type "ligand_contacts" whose <code>data</code></p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>holds the cutoff/flags used and, per ligand, the contacting</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>polymer residues with their nearest distance.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.annotations.annotate_pairwise_sequence_identity" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">annotate_pairwise_sequence_identity</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Compute a simple ungapped sequence identity between two entries.</p>
+<p>Compares every polymer entity in <code>left</code> against every polymer
+entity in <code>right</code> with a position-wise (ungapped, no alignment)
+identity, then reports the best-scoring pair.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>left</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The first structure to compare.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>right</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The second structure to compare.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An <code>AnnotationLayer</code> of type "pairwise_sequence_identity" whose</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>data</code> holds the best identity score, the best-matching entity</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>pair, and every entity-pair comparison.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="pandora.annotations.annotate_structure_counts" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">annotate_structure_counts</span><span class="p">(</span><span class="n">structure</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Compute simple per-entry counts from the canonical structure.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>structure</code>
+            </td>
+            <td>
+                  <code><span title="pandora.schemas.structure.Structure">Structure</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The canonical structure to summarize.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>An <code>AnnotationLayer</code> of type "structure_counts" whose <code>data</code></p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>holds atom/residue/asym/entity/assembly/connection counts,</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>secondary-structure record counts, entity-type and atom-group</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="pandora.schemas.annotation.AnnotationLayer">AnnotationLayer</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>breakdowns, and the altloc atom count.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="schemas">Schemas</h2>
+<p>Typed Pydantic models used throughout the API above.</p>
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="pandora.schemas.canonicalisation" class="doc doc-heading">
+            <code>pandora.schemas.canonicalisation</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="pandora.schemas.structure" class="doc doc-heading">
+            <code>pandora.schemas.structure</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="pandora.schemas.structure.ConfRecord" class="doc doc-heading">
+            <code>ConfRecord</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+        <p>One row from _struct_conf (HELX_P, TURN_P, STRN, etc.).</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="pandora.schemas.metadata" class="doc doc-heading">
+            <code>pandora.schemas.metadata</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="pandora.schemas.annotation" class="doc doc-heading">
+            <code>pandora.schemas.annotation</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="pandora.schemas.ingestion" class="doc doc-heading">
+            <code>pandora.schemas.ingestion</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<h2 id="pandora.schemas.common" class="doc doc-heading">
+            <code>pandora.schemas.common</code>
+
+
+</h2>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h3 id="pandora.schemas.common.AppliedPolicyRef" class="doc doc-heading">
+            <code>AppliedPolicyRef</code>
+
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+        <p>Compact reference to a policy that was applied at a pipeline stage.</p>
+
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+<script src="https://giscus.app/client.js"
+        data-repo="npechl/pandora"
+        data-repo-id="R_kgDOSu-lTw"
+        data-category="General"
+        data-category-id="DIC_kwDOSu-lT84DA0hw"
+        data-mapping="pathname"
+        data-strict="0"
+        data-reactions-enabled="0"
+        data-emit-metadata="1"
+        data-input-position="top"
+        data-theme="light"
+        data-lang="en"
+        data-loading="lazy"
+        crossorigin="anonymous"
+        async>
+</script>
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
