@@ -41,7 +41,29 @@ def canonicalise_structure(
     structure: Structure,
     policy: canonicalisationPolicy,
 ) -> tuple[Structure, CanonicalMappings, canonicalisationProvenance]:
-    """Convert a parsed structure into a canonical structure."""
+    """Convert a parsed structure into a canonical structure.
+
+    Applies chain ID normalization, residue renumbering, assembly and
+    entity normalization, missing-data handling, altloc resolution, and
+    ligand filtering, in that order, according to the given policy. Each
+    step records its mapping (for reversibility) and, if the step's
+    strategy deviates from "preserve", appends a transform label to the
+    returned provenance.
+
+    Args:
+        structure: The parsed input structure to canonicalise.
+        policy: The canonicalisation policy whose rules govern each
+            normalization step.
+
+    Returns:
+        A tuple of:
+            - The canonicalised `Structure`.
+            - `CanonicalMappings` recording original-to-canonical
+              identifier mappings for chains, residues, assemblies,
+              entities, and altloc selections.
+            - `canonicalisationProvenance` describing which policy was
+              applied, which transforms ran, and diagnostic counts.
+    """
     ir = policy.identifier_rules
     mdr = policy.missing_data_rules
     ar = policy.altloc_rules

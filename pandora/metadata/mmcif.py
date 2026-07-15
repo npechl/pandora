@@ -36,6 +36,17 @@ def extract_metadata_category(
 
     This is the escape hatch for metadata that Pandora has not promoted to a
     typed schema yet.
+
+    Args:
+        structure: The parsed structure to read raw categories from.
+        category: The mmCIF category name (e.g. "_entity").
+        columns: If given, restrict each row to these column names
+            (missing columns come back as `None`); otherwise return
+            every column present in the category.
+
+    Returns:
+        A list of rows, each a mapping from column name to its
+        (already null-normalized) string value.
     """
 
     rows = raw_rows(structure, category)
@@ -51,13 +62,32 @@ def extract_metadata(
     category: str,
     keys: Iterable[str] | None = None,
 ) -> list[RawRow]:
-    """Compatibility wrapper around `extract_metadata_category()`."""
+    """Compatibility wrapper around `extract_metadata_category()`.
+
+    Args:
+        structure: The parsed structure to read raw categories from.
+        category: The mmCIF category name (e.g. "_entity").
+        keys: If given, restrict each row to these column names;
+            otherwise return every column present in the category.
+
+    Returns:
+        A list of rows, each a mapping from column name to its
+        (already null-normalized) string value.
+    """
 
     return extract_metadata_category(structure, category, keys)
 
 
 def extract_entry_metadata(structure: Structure) -> EntryMetadataRecord:
-    """Extract entry-level source-backed metadata from the parsed structure."""
+    """Extract entry-level source-backed metadata from the parsed structure.
+
+    Args:
+        structure: The parsed structure to extract metadata from.
+
+    Returns:
+        An `EntryMetadataRecord` with entry id, title, keywords, and
+        citation details (title, DOI, PubMed id).
+    """
 
     struct_keywords = first_row(structure, "_struct_keywords")
     citation = first_row(structure, "_citation")
@@ -77,7 +107,20 @@ def extract_entry_metadata(structure: Structure) -> EntryMetadataRecord:
 
 
 def extract_taxonomies(structure: Structure) -> list[TaxonomyRecord]:
-    """Extract source organism and expression host metadata."""
+    """Extract source organism and expression host metadata.
+
+    Reads the `_entity_src_gen`, `_entity_src_nat`, and
+    `_pdbx_entity_src_syn` mmCIF categories, covering genetically
+    manipulated, naturally isolated, and synthetic sources
+    respectively.
+
+    Args:
+        structure: The parsed structure to extract taxonomies from.
+
+    Returns:
+        A `TaxonomyRecord` per source row found, in category order
+        (generated, then natural, then synthetic sources).
+    """
 
     taxonomies = [
         _taxonomy_from_generated_source(row)
@@ -95,14 +138,34 @@ def extract_taxonomies(structure: Structure) -> list[TaxonomyRecord]:
 
 
 def extract_taxonomy(structure: Structure) -> TaxonomyRecord | None:
-    """Return the first taxonomy record, if present."""
+    """Return the first taxonomy record, if present.
+
+    Args:
+        structure: The parsed structure to extract taxonomy from.
+
+    Returns:
+        The first `TaxonomyRecord` from `extract_taxonomies()`, or
+        `None` if the structure has no source records.
+    """
 
     taxonomies = extract_taxonomies(structure)
     return taxonomies[0] if taxonomies else None
 
 
 def extract_quality(structure: Structure) -> QualityRecord | None:
-    """Extract experimental quality metrics reported in mmCIF."""
+    """Extract experimental quality metrics reported in mmCIF.
+
+    Reads the `_exptl`, `_refine`, and `_reflns` categories for the
+    experimental method, resolution, R-work/R-free, reflection counts,
+    and mean B-factor.
+
+    Args:
+        structure: The parsed structure to extract quality data from.
+
+    Returns:
+        A `QualityRecord`, or `None` if none of `_exptl`, `_refine`,
+        or `_reflns` are present in the structure.
+    """
 
     exptl_rows = raw_rows(structure, "_exptl")
     refine = first_row(structure, "_refine")
@@ -130,7 +193,17 @@ def extract_quality(structure: Structure) -> QualityRecord | None:
 
 
 def extract_entity_metadata(structure: Structure) -> list[EntityMetadataRecord]:
-    """Extract entity-level descriptions, sequences, and chain membership."""
+    """Extract entity-level descriptions, sequences, and chain membership.
+
+    Args:
+        structure: The parsed structure to extract entity metadata
+            from.
+
+    Returns:
+        An `EntityMetadataRecord` per entity, combining `_entity`
+        fields (EC number, mutation, fragment), polymer sequence data,
+        and the chain (asym) ids belonging to that entity.
+    """
 
     entity_rows = {row.get("id"): row for row in raw_rows(structure, "_entity")}
     chain_ids_by_entity: dict[str, list[str]] = defaultdict(list)
@@ -173,7 +246,20 @@ def extract_ligand_metadata(
     structure: Structure,
     include_waters: bool = False,
 ) -> list[LigandMetadataRecord]:
-    """Extract non-polymer ligand metadata from mmCIF categories."""
+    """Extract non-polymer ligand metadata from mmCIF categories.
+
+    Reads `_pdbx_entity_nonpoly` (joined with `_chem_comp` for name and
+    formula) for one record per distinct (entity, ligand) pair. Falls
+    back to deriving ligand records from HETATM records in
+    `structure.atoms` when neither category is present.
+
+    Args:
+        structure: The parsed structure to extract ligands from.
+        include_waters: If True, include water molecules as ligands.
+
+    Returns:
+        A `LigandMetadataRecord` per distinct ligand entity.
+    """
 
     chem_comp = {
         row.get("id"): row for row in raw_rows(structure, "_chem_comp")
@@ -222,7 +308,19 @@ def extract_ligand_metadata(
 def extract_uniprot_mappings(
     structure: Structure,
 ) -> list[UniProtMappingRecord]:
-    """Extract UniProt/SIFTS mappings reported in the mmCIF file."""
+    """Extract UniProt/SIFTS mappings reported in the mmCIF file.
+
+    Reads `_struct_ref`/`_struct_ref_seq` and
+    `_pdbx_sifts_unp_segments`, deduplicating mappings that describe
+    the same entity/asym/accession/range.
+
+    Args:
+        structure: The parsed structure to extract mappings from.
+
+    Returns:
+        A `UniProtMappingRecord` per distinct mapping segment found
+        across both source categories.
+    """
 
     records: list[UniProtMappingRecord] = []
     seen: set[tuple[Any, ...]] = set()

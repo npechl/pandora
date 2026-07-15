@@ -11,7 +11,17 @@ WATER_COMP_IDS = frozenset({"HOH", "WAT", "DOD"})
 
 
 def annotate_structure_counts(structure: Structure) -> AnnotationLayer:
-    """Compute simple per-entry counts from the canonical structure."""
+    """Compute simple per-entry counts from the canonical structure.
+
+    Args:
+        structure: The canonical structure to summarize.
+
+    Returns:
+        An `AnnotationLayer` of type "structure_counts" whose `data`
+        holds atom/residue/asym/entity/assembly/connection counts,
+        secondary-structure record counts, entity-type and atom-group
+        breakdowns, and the altloc atom count.
+    """
 
     residue_keys = {
         (
@@ -58,7 +68,22 @@ def annotate_ligand_contacts(
     distance_cutoff: float = 4.0,
     include_waters: bool = False,
 ) -> AnnotationLayer:
-    """Compute polymer residues near non-polymer atoms within a cutoff."""
+    """Compute polymer residues near non-polymer atoms within a cutoff.
+
+    Groups HETATM records into ligands (by asym/auth_seq/comp id) and,
+    for each ligand, finds polymer residues with at least one atom
+    within `distance_cutoff` angstroms of a ligand atom.
+
+    Args:
+        structure: The structure to scan for ligand contacts.
+        distance_cutoff: Contact distance in angstroms.
+        include_waters: If True, treat water residues as ligands too.
+
+    Returns:
+        An `AnnotationLayer` of type "ligand_contacts" whose `data`
+        holds the cutoff/flags used and, per ligand, the contacting
+        polymer residues with their nearest distance.
+    """
 
     polymer_atoms = [
         atom for atom in structure.atoms if atom.group_PDB == "ATOM"
