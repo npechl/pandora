@@ -259,3 +259,5 @@ warning above.)
 ## Provenance
 
 Every rule that deviates from its "preserve" default is recorded as a transform label (e.g. `"chain_id:remap"`) in the returned `canonicalisationProvenance.transforms`, alongside the policy id/name/ version and, if `provenance_rules.emit_canonicalisation_report` is set, a report of warning/error counts. The original-to-canonical identifier mappings themselves come back separately as `CanonicalMappings`.
+
+## Comment
