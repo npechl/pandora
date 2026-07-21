@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from itertools import combinations
 from typing import Any
 
 from pandora.schemas.annotation import AnnotationLayer
@@ -130,6 +131,97 @@ def annotate_ligand_contacts(
         },
         provenance={"inputs": ["Structure.atoms"]},
     )
+
+
+def polymer_asym_ids(structure: Structure) -> set[str]:
+    """label_asym_ids of asym units whose entity is a polymer."""
+
+    entities_by_id = {entity.id: entity for entity in structure.entities}
+    return {
+        asym.id
+        for asym in structure.asym_units
+        if (entity := entities_by_id.get(asym.entity_id)) is not None
+        and entity.type == "polymer"
+    }
+
+
+def atoms_by_asym_id(structure: Structure) -> dict[str, list[AtomSiteRecord]]:
+    """Structure.atoms grouped by label_asym_id."""
+
+    grouped: dict[str, list[AtomSiteRecord]] = defaultdict(list)
+    for atom in structure.atoms:
+        grouped[atom.label_asym_id].append(atom)
+    return grouped
+
+
+def annotate_chain_interfaces(
+    structure: Structure,
+    distance_cutoff: float = 4.0,
+) -> AnnotationLayer:
+    """Compute polymer chain pairs with residues in contact within a cutoff.
+
+    For each pair of polymer chains, finds residues on either side with
+    at least one atom within `distance_cutoff` angstroms of an atom on
+    the other chain.
+
+    Args:
+        structure: The structure to scan for chain-chain contacts.
+        distance_cutoff: Contact distance in angstroms.
+
+    Returns:
+        An `AnnotationLayer` of type "chain_interfaces" whose `data`
+        holds the cutoff used and, per chain pair in contact, the
+        contacting residue ids on each side.
+    """
+
+    chain_ids = sorted(polymer_asym_ids(structure))
+    atoms_by_chain = atoms_by_asym_id(structure)
+    cutoff_sq = distance_cutoff * distance_cutoff
+
+    interfaces = []
+    for chain_a, chain_b in combinations(chain_ids, 2):
+        residues_a, residues_b = _chain_pair_contacts(
+            atoms_by_chain.get(chain_a, []),
+            atoms_by_chain.get(chain_b, []),
+            cutoff_sq,
+        )
+        if not residues_a and not residues_b:
+            continue
+        interfaces.append(
+            {
+                "chain_id_1": chain_a,
+                "chain_id_2": chain_b,
+                "interface_residues_chain_1": sorted(residues_a),
+                "interface_residues_chain_2": sorted(residues_b),
+                "contact_count": len(residues_a) + len(residues_b),
+            }
+        )
+
+    return AnnotationLayer(
+        layer_name="Chain-chain interfaces",
+        layer_type="chain_interfaces",
+        scope="interface",
+        method="pandora.basic.distance_cutoff_contacts.v1",
+        target_ids=[structure.entry_id],
+        data={"distance_cutoff": distance_cutoff, "interfaces": interfaces},
+        provenance={"inputs": ["Structure.atoms"]},
+    )
+
+
+def _chain_pair_contacts(
+    atoms_a: list[AtomSiteRecord],
+    atoms_b: list[AtomSiteRecord],
+    cutoff_sq: float,
+) -> tuple[set[str], set[str]]:
+    residues_a: set[str] = set()
+    residues_b: set[str] = set()
+    for atom_a in atoms_a:
+        for atom_b in atoms_b:
+            if _squared_distance(atom_a, atom_b) > cutoff_sq:
+                continue
+            residues_a.add(f"{atom_a.label_asym_id}:{atom_a.label_seq_id}")
+            residues_b.add(f"{atom_b.label_asym_id}:{atom_b.label_seq_id}")
+    return residues_a, residues_b
 
 
 def _is_ligand_atom(atom: AtomSiteRecord, include_waters: bool) -> bool:
