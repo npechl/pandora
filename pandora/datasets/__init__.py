@@ -1,3 +1,13 @@
 from __future__ import annotations
 
-# TODO: Export dataset curation and materialization functions once implemented.
+from pandora.datasets.records import (
+    extract_chain_records,
+    extract_interface_records,
+    extract_residue_records,
+)
+
+__all__ = [
+    "extract_chain_records",
+    "extract_interface_records",
+    "extract_residue_records",
+]
