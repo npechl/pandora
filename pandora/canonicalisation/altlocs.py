@@ -1,4 +1,3 @@
-
 from collections import defaultdict
 
 from pandora.schemas.structure import AtomSiteRecord
@@ -7,6 +6,7 @@ from pandora.schemas.canonicalisation import (
     AltlocSelectionMapping,
     AltlocSelectionMappingItem,
 )
+
 
 def _resolve_altlocs(
     atoms: list[AtomSiteRecord],

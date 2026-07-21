@@ -3,7 +3,6 @@ from __future__ import annotations
 from pandora.schemas.metadata import MetadataProvenance
 from pandora.schemas.structure import Structure
 
-
 RawRow = dict[str, str | None]
 
 MISSING_VALUES = frozenset({"", ".", "?"})

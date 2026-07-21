@@ -33,6 +33,7 @@ from pandora.canonicalisation.missing_data import (
 from pandora.canonicalisation.ligands import _filter_ligands
 from pandora.canonicalisation.validation import _validate
 
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -182,12 +183,14 @@ def canonicalise_structure(
         policy_name=policy.policy_name,
         policy_version=policy.policy_version,
         transforms=transforms,
-        report={
-            "warnings": len(diagnostics.warnings),
-            "errors": len(diagnostics.errors),
-        }
-        if pr.emit_canonicalisation_report
-        else {},
+        report=(
+            {
+                "warnings": len(diagnostics.warnings),
+                "errors": len(diagnostics.errors),
+            }
+            if pr.emit_canonicalisation_report
+            else {}
+        ),
     )
 
     return canonical, mappings, provenance

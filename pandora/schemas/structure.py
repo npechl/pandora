@@ -4,7 +4,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 EntityType = Literal["polymer", "non-polymer", "water", "branched"]
 ConnType = Literal["disulf", "covale", "hydrog", "metalc"]
 

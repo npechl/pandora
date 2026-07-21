@@ -15,7 +15,6 @@ from .c03_metadata import (
     UniProtMapping,
 )
 
-
 # ── Exclusion & deduplication records ─────────────────────────────────────────
 
 

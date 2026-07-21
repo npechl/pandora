@@ -12,7 +12,6 @@ from .c04_curation import (
     ResidueDataset,
 )
 
-
 # ── PandoraDataset discriminated union ────────────────────────────────────────
 
 PandoraDataset = Annotated[

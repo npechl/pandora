@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 from .common import AppliedPolicyRef, DiagnosticBundle, ResultStatus
 from .c01_ingestion import Atom, Assembly, Chain, Entity, Ligand, Residue
 
-
 # ── Canonical structure ────────────────────────────────────────────────────────
 
 

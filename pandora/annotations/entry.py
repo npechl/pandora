@@ -7,7 +7,6 @@ from typing import Any
 from pandora.schemas.annotation import AnnotationLayer
 from pandora.schemas.structure import AtomSiteRecord, Structure
 
-
 WATER_COMP_IDS = frozenset({"HOH", "WAT", "DOD"})
 
 

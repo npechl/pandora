@@ -6,6 +6,7 @@ from pandora.schemas.canonicalisation import (
     ResidueNumberMappingItem,
 )
 
+
 def _normalize_residue_numbering(
     atoms: list[AtomSiteRecord],
     chain_map: dict[str, str],
@@ -103,4 +104,3 @@ def _normalize_residue_numbering(
         )
 
     return result, mapping
-

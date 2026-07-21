@@ -4,7 +4,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-
 Severity = Literal["warning", "error"]
 ResultStatus = Literal["success", "warning", "failed"]
 

@@ -1,9 +1,9 @@
-
 from pandora.schemas.structure import AssemblyRecord
 from pandora.schemas.canonicalisation import (
     AssemblyMapping,
     AssemblyMappingItem,
 )
+
 
 def _normalize_assemblies(
     assemblies: list[AssemblyRecord],

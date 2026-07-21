@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 
 from pandora.schemas.annotation import AnnotationLayer, AnnotationScope
 
-
 MetadataSource = Literal["mmcif", "pdbe", "pdb", "uniprot", "sifts", "custom"]
 
 

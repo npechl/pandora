@@ -36,59 +36,243 @@ ROWS_PER_BUCKET = 200  # fetched from the API before sub-sampling
 BUCKETS: dict[str, tuple[list[dict], int]] = {
     "small_apo_monomer": (
         [
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "exptl.method", "operator": "exact_match", "value": "X-RAY DIFFRACTION"}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.deposited_polymer_entity_instance_count", "operator": "equals", "value": 1}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.nonpolymer_entity_count", "operator": "equals", "value": 0}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.deposited_atom_count", "operator": "less_or_equal", "value": 2500}},
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "exptl.method",
+                    "operator": "exact_match",
+                    "value": "X-RAY DIFFRACTION",
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.deposited_polymer_entity_instance_count",
+                    "operator": "equals",
+                    "value": 1,
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.nonpolymer_entity_count",
+                    "operator": "equals",
+                    "value": 0,
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.deposited_atom_count",
+                    "operator": "less_or_equal",
+                    "value": 2500,
+                },
+            },
         ],
         16,
     ),
     "small_ligand_monomer": (
         [
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "exptl.method", "operator": "exact_match", "value": "X-RAY DIFFRACTION"}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.deposited_polymer_entity_instance_count", "operator": "equals", "value": 1}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.nonpolymer_entity_count", "operator": "greater", "value": 0}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.deposited_atom_count", "operator": "less_or_equal", "value": 3000}},
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "exptl.method",
+                    "operator": "exact_match",
+                    "value": "X-RAY DIFFRACTION",
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.deposited_polymer_entity_instance_count",
+                    "operator": "equals",
+                    "value": 1,
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.nonpolymer_entity_count",
+                    "operator": "greater",
+                    "value": 0,
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.deposited_atom_count",
+                    "operator": "less_or_equal",
+                    "value": 3000,
+                },
+            },
         ],
         18,
     ),
     "homo_multimer": (
         [
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "exptl.method", "operator": "exact_match", "value": "X-RAY DIFFRACTION"}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.polymer_entity_count", "operator": "equals", "value": 1}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.deposited_polymer_entity_instance_count", "operator": "greater", "value": 2}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.deposited_atom_count", "operator": "less_or_equal", "value": 6000}},
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "exptl.method",
+                    "operator": "exact_match",
+                    "value": "X-RAY DIFFRACTION",
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.polymer_entity_count",
+                    "operator": "equals",
+                    "value": 1,
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.deposited_polymer_entity_instance_count",
+                    "operator": "greater",
+                    "value": 2,
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.deposited_atom_count",
+                    "operator": "less_or_equal",
+                    "value": 6000,
+                },
+            },
         ],
         16,
     ),
     "hetero_multimer": (
         [
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "exptl.method", "operator": "exact_match", "value": "X-RAY DIFFRACTION"}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.polymer_entity_count", "operator": "greater", "value": 1}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.deposited_atom_count", "operator": "less_or_equal", "value": 6000}},
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "exptl.method",
+                    "operator": "exact_match",
+                    "value": "X-RAY DIFFRACTION",
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.polymer_entity_count",
+                    "operator": "greater",
+                    "value": 1,
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.deposited_atom_count",
+                    "operator": "less_or_equal",
+                    "value": 6000,
+                },
+            },
         ],
         16,
     ),
     "nmr_multimodel": (
         [
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "exptl.method", "operator": "exact_match", "value": "SOLUTION NMR"}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.deposited_model_count", "operator": "greater", "value": 5}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.deposited_atom_count", "operator": "less_or_equal", "value": 2000}},
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "exptl.method",
+                    "operator": "exact_match",
+                    "value": "SOLUTION NMR",
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.deposited_model_count",
+                    "operator": "greater",
+                    "value": 5,
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.deposited_atom_count",
+                    "operator": "less_or_equal",
+                    "value": 2000,
+                },
+            },
         ],
         16,
     ),
     "cryoem_small": (
         [
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "exptl.method", "operator": "exact_match", "value": "ELECTRON MICROSCOPY"}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.deposited_atom_count", "operator": "less_or_equal", "value": 8000}},
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "exptl.method",
+                    "operator": "exact_match",
+                    "value": "ELECTRON MICROSCOPY",
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.deposited_atom_count",
+                    "operator": "less_or_equal",
+                    "value": 8000,
+                },
+            },
         ],
         8,
     ),
     "high_res_altloc_prone": (
         [
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "exptl.method", "operator": "exact_match", "value": "X-RAY DIFFRACTION"}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.resolution_combined", "operator": "less_or_equal", "value": 1.2}},
-            {"type": "terminal", "service": "text", "parameters": {"attribute": "rcsb_entry_info.deposited_atom_count", "operator": "less_or_equal", "value": 3000}},
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "exptl.method",
+                    "operator": "exact_match",
+                    "value": "X-RAY DIFFRACTION",
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.resolution_combined",
+                    "operator": "less_or_equal",
+                    "value": 1.2,
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.deposited_atom_count",
+                    "operator": "less_or_equal",
+                    "value": 3000,
+                },
+            },
         ],
         10,
     ),
@@ -119,7 +303,9 @@ def select_entries() -> dict[str, list[str]]:
     chosen: dict[str, list[str]] = {}
     seen: set[str] = set()
     for bucket, (nodes, count) in BUCKETS.items():
-        candidates = [c for c in _search(nodes, ROWS_PER_BUCKET) if c not in seen]
+        candidates = [
+            c for c in _search(nodes, ROWS_PER_BUCKET) if c not in seen
+        ]
         rng.shuffle(candidates)
         picked = candidates[:count]
         seen.update(picked)

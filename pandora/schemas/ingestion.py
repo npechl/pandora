@@ -2,7 +2,6 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-
 StaleBehavior = Literal["use_stale", "warn", "fail"]
 
 

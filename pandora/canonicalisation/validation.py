@@ -8,6 +8,7 @@ from pandora.schemas.structure import (
 )
 from pandora.schemas.common import Diagnostic, DiagnosticBundle
 
+
 def _validate(
     atoms: list[AtomSiteRecord],
     asym_units: list[AsymRecord],

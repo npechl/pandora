@@ -29,7 +29,6 @@ from archive.schemas.c01_ingestion import (
 )
 from pandora.schemas.common import Diagnostic, DiagnosticBundle
 
-
 # Metals for simple is_ion detection (single-atom residue whose element is a metal)
 _METALS: frozenset[str] = frozenset(
     {

@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 
 from .common import DiagnosticBundle, ResultStatus
 
-
 # ── Core structural types ────────────────────────────────────────────────────
 
 

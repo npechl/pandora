@@ -14,6 +14,7 @@ from pandora.schemas.canonicalisation import (
     ChainIdMappingItem,
 )
 
+
 # dump function for remap
 def _sequential_chain_ids() -> Iterator[str]:
     letters = string.ascii_uppercase
@@ -62,13 +63,18 @@ def _apply_chain_map(
 ) -> tuple[list[AtomSiteRecord], list[AsymRecord], Structure]:
 
     new_atoms = [
-        a.model_copy(
-            update={
-                "label_asym_id": chain_map.get(a.label_asym_id, a.label_asym_id)
-            }
+        (
+            a.model_copy(
+                update={
+                    "label_asym_id": chain_map.get(
+                        a.label_asym_id, a.label_asym_id
+                    )
+                }
+            )
+            if chain_map.get(a.label_asym_id, a.label_asym_id)
+            != a.label_asym_id
+            else a
         )
-        if chain_map.get(a.label_asym_id, a.label_asym_id) != a.label_asym_id
-        else a
         for a in atoms
     ]
 

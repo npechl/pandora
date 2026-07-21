@@ -3,7 +3,6 @@ from __future__ import annotations
 from pandora.schemas.annotation import AnnotationLayer
 from pandora.schemas.structure import Structure
 
-
 MISSING_VALUES = frozenset({"", ".", "?"})
 
 

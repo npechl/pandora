@@ -94,16 +94,18 @@ def _normalize_entities(
         for a in asym_units
     ]
     new_atoms = [
-        a.model_copy(
-            update={
-                "label_entity_id": entity_id_map.get(
-                    a.label_entity_id, a.label_entity_id
-                )
-            }
+        (
+            a.model_copy(
+                update={
+                    "label_entity_id": entity_id_map.get(
+                        a.label_entity_id, a.label_entity_id
+                    )
+                }
+            )
+            if entity_id_map.get(a.label_entity_id, a.label_entity_id)
+            != a.label_entity_id
+            else a
         )
-        if entity_id_map.get(a.label_entity_id, a.label_entity_id)
-        != a.label_entity_id
-        else a
         for a in atoms
     ]
     return new_entities, new_asyms, new_atoms, mapping
