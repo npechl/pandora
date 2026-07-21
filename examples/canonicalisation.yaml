@@ -1,0 +1,25 @@
+policy_id: overview-remap
+policy_name: Remap Chains And Renumber
+policy_version: 1.0.0
+description: >
+  Remaps chain IDs and renumbers residues sequentially; selects altlocs by
+  best occupancy (lowest B-factor tiebreak); merges equivalent entities;
+  drops waters and ions. Mirrors the policy built in examples/overview.py.
+
+identifier_rules:
+  chain_id:
+    strategy: remap
+  residue_numbering:
+    strategy: renumber
+
+altloc_rules:
+  strategy: select_best_occupancy
+  tie_breaker: lowest_b_factor
+
+entity_rules:
+  strategy: merge_equivalent_entities
+
+ligand_rules:
+  strategy: filter
+  keep_waters: false
+  keep_ions: false
