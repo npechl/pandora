@@ -4,9 +4,8 @@ Pandora is a Python library for turning raw PDB/PDBe data into typed, policy-dri
 
 Each component, ingestion, parsing, canonicalisation, metadata, annotation, includes plain functions you can call on its own, or chain into a pipeline. Nothing is hidden behind a framework object: you pass a `Structure` in, you get a `Structure` (or a typed record) out.
 
-> **Status:** under active development. Ingestion, parsing, canonicalisation,
-> metadata, and annotations are implemented today; dataset curation,
-> similarity/splitting, and provenance manifests are still on the roadmap.
+> [!WARNING]
+> **Status:** under active development. Ingestion, parsing, canonicalisation, metadata, and annotations are implemented today; dataset curation, similarity/splitting, and provenance manifests are still on the roadmap.
 
 ## Install
 
