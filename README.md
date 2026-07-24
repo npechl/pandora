@@ -1,11 +1,11 @@
 # Pandora
 
+> [!WARNING]
+> **Status:** under active development. Ingestion, parsing, canonicalisation, metadata, and annotations are implemented today; dataset curation, similarity/splitting, and provenance manifests are still on the roadmap.
+
 Pandora is a Python library for turning raw PDB/PDBe data into typed, policy-driven, ML-ready protein structure datasets.
 
 Each component, ingestion, parsing, canonicalisation, metadata, annotation, includes plain functions you can call on its own, or chain into a pipeline. Nothing is hidden behind a framework object: you pass a `Structure` in, you get a `Structure` (or a typed record) out.
-
-> [!WARNING]
-> **Status:** under active development. Ingestion, parsing, canonicalisation, metadata, and annotations are implemented today; dataset curation, similarity/splitting, and provenance manifests are still on the roadmap.
 
 ## Install
 
@@ -50,7 +50,9 @@ policy = canonicalisationPolicy(
     policy_name="Quickstart",
     policy_version="1.0.0",
 )
-canonical, mappings, canon_provenance = canonicalise_structure(structure, policy)
+canonical, mappings, canon_provenance = canonicalise_structure(
+    structure, policy
+)
 
 metadata = collect_metadata(canonical)
 ```
