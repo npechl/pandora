@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 
 from pandora.schemas.dataset import ChainRecord
-from pandora.similarity.sequence import run_sequence_similarity_engine
+from pandora.similarity.sequence import compute_sequence_similarity
 
 SEQUENCES = {
     "1abc_A": "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKALPDAQFEVVHSLAKWKR",
@@ -14,7 +14,7 @@ SEQUENCES = {
 
 
 def test_identical_sequences_score_one() -> None:
-    relationships = run_sequence_similarity_engine(SEQUENCES)
+    relationships = compute_sequence_similarity(SEQUENCES)
     by_pair = {(r.source_id, r.target_id): r for r in relationships}
 
     identical = by_pair[("1abc_A", "1abc_B")]
@@ -24,7 +24,7 @@ def test_identical_sequences_score_one() -> None:
 
 
 def test_unrelated_sequence_pairs_are_ordered_and_absent_or_low() -> None:
-    relationships = run_sequence_similarity_engine(SEQUENCES)
+    relationships = compute_sequence_similarity(SEQUENCES)
     for r in relationships:
         assert r.source_id < r.target_id
         if {r.source_id, r.target_id} != {"1abc_A", "1abc_B"}:
@@ -46,7 +46,7 @@ def test_directory_of_fasta_files_input() -> None:
 
 def test_unknown_binary_raises() -> None:
     try:
-        run_sequence_similarity_engine(
+        compute_sequence_similarity(
             SEQUENCES, mmseqs_bin="not-a-real-binary"
         )
     except RuntimeError:
@@ -77,7 +77,7 @@ def test_chain_record_list_input() -> None:
         )
     ]
 
-    relationships = run_sequence_similarity_engine(records)
+    relationships = compute_sequence_similarity(records)
     by_pair = {(r.source_id, r.target_id): r for r in relationships}
     assert by_pair[("1abc_A", "1abc_B")].score == 1.0
     assert all("3noseq" not in pair for pair in by_pair)
