@@ -39,16 +39,14 @@ def test_directory_of_fasta_files_input() -> None:
                 f">{seq_id}\n{sequence}\n"
             )
 
-        relationships = run_sequence_similarity_engine(directory)
+        relationships = compute_sequence_similarity(directory)
         by_pair = {(r.source_id, r.target_id): r for r in relationships}
         assert by_pair[("1abc_A", "1abc_B")].score == 1.0
 
 
 def test_unknown_binary_raises() -> None:
     try:
-        compute_sequence_similarity(
-            SEQUENCES, mmseqs_bin="not-a-real-binary"
-        )
+        compute_sequence_similarity(SEQUENCES, mmseqs_bin="not-a-real-binary")
     except RuntimeError:
         pass
     else:
