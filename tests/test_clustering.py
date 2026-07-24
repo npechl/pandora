@@ -4,7 +4,9 @@ from pandora.schemas.similarity import SimilarityMethod, SimilarityRelationship
 from pandora.similarity.clustering import cluster_similar_items
 
 
-def _rel(source_id: str, target_id: str, score: float) -> SimilarityRelationship:
+def _rel(
+    source_id: str, target_id: str, score: float
+) -> SimilarityRelationship:
     return SimilarityRelationship(
         source_id=source_id,
         target_id=target_id,
