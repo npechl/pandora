@@ -132,7 +132,9 @@ same library functions that users can call directly.
 # Call any function independently
 result = canonicalise_structure(my_ingestion_result, policy)
 dataset = build_dataset(my_annotated_structures, curation_policy)
-artifact = build_pandora_artifact(leakage_safe_dataset, prov_policy, export_policy)
+artifact = build_pandora_artifact(
+    leakage_safe_dataset, prov_policy, export_policy
+)
 ```
 
 ### 2. Entry-point adapters for external data

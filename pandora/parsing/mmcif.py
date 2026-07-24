@@ -29,6 +29,18 @@ _ENTITY_TYPE_MAP = {
 _NULL_CIF = frozenset({".", "?"})
 _SKIP_RAW = frozenset({"_atom_site", "_atom_site_anisou"})
 
+# Malformed/inconsistent optional mmCIF categories should be skipped, not
+# crash the whole parse; but we don't want to swallow unrelated bugs
+# (e.g. MemoryError, KeyboardInterrupt), so we name the concrete types.
+_MALFORMED_CIF_ERRORS = (
+    RuntimeError,
+    ValueError,
+    KeyError,
+    IndexError,
+    TypeError,
+    AttributeError,
+)
+
 
 def _cs(v: str) -> str | None:
     return None if v in _NULL_CIF else v
@@ -118,7 +130,7 @@ def mmcif_to_structure(
 
     try:
         st = gemmi.read_structure(path_to_mmcif, format=gemmi.CoorFormat.Mmcif)
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         diag.errors.append(
             Diagnostic(
                 code="PARSE_ERROR",
@@ -132,7 +144,7 @@ def mmcif_to_structure(
     try:
         doc = gemmi.cif.read(path_to_mmcif)
         block = doc.sole_block()
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         diag.errors.append(
             Diagnostic(
                 code="CIF_PARSE_ERROR",
@@ -192,8 +204,15 @@ def mmcif_to_structure(
             ["id", "pdbx_description", "formula_weight", "src_method"],
         ):
             entity_desc_map[row[0]] = (_cs(row[1]), _cf(row[2]), _cs(row[3]))
-    except Exception:
-        pass
+    except _MALFORMED_CIF_ERRORS as exc:
+        diag.warnings.append(
+            Diagnostic(
+                code="ENTITY_METADATA_PARSE_ERROR",
+                severity="warning",
+                message=str(exc),
+                entry_id=eid,
+            )
+        )
 
     entity_poly_map: dict[str, EntityPolyRecord] = {}
     try:
@@ -213,8 +232,15 @@ def mmcif_to_structure(
                 pdbx_seq_one_letter_code_can=_cs(row[3]),
                 pdbx_strand_id=_cs(row[4]),
             )
-    except Exception:
-        pass
+    except _MALFORMED_CIF_ERRORS as exc:
+        diag.warnings.append(
+            Diagnostic(
+                code="ENTITY_POLY_PARSE_ERROR",
+                severity="warning",
+                message=str(exc),
+                entry_id=eid,
+            )
+        )
 
     entities_out: list[EntityRecord] = []
     for ent in st.entities:
@@ -250,7 +276,7 @@ def mmcif_to_structure(
                 ins_code: str | None = (
                     ins if ins not in (" ", "\x00", "") else None
                 )
-            except Exception:
+            except _MALFORMED_CIF_ERRORS:
                 seq_num, ins_code = None, None
 
             for atom in res:
@@ -367,8 +393,15 @@ def mmcif_to_structure(
                     details=_cs(row[19]),
                 )
             )
-    except Exception:
-        pass
+    except _MALFORMED_CIF_ERRORS as exc:
+        diag.warnings.append(
+            Diagnostic(
+                code="CONN_PARSE_ERROR",
+                severity="warning",
+                message=str(exc),
+                entry_id=eid,
+            )
+        )
 
     # Assemblies ------------------------------------
     asm_meta: dict[str, dict] = {}
@@ -389,8 +422,15 @@ def mmcif_to_structure(
                 "oligomeric_details": _cs(row[3]),
                 "oligomeric_count": _ci(row[4]),
             }
-    except Exception:
-        pass
+    except _MALFORMED_CIF_ERRORS as exc:
+        diag.warnings.append(
+            Diagnostic(
+                code="ASSEMBLY_METADATA_PARSE_ERROR",
+                severity="warning",
+                message=str(exc),
+                entry_id=eid,
+            )
+        )
 
     assemblies_out: list[AssemblyRecord] = []
     for asm in st.assemblies:
@@ -465,8 +505,15 @@ def mmcif_to_structure(
                     end_auth_seq_id=_cs(row[9]),
                 )
             )
-    except Exception:
-        pass
+    except _MALFORMED_CIF_ERRORS as exc:
+        diag.warnings.append(
+            Diagnostic(
+                code="STRUCT_CONF_PARSE_ERROR",
+                severity="warning",
+                message=str(exc),
+                entry_id=eid,
+            )
+        )
 
     sheet_strands: list[SheetStrandRecord] = []
     try:
@@ -499,8 +546,15 @@ def mmcif_to_structure(
                     end_auth_seq_id=_cs(row[9]),
                 )
             )
-    except Exception:
-        pass
+    except _MALFORMED_CIF_ERRORS as exc:
+        diag.warnings.append(
+            Diagnostic(
+                code="SHEET_RANGE_PARSE_ERROR",
+                severity="warning",
+                message=str(exc),
+                entry_id=eid,
+            )
+        )
 
     return (
         Structure(
