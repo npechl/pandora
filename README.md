@@ -50,7 +50,9 @@ policy = canonicalisationPolicy(
     policy_name="Quickstart",
     policy_version="1.0.0",
 )
-canonical, mappings, canon_provenance = canonicalise_structure(structure, policy)
+canonical, mappings, canon_provenance = canonicalise_structure(
+    structure, policy
+)
 
 metadata = collect_metadata(canonical)
 ```
