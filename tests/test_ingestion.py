@@ -2,7 +2,9 @@ from pathlib import Path
 
 from pandora.ingestion.policy import load_policy
 
-POLICY_PATH = Path(__file__).parent.parent / "examples" / "canonicalisation.yaml"
+POLICY_PATH = (
+    Path(__file__).parent.parent / "examples" / "canonicalisation.yaml"
+)
 
 
 def test_load_policy():
