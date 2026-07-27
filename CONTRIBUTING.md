@@ -2,11 +2,9 @@
 
 ## Prerequisites
 
-Install [`git`](https://git-scm.com/install/).
-
-Install [`uv`](https://docs.astral.sh/uv/) - installs and manages Python itself, no separate Python install needed
-
-Install the [`gh` CLI](https://cli.github.com/) - optional, only needed for `gh pr create` in the last step
+1. Install [`git`](https://git-scm.com/install/).
+2. Install [`uv`](https://docs.astral.sh/uv/) (installs and manages Python itself, no separate Python install needed). 
+3. Install the [`gh` CLI](https://cli.github.com/) (optional, only needed for `gh pr create` in the last step).
 
 ## Get the code
 
