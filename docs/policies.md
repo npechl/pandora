@@ -184,7 +184,7 @@ Extra flags:
 | `emit_canonicalisation_report` | When `True`, include a warning/error count summary in `canonicalisationProvenance.report`. | `False` |
 
 !!! warning "Naming drift from the design spec"
-    The design spec in `policies/canonicalisation.yaml` names the report
+    The design spec in `docs/policies/canonicalisation.yaml` names the report
     flag `emit_canonicalization_report` (American spelling); the
     implemented schema field is `emit_canonicalisation_report` (British,
     matching the rest of the codebase). Use the schema's spelling.
