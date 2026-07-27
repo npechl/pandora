@@ -1,3 +1,3 @@
-# How to contribute 
+# How to contribute
 
-TODO
+See [`CONTRIBUTING.md`](https://github.com/npechl/pandora/blob/main/CONTRIBUTING.md) in the repository root.
