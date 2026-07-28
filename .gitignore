@@ -219,6 +219,3 @@ __marimo__/
 
 # Regenerable dev dataset (see scripts/build_dev_dataset.py)
 datasets/dev/mmcif/
-
-# Claude skills
-CLAUDE.md
