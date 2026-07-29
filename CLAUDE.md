@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Conventions
+
+This is primarily a Python project (with Markdown docs and YAML config). Follow PEP 8 conventions and use type hints for new Python code.
+
 ## What this is
 
 Pandora is a Python library that turns raw PDB/PDBe mmCIF files into typed, policy-driven, ML-ready protein structure datasets. Every stage is a plain function: pass a `Structure` (or typed record) in, get one out — nothing is hidden behind a framework object or global state.
@@ -69,3 +73,7 @@ Known sharp edge: `_validate()` (`canonicalisation/validation.py`) computes a `"
 ### Design-doc vs. implemented API — don't conflate them
 
 `docs/components/*.md` documents an aspirational six-component architecture (C01–C06: `PandoraDataset`, `LeakageSafeDataset`, `DatasetStore`, `PandoraArtifact`, function names like `ingest_mmCIF`, `attach_metadata`, `build_leakage_safe_dataset`) that is **not** what exists in `pandora/` today — none of those types/functions are implemented. This includes `docs/components/06-provenance.md`: the implemented `pandora/provenance/` is a much smaller, per-structure `build_provenance_bundle()` (see above), not the `PandoraArtifact`/embedded-vs-by-reference/manifest-export system the doc describes, because that system depends on `PandoraDataset`/`LeakageSafeDataset`/`DatasetStore`, none of which exist. Treat `docs/components/` as a target design spec, not API documentation. `docs/policies.md`, by contrast, documents the real, implemented canonicalisation policy and stays accurate to the code (including "not implemented yet" notes). When in doubt about what's actually callable, check `pandora/*/__init__.py`'s `__all__` or `examples/overview.py`, not `docs/components/`.
+
+## Workflow
+
+Prefer running commands with Bash tool for verification, but batch related shell operations and prefer non-destructive read commands first.
