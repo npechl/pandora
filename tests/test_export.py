@@ -14,7 +14,7 @@ MMCIF_PATH = (
 def test_structure_to_mmcif_round_trips_core_fields(tmp_path):
     structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
 
-    out_path = structure_to_mmcif(structure, tmp_path / "1ayi.out.cif")
+    out_path = structure_to_mmcif(structure, "1ayi.out.cif")
     reparsed, _, status = mmcif_to_structure(str(out_path))
 
     assert status in ("success", "warning")
@@ -29,7 +29,7 @@ def test_structure_to_mmcif_round_trips_core_fields(tmp_path):
 def test_write_json_round_trips(tmp_path):
     structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
 
-    out_path = write_json(structure.entry, tmp_path / "entry.json")
+    out_path = write_json(structure.entry,  "entry.json")
 
     assert out_path.exists()
     loaded = type(structure.entry).model_validate_json(out_path.read_text())
