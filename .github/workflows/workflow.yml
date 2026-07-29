@@ -34,8 +34,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - run: pip install -e ".[dev,ingestion,annotations,export]"
-      # tests/ has no test files yet (see TASKS.md, section B) — exit code 5
-      # means "no tests collected", treated as pass until B-tasks land.
       - run: pytest || [ "$?" -eq 5 ]
 
   security:

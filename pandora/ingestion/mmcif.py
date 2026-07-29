@@ -43,7 +43,7 @@ def fetch_mmcif(
             `provider`'s default URL template.
         output_dir: Directory to write the downloaded (or cached) file
             into; created if missing.
-        fetch_options: Caching/decompression/retry options. Defaults
+        fetch_options: Caching/decompression options. Defaults
             to `FetchOptions()` when not given.
 
     Returns:
@@ -134,8 +134,8 @@ def fetch_mmcif(
 def fetch_list_mmcif(
     entry_ids: list[str],
     provider: str,
-    source_uri: str | None,
     output_dir: Path,
+    source_uri: str | None = None,
     fetch_options: FetchOptions | None = None,
 ) -> list[IngestionProvenance]:
     """Fetch a list of raw mmCIF files from a provider URL, write them to
@@ -150,11 +150,14 @@ def fetch_list_mmcif(
         entry_ids: The PDB/PDBe entry identifiers to fetch.
         provider: One of "pdbe" or "pdb", used to build the download
             URL when `source_uri` is not given.
-        source_uri: An explicit URL to fetch from, overriding
-            `provider`'s default URL template, applied to every entry.
+        source_uri: A URL/path template overriding `provider`'s default
+            URL template, applied to every entry. Must contain an
+            `{id}` placeholder (same convention as `_PROVIDER_URLS`),
+            formatted per entry_id — e.g.
+            `"https://example.org/mirror/{id}.cif"`.
         output_dir: Directory to write the downloaded (or cached)
             files into; created if missing.
-        fetch_options: Caching/decompression/retry options, including
+        fetch_options: Caching/decompression options, including
             `allow_partial`. Defaults to `FetchOptions()` when not
             given.
 
@@ -177,7 +180,9 @@ def fetch_list_mmcif(
             provenance = fetch_mmcif(
                 entry_id=entry_id,
                 provider=provider,
-                source_uri=source_uri,
+                source_uri=(
+                    source_uri.format(id=entry_id) if source_uri else None
+                ),
                 output_dir=output_dir,
                 fetch_options=fetch_options,
             )

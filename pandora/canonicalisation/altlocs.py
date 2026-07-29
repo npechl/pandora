@@ -18,22 +18,29 @@ def _resolve_altlocs(
     if strategy == "preserve":
         return atoms, mapping
 
-    no_alt: list[AtomSiteRecord] = []
     by_residue: dict[tuple, dict[str, list[AtomSiteRecord]]] = defaultdict(
         lambda: defaultdict(list)
     )
 
     for a in atoms:
         alt = a.label_alt_id
-        if not alt or alt in (".", "?"):
-            no_alt.append(a)
-        else:
-            key = (a.label_asym_id, a.label_seq_id, a.label_comp_id)
+        if alt and alt not in (".", "?"):
+            key = (
+                a.label_asym_id,
+                a.auth_seq_id,
+                a.label_seq_id,
+                a.label_comp_id,
+            )
             by_residue[key][alt].append(a)
 
-    result: list[AtomSiteRecord] = list(no_alt)
+    selected_altloc: dict[tuple, str] = {}
 
-    for (asym_id, seq_id, comp_id), alt_groups in by_residue.items():
+    for (
+        asym_id,
+        _auth_seq_id,
+        seq_id,
+        comp_id,
+    ), alt_groups in by_residue.items():
         altlocs = sorted(alt_groups.keys())
 
         if len(altlocs) == 1:
@@ -76,8 +83,7 @@ def _resolve_altlocs(
                 else:  # alphabetical_first
                     selected = min(tied)
 
-        for a in alt_groups[selected]:
-            result.append(a.model_copy(update={"label_alt_id": None}))
+        selected_altloc[(asym_id, _auth_seq_id, seq_id, comp_id)] = selected
 
         if rules.record_selection and len(altlocs) > 1:
             reason_map = {
@@ -96,5 +102,15 @@ def _resolve_altlocs(
                     ),
                 )
             )
+
+    result: list[AtomSiteRecord] = []
+    for a in atoms:
+        alt = a.label_alt_id
+        if not alt or alt in (".", "?"):
+            result.append(a)
+            continue
+        key = (a.label_asym_id, a.auth_seq_id, a.label_seq_id, a.label_comp_id)
+        if alt == selected_altloc.get(key):
+            result.append(a.model_copy(update={"label_alt_id": None}))
 
     return result, mapping

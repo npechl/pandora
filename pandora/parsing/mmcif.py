@@ -271,7 +271,7 @@ def mmcif_to_structure(
             group = "ATOM" if is_polymer else "HETATM"
 
             try:
-                seq_num: int | None = res.seqid.num
+                seq_num: int | None = res.label_seq
                 ins = res.seqid.icode
                 ins_code: str | None = (
                     ins if ins not in (" ", "\x00", "") else None
@@ -304,7 +304,7 @@ def mmcif_to_structure(
                         Cartn_z=atom.pos.z,
                         occupancy=atom.occ,
                         B_iso_or_equiv=atom.b_iso,
-                        auth_seq_id=str(res.seqid),
+                        auth_seq_id=str(res.seqid.num),
                         auth_comp_id=res.name,
                         auth_asym_id=chain.name,
                         auth_atom_id=atom.name,

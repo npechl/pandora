@@ -10,7 +10,7 @@ def write_records(records: Sequence[BaseModel], path: str | Path) -> Path:
     """Write a list of record models (Chain/Residue/InterfaceRecord, ...).
 
     Dispatches on the file suffix:
-        .parquet — columnar, via pandas/pyarrow (the `cli` extra)
+        .parquet — columnar, via pandas/pyarrow (the `export` extra)
         .json    — a JSON array of the records
         .jsonl   — one JSON object per line
 
@@ -42,7 +42,7 @@ def write_records(records: Sequence[BaseModel], path: str | Path) -> Path:
         except ImportError as exc:
             raise RuntimeError(
                 "writing .parquet requires pandas/pyarrow "
-                "(install the `cli` extra)"
+                "(install the `export` extra)"
             ) from exc
         pd.DataFrame([record.model_dump() for record in records]).to_parquet(
             out_path

@@ -323,7 +323,6 @@ def main() -> None:
     provenance = fetch_list_mmcif(
         entry_ids=all_ids,
         provider="pdbe",
-        source_uri=None,
         output_dir=OUTPUT_DIR,
         fetch_options=FetchOptions(allow_partial=True),
     )
