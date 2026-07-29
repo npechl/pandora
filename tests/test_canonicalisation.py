@@ -216,6 +216,44 @@ def test_altloc_resolution_does_not_merge_distinct_hetatm_residues():
     assert len(result) == 2
 
 
+def test_altloc_resolution_picks_a_winner_for_compositional_disorder():
+    # mmCIF also uses label_alt_id for *compositional* disorder: two
+    # different residue identities modeled at the same physical site
+    # (real example: PDB 1AL4, altloc A = FVA, altloc B = QIL at chain A
+    # seq_id 1). Grouping by (chain, auth_seq_id, label_seq_id, comp_id)
+    # would treat these as two unrelated single-altloc residues, leave
+    # both in the output, and produce an unresolved residue-number
+    # collision downstream even though the file already resolved it via
+    # label_alt_id.
+    atoms = [
+        _atom(
+            id=1,
+            label_seq_id=1,
+            label_comp_id="FVA",
+            label_alt_id="A",
+            occupancy=0.7,
+            atom_id="CA",
+        ),
+        _atom(
+            id=2,
+            label_seq_id=1,
+            label_comp_id="QIL",
+            label_alt_id="B",
+            occupancy=0.3,
+            atom_id="CA",
+        ),
+    ]
+    rules = AltlocRules(strategy="select_best_occupancy")
+
+    result, mapping = _resolve_altlocs(atoms, rules)
+
+    assert len(result) == 1
+    assert result[0].label_comp_id == "FVA"
+    assert result[0].label_alt_id is None
+    assert mapping.items[0].residue_id == "1:FVA"
+    assert mapping.items[0].available_altlocs == ["A", "B"]
+
+
 # missing_data ----------------------------------------------------------
 
 

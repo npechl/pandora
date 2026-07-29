@@ -18,6 +18,15 @@ def _resolve_altlocs(
     if strategy == "preserve":
         return atoms, mapping
 
+    # Keyed by physical site (chain + residue number), not residue
+    # identity: mmCIF also uses label_alt_id for *compositional* disorder
+    # (different comp_id occupying the same slot, e.g. two natural-product
+    # variants modeled at one position), not just conformational disorder
+    # of a single residue. Grouping by comp_id too would treat those as
+    # unrelated single-altloc residues, leave both in the output, and
+    # produce a residue-number collision downstream (validation.py) that
+    # was never actually ambiguous — the file already resolved it via
+    # label_alt_id, we just weren't reading it that way.
     by_residue: dict[tuple, dict[str, list[AtomSiteRecord]]] = defaultdict(
         lambda: defaultdict(list)
     )
@@ -25,22 +34,12 @@ def _resolve_altlocs(
     for a in atoms:
         alt = a.label_alt_id
         if alt and alt not in (".", "?"):
-            key = (
-                a.label_asym_id,
-                a.auth_seq_id,
-                a.label_seq_id,
-                a.label_comp_id,
-            )
+            key = (a.label_asym_id, a.auth_seq_id, a.label_seq_id)
             by_residue[key][alt].append(a)
 
     selected_altloc: dict[tuple, str] = {}
 
-    for (
-        asym_id,
-        _auth_seq_id,
-        seq_id,
-        comp_id,
-    ), alt_groups in by_residue.items():
+    for (asym_id, _auth_seq_id, seq_id), alt_groups in by_residue.items():
         altlocs = sorted(alt_groups.keys())
 
         if len(altlocs) == 1:
@@ -83,7 +82,7 @@ def _resolve_altlocs(
                 else:  # alphabetical_first
                     selected = min(tied)
 
-        selected_altloc[(asym_id, _auth_seq_id, seq_id, comp_id)] = selected
+        selected_altloc[(asym_id, _auth_seq_id, seq_id)] = selected
 
         if rules.record_selection and len(altlocs) > 1:
             reason_map = {
@@ -91,10 +90,11 @@ def _resolve_altlocs(
                 "select_user_defined": "user_defined",
                 "select_best_occupancy": "best_occupancy",
             }
+            selected_comp_id = alt_groups[selected][0].label_comp_id
             mapping.items.append(
                 AltlocSelectionMappingItem(
                     canonical_chain_id=asym_id,
-                    residue_id=f"{seq_id}:{comp_id}",
+                    residue_id=f"{seq_id}:{selected_comp_id}",
                     selected_altloc=selected,
                     available_altlocs=altlocs,
                     selection_reason=reason_map.get(
@@ -109,7 +109,7 @@ def _resolve_altlocs(
         if not alt or alt in (".", "?"):
             result.append(a)
             continue
-        key = (a.label_asym_id, a.auth_seq_id, a.label_seq_id, a.label_comp_id)
+        key = (a.label_asym_id, a.auth_seq_id, a.label_seq_id)
         if alt == selected_altloc.get(key):
             result.append(a.model_copy(update={"label_alt_id": None}))
 
