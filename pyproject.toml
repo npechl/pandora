@@ -22,9 +22,7 @@ similarity = []
 annotations = [
     "freesasa>=2.1",
 ]
-cli = [
-    "typer>=0.12",
-    "rich>=13.0",
+export = [
     "pandas>=2.0",
     "pyarrow>=15.0",
 ]
@@ -39,11 +37,8 @@ docs = [
     "mkdocstrings[python]>=0.25",
 ]
 full = [
-    "pandora[ingestion,annotations,cli,dev,docs]",
+    "pandora[ingestion,annotations,export,dev,docs]",
 ]
-
-[project.scripts]
-pandora = "pandora.cli:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pandora"]
