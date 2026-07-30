@@ -23,7 +23,7 @@ uv sync --all-extras
 
 This reads `uv.lock` + `pyproject.toml`, creates `.venv/`, and installs every extra (ingestion, similarity, annotations, cli, dev, docs) so nothing is missing later.
 
-The similarity components need the `mmseqs2`/`foldseek` binaries on PATH separately if you touch that code. You can install these by following instructions here: [MMseqs2](https://github.com/soedinglab/mmseqs2)/[Foldseek](https://github.com/steineggerlab/foldseek).
+The similarity components need the `mmseqs2`/`foldseek` binaries on PATH separately if you touch that code. You can install these by following instructions here: [MMseqs2](https://github.com/soedinglab/mmseqs2) / [Foldseek](https://github.com/steineggerlab/foldseek).
 
 ### Verify the install works
 
@@ -52,8 +52,8 @@ uv run pytest
 ## Commit and push
 
 ```sh
-git add <files>
-git commit -m "short description of the change"
+git add <your-changes>
+git commit -m "short description of the changes"
 git push -u origin your-feature-name
 ```
 
