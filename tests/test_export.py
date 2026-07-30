@@ -27,6 +27,11 @@ def test_structure_to_mmcif_round_trips_core_fields(tmp_path):
 
 
 def test_write_json_round_trips(tmp_path):
+    
+    MMCIF_PATH = (
+        Path(__file__).parent.parent / "datasets" / "dev" / "mmcif" / "1ayi.cif"
+    )
+
     structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
 
     out_path = write_json(structure.entry, tmp_path / "entry.json")
