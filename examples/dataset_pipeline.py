@@ -104,7 +104,7 @@ for cluster in clusters:
 
 # 4. Leakage-safe train/val/test split — whole clusters move together, so
 #    near-duplicate structures never end up split across partitions.
-splits = partition_dataset(clusters, pct_train=0.5, pct_val=0.25, pct_test=0.25)
+splits = partition_dataset(clusters, pct_train=0.6, pct_val=0.2, pct_test=0.2)
 print("\nleakage-safe split:")
 for split_name, entry_ids in splits.items():
     print(f"  {split_name}: {entry_ids}")
