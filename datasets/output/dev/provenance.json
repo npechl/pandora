@@ -1,0 +1,144 @@
+{
+  "entry_id": "1A3N",
+  "pandora_version": "0.1.0",
+  "generated_at": "2026-07-30T10:04:38.812956+00:00",
+  "ingestion": null,
+  "canonicalisation": {
+    "canonicalised_at": "2026-07-30T09:58:24.868222+00:00",
+    "policy_id": "complex-preserve",
+    "policy_name": "Preserve Identifiers",
+    "policy_version": "1.0.0",
+    "transforms": [
+      "missing_atoms:annotate",
+      "missing_residues:annotate",
+      "altloc:select_best_occupancy",
+      "entity:merge_equivalent_entities",
+      "ligands:filter"
+    ],
+    "report": {}
+  },
+  "metadata_sources": [
+    {
+      "source": "mmcif",
+      "source_category": "_struct",
+      "source_record_id": null
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_exptl,_refine,_reflns",
+      "source_record_id": null
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_entity_src_nat",
+      "source_record_id": "1"
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_entity_src_nat",
+      "source_record_id": "2"
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_entity",
+      "source_record_id": "1"
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_entity",
+      "source_record_id": "2"
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_entity",
+      "source_record_id": "3"
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_entity",
+      "source_record_id": "4"
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_pdbx_entity_nonpoly",
+      "source_record_id": "3"
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_struct_ref_seq",
+      "source_record_id": "1"
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_struct_ref_seq",
+      "source_record_id": "2"
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_struct_ref_seq",
+      "source_record_id": "3"
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_struct_ref_seq",
+      "source_record_id": "4"
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_pdbx_sifts_unp_segments",
+      "source_record_id": "1"
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_pdbx_sifts_unp_segments",
+      "source_record_id": "1"
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_pdbx_sifts_unp_segments",
+      "source_record_id": "1"
+    },
+    {
+      "source": "mmcif",
+      "source_category": "_pdbx_sifts_unp_segments",
+      "source_record_id": "1"
+    }
+  ],
+  "annotations": [
+    {
+      "layer_name": "Structure counts",
+      "layer_type": "structure_counts",
+      "method": "pandora.basic.structure_counts.v1",
+      "provenance": {
+        "inputs": [
+          "Structure.atoms",
+          "Structure.entities"
+        ]
+      }
+    },
+    {
+      "layer_name": "Chain-chain interfaces",
+      "layer_type": "chain_interfaces",
+      "method": "pandora.basic.distance_cutoff_contacts.v1",
+      "provenance": {
+        "inputs": [
+          "Structure.atoms"
+        ]
+      }
+    },
+    {
+      "layer_name": "Ligand contacts",
+      "layer_type": "ligand_contacts",
+      "method": "pandora.basic.distance_cutoff_contacts.v1",
+      "provenance": {
+        "inputs": [
+          "Structure.atoms"
+        ]
+      }
+    }
+  ],
+  "checksums": {
+    "structure_checksum": "a6c41a5653b772ae2e6ee3ba736b8e664a03d8fdddba9b0a94b9cafead2289f0",
+    "algorithm": "SHA-256"
+  }
+}
