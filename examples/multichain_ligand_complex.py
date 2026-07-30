@@ -58,7 +58,9 @@ policy = canonicalisationPolicy(
 
 # 1. Parsing + canonicalisation -------------------------------------------
 structure, diagnostics, status = mmcif_to_structure(str(MMCIF_PATH))
-print(f"parsed 1a3n: status={status} atoms={len(structure.atoms)} chains={len(structure.asym_units)}")
+print(
+    f"parsed 1a3n: status={status} atoms={len(structure.atoms)} chains={len(structure.asym_units)}"
+)
 
 canonical, mappings, canon_prov = canonicalise_structure(structure, policy)
 print(f"canonicalised: transforms={canon_prov.transforms}")

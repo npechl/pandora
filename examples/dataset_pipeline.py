@@ -12,7 +12,7 @@ it's genuinely fooled by 104m/112m: one has an uncleaved N-terminal
 Met the other lacks, so every position after residue 1 is off by one
 and the ungapped score collapses even though the two are otherwise
 near-identical — a real limitation of this annotation, not a bug in
-this example. 
+this example.
 
 Everything downstream (cluster_similar_items(),
 partition_dataset()) only cares about the resulting

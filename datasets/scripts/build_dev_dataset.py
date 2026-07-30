@@ -25,7 +25,9 @@ from pandora.ingestion import fetch_list_mmcif
 from pandora.schemas.ingestion import FetchOptions
 
 SEARCH_URL = "https://search.rcsb.org/rcsbsearch/v2/query"
-OUTPUT_DIR = Path(__file__).resolve().parent.parent / "dev-data" / "mmcif"
+OUTPUT_DIR = (
+    Path(__file__).resolve().parent.parent / "datasets" / "dev" / "mmcif"
+)
 MANIFEST_PATH = OUTPUT_DIR.parent / "manifest.json"
 
 RANDOM_SEED = 20260714
