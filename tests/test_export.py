@@ -27,9 +27,11 @@ def test_structure_to_mmcif_round_trips_core_fields(tmp_path):
 
 
 def test_write_json_round_trips(tmp_path):
-    
-    MMCIF_PATH = (
-        Path(__file__).parent.parent / "datasets" / "dev" / "mmcif" / "1ayi.cif"
+
+    print(f"MMCIF_PATH = {MMCIF_PATH}")
+    print(f"Exists = {MMCIF_PATH.exists()}")
+    print(
+        f"Size = {MMCIF_PATH.stat().st_size if MMCIF_PATH.exists() else 'N/A'}"
     )
 
     structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
