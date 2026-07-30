@@ -103,7 +103,8 @@ def compute_sequence_similarity(
                 str(sensitivity),
                 "--format-output",
                 _OUTPUT_COLUMNS,
-                "-v 1",
+                "-v",
+                "1",
             ]
             + mmseqs_options,
             check=True,

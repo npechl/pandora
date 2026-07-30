@@ -27,11 +27,23 @@ def _validate(
             )
         )
 
-    chain_res_keys: dict[str, set] = defaultdict(set)
+    # A collision is two *different* residues (distinct comp_id) sharing
+    # a (seq_id, ins_code) slot in the same chain — not merely a residue
+    # having more than one atom, which is the normal case.
+    chain_res_comp: dict[str, dict[tuple, str]] = defaultdict(dict)
+    flagged: set[tuple[str, tuple]] = set()
     for a in atoms:
         if a.group_PDB == "ATOM" and a.label_seq_id is not None:
             rk = (a.label_seq_id, a.pdbx_PDB_ins_code)
-            if rk in chain_res_keys[a.label_asym_id]:
+            seen = chain_res_comp[a.label_asym_id]
+            prior_comp_id = seen.get(rk)
+            if prior_comp_id is None:
+                seen[rk] = a.label_comp_id
+            elif (
+                prior_comp_id != a.label_comp_id
+                and (a.label_asym_id, rk) not in flagged
+            ):
+                flagged.add((a.label_asym_id, rk))
                 diagnostics.errors.append(
                     Diagnostic(
                         code="RESIDUE_NUMBER_COLLISION",
@@ -39,12 +51,12 @@ def _validate(
                         message=(
                             f"Residue number collision in chain "
                             f"{a.label_asym_id} at seq_id "
-                            f"{a.label_seq_id}"
+                            f"{a.label_seq_id}: {prior_comp_id} vs "
+                            f"{a.label_comp_id}"
                         ),
                         entry_id=entry_id,
                     )
                 )
-            chain_res_keys[a.label_asym_id].add(rk)
 
     if rules.strictness == "strict":
         for w in list(diagnostics.warnings):

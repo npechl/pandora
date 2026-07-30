@@ -23,21 +23,23 @@ def _handle_missing_atoms(
         return atoms
 
     polymer_by_residue: dict[tuple, list[AtomSiteRecord]] = defaultdict(list)
-    hetatm: list[AtomSiteRecord] = []
     for a in atoms:
         if a.group_PDB == "ATOM":
             polymer_by_residue[
-                (a.label_asym_id, a.label_seq_id, a.label_comp_id)
+                (
+                    a.label_asym_id,
+                    a.auth_seq_id,
+                    a.label_seq_id,
+                    a.label_comp_id,
+                )
             ].append(a)
-        else:
-            hetatm.append(a)
 
-    result: list[AtomSiteRecord] = []
+    drop_residues: set[tuple] = set()
     for key, res_atoms in polymer_by_residue.items():
         present = {a.label_atom_id for a in res_atoms}
         missing = _BACKBONE_ATOMS - present
         if missing:
-            asym_id, seq_id, comp_id = key
+            asym_id, _auth_seq_id, seq_id, comp_id = key
             if rules.record_missingness:
                 diagnostics.warnings.append(
                     Diagnostic(
@@ -57,11 +59,23 @@ def _handle_missing_atoms(
                     )
                 )
             if strategy == "drop_partial_residue":
-                continue
-        result.extend(res_atoms)
+                drop_residues.add(key)
 
-    result.extend(hetatm)
-    return result
+    if not drop_residues:
+        return atoms
+
+    return [
+        a
+        for a in atoms
+        if a.group_PDB != "ATOM"
+        or (
+            a.label_asym_id,
+            a.auth_seq_id,
+            a.label_seq_id,
+            a.label_comp_id,
+        )
+        not in drop_residues
+    ]
 
 
 def _handle_missing_residues(

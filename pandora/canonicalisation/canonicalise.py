@@ -158,7 +158,12 @@ def canonicalise_structure(
         transforms.append(f"ligands:{lr.strategy}")
 
     # validate_canonical_structure ---------------------------------------
-    _validate(atoms, asym_units, vr, diagnostics, structure.entry_id)
+    status = _validate(atoms, asym_units, vr, diagnostics, structure.entry_id)
+    if status == "failed":
+        raise ValueError(
+            f"Validation of canonicalised structure failed for entry "
+            f"{structure.entry_id!r}"
+        )
 
     canonical = structure.model_copy(
         update={

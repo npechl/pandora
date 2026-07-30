@@ -3,7 +3,7 @@ from pathlib import Path
 from pandora.ingestion.policy import load_policy
 
 POLICY_PATH = (
-    Path(__file__).parent.parent / "examples" / "canonicalisation.yaml"
+    Path(__file__).parent.parent / "datasets" / "canonicalisation.yaml"
 )
 
 

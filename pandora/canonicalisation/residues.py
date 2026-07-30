@@ -67,7 +67,12 @@ def _normalize_residue_numbering(
     chain_res_order: dict[str, list[tuple]] = defaultdict(list)
     chain_res_seen: dict[str, set] = defaultdict(set)
     for a in atoms:
-        rk = (a.label_seq_id, a.label_comp_id, a.pdbx_PDB_ins_code)
+        rk = (
+            a.label_seq_id,
+            a.auth_seq_id,
+            a.label_comp_id,
+            a.pdbx_PDB_ins_code,
+        )
         if rk not in chain_res_seen[a.label_asym_id]:
             chain_res_seen[a.label_asym_id].add(rk)
             chain_res_order[a.label_asym_id].append(rk)
@@ -79,7 +84,12 @@ def _normalize_residue_numbering(
 
     result = []
     for a in atoms:
-        rk = (a.label_seq_id, a.label_comp_id, a.pdbx_PDB_ins_code)
+        rk = (
+            a.label_seq_id,
+            a.auth_seq_id,
+            a.label_comp_id,
+            a.pdbx_PDB_ins_code,
+        )
         new_seq = renumber[a.label_asym_id].get(rk, a.label_seq_id)
 
         key = (a.label_asym_id, a.label_seq_id, a.auth_seq_id)

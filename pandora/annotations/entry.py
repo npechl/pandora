@@ -102,10 +102,11 @@ def annotate_ligand_contacts(
         ].append(atom)
 
     cutoff_sq = distance_cutoff * distance_cutoff
+    polymer_grid = _spatial_grid(polymer_atoms, distance_cutoff)
     contacts = []
     for ligand_key, atoms in ligand_groups.items():
         residue_contacts = _residues_within_cutoff(
-            atoms, polymer_atoms, cutoff_sq
+            atoms, polymer_grid, distance_cutoff, cutoff_sq
         )
         contacts.append(
             {
@@ -182,6 +183,7 @@ def annotate_chain_interfaces(
         residues_a, residues_b = _chain_pair_contacts(
             atoms_by_chain.get(chain_a, []),
             atoms_by_chain.get(chain_b, []),
+            distance_cutoff,
             cutoff_sq,
         )
         if not residues_a and not residues_b:
@@ -210,12 +212,15 @@ def annotate_chain_interfaces(
 def _chain_pair_contacts(
     atoms_a: list[AtomSiteRecord],
     atoms_b: list[AtomSiteRecord],
+    cutoff: float,
     cutoff_sq: float,
 ) -> tuple[set[str], set[str]]:
+    grid_b = _spatial_grid(atoms_b, cutoff)
+    cell_size = _cell_size(cutoff)
     residues_a: set[str] = set()
     residues_b: set[str] = set()
     for atom_a in atoms_a:
-        for atom_b in atoms_b:
+        for atom_b in _neighbor_atoms(grid_b, _cell_key(atom_a, cell_size)):
             if _squared_distance(atom_a, atom_b) > cutoff_sq:
                 continue
             residues_a.add(f"{atom_a.label_asym_id}:{atom_a.label_seq_id}")
@@ -233,24 +238,27 @@ def _is_ligand_atom(atom: AtomSiteRecord, include_waters: bool) -> bool:
 
 def _residues_within_cutoff(
     ligand_atoms: list[AtomSiteRecord],
-    polymer_atoms: list[AtomSiteRecord],
+    polymer_grid: dict[tuple[int, int, int], list[AtomSiteRecord]],
+    cutoff: float,
     cutoff_sq: float,
 ) -> list[dict[str, Any]]:
     contacts: dict[tuple[str, int | None, str], float] = {}
+    cell_size = _cell_size(cutoff)
     for ligand_atom in ligand_atoms:
-        for polymer_atom in polymer_atoms:
+        key = _cell_key(ligand_atom, cell_size)
+        for polymer_atom in _neighbor_atoms(polymer_grid, key):
             dist_sq = _squared_distance(ligand_atom, polymer_atom)
             if dist_sq > cutoff_sq:
                 continue
 
-            key = (
+            rk = (
                 polymer_atom.label_asym_id,
                 polymer_atom.label_seq_id,
                 polymer_atom.label_comp_id,
             )
-            current = contacts.get(key)
+            current = contacts.get(rk)
             if current is None or dist_sq < current:
-                contacts[key] = dist_sq
+                contacts[rk] = dist_sq
 
     return [
         {
@@ -261,6 +269,46 @@ def _residues_within_cutoff(
         }
         for (asym_id, seq_id, comp_id), dist_sq in sorted(contacts.items())
     ]
+
+
+# Cell-list spatial index: bucket atoms into cutoff-sized grid cells so a
+# distance query only has to check the 27 cells around a point instead of
+# every atom. Cell size == cutoff guarantees any atom within cutoff of a
+# point falls in that point's cell or an immediate neighbor (standard
+# Verlet cell-list argument), so this is exact, not approximate.
+
+
+def _cell_size(cutoff: float) -> float:
+    return cutoff if cutoff > 0 else 1e-6
+
+
+def _cell_key(atom: AtomSiteRecord, cell_size: float) -> tuple[int, int, int]:
+    return (
+        int(atom.Cartn_x // cell_size),
+        int(atom.Cartn_y // cell_size),
+        int(atom.Cartn_z // cell_size),
+    )
+
+
+def _spatial_grid(
+    atoms: list[AtomSiteRecord], cutoff: float
+) -> dict[tuple[int, int, int], list[AtomSiteRecord]]:
+    cell_size = _cell_size(cutoff)
+    grid: dict[tuple[int, int, int], list[AtomSiteRecord]] = defaultdict(list)
+    for atom in atoms:
+        grid[_cell_key(atom, cell_size)].append(atom)
+    return grid
+
+
+def _neighbor_atoms(
+    grid: dict[tuple[int, int, int], list[AtomSiteRecord]],
+    key: tuple[int, int, int],
+):
+    x, y, z = key
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            for dz in (-1, 0, 1):
+                yield from grid.get((x + dx, y + dy, z + dz), ())
 
 
 def _squared_distance(left: AtomSiteRecord, right: AtomSiteRecord) -> float:
