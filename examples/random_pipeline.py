@@ -16,14 +16,17 @@ from pandora.schemas.canonicalisation import (
     AssemblyRules,
     LigandRules,
     EntityRules,
-) 
+)
 
 from pathlib import Path
 
 from pandora.canonicalisation import canonicalise_structure
 from pandora.parsing import mmcif_to_structure
 
-from pandora.datasets.records import extract_chain_records, extract_residue_records
+from pandora.datasets.records import (
+    extract_chain_records,
+    extract_residue_records,
+)
 
 # from pandora.similarity.sequence import compute_sequence_similarity
 # from pandora.similarity.clustering import cluster_similar_items
@@ -46,7 +49,9 @@ policy = canonicalisationPolicy(
     missing_data_rules=MissingDataRules(
         missing_atoms=MissingAtomsRules(strategy="annotate"),
         missing_residues=MissingResiduesRules(strategy="drop_chain_segment"),
-        incomplete_chains=IncompleteChainRules(strategy="truncate_to_complete_regions")
+        incomplete_chains=IncompleteChainRules(
+            strategy="truncate_to_complete_regions"
+        ),
     ),
     altloc_rules=AltlocRules(strategy="select_best_occupancy"),
     assembly_rules=AssemblyRules(strategy="standardize_biological_assembly"),
@@ -58,11 +63,13 @@ policy = canonicalisationPolicy(
 structures = {}
 
 for entry_id in ENTRY_IDS:
-    structure, _, status = mmcif_to_structure(str(MMCIF_DIR / f"{entry_id}.cif"))
+    structure, _, status = mmcif_to_structure(
+        str(MMCIF_DIR / f"{entry_id}.cif")
+    )
     canonical, _, _ = canonicalise_structure(structure, policy)
 
     structures[entry_id] = canonical
-    
+
     print(
         f"[{structure.entry_id}] parsed+canonicalised: status={status} "
         f"chains={len(canonical.asym_units)}"
@@ -75,7 +82,6 @@ chain_records = {}
 for entry_id in ENTRY_IDS:
     residue_records[entry_id] = extract_residue_records(structures[entry_id])
     chain_records[entry_id] = extract_chain_records(structures[entry_id])
-
 
 
 # # 2. All-vs-all sequence identity -> a SimilarityRelationship network -------
