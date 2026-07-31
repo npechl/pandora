@@ -12,7 +12,6 @@ the run together.
 Ingestion is skipped, as in overview.py: the file is already on disk.
 """
 
-import tempfile
 from pathlib import Path
 
 from pandora.annotations import (
@@ -34,7 +33,7 @@ from pandora.schemas.canonicalisation import (
 )
 
 MMCIF_PATH = Path("./datasets/dev/mmcif/1a3n.cif")
-OUTPUT_DIR = Path(tempfile.mkdtemp(prefix="pandora_example_"))
+OUTPUT_DIR = Path("./datasets/output/dev/")
 DISTANCE_CUTOFF = 4.0
 
 # Unlike overview.py's policy, this keeps chain_id/residue_numbering at
@@ -59,7 +58,9 @@ policy = canonicalisationPolicy(
 
 # 1. Parsing + canonicalisation -------------------------------------------
 structure, diagnostics, status = mmcif_to_structure(str(MMCIF_PATH))
-print(f"parsed 1a3n: status={status} atoms={len(structure.atoms)}")
+print(
+    f"parsed 1a3n: status={status} atoms={len(structure.atoms)} chains={len(structure.asym_units)}"
+)
 
 canonical, mappings, canon_prov = canonicalise_structure(structure, policy)
 print(f"canonicalised: transforms={canon_prov.transforms}")

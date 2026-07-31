@@ -63,8 +63,8 @@ metadata = collect_metadata(canonical)
 
 ## Contributing
 
-*TODO*
+[CONTRIBUTING](CONTRIBUTING.md)
 
 ## License
 
-[CC0 1.0 Universal](LICENSE).
+[CC0 1.0 Universal](LICENSE)
