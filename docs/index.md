@@ -62,9 +62,9 @@ metadata = collect_metadata(canonical)
 Use [Policies](policies.md) for how to configure canonicalisation
 
 ## Recipes
-See [Recipes](recipes.md) for more end-to-end configurations of how to build datasets. 
+See [Recipes](recipes/recipes.md) for more end-to-end configurations of how to build datasets. 
 
 ## Reference
-The full function and schema reference is under [Reference](reference.md).
+The full function and schema reference is under [Reference](reference/reference.md).
 
 ## Comment
