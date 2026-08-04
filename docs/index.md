@@ -1,70 +1,57 @@
 # Pandora
 
-Pandora is a Python library for turning raw PDB/PDBe data into typed, policy-driven, ML-ready protein structure datasets.
+Pandora turns raw PDB/PDBe mmCIF files into typed, policy-driven,
+ML-ready protein structure datasets.
 
-Each component, ingestion, parsing, canonicalisation, metadata, annotation, is a plain function you can call on its own, or chain into a pipeline. Nothing is hidden behind a framework object: you pass a `Structure` in, you get a `Structure` (or a typed record) out.
+!!! warning "Status"
+    Pandora is under active development. Ingestion, parsing,
+    canonicalisation, metadata, annotations, export, and a
+    per-structure provenance bundle are implemented today. Dataset
+    curation and the CLI are still stubs on the roadmap.
 
-!!! warning
-    Pandora is under active development. Ingestion, parsing, canonicalisation, metadata, and annotations are implemented today; dataset curation, similarity/splitting, and provenance manifests are still on the roadmap.
+Every stage is a plain function: pass a `Structure` (or a typed record)
+in, get one out. Nothing is hidden behind a framework object or global
+state, so you can call one stage on its own or chain all of them into a
+pipeline.
+
+<!-- ## The pipeline
+
+```mermaid
+flowchart LR
+    A[".cif file"] --> B["parsing"]
+    B --> C["canonicalisation"]
+    C --> D["metadata"]
+    C --> E["annotations"]
+    D --> F[("similarity")]
+    E --> F
+    F --> G[("dataset")]
+```
+
+Each box is one importable function — `mmcif_to_structure()`,
+`canonicalise_structure()`, `collect_metadata()`, `annotate_*()` — that
+you call directly. There's no pipeline object to configure; you write
+the loop yourself and call as many or as few stages as you need. -->
 
 ## Install
 
+Not yet on PyPI — install from source:
+
 ```bash
-# The following commands are not working. 
+git clone https://github.com/npechl/pandora.git
+cd pandora
 
-# pip install pandora[ingestion]      # fetch_mmcif() / fetch_list_mmcif()
-# pip install pandora[annotations]    # freesasa-backed annotations
-# pip install pandora[full]           # everything, including the dev/test extras
+# Base install
+pip install -e .
 ```
 
-## Quick start
+See [Installation](installation.md) for what each optional extra
+(`ingestion`, `export`, `similarity`, ...) unlocks.
 
-```python
-from pathlib import Path
+## Where to go next
 
-from pandora.ingestion import fetch_mmcif
-from pandora.parsing import mmcif_to_structure
-from pandora.canonicalisation import canonicalise_structure
-from pandora.metadata import collect_metadata
-from pandora.schemas.canonicalisation import canonicalisationPolicy
-
-entry_id = "1cbs"
-mmcif_dir = Path("./mmcif")
-
-# 1. Ingestion — fetch the raw mmCIF file, with on-disk caching.
-provenance = fetch_mmcif(
-    entry_id=entry_id,
-    provider="pdbe",
-    source_uri=None,
-    output_dir=mmcif_dir,
-)
-
-# 2. Parsing — raw mmCIF -> Pandora's typed Structure.
-structure, diagnostics, status = mmcif_to_structure(
-    str(mmcif_dir / f"{entry_id}.cif")
-)
-
-# 3. Canonicalisation — apply a policy (chain IDs, altlocs, ligands, ...).
-policy = canonicalisationPolicy(
-    policy_id="quickstart",
-    policy_name="Quickstart",
-    policy_version="1.0.0",
-)
-canonical, mappings, canon_provenance = canonicalise_structure(
-    structure, policy
-)
-
-# 4. Metadata — source-backed entry/entity/quality/taxonomy records.
-metadata = collect_metadata(canonical)
-```
-
-## Policies
-Use [Policies](policies.md) for how to configure canonicalisation
-
-## Recipes
-See [Recipes](recipes/recipes.md) for more end-to-end configurations of how to build datasets. 
-
-## Reference
-The full function and schema reference is under [Reference](reference/reference.md).
-
-## Comment
+- **New here?** Start with [Getting Started](getting-started.md) — a
+  five-minute, fully offline walkthrough using the bundled sample data.
+- **Configuring canonicalisation?** [Policies](policies.md) covers
+  every policy field.
+- **Looking for a specific function?** The [Reference](reference/reference.md)
+  is generated straight from the docstrings.
