@@ -27,9 +27,7 @@ from pathlib import Path
 from pandora.parsing import mmcif_to_structure
 
 mmcif_dir = Path("datasets/dev/mmcif")
-structure, diagnostics, status = mmcif_to_structure(
-    str(mmcif_dir / "104m.cif")
-)
+structure, diagnostics, status = mmcif_to_structure(str(mmcif_dir / "104m.cif"))
 
 print(status, len(structure.atoms))
 # success 1450
@@ -122,9 +120,7 @@ from pandora.annotations import (
 from pandora.schemas.canonicalisation import canonicalisationPolicy
 
 mmcif_dir = Path("datasets/dev/mmcif")
-structure, diagnostics, status = mmcif_to_structure(
-    str(mmcif_dir / "104m.cif")
-)
+structure, diagnostics, status = mmcif_to_structure(str(mmcif_dir / "104m.cif"))
 
 policy = canonicalisationPolicy(
     policy_id="getting-started",
