@@ -831,6 +831,7 @@ name = "pandora"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "gemmi" },
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
@@ -855,7 +856,6 @@ export = [
 ]
 full = [
     { name = "freesasa" },
-    { name = "gemmi" },
     { name = "httpx" },
     { name = "mkdocs" },
     { name = "mkdocs-material" },
@@ -864,13 +864,10 @@ full = [
     { name = "pyarrow" },
     { name = "pytest" },
     { name = "pytest-cov" },
-    { name = "pyyaml" },
     { name = "ruff" },
 ]
 ingestion = [
-    { name = "gemmi" },
     { name = "httpx" },
-    { name = "pyyaml" },
 ]
 
 [package.dev-dependencies]
@@ -881,7 +878,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "freesasa", marker = "extra == 'annotations'", specifier = ">=2.1" },
-    { name = "gemmi", marker = "extra == 'ingestion'", specifier = ">=0.6" },
+    { name = "gemmi", specifier = ">=0.6" },
     { name = "httpx", marker = "extra == 'ingestion'", specifier = ">=0.27" },
     { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.6" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5" },
@@ -893,7 +890,6 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "pyyaml", marker = "extra == 'ingestion'", specifier = ">=6.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.16.0" },
 ]
 provides-extras = ["ingestion", "similarity", "annotations", "export", "dev", "docs", "full"]

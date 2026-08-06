@@ -58,6 +58,7 @@ use_directory_urls = true
 # Read more: https://zensical.org/docs/setup/navigation/
 nav = [
   { "Overview" = "index.md" },
+  { "Getting Started" = "getting-started.md" },
   { "Installation" = "installation.md" },
   { "Usage" = [
     "usage/ingestion.md",

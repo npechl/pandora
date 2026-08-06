@@ -10,7 +10,7 @@ This is primarily a Python project (with Markdown docs and YAML config). Follow 
 
 Pandora is a Python library that turns raw PDB/PDBe mmCIF files into typed, policy-driven, ML-ready protein structure datasets. Every stage is a plain function: pass a `Structure` (or typed record) in, get one out — nothing is hidden behind a framework object or global state.
 
-**Status:** ingestion, parsing, canonicalisation, metadata, annotations, and a per-structure provenance bundle (`pandora/provenance/`) are implemented. Dataset curation (`pandora/datasets/curation.py`) is still a stub (`# TODO` file) — part of the roadmap, not a bug.
+**Status:** ingestion, parsing, canonicalisation, metadata, annotations, export (`pandora/export/`), and a per-structure provenance bundle (`pandora/provenance/`) are implemented. Dataset curation (`pandora/datasets/curation.py`) and the CLI (`pandora/cli/app.py`) are still stubs (`# TODO` / `raise NotImplementedError`) — part of the roadmap, not a bug.
 
 ## Commands
 
@@ -46,6 +46,7 @@ extract_*_records()    pandora.datasets     — reshape a canonical Structure in
 compute_*_similarity() pandora.similarity   — MMseqs2/Foldseek wrappers -> SimilarityRelationship
 cluster_similar_items() / partition_dataset() pandora.similarity — leakage-safe train/val/test splitting
 build_provenance_bundle() pandora.provenance — aggregates ingestion/canonicalisation/metadata/annotation provenance + a structure checksum
+structure_to_mmcif() / write_json() / write_records() pandora.export — serialize a Structure or records back to mmCIF/JSON
 ```
 
 Each stage is independently callable — `examples/overview.py` shows the intended chaining, but nothing requires running the whole thing.
