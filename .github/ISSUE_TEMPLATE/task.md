@@ -1,3 +1,8 @@
+---
+name: Task
+about: Track maintenance, documentation, testing, or other project work
+---
+
 ## Description
 
 What needs to be done?
