@@ -25,7 +25,9 @@ RELATIONSHIPS = [
 
 
 def test_transitive_merge_and_isolate() -> None:
-    clusters = cluster_similar_items(ITEM_IDS, RELATIONSHIPS, threshold=0.5)
+    clusters, provenance = cluster_similar_items(
+        ITEM_IDS, RELATIONSHIPS, threshold=0.5
+    )
     by_size = sorted(clusters, key=lambda c: c.n_components)
 
     singletons = [c for c in by_size if c.n_components == 1]
@@ -34,15 +36,19 @@ def test_transitive_merge_and_isolate() -> None:
     merged = [c for c in by_size if c.n_components == 3][0]
     assert merged.components == ["a", "b", "c"]
 
+    assert provenance.threshold == 0.5
+    assert provenance.n_relationships == len(RELATIONSHIPS)
+    assert provenance.n_clusters == len(clusters)
+
 
 def test_every_item_appears_exactly_once() -> None:
-    clusters = cluster_similar_items(ITEM_IDS, RELATIONSHIPS, threshold=0.5)
+    clusters, _ = cluster_similar_items(ITEM_IDS, RELATIONSHIPS, threshold=0.5)
     seen = [item for cluster in clusters for item in cluster.components]
     assert sorted(seen) == sorted(ITEM_IDS)
 
 
 def test_higher_threshold_splits_the_cluster() -> None:
-    clusters = cluster_similar_items(ITEM_IDS, RELATIONSHIPS, threshold=0.95)
+    clusters, _ = cluster_similar_items(ITEM_IDS, RELATIONSHIPS, threshold=0.95)
     assert all(c.n_components == 1 for c in clusters)
 
 

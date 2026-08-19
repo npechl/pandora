@@ -44,8 +44,10 @@ collect_metadata()     pandora.metadata     — source-backed entry/entity/quali
 annotate_*()           pandora.annotations  — derived per-entry/pairwise layers (counts, contacts, interfaces)
 extract_*_records()    pandora.datasets     — reshape a canonical Structure into Chain/Residue/Interface records
 compute_*_similarity() pandora.similarity   — MMseqs2/Foldseek wrappers -> SimilarityRelationship
-cluster_similar_items() / partition_dataset() pandora.similarity — leakage-safe train/val/test splitting
-build_provenance_bundle() pandora.provenance — aggregates ingestion/canonicalisation/metadata/annotation provenance
+curate_structure() / deduplicate_structures() pandora.datasets — policy-driven filtering + entry_id dedup
+cluster_similar_items() / partition_dataset() pandora.similarity — leakage-safe train/val/test splitting, each returning its own provenance record alongside the result
+build_provenance_bundle() pandora.provenance — aggregates ingestion/canonicalisation/metadata/annotation provenance for one structure
+build_dataset_manifest() pandora.provenance — aggregates curation/dedup/clustering/partition provenance + every retained structure's ProvenanceBundle into one dataset-level report
 structure_to_mmcif() / write_json() / write_records() pandora.export — serialize a Structure or records back to mmCIF/JSON
 ```
 
@@ -63,9 +65,9 @@ Known sharp edge: `_validate()` (`canonicalisation/validation.py`) computes a `"
 
 `mmcif_to_structure` promotes well-known mmCIF categories to typed records but keeps every other category verbatim in `Structure.raw: dict[str, list[dict[str, str | None]]]`. `metadata/utils.py::raw_rows()`/`first_row()` are the only read path into `.raw`; `metadata/mmcif.py`'s `extract_*` functions are its only consumers. String values read via gemmi (`_cs()` in `parsing/mmcif.py`) are the raw CIF token — quoted values keep their literal `'...'` delimiters unless unquoted, since gemmi's `find_value()`/loop access don't do it for you.
 
-### Provenance is per-structure, not per-dataset
+### Provenance: per-structure bundles, aggregated into a per-dataset manifest
 
-`pandora/provenance/manifest.py::build_provenance_bundle(structure, ...)` assembles a `ProvenanceBundle` from whatever provenance the caller already has in hand — `ingestion` (`IngestionProvenance`), `canonicalisation` (`canonicalisationProvenance`), `metadata` (`MetadataRecord`, flattened via `collect_metadata_provenance()`), and `annotations` (a list of `AnnotationLayer`s). All arguments are optional; it does not fetch, re-derive, or validate anything itself. There is no dataset-level manifest or artifact export yet — see the design-doc caveat below. Pandora deliberately does not compute content checksums anywhere: the provenance goal is a shareable, rerunnable recipe (source + policies + versions), not byte-level integrity verification.
+`pandora/provenance/manifest.py::build_provenance_bundle(structure, ...)` assembles a `ProvenanceBundle` from whatever provenance the caller already has in hand — `ingestion` (`IngestionProvenance`), `canonicalisation` (`canonicalisationProvenance`), `metadata` (`MetadataRecord`, flattened via `collect_metadata_provenance()`), and `annotations` (a list of `AnnotationLayer`s). `build_dataset_manifest(...)` (same module) is the dataset-level counterpart: it aggregates a `DatasetCurationPolicy`, `ExclusionRecord`s, `DeduplicationProvenance`, `ClusteringProvenance`, `PartitionProvenance`, the split assignment, and a `ProvenanceBundle` per retained structure into one `DatasetManifest` — writable as a single JSON file via `write_json()` (see `examples/dataset_pipeline.py`, step 6). Both functions are pure aggregators — all arguments are optional, and neither fetches, re-derives, or validates anything itself; there is still no artifact export (embedded/by-reference dataset store) — see the design-doc caveat below. Pandora deliberately does not compute content checksums anywhere: the provenance goal is a shareable, rerunnable recipe (source + policies + versions), not byte-level integrity verification.
 
 ### External-tool wrappers (`pandora/similarity/`)
 

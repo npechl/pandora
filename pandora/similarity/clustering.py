@@ -1,19 +1,30 @@
 from __future__ import annotations
 
-from pandora.schemas.similarity import SimilarityCluster, SimilarityRelationship
+from datetime import datetime, timezone
+
+from pandora.schemas.similarity import (
+    ClusteringProvenance,
+    SimilarityCluster,
+    SimilarityRelationship,
+)
 
 
 def cluster_similar_items(
     item_ids: list[str],
     relationships: list[SimilarityRelationship],
     threshold: float,
-) -> list[SimilarityCluster]:
+) -> tuple[list[SimilarityCluster], ClusteringProvenance]:
     """Group item ids into clusters via connected components.
 
     Two items land in the same cluster iff connected through a chain of
     relationships each scoring >= threshold. Items with no such edges
     (isolates) form their own singleton cluster, so every id in
     `item_ids` ends up in exactly one cluster.
+
+    Returns:
+        `(clusters, provenance)` — the clusters, and a record of the
+        threshold applied and how many relationships/clusters resulted
+        (for reporting how a dataset's split was built).
     """
 
     parent = {item_id: item_id for item_id in item_ids}
@@ -38,7 +49,14 @@ def cluster_similar_items(
     for item_id in item_ids:
         groups.setdefault(find(item_id), []).append(item_id)
 
-    return [
+    clusters = [
         SimilarityCluster(components=sorted(members), n_components=len(members))
         for members in sorted(groups.values(), key=lambda members: members[0])
     ]
+    provenance = ClusteringProvenance(
+        clustered_at=datetime.now(timezone.utc).isoformat(),
+        threshold=threshold,
+        n_relationships=len(relationships),
+        n_clusters=len(clusters),
+    )
+    return clusters, provenance

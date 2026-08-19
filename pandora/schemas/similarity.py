@@ -37,3 +37,19 @@ class SimilarityRelationship(BaseModel):
 class SimilarityCluster(BaseModel):
     components: list[str]
     n_components: int
+
+
+class ClusteringProvenance(BaseModel):
+    clustered_at: str
+    threshold: float
+    n_relationships: int
+    n_clusters: int
+
+
+class PartitionProvenance(BaseModel):
+    partitioned_at: str
+    pct_train: float
+    pct_val: float
+    pct_test: float
+    keep_similar_items: bool
+    split_sizes: dict[str, int] = Field(default_factory=dict)
