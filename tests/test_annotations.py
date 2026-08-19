@@ -82,6 +82,7 @@ def test_chain_interfaces_finds_contact_across_a_grid_cell_boundary():
     assert len(interfaces) == 1
     assert interfaces[0]["interface_residues_chain_1"] == ["A:1"]
     assert interfaces[0]["interface_residues_chain_2"] == ["B:1"]
+    assert layer.parameters == {"distance_cutoff": 4.0}
 
 
 def test_ligand_contacts_reports_nearest_polymer_residue():
@@ -117,3 +118,7 @@ def test_ligand_contacts_reports_nearest_polymer_residue():
     assert len(contacts) == 1
     assert contacts[0]["label_seq_id"] == 1
     assert contacts[0]["distance"] == 1.0
+    assert layer.parameters == {
+        "distance_cutoff": 4.0,
+        "include_waters": False,
+    }

@@ -5,7 +5,10 @@ from datetime import datetime, timezone
 
 from pandora import __version__
 from pandora.schemas.annotation import AnnotationLayer
-from pandora.schemas.canonicalisation import canonicalisationProvenance
+from pandora.schemas.canonicalisation import (
+    canonicalisationPolicy,
+    canonicalisationProvenance,
+)
 from pandora.schemas.dataset import (
     DatasetCurationPolicy,
     DeduplicationProvenance,
@@ -85,6 +88,8 @@ def build_provenance_bundle(
                 layer_name=layer.layer_name,
                 layer_type=layer.layer_type,
                 method=layer.method,
+                target_ids=layer.target_ids,
+                parameters=layer.parameters,
                 provenance=layer.provenance,
             )
             for layer in annotations
@@ -98,6 +103,7 @@ def build_dataset_manifest(
     dataset_name: str,
     dataset_version: str,
     curation_policy: DatasetCurationPolicy | None = None,
+    canonicalisation_policy: canonicalisationPolicy | None = None,
     excluded: Sequence[ExclusionRecord] = (),
     deduplication: DeduplicationProvenance | None = None,
     clustering: ClusteringProvenance | None = None,
@@ -118,6 +124,8 @@ def build_dataset_manifest(
         dataset_name: Human-readable name.
         dataset_version: Version of this dataset build.
         curation_policy: The policy passed to `curate_structure`, if run.
+        canonicalisation_policy: The policy passed to
+            `canonicalise_structure`, if run.
         excluded: `ExclusionRecord`s returned by `curate_structure`/
             `deduplicate_structures` for every structure left out.
         deduplication: Provenance from `deduplicate_structures`, if run.
@@ -141,6 +149,7 @@ def build_dataset_manifest(
         pandora_version=__version__,
         generated_at=datetime.now(timezone.utc).isoformat(),
         curation_policy=curation_policy,
+        canonicalisation_policy=canonicalisation_policy,
         excluded=list(excluded),
         deduplication=deduplication,
         clustering=clustering,

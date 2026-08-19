@@ -4,7 +4,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from pandora.schemas.canonicalisation import canonicalisationProvenance
+from pandora.schemas.canonicalisation import (
+    canonicalisationPolicy,
+    canonicalisationProvenance,
+)
 from pandora.schemas.dataset import (
     DatasetCurationPolicy,
     DeduplicationProvenance,
@@ -19,6 +22,8 @@ class AnnotationProvenanceRecord(BaseModel):
     layer_name: str
     layer_type: str
     method: str
+    target_ids: list[str] = Field(default_factory=list)
+    parameters: dict[str, Any] = Field(default_factory=dict)
     provenance: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -39,6 +44,7 @@ class DatasetManifest(BaseModel):
     pandora_version: str
     generated_at: str
     curation_policy: DatasetCurationPolicy | None = None
+    canonicalisation_policy: canonicalisationPolicy | None = None
     excluded: list[ExclusionRecord] = Field(default_factory=list)
     deduplication: DeduplicationProvenance | None = None
     clustering: ClusteringProvenance | None = None

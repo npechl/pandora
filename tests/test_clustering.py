@@ -39,6 +39,7 @@ def test_transitive_merge_and_isolate() -> None:
     assert provenance.threshold == 0.5
     assert provenance.n_relationships == len(RELATIONSHIPS)
     assert provenance.n_clusters == len(clusters)
+    assert provenance.similarity_method == RELATIONSHIPS[0].method
 
 
 def test_every_item_appears_exactly_once() -> None:

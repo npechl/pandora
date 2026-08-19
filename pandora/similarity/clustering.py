@@ -23,8 +23,10 @@ def cluster_similar_items(
 
     Returns:
         `(clusters, provenance)` — the clusters, and a record of the
-        threshold applied and how many relationships/clusters resulted
-        (for reporting how a dataset's split was built).
+        threshold applied, how many relationships/clusters resulted, and
+        the `SimilarityMethod` of the first relationship (assumed to be
+        the same engine/parameters for the whole network) — enough to
+        reproduce this clustering step given the same input structures.
     """
 
     parent = {item_id: item_id for item_id in item_ids}
@@ -58,5 +60,6 @@ def cluster_similar_items(
         threshold=threshold,
         n_relationships=len(relationships),
         n_clusters=len(clusters),
+        similarity_method=relationships[0].method if relationships else None,
     )
     return clusters, provenance

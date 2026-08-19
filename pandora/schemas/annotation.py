@@ -23,5 +23,6 @@ class AnnotationLayer(BaseModel):
     scope: AnnotationScope
     method: str
     target_ids: list[str] = Field(default_factory=list)
+    parameters: dict[str, Any] = Field(default_factory=dict)
     data: dict[str, Any] = Field(default_factory=dict)
     provenance: dict[str, Any] = Field(default_factory=dict)

@@ -167,6 +167,7 @@ manifest = build_dataset_manifest(
     dataset_name="Development fixture dataset",
     dataset_version="1.0.0",
     curation_policy=curation_policy,
+    canonicalisation_policy=policy,
     excluded=exclusions,
     deduplication=dedup_prov,
     clustering=cluster_prov,

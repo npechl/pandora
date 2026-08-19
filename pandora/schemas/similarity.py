@@ -44,6 +44,7 @@ class ClusteringProvenance(BaseModel):
     threshold: float
     n_relationships: int
     n_clusters: int
+    similarity_method: SimilarityMethod | None = None
 
 
 class PartitionProvenance(BaseModel):
