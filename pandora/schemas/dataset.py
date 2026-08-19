@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 from pandora.schemas.structure import AtomSiteRecord
 
@@ -41,3 +43,74 @@ class InterfaceRecord(BaseModel):
 
 # TODO: Add Dataset, ChainDataset, InterfaceDataset, ResidueDataset, and
 # DatasetStoreRef (materialized-mode collection types, C04/C05).
+
+
+# Curation ---------------------------------
+
+
+ExclusionReason = Literal[
+    "RESOLUTION_THRESHOLD",
+    "NULL_RESOLUTION",
+    "CHAIN_TOO_SHORT",
+    "METHOD_EXCLUDED",
+    "ORGANISM_EXCLUDED",
+    "MISSING_TAXONOMY",
+    "DUPLICATE",
+]
+
+
+class ExclusionRecord(BaseModel):
+    entry_id: str
+    reason_code: ExclusionReason
+    message: str
+
+
+class QualityRules(BaseModel):
+    max_resolution: float | None = None
+    null_resolution_behavior: Literal["exclude", "include"] = "exclude"
+    min_chain_length: int | None = None
+    include_experimental_methods: list[str] = Field(default_factory=list)
+    exclude_experimental_methods: list[str] = Field(default_factory=list)
+
+
+class OrganismRules(BaseModel):
+    include_taxa: list[str] = Field(default_factory=list)
+    exclude_taxa: list[str] = Field(default_factory=list)
+
+
+class ContentRules(BaseModel):
+    keep_ligands: bool = True
+    keep_waters: bool = True
+    keep_ions: bool = True
+
+
+class DeduplicationRules(BaseModel):
+    enabled: bool = False
+    strategy: Literal["entry_id", "exact_hash"] = "entry_id"
+
+
+class DatasetCurationPolicy(BaseModel):
+    policy_id: str
+    policy_name: str
+    policy_version: str
+    description: str = ""
+    quality_rules: QualityRules = Field(default_factory=QualityRules)
+    organism_rules: OrganismRules = Field(default_factory=OrganismRules)
+    content_rules: ContentRules = Field(default_factory=ContentRules)
+    deduplication_rules: DeduplicationRules = Field(
+        default_factory=DeduplicationRules
+    )
+
+
+class CurationProvenance(BaseModel):
+    curated_at: str
+    policy_id: str
+    policy_name: str
+    policy_version: str
+
+
+class DeduplicationProvenance(BaseModel):
+    deduplicated_at: str
+    enabled: bool
+    strategy: str | None = None
+    duplicates_found: int = 0
