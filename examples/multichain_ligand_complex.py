@@ -125,6 +125,6 @@ bundle = build_provenance_bundle(
     annotations=[counts, interfaces, contacts],
 )
 write_json(bundle, OUTPUT_DIR / "provenance.json")
-print(f"provenance checksum: {bundle.checksums.structure_checksum[:12]}...")
+print(f"provenance written for entry {bundle.entry_id}")
 
 print(f"\nall output written to {OUTPUT_DIR}")

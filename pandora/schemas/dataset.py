@@ -82,7 +82,6 @@ class ContentRules(BaseModel):
 
 class DeduplicationRules(BaseModel):
     enabled: bool = False
-    strategy: Literal["entry_id", "exact_hash"] = "entry_id"
 
 
 class DatasetCurationPolicy(BaseModel):
@@ -108,5 +107,4 @@ class CurationProvenance(BaseModel):
 class DeduplicationProvenance(BaseModel):
     deduplicated_at: str
     enabled: bool
-    strategy: str | None = None
     duplicates_found: int = 0

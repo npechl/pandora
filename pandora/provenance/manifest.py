@@ -4,16 +4,11 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 
 from pandora import __version__
-from pandora.provenance.checksums import compute_checksum
 from pandora.schemas.annotation import AnnotationLayer
 from pandora.schemas.canonicalisation import canonicalisationProvenance
 from pandora.schemas.ingestion import IngestionProvenance
 from pandora.schemas.metadata import MetadataProvenance, MetadataRecord
-from pandora.schemas.provenance import (
-    AnnotationProvenanceRecord,
-    Checksums,
-    ProvenanceBundle,
-)
+from pandora.schemas.provenance import AnnotationProvenanceRecord, ProvenanceBundle
 from pandora.schemas.structure import Structure
 
 
@@ -55,7 +50,7 @@ def build_provenance_bundle(
     only `ingestion` set).
 
     Args:
-        structure: The structure to checksum and attribute the bundle to.
+        structure: The structure to attribute the bundle to.
         ingestion: Provenance from `pandora.ingestion.fetch_mmcif`, if run.
         canonicalisation: Provenance from `canonicalise_structure`, if run.
         metadata: The record from `collect_metadata`, if run.
@@ -63,7 +58,7 @@ def build_provenance_bundle(
             functions.
 
     Returns:
-        A `ProvenanceBundle` with a SHA-256 checksum of `structure`.
+        A `ProvenanceBundle` for `structure`.
     """
 
     return ProvenanceBundle(
@@ -84,5 +79,4 @@ def build_provenance_bundle(
             )
             for layer in annotations
         ],
-        checksums=Checksums(structure_checksum=compute_checksum(structure)),
     )

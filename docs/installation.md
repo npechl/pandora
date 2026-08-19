@@ -42,7 +42,7 @@ error with "extra not found".
 | *(base install*)* | **annotations** — derived per-entry/pairwise layers: structure counts, ligand contacts, chain interfaces, sequence identity | nothing yet — see note below |
 | `pip install -e .` | **datasets** — reshape a canonical `Structure` into Chain/Residue/Interface records via `extract_*_records()`. Dataset curation (filtering, dedup, splitting) is **not implemented yet** | nothing |
 | `pip install -e ".[similarity]"` + `mmseqs2`/`foldseek` on `PATH` | **similarity** — compute sequence/structure similarity | nothing pip-managed — see below |
-| `pip install -e .` | **provenance** — build a per-structure `ProvenanceBundle` (ingestion/canonicalisation/metadata/annotation provenance + a checksum) via `build_provenance_bundle()` | nothing |
+| `pip install -e .` | **provenance** — build a per-structure `ProvenanceBundle` (ingestion/canonicalisation/metadata/annotation provenance) via `build_provenance_bundle()` | nothing |
 | `pip install -e .` | **schemas** — the typed Pydantic models (`Structure`, policies, records, ...) every other package builds on; not something you install on its own | nothing — always included |
 | **not implemented yet** | **cli** — `pandora.cli.app()` currently just raises `NotImplementedError` | — |
 | `pip install -e ".[export]"` | **export** — write datasets to Parquet | `pandas` + `pyarrow`, for `write_records(..., "*.parquet")`. Exporting to mmCIF/JSON needs no extra |

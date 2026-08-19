@@ -16,11 +16,6 @@ class AnnotationProvenanceRecord(BaseModel):
     provenance: dict[str, Any] = Field(default_factory=dict)
 
 
-class Checksums(BaseModel):
-    structure_checksum: str
-    algorithm: str = "SHA-256"
-
-
 class ProvenanceBundle(BaseModel):
     entry_id: str
     pandora_version: str
@@ -29,4 +24,3 @@ class ProvenanceBundle(BaseModel):
     canonicalisation: canonicalisationProvenance | None = None
     metadata_sources: list[MetadataProvenance] = Field(default_factory=list)
     annotations: list[AnnotationProvenanceRecord] = Field(default_factory=list)
-    checksums: Checksums

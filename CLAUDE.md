@@ -31,7 +31,7 @@ uv run ruff format .                             # format (format --check . for 
 
 ### Layout: schemas vs. logic
 
-- `pandora/schemas/` — pydantic models only, no logic. One module per pipeline stage: `structure.py` (the mmCIF data model — `Structure`, `AtomSiteRecord`, etc.), `canonicalisation.py` (policy + rule + mapping + provenance models), `metadata.py`, `annotation.py`, `similarity.py`, `dataset.py`, `ingestion.py`, `provenance.py` (`ProvenanceBundle`, `Checksums`, `AnnotationProvenanceRecord`), and `common.py` (shared `Diagnostic`/`DiagnosticBundle`).
+- `pandora/schemas/` — pydantic models only, no logic. One module per pipeline stage: `structure.py` (the mmCIF data model — `Structure`, `AtomSiteRecord`, etc.), `canonicalisation.py` (policy + rule + mapping + provenance models), `metadata.py`, `annotation.py`, `similarity.py`, `dataset.py`, `ingestion.py`, `provenance.py` (`ProvenanceBundle`, `AnnotationProvenanceRecord`), and `common.py` (shared `Diagnostic`/`DiagnosticBundle`).
 - `pandora/{ingestion,parsing,canonicalisation,metadata,annotations,similarity,datasets,provenance}/` — logic, one package per stage, each built on its schema counterpart. Structures are never mutated in place; every transform returns a new object via pydantic's `.model_copy(update=...)`.
 
 ### The implemented pipeline
@@ -45,7 +45,7 @@ annotate_*()           pandora.annotations  — derived per-entry/pairwise layer
 extract_*_records()    pandora.datasets     — reshape a canonical Structure into Chain/Residue/Interface records
 compute_*_similarity() pandora.similarity   — MMseqs2/Foldseek wrappers -> SimilarityRelationship
 cluster_similar_items() / partition_dataset() pandora.similarity — leakage-safe train/val/test splitting
-build_provenance_bundle() pandora.provenance — aggregates ingestion/canonicalisation/metadata/annotation provenance + a structure checksum
+build_provenance_bundle() pandora.provenance — aggregates ingestion/canonicalisation/metadata/annotation provenance
 structure_to_mmcif() / write_json() / write_records() pandora.export — serialize a Structure or records back to mmCIF/JSON
 ```
 
@@ -65,7 +65,7 @@ Known sharp edge: `_validate()` (`canonicalisation/validation.py`) computes a `"
 
 ### Provenance is per-structure, not per-dataset
 
-`pandora/provenance/manifest.py::build_provenance_bundle(structure, ...)` assembles a `ProvenanceBundle` from whatever provenance the caller already has in hand — `ingestion` (`IngestionProvenance`), `canonicalisation` (`canonicalisationProvenance`), `metadata` (`MetadataRecord`, flattened via `collect_metadata_provenance()`), and `annotations` (a list of `AnnotationLayer`s) — plus a SHA-256 checksum of the structure (`checksums.compute_checksum()`, over the model's sorted-key JSON dump). All arguments are optional; it does not fetch, re-derive, or validate anything itself. There is no dataset-level manifest, artifact export, or checksum-of-checksums yet — see the design-doc caveat below.
+`pandora/provenance/manifest.py::build_provenance_bundle(structure, ...)` assembles a `ProvenanceBundle` from whatever provenance the caller already has in hand — `ingestion` (`IngestionProvenance`), `canonicalisation` (`canonicalisationProvenance`), `metadata` (`MetadataRecord`, flattened via `collect_metadata_provenance()`), and `annotations` (a list of `AnnotationLayer`s). All arguments are optional; it does not fetch, re-derive, or validate anything itself. There is no dataset-level manifest or artifact export yet — see the design-doc caveat below. Pandora deliberately does not compute content checksums anywhere: the provenance goal is a shareable, rerunnable recipe (source + policies + versions), not byte-level integrity verification.
 
 ### External-tool wrappers (`pandora/similarity/`)
 
