@@ -41,10 +41,6 @@ class InterfaceRecord(BaseModel):
     # output per chain pair.
 
 
-# TODO: Add Dataset, ChainDataset, InterfaceDataset, ResidueDataset, and
-# DatasetStoreRef (materialized-mode collection types, C04/C05).
-
-
 # Curation ---------------------------------
 
 
