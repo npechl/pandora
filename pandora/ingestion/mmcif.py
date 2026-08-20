@@ -1,9 +1,9 @@
 from pathlib import Path
-from datetime import datetime, timezone
 
 import gzip
 import httpx
 
+from pandora._util import now_iso
 from pandora.ingestion.cache import mtime_iso, resolve_cache_hit
 from pandora.schemas.ingestion import (
     FetchOptions,
@@ -14,10 +14,6 @@ _PROVIDER_URLS: dict[str, str] = {
     "pdbe": "https://www.ebi.ac.uk/pdbe/entry-files/download/{id}_updated.cif",
     "pdb": "https://files.rcsb.org/download/{id}.cif",
 }
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def fetch_mmcif(
@@ -126,7 +122,7 @@ def fetch_mmcif(
     return IngestionProvenance(
         provider=provider,
         source_uri=url,
-        retrieved_at=_now_iso(),
+        retrieved_at=now_iso(),
         from_cache=False,
     )
 

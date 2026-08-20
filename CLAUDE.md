@@ -10,7 +10,7 @@ This is primarily a Python project (with Markdown docs and YAML config). Follow 
 
 Pandora is a Python library that turns raw PDB/PDBe mmCIF files into typed, policy-driven, ML-ready protein structure datasets. Every stage is a plain function: pass a `Structure` (or typed record) in, get one out — nothing is hidden behind a framework object or global state.
 
-**Status:** ingestion, parsing, canonicalisation, metadata, annotations, export (`pandora/export/`), and a per-structure provenance bundle (`pandora/provenance/`) are implemented. Dataset curation (`pandora/datasets/curation.py`) and the CLI (`pandora/cli/app.py`) are still stubs (`# TODO` / `raise NotImplementedError`) — part of the roadmap, not a bug.
+**Status:** ingestion, parsing, canonicalisation, metadata, annotations, export (`pandora/export/`), dataset curation (`pandora/datasets/curation.py`), and provenance (`pandora/provenance/`, including per-structure bundles, dataset manifests, and `reproduce_dataset()`) are implemented. The CLI (`pandora/cli/app.py`) is still a stub (`# TODO` / `raise NotImplementedError`) — part of the roadmap, not a bug.
 
 ## Commands
 
@@ -31,7 +31,7 @@ uv run ruff format .                             # format (format --check . for 
 
 ### Layout: schemas vs. logic
 
-- `pandora/schemas/` — pydantic models only, no logic. One module per pipeline stage: `structure.py` (the mmCIF data model — `Structure`, `AtomSiteRecord`, etc.), `canonicalisation.py` (policy + rule + mapping + provenance models), `metadata.py`, `annotation.py`, `similarity.py`, `dataset.py`, `ingestion.py`, `provenance.py` (`ProvenanceBundle`, `Checksums`, `AnnotationProvenanceRecord`), and `common.py` (shared `Diagnostic`/`DiagnosticBundle`).
+- `pandora/schemas/` — pydantic models only, no logic. One module per pipeline stage: `structure.py` (the mmCIF data model — `Structure`, `AtomSiteRecord`, etc.), `canonicalisation.py` (policy + rule + mapping + provenance models), `metadata.py`, `annotation.py`, `similarity.py`, `dataset.py`, `ingestion.py`, `provenance.py` (`ProvenanceBundle`, `AnnotationProvenanceRecord`), and `common.py` (shared `Diagnostic`/`DiagnosticBundle`).
 - `pandora/{ingestion,parsing,canonicalisation,metadata,annotations,similarity,datasets,provenance}/` — logic, one package per stage, each built on its schema counterpart. Structures are never mutated in place; every transform returns a new object via pydantic's `.model_copy(update=...)`.
 
 ### The implemented pipeline
@@ -44,8 +44,11 @@ collect_metadata()     pandora.metadata     — source-backed entry/entity/quali
 annotate_*()           pandora.annotations  — derived per-entry/pairwise layers (counts, contacts, interfaces)
 extract_*_records()    pandora.datasets     — reshape a canonical Structure into Chain/Residue/Interface records
 compute_*_similarity() pandora.similarity   — MMseqs2/Foldseek wrappers -> SimilarityRelationship
-cluster_similar_items() / partition_dataset() pandora.similarity — leakage-safe train/val/test splitting
-build_provenance_bundle() pandora.provenance — aggregates ingestion/canonicalisation/metadata/annotation provenance + a structure checksum
+curate_structure() / deduplicate_structures() pandora.datasets — policy-driven filtering + entry_id dedup
+cluster_similar_items() / partition_dataset() pandora.similarity — leakage-safe train/val/test splitting, each returning its own provenance record alongside the result
+build_provenance_bundle() pandora.provenance — aggregates ingestion/canonicalisation/metadata/annotation provenance for one structure
+build_dataset_manifest() pandora.provenance — aggregates curation/dedup/clustering/partition provenance + every retained structure's ProvenanceBundle into one dataset-level report
+reproduce_dataset()    pandora.provenance   — replays fetch->canonicalise->curate->dedup->similarity->cluster->partition->annotate from a DatasetManifest alone (best-effort, not byte-identical)
 structure_to_mmcif() / write_json() / write_records() pandora.export — serialize a Structure or records back to mmCIF/JSON
 ```
 
@@ -63,9 +66,11 @@ Known sharp edge: `_validate()` (`canonicalisation/validation.py`) computes a `"
 
 `mmcif_to_structure` promotes well-known mmCIF categories to typed records but keeps every other category verbatim in `Structure.raw: dict[str, list[dict[str, str | None]]]`. `metadata/utils.py::raw_rows()`/`first_row()` are the only read path into `.raw`; `metadata/mmcif.py`'s `extract_*` functions are its only consumers. String values read via gemmi (`_cs()` in `parsing/mmcif.py`) are the raw CIF token — quoted values keep their literal `'...'` delimiters unless unquoted, since gemmi's `find_value()`/loop access don't do it for you.
 
-### Provenance is per-structure, not per-dataset
+### Provenance: per-structure bundles, aggregated into a per-dataset manifest
 
-`pandora/provenance/manifest.py::build_provenance_bundle(structure, ...)` assembles a `ProvenanceBundle` from whatever provenance the caller already has in hand — `ingestion` (`IngestionProvenance`), `canonicalisation` (`canonicalisationProvenance`), `metadata` (`MetadataRecord`, flattened via `collect_metadata_provenance()`), and `annotations` (a list of `AnnotationLayer`s) — plus a SHA-256 checksum of the structure (`checksums.compute_checksum()`, over the model's sorted-key JSON dump). All arguments are optional; it does not fetch, re-derive, or validate anything itself. There is no dataset-level manifest, artifact export, or checksum-of-checksums yet — see the design-doc caveat below.
+`pandora/provenance/manifest.py::build_provenance_bundle(structure, ...)` assembles a `ProvenanceBundle` from whatever provenance the caller already has in hand — `ingestion` (`IngestionProvenance`), `canonicalisation` (`canonicalisationProvenance`), `metadata` (`MetadataRecord`, flattened via `collect_metadata_provenance()`), and `annotations` (a list of `AnnotationLayer`s). `build_dataset_manifest(...)` (same module) is the dataset-level counterpart: it aggregates a `DatasetCurationPolicy`, a `canonicalisationPolicy` (both stored by value, not just id/version, so a rebuild has the actual rules), `ExclusionRecord`s, `DeduplicationProvenance`, `ClusteringProvenance` (including the `SimilarityMethod` — engine/version/parameters — that produced the network that was clustered), `PartitionProvenance`, the split assignment, and a `ProvenanceBundle` per retained structure into one `DatasetManifest` — writable as a single JSON file via `write_json()` (see `examples/dataset_pipeline.py`, step 6). All three are pure aggregators — every argument is optional, and none fetches, re-derives, or validates anything itself; there is still no artifact export (embedded/by-reference dataset store) — see the design-doc caveat below. Pandora deliberately does not compute content checksums anywhere: the provenance goal is a shareable, rerunnable recipe (source + policies + versions), not byte-level integrity verification.
+
+`pandora/provenance/reproduce.py::reproduce_dataset(manifest, output_dir, ...)` is the one function in this package that isn't a pure aggregator — given only a `DatasetManifest`, it re-fetches every structure (via each `ProvenanceBundle.ingestion`), then replays canonicalisation/curation/dedup/similarity/clustering/partition/annotation exactly as the manifest recorded them, returning `(structures, new_manifest)`. It's a best-effort re-run, not a guaranteed byte-identical rebuild — source data can drift upstream and external similarity tools can drift between versions, and since Pandora has no checksums, there's no way to detect that automatically; diff the returned manifest against the input to see what changed. Two hard requirements, both raising `ValueError` if unmet: every structure's bundle must have `ingestion` provenance (nothing to fetch from otherwise), and reproducing `clustering` requires `ClusteringProvenance.similarity_method` to be set. Auto-reproducing the similarity network only works for `engine in {"MMseqs2", "Foldseek"}` (dispatches to `compute_sequence_similarity`/`compute_structure_similarity` with `**SimilarityMethod.parameters`); other engines raise rather than guess. Annotation regeneration dispatches on `AnnotationProvenanceRecord.layer_type` through a small fixed table (`ENTRY_ANNOTATION_DISPATCH`/`PAIRWISE_ANNOTATION_DISPATCH` in that module) covering the 4 functions in `pandora.annotations`.
 
 ### External-tool wrappers (`pandora/similarity/`)
 

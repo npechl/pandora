@@ -124,6 +124,10 @@ def annotate_ligand_contacts(
         scope="entry",
         method="pandora.basic.distance_cutoff_contacts.v1",
         target_ids=[structure.entry_id],
+        parameters={
+            "distance_cutoff": distance_cutoff,
+            "include_waters": include_waters,
+        },
         data={
             "distance_cutoff": distance_cutoff,
             "include_waters": include_waters,
@@ -204,6 +208,7 @@ def annotate_chain_interfaces(
         scope="interface",
         method="pandora.basic.distance_cutoff_contacts.v1",
         target_ids=[structure.entry_id],
+        parameters={"distance_cutoff": distance_cutoff},
         data={"distance_cutoff": distance_cutoff, "interfaces": interfaces},
         provenance={"inputs": ["Structure.atoms"]},
     )

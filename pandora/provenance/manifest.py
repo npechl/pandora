@@ -1,19 +1,27 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime, timezone
 
 from pandora import __version__
-from pandora.provenance.checksums import compute_checksum
+from pandora._util import now_iso
 from pandora.schemas.annotation import AnnotationLayer
-from pandora.schemas.canonicalisation import canonicalisationProvenance
+from pandora.schemas.canonicalisation import (
+    canonicalisationPolicy,
+    canonicalisationProvenance,
+)
+from pandora.schemas.dataset import (
+    DatasetCurationPolicy,
+    DeduplicationProvenance,
+    ExclusionRecord,
+)
 from pandora.schemas.ingestion import IngestionProvenance
 from pandora.schemas.metadata import MetadataProvenance, MetadataRecord
 from pandora.schemas.provenance import (
     AnnotationProvenanceRecord,
-    Checksums,
+    DatasetManifest,
     ProvenanceBundle,
 )
+from pandora.schemas.similarity import ClusteringProvenance, PartitionProvenance
 from pandora.schemas.structure import Structure
 
 
@@ -55,7 +63,7 @@ def build_provenance_bundle(
     only `ingestion` set).
 
     Args:
-        structure: The structure to checksum and attribute the bundle to.
+        structure: The structure to attribute the bundle to.
         ingestion: Provenance from `pandora.ingestion.fetch_mmcif`, if run.
         canonicalisation: Provenance from `canonicalise_structure`, if run.
         metadata: The record from `collect_metadata`, if run.
@@ -63,13 +71,13 @@ def build_provenance_bundle(
             functions.
 
     Returns:
-        A `ProvenanceBundle` with a SHA-256 checksum of `structure`.
+        A `ProvenanceBundle` for `structure`.
     """
 
     return ProvenanceBundle(
         entry_id=structure.entry_id,
         pandora_version=__version__,
-        generated_at=datetime.now(timezone.utc).isoformat(),
+        generated_at=now_iso(),
         ingestion=ingestion,
         canonicalisation=canonicalisation,
         metadata_sources=(
@@ -80,9 +88,72 @@ def build_provenance_bundle(
                 layer_name=layer.layer_name,
                 layer_type=layer.layer_type,
                 method=layer.method,
+                target_ids=layer.target_ids,
+                parameters=layer.parameters,
                 provenance=layer.provenance,
             )
             for layer in annotations
         ],
-        checksums=Checksums(structure_checksum=compute_checksum(structure)),
+    )
+
+
+def build_dataset_manifest(
+    *,
+    dataset_id: str,
+    dataset_name: str,
+    dataset_version: str,
+    curation_policy: DatasetCurationPolicy | None = None,
+    canonicalisation_policy: canonicalisationPolicy | None = None,
+    excluded: Sequence[ExclusionRecord] = (),
+    deduplication: DeduplicationProvenance | None = None,
+    clustering: ClusteringProvenance | None = None,
+    partition: PartitionProvenance | None = None,
+    splits: dict[str, list[str]] | None = None,
+    structures: Sequence[ProvenanceBundle] = (),
+) -> DatasetManifest:
+    """Assemble a single-file report of how a dataset was constructed.
+
+    Aggregates whatever provenance the caller already produced by running
+    the dataset-construction stages — this function does not re-derive,
+    recompute, or validate anything itself. Every argument beyond the
+    dataset identity is optional so the manifest can be built with
+    whichever stages actually ran (e.g. curation without clustering).
+
+    Args:
+        dataset_id: Stable identifier for this dataset build.
+        dataset_name: Human-readable name.
+        dataset_version: Version of this dataset build.
+        curation_policy: The policy passed to `curate_structure`, if run.
+        canonicalisation_policy: The policy passed to
+            `canonicalise_structure`, if run.
+        excluded: `ExclusionRecord`s returned by `curate_structure`/
+            `deduplicate_structures` for every structure left out.
+        deduplication: Provenance from `deduplicate_structures`, if run.
+        clustering: Provenance from `cluster_similar_items`, if run.
+        partition: Provenance from `partition_dataset`, if run.
+        splits: The split assignment returned by `partition_dataset`,
+            if run.
+        structures: A `ProvenanceBundle` per structure retained in the
+            dataset (from `build_provenance_bundle`).
+
+    Returns:
+        A `DatasetManifest` capturing the policy, exclusions, dedup/
+        clustering/partition parameters, split assignment, and every
+        retained structure's own provenance in one object.
+    """
+
+    return DatasetManifest(
+        dataset_id=dataset_id,
+        dataset_name=dataset_name,
+        dataset_version=dataset_version,
+        pandora_version=__version__,
+        generated_at=now_iso(),
+        curation_policy=curation_policy,
+        canonicalisation_policy=canonicalisation_policy,
+        excluded=list(excluded),
+        deduplication=deduplication,
+        clustering=clustering,
+        partition=partition,
+        splits=splits or {},
+        structures=list(structures),
     )

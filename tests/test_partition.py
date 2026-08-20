@@ -13,12 +13,18 @@ CLUSTERS = [
 
 
 def test_keep_similar_items_hits_target_sizes() -> None:
-    result = partition_dataset(CLUSTERS, 0.6, 0.2, 0.2, keep_similar_items=True)
+    result, provenance = partition_dataset(
+        CLUSTERS, 0.6, 0.2, 0.2, keep_similar_items=True
+    )
     assert [len(result[k]) for k in ("train", "val", "test")] == [18, 6, 6]
+    assert provenance.split_sizes == {"train": 18, "val": 6, "test": 6}
+    assert provenance.keep_similar_items is True
 
 
 def test_keep_similar_items_never_splits_a_cluster() -> None:
-    result = partition_dataset(CLUSTERS, 0.6, 0.2, 0.2, keep_similar_items=True)
+    result, _ = partition_dataset(
+        CLUSTERS, 0.6, 0.2, 0.2, keep_similar_items=True
+    )
     for cluster in CLUSTERS:
         hits = [
             k for k, v in result.items() if set(cluster.components) & set(v)
@@ -27,7 +33,7 @@ def test_keep_similar_items_never_splits_a_cluster() -> None:
 
 
 def test_no_keep_similar_items_splits_proportionally_and_flat() -> None:
-    result = partition_dataset(
+    result, _ = partition_dataset(
         CLUSTERS, 0.6, 0.2, 0.2, keep_similar_items=False
     )
     assert all(isinstance(item, str) for item in result["train"])

@@ -116,14 +116,12 @@ def test_deduplicate_structures():
     structure = _load("1ayi")
 
     retained, removed, provenance = deduplicate_structures(
-        [structure, structure],
-        DeduplicationRules(enabled=True, strategy="entry_id"),
+        [structure, structure], DeduplicationRules(enabled=True)
     )
     assert len(retained) == 1
     assert len(removed) == 1
     assert removed[0].reason_code == "DUPLICATE"
     assert provenance.enabled is True
-    assert provenance.strategy == "entry_id"
     assert provenance.duplicates_found == 1
 
     retained, removed, provenance = deduplicate_structures(

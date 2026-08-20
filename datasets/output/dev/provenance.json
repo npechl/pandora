@@ -136,9 +136,5 @@
         ]
       }
     }
-  ],
-  "checksums": {
-    "structure_checksum": "a6c41a5653b772ae2e6ee3ba736b8e664a03d8fdddba9b0a94b9cafead2289f0",
-    "algorithm": "SHA-256"
-  }
+  ]
 }

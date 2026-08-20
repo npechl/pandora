@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from pandora.schemas.similarity import SimilarityCluster
+from pandora._util import now_iso
+from pandora.schemas.similarity import PartitionProvenance, SimilarityCluster
 
 _FRACTION_TOLERANCE = 0.001
 
@@ -11,13 +12,18 @@ def partition_dataset(
     pct_val: float = 0.2,
     pct_test: float = 0.2,
     keep_similar_items: bool = True,
-) -> dict[str, list[str]]:
+) -> tuple[dict[str, list[str]], PartitionProvenance]:
     """Assign cluster members to train/val/test splits.
 
     keep_similar_items=True (default): each cluster goes to a single split
     (whichever is most under its target share) — the leakage-safe mode.
     keep_similar_items=False: each cluster's members are divided
     proportionally across all three splits.
+
+    Returns:
+        `(splits, provenance)` — the split assignment, and a record of
+        the fractions/mode applied and the resulting split sizes (for
+        reporting how a dataset's split was built).
     """
 
     if abs(pct_train + pct_val + pct_test - 1.0) > _FRACTION_TOLERANCE:
@@ -42,13 +48,20 @@ def partition_dataset(
                 splits, key=lambda name: targets[name] - len(splits[name])
             )
             splits[split].extend(cluster.components)
-        return splits
+    else:
+        for cluster in ordered:
+            n_train = round(cluster.n_components * pct_train)
+            n_val = round(cluster.n_components * pct_val)
+            splits["train"].extend(cluster.components[:n_train])
+            splits["val"].extend(cluster.components[n_train : n_train + n_val])
+            splits["test"].extend(cluster.components[n_train + n_val :])
 
-    for cluster in ordered:
-        n_train = round(cluster.n_components * pct_train)
-        n_val = round(cluster.n_components * pct_val)
-        splits["train"].extend(cluster.components[:n_train])
-        splits["val"].extend(cluster.components[n_train : n_train + n_val])
-        splits["test"].extend(cluster.components[n_train + n_val :])
-
-    return splits
+    provenance = PartitionProvenance(
+        partitioned_at=now_iso(),
+        pct_train=pct_train,
+        pct_val=pct_val,
+        pct_test=pct_test,
+        keep_similar_items=keep_similar_items,
+        split_sizes={name: len(members) for name, members in splits.items()},
+    )
+    return splits, provenance

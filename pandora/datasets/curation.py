@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-from pandora.canonicalisation.ligands import _filter_ligands
+from pandora._util import now_iso
+from pandora.canonicalisation import filter_ligands
 from pandora.datasets.records import extract_chain_records
-from pandora.provenance.checksums import compute_checksum
 from pandora.schemas.canonicalisation import LigandRules
 from pandora.schemas.common import DiagnosticBundle
 from pandora.schemas.dataset import (
@@ -19,10 +17,6 @@ from pandora.schemas.dataset import (
 )
 from pandora.schemas.metadata import MetadataRecord
 from pandora.schemas.structure import Structure
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _check_quality(
@@ -51,10 +45,18 @@ def _check_quality(
         )
 
     method = quality.experimental_method if quality else None
-    if (
-        rules.include_experimental_methods
-        and method not in rules.include_experimental_methods
-    ) or (method is not None and method in rules.exclude_experimental_methods):
+    # Case/whitespace-insensitive: raw mmCIF tokens and policy values may
+    # differ in casing (e.g. "X-RAY DIFFRACTION" vs "x-ray diffraction").
+    normalized_method = method.strip().upper() if method else None
+    include_methods = {
+        m.strip().upper() for m in rules.include_experimental_methods
+    }
+    exclude_methods = {
+        m.strip().upper() for m in rules.exclude_experimental_methods
+    }
+    if (include_methods and normalized_method not in include_methods) or (
+        normalized_method in exclude_methods
+    ):
         return ExclusionRecord(
             entry_id=structure.entry_id,
             reason_code="METHOD_EXCLUDED",
@@ -119,7 +121,7 @@ def _apply_content_rules(
         keep_ions=rules.keep_ions,
         keep_nonpolymer_ligands=rules.keep_ligands,
     )
-    atoms, asym_units = _filter_ligands(
+    atoms, asym_units = filter_ligands(
         list(structure.atoms),
         list(structure.asym_units),
         structure.entities,
@@ -135,55 +137,46 @@ def _apply_content_rules(
 def deduplicate_structures(
     structures: list[Structure], rules: DeduplicationRules
 ) -> tuple[list[Structure], list[ExclusionRecord], DeduplicationProvenance]:
-    """Remove exact duplicates from a list of structures.
+    """Remove structures sharing the same `Structure.entry_id`.
 
     Args:
         structures: Structures to deduplicate, in order. The first
-            occurrence of each duplicate key is kept.
-        rules: `strategy="entry_id"` dedups by `Structure.entry_id`;
-            `strategy="exact_hash"` dedups by content checksum
-            (`provenance.checksums.compute_checksum`). Ignored (returns
-            `structures` unchanged) if `rules.enabled` is False.
+            occurrence of each duplicate entry_id is kept.
+        rules: Ignored (returns `structures` unchanged) if
+            `rules.enabled` is False.
 
     Returns:
         `(retained, removed, provenance)` — the deduplicated
         structures, an `ExclusionRecord` (reason_code="DUPLICATE") per
-        structure removed, and a record of the strategy applied and
-        how many duplicates it found.
+        structure removed, and a record of how many duplicates were found.
     """
 
     if not rules.enabled:
         return (
             structures,
             [],
-            DeduplicationProvenance(deduplicated_at=_now_iso(), enabled=False),
+            DeduplicationProvenance(deduplicated_at=now_iso(), enabled=False),
         )
 
     seen: set[str] = set()
     retained: list[Structure] = []
     removed: list[ExclusionRecord] = []
     for structure in structures:
-        key = (
-            structure.entry_id
-            if rules.strategy == "entry_id"
-            else compute_checksum(structure)
-        )
-        if key in seen:
+        if structure.entry_id in seen:
             removed.append(
                 ExclusionRecord(
                     entry_id=structure.entry_id,
                     reason_code="DUPLICATE",
-                    message=f"duplicate by {rules.strategy}",
+                    message="duplicate by entry_id",
                 )
             )
             continue
-        seen.add(key)
+        seen.add(structure.entry_id)
         retained.append(structure)
 
     provenance = DeduplicationProvenance(
-        deduplicated_at=_now_iso(),
+        deduplicated_at=now_iso(),
         enabled=True,
-        strategy=rules.strategy,
         duplicates_found=len(removed),
     )
     return retained, removed, provenance
@@ -213,7 +206,7 @@ def curate_structure(
     """
 
     provenance = CurationProvenance(
-        curated_at=_now_iso(),
+        curated_at=now_iso(),
         policy_id=policy.policy_id,
         policy_name=policy.policy_name,
         policy_version=policy.policy_version,
