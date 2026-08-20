@@ -92,9 +92,6 @@ class DatasetCurationPolicy(BaseModel):
     quality_rules: QualityRules = Field(default_factory=QualityRules)
     organism_rules: OrganismRules = Field(default_factory=OrganismRules)
     content_rules: ContentRules = Field(default_factory=ContentRules)
-    deduplication_rules: DeduplicationRules = Field(
-        default_factory=DeduplicationRules
-    )
 
 
 class CurationProvenance(BaseModel):

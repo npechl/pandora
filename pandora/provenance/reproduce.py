@@ -12,6 +12,7 @@ from pandora.canonicalisation import canonicalise_structure
 from pandora.datasets.curation import curate_structure, deduplicate_structures
 from pandora.datasets.records import extract_chain_records
 from pandora.export.mmcif import structure_to_mmcif
+from pandora.ingestion.cache import find_cached
 from pandora.ingestion.mmcif import fetch_mmcif
 from pandora.metadata import collect_metadata
 from pandora.parsing import mmcif_to_structure
@@ -20,9 +21,11 @@ from pandora.provenance.manifest import (
     build_provenance_bundle,
 )
 from pandora.schemas.annotation import AnnotationLayer
-from pandora.schemas.dataset import DeduplicationRules
-from pandora.schemas.ingestion import FetchOptions
+from pandora.schemas.canonicalisation import canonicalisationProvenance
+from pandora.schemas.dataset import DeduplicationRules, ExclusionRecord
+from pandora.schemas.ingestion import FetchOptions, IngestionProvenance
 from pandora.schemas.provenance import DatasetManifest
+from pandora.schemas.similarity import SimilarityRelationship
 from pandora.schemas.structure import Structure
 from pandora.similarity.clustering import cluster_similar_items
 from pandora.similarity.partition import partition_dataset
@@ -62,13 +65,13 @@ def _reproduce_similarity(
     method_parameters: dict,
     structures: dict[str, Structure],
     output_dir: Path,
-):
+) -> list[SimilarityRelationship]:
     if method_engine == "MMseqs2":
         return compute_sequence_similarity(
             _entry_sequences(structures), **method_parameters
         )
     if method_engine == "Foldseek":
-        paths = {}
+        paths: dict[str, Path] = {}
         for entry_id, structure in structures.items():
             paths[entry_id] = structure_to_mmcif(
                 structure, output_dir / f"{entry_id}.reproduced.cif"
@@ -93,9 +96,15 @@ def _reproduce_annotations(
             if record.layer_type in ENTRY_ANNOTATION_DISPATCH:
                 if bundle.entry_id not in structures:
                     continue
-                layer = ENTRY_ANNOTATION_DISPATCH[record.layer_type](
-                    structures[bundle.entry_id], **record.parameters
-                )
+                try:
+                    layer = ENTRY_ANNOTATION_DISPATCH[record.layer_type](
+                        structures[bundle.entry_id], **record.parameters
+                    )
+                except TypeError as exc:
+                    raise TypeError(
+                        f"cannot reproduce annotation {record.layer_type!r} "
+                        f"for entry {bundle.entry_id!r}: {exc}"
+                    ) from exc
                 layers_by_entry[bundle.entry_id].append(layer)
             elif record.layer_type in PAIRWISE_ANNOTATION_DISPATCH:
                 pair = frozenset(record.target_ids)
@@ -155,8 +164,8 @@ def reproduce_dataset(
 
     output_dir = Path(output_dir)
     structures: dict[str, Structure] = {}
-    ingestion_provenance = {}
-    canonicalisation_provenance = {}
+    ingestion_provenance: dict[str, IngestionProvenance] = {}
+    canonicalisation_provenance: dict[str, canonicalisationProvenance] = {}
 
     for bundle in manifest.structures:
         if bundle.ingestion is None:
@@ -171,9 +180,8 @@ def reproduce_dataset(
             output_dir,
             fetch_options,
         )
-        structure, _, _ = mmcif_to_structure(
-            str(output_dir / f"{bundle.entry_id.lower()}.cif")
-        )
+        cached_path = find_cached(bundle.entry_id, output_dir)
+        structure, _, _ = mmcif_to_structure(str(cached_path))
         if manifest.canonicalisation_policy is not None:
             structure, _, canon_prov = canonicalise_structure(
                 structure, manifest.canonicalisation_policy
@@ -187,7 +195,7 @@ def reproduce_dataset(
         ingestion_provenance[structure.entry_id] = ingestion_prov
         structures[structure.entry_id] = structure
 
-    excluded = []
+    excluded: list[ExclusionRecord] = []
     if manifest.curation_policy is not None:
         for entry_id in list(structures):
             metadata = collect_metadata(structures[entry_id])

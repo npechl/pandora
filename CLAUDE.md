@@ -10,7 +10,7 @@ This is primarily a Python project (with Markdown docs and YAML config). Follow 
 
 Pandora is a Python library that turns raw PDB/PDBe mmCIF files into typed, policy-driven, ML-ready protein structure datasets. Every stage is a plain function: pass a `Structure` (or typed record) in, get one out — nothing is hidden behind a framework object or global state.
 
-**Status:** ingestion, parsing, canonicalisation, metadata, annotations, export (`pandora/export/`), and a per-structure provenance bundle (`pandora/provenance/`) are implemented. Dataset curation (`pandora/datasets/curation.py`) and the CLI (`pandora/cli/app.py`) are still stubs (`# TODO` / `raise NotImplementedError`) — part of the roadmap, not a bug.
+**Status:** ingestion, parsing, canonicalisation, metadata, annotations, export (`pandora/export/`), dataset curation (`pandora/datasets/curation.py`), and provenance (`pandora/provenance/`, including per-structure bundles, dataset manifests, and `reproduce_dataset()`) are implemented. The CLI (`pandora/cli/app.py`) is still a stub (`# TODO` / `raise NotImplementedError`) — part of the roadmap, not a bug.
 
 ## Commands
 

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime, timezone
 
 from pandora import __version__
+from pandora._util import now_iso
 from pandora.schemas.annotation import AnnotationLayer
 from pandora.schemas.canonicalisation import (
     canonicalisationPolicy,
@@ -77,7 +77,7 @@ def build_provenance_bundle(
     return ProvenanceBundle(
         entry_id=structure.entry_id,
         pandora_version=__version__,
-        generated_at=datetime.now(timezone.utc).isoformat(),
+        generated_at=now_iso(),
         ingestion=ingestion,
         canonicalisation=canonicalisation,
         metadata_sources=(
@@ -147,7 +147,7 @@ def build_dataset_manifest(
         dataset_name=dataset_name,
         dataset_version=dataset_version,
         pandora_version=__version__,
-        generated_at=datetime.now(timezone.utc).isoformat(),
+        generated_at=now_iso(),
         curation_policy=curation_policy,
         canonicalisation_policy=canonicalisation_policy,
         excluded=list(excluded),

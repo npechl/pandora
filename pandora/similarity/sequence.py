@@ -139,7 +139,10 @@ def compute_sequence_similarity(
             method=SimilarityMethod(
                 engine="MMseqs2",
                 version=version,
-                parameters={"sensitivity": sensitivity, "binary": mmseqs_bin},
+                parameters={
+                    "sensitivity": sensitivity,
+                    "mmseqs_bin": mmseqs_bin,
+                },
             ),
         )
         for (source_id, target_id), (score, coverage) in sorted(

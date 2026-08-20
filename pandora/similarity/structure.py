@@ -144,7 +144,7 @@ def compute_structure_similarity(
                 parameters={
                     "sensitivity": sensitivity,
                     "alignment_type": alignment_type,
-                    "binary": foldseek_bin,
+                    "foldseek_bin": foldseek_bin,
                 },
             ),
         )

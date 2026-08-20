@@ -9,7 +9,7 @@ from pandora.schemas.structure import (
 from pandora.schemas.common import Diagnostic, DiagnosticBundle
 
 
-def _filter_ligands(
+def filter_ligands(
     atoms: list[AtomSiteRecord],
     asym_units: list[AsymRecord],
     entities: list[EntityRecord],

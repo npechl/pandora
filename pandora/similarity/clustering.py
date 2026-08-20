@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
+from pandora._util import now_iso
 from pandora.schemas.similarity import (
     ClusteringProvenance,
     SimilarityCluster,
@@ -24,10 +23,21 @@ def cluster_similar_items(
     Returns:
         `(clusters, provenance)` — the clusters, and a record of the
         threshold applied, how many relationships/clusters resulted, and
-        the `SimilarityMethod` of the first relationship (assumed to be
-        the same engine/parameters for the whole network) — enough to
+        the `SimilarityMethod` of the first relationship — enough to
         reproduce this clustering step given the same input structures.
+
+    Raises:
+        ValueError: `relationships` mixes more than one similarity
+            engine; clustering assumes a single engine/parameters
+            produced the whole network.
     """
+
+    if len({rel.method.engine for rel in relationships}) > 1:
+        raise ValueError(
+            "cluster_similar_items: relationships use more than one "
+            "similarity engine; clustering assumes a single "
+            "engine/parameters for the whole network"
+        )
 
     parent = {item_id: item_id for item_id in item_ids}
 
@@ -56,7 +66,7 @@ def cluster_similar_items(
         for members in sorted(groups.values(), key=lambda members: members[0])
     ]
     provenance = ClusteringProvenance(
-        clustered_at=datetime.now(timezone.utc).isoformat(),
+        clustered_at=now_iso(),
         threshold=threshold,
         n_relationships=len(relationships),
         n_clusters=len(clusters),

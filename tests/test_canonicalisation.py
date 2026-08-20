@@ -10,7 +10,7 @@ from pandora.canonicalisation.chain_ids import (
     _normalize_chain_ids,
 )
 from pandora.canonicalisation.entities import _normalize_entities
-from pandora.canonicalisation.ligands import _filter_ligands
+from pandora.canonicalisation.ligands import filter_ligands
 from pandora.canonicalisation.missing_data import (
     _handle_incomplete_chains,
     _handle_missing_atoms,
@@ -438,7 +438,7 @@ def test_merge_equivalent_entities_by_canonical_sequence():
 # ligands ---------------------------------------------------------------
 
 
-def test_filter_ligands_drops_waters_when_keep_waters_false():
+def testfilter_ligands_drops_waters_when_keep_waters_false():
     entities = [
         EntityRecord(id="1", type="polymer"),
         EntityRecord(id="2", type="water"),
@@ -461,7 +461,7 @@ def test_filter_ligands_drops_waters_when_keep_waters_false():
     rules = LigandRules(strategy="filter", keep_waters=False)
     diagnostics = DiagnosticBundle()
 
-    new_atoms, new_asyms = _filter_ligands(
+    new_atoms, new_asyms = filter_ligands(
         atoms, asym_units, entities, rules, diagnostics, "test"
     )
 
@@ -469,7 +469,7 @@ def test_filter_ligands_drops_waters_when_keep_waters_false():
     assert {a.id for a in new_asyms} == {"A"}
 
 
-def test_filter_ligands_annotate_only_removes_but_records_diagnostic():
+def testfilter_ligands_annotate_only_removes_but_records_diagnostic():
     entities = [
         EntityRecord(id="1", type="polymer"),
         EntityRecord(id="2", type="non-polymer", pdbx_description="ZINC ION"),
@@ -492,7 +492,7 @@ def test_filter_ligands_annotate_only_removes_but_records_diagnostic():
     rules = LigandRules(strategy="annotate_only")
     diagnostics = DiagnosticBundle()
 
-    new_atoms, new_asyms = _filter_ligands(
+    new_atoms, new_asyms = filter_ligands(
         atoms, asym_units, entities, rules, diagnostics, "test"
     )
 

@@ -1,6 +1,8 @@
 import shutil
 from pathlib import Path
 
+import pytest
+
 from pandora.annotations.entry import annotate_structure_counts
 from pandora.parsing import mmcif_to_structure
 from pandora.provenance import (
@@ -166,9 +168,5 @@ def test_reproduce_dataset_requires_ingestion_provenance(tmp_path):
         ],
     )
 
-    try:
+    with pytest.raises(ValueError):
         reproduce_dataset(manifest, tmp_path)
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("expected ValueError for missing ingestion")

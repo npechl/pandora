@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
+from pandora._util import now_iso
 from pandora.schemas.similarity import PartitionProvenance, SimilarityCluster
 
 _FRACTION_TOLERANCE = 0.001
@@ -58,7 +57,7 @@ def partition_dataset(
             splits["test"].extend(cluster.components[n_train + n_val :])
 
     provenance = PartitionProvenance(
-        partitioned_at=datetime.now(timezone.utc).isoformat(),
+        partitioned_at=now_iso(),
         pct_train=pct_train,
         pct_val=pct_val,
         pct_test=pct_test,

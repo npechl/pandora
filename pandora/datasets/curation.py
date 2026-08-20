@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-from pandora.canonicalisation.ligands import _filter_ligands
+from pandora._util import now_iso
+from pandora.canonicalisation import filter_ligands
 from pandora.datasets.records import extract_chain_records
 from pandora.schemas.canonicalisation import LigandRules
 from pandora.schemas.common import DiagnosticBundle
@@ -18,10 +17,6 @@ from pandora.schemas.dataset import (
 )
 from pandora.schemas.metadata import MetadataRecord
 from pandora.schemas.structure import Structure
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _check_quality(
@@ -50,10 +45,18 @@ def _check_quality(
         )
 
     method = quality.experimental_method if quality else None
-    if (
-        rules.include_experimental_methods
-        and method not in rules.include_experimental_methods
-    ) or (method is not None and method in rules.exclude_experimental_methods):
+    # Case/whitespace-insensitive: raw mmCIF tokens and policy values may
+    # differ in casing (e.g. "X-RAY DIFFRACTION" vs "x-ray diffraction").
+    normalized_method = method.strip().upper() if method else None
+    include_methods = {
+        m.strip().upper() for m in rules.include_experimental_methods
+    }
+    exclude_methods = {
+        m.strip().upper() for m in rules.exclude_experimental_methods
+    }
+    if (include_methods and normalized_method not in include_methods) or (
+        normalized_method in exclude_methods
+    ):
         return ExclusionRecord(
             entry_id=structure.entry_id,
             reason_code="METHOD_EXCLUDED",
@@ -118,7 +121,7 @@ def _apply_content_rules(
         keep_ions=rules.keep_ions,
         keep_nonpolymer_ligands=rules.keep_ligands,
     )
-    atoms, asym_units = _filter_ligands(
+    atoms, asym_units = filter_ligands(
         list(structure.atoms),
         list(structure.asym_units),
         structure.entities,
@@ -152,7 +155,7 @@ def deduplicate_structures(
         return (
             structures,
             [],
-            DeduplicationProvenance(deduplicated_at=_now_iso(), enabled=False),
+            DeduplicationProvenance(deduplicated_at=now_iso(), enabled=False),
         )
 
     seen: set[str] = set()
@@ -172,7 +175,7 @@ def deduplicate_structures(
         retained.append(structure)
 
     provenance = DeduplicationProvenance(
-        deduplicated_at=_now_iso(),
+        deduplicated_at=now_iso(),
         enabled=True,
         duplicates_found=len(removed),
     )
@@ -203,7 +206,7 @@ def curate_structure(
     """
 
     provenance = CurationProvenance(
-        curated_at=_now_iso(),
+        curated_at=now_iso(),
         policy_id=policy.policy_id,
         policy_name=policy.policy_name,
         policy_version=policy.policy_version,

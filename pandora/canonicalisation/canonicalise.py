@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
+from pandora._util import now_iso
 from pandora.schemas.structure import (
     AsymRecord,
     AssemblyRecord,
@@ -30,12 +29,8 @@ from pandora.canonicalisation.missing_data import (
     _handle_missing_residues,
     _handle_incomplete_chains,
 )
-from pandora.canonicalisation.ligands import _filter_ligands
+from pandora.canonicalisation.ligands import filter_ligands
 from pandora.canonicalisation.validation import _validate
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def canonicalise_structure(
@@ -151,7 +146,7 @@ def canonicalise_structure(
         transforms.append(f"entity:{er.strategy}")
 
     # filter_ligands ---------------------------------------
-    atoms, asym_units = _filter_ligands(
+    atoms, asym_units = filter_ligands(
         atoms, asym_units, entities, lr, diagnostics, structure.entry_id
     )
     if lr.strategy != "preserve":
@@ -183,7 +178,7 @@ def canonicalise_structure(
     )
 
     provenance = canonicalisationProvenance(
-        canonicalised_at=_now_iso(),
+        canonicalised_at=now_iso(),
         policy_id=policy.policy_id,
         policy_name=policy.policy_name,
         policy_version=policy.policy_version,
