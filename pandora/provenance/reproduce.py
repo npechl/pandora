@@ -10,7 +10,7 @@ from pandora.annotations.entry import (
 from pandora.annotations.pairwise import annotate_pairwise_sequence_identity
 from pandora.canonicalisation import canonicalise_structure
 from pandora.datasets.curation import curate_structure, deduplicate_structures
-from pandora.datasets.records import extract_chain_records
+from pandora.datasets.records import entry_sequences
 from pandora.export.mmcif import structure_to_mmcif
 from pandora.ingestion.cache import find_cached
 from pandora.ingestion.mmcif import fetch_mmcif
@@ -42,24 +42,6 @@ PAIRWISE_ANNOTATION_DISPATCH = {
 }
 
 
-def _entry_sequences(structures: dict[str, Structure]) -> dict[str, str]:
-    """One representative sequence per entry: its longest polymer chain.
-
-    `compute_sequence_similarity` also accepts per-chain `ChainRecord`s,
-    but that returns chain-keyed relationships (e.g. "1abc_A") which
-    would not match the entry-keyed `item_ids` clustering expects here.
-    """
-
-    sequences: dict[str, str] = {}
-    for entry_id, structure in structures.items():
-        chains = [c for c in extract_chain_records(structure) if c.sequence]
-        if chains:
-            sequences[entry_id] = max(
-                chains, key=lambda c: len(c.sequence)
-            ).sequence
-    return sequences
-
-
 def _reproduce_similarity(
     method_engine: str,
     method_parameters: dict,
@@ -68,7 +50,7 @@ def _reproduce_similarity(
 ) -> list[SimilarityRelationship]:
     if method_engine == "MMseqs2":
         return compute_sequence_similarity(
-            _entry_sequences(structures), **method_parameters
+            entry_sequences(structures), **method_parameters
         )
     if method_engine == "Foldseek":
         paths: dict[str, Path] = {}

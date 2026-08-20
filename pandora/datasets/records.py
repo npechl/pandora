@@ -53,6 +53,25 @@ def extract_chain_records(structure: Structure) -> list[ChainRecord]:
     return records
 
 
+def entry_sequences(structures: dict[str, Structure]) -> dict[str, str]:
+    """One representative sequence per entry: its longest polymer chain.
+
+    Chain-keyed sequence similarity (e.g. `compute_sequence_similarity` on
+    `ChainRecord`s) returns relationships keyed like "1abc_A", which won't
+    match entry-keyed item_ids (e.g. for clustering) — this picks one
+    sequence per entry instead.
+    """
+
+    sequences: dict[str, str] = {}
+    for entry_id, structure in structures.items():
+        chains = [c for c in extract_chain_records(structure) if c.sequence]
+        if chains:
+            sequences[entry_id] = max(
+                chains, key=lambda c: len(c.sequence)
+            ).sequence
+    return sequences
+
+
 def extract_residue_records(structure: Structure) -> list[ResidueRecord]:
     """Build one ResidueRecord per polymer residue in `structure`.
 

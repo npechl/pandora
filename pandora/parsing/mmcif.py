@@ -130,7 +130,7 @@ def mmcif_to_structure(
 
     try:
         st = gemmi.read_structure(path_to_mmcif, format=gemmi.CoorFormat.Mmcif)
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         diag.errors.append(
             Diagnostic(
                 code="PARSE_ERROR",
@@ -144,7 +144,7 @@ def mmcif_to_structure(
     try:
         doc = gemmi.cif.read(path_to_mmcif)
         block = doc.sole_block()
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
         diag.errors.append(
             Diagnostic(
                 code="CIF_PARSE_ERROR",
