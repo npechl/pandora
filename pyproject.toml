@@ -35,6 +35,7 @@ dev = [
 ]
 docs = [
     "mkdocstrings[python]>=0.25",
+    "erdantic>=1.0",
 ]
 full = [
     "pandora[ingestion,annotations,export,dev,docs]",
