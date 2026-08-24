@@ -10,7 +10,7 @@ This is primarily a Python project (with Markdown docs and YAML config). Follow 
 
 Pandora is a Python library that turns raw PDB/PDBe mmCIF files into typed, policy-driven, ML-ready protein structure datasets. Every stage is a plain function: pass a `Structure` (or typed record) in, get one out — nothing is hidden behind a framework object or global state.
 
-**Status:** ingestion, parsing, canonicalisation, metadata, annotations, export (`pandora/export/`), dataset curation (`pandora/datasets/curation.py`), and provenance (`pandora/provenance/`, including per-structure bundles, dataset manifests, and `reproduce_dataset()`) are implemented. The CLI (`pandora/cli/app.py`) is still a stub (`# TODO` / `raise NotImplementedError`) — part of the roadmap, not a bug.
+**Status:** ingestion, parsing, canonicalisation, metadata, annotations, export (`pandora/export/`), dataset curation (`pandora/datasets/curation.py`), provenance (`pandora/provenance/`, including per-structure bundles, dataset manifests, and `reproduce_dataset()`), and the CLI (`pandora/cli/app.py`, entry point `pandora`) are all implemented. The CLI wraps every stage as a subcommand (`fetch`, `canonicalise`, `curate`, `dedup`, `similarity`, `cluster`, `partition`, `annotate`, `manifest`, `reproduce`, `export`) — see `pandora/cli/README.md` for the directory/JSON I/O convention between stages. A handful of extension-point modules are still deliberate empty stubs (`# TODO` only, unreferenced by anything): `pandora/annotations/{base,plugins}.py`, `pandora/parsing/adapters.py`, `pandora/metadata/external.py`, plus `pandora/ingestion/pdb.py::fetch_pdb()` (superseded by `fetch_mmcif()`).
 
 ## Commands
 
@@ -60,7 +60,7 @@ Each stage is independently callable — `examples/overview.py` shows the intend
 
 `docs/policies.md` is the authoritative, implementation-accurate reference for every policy field — including explicit callouts for pieces accepted by the schema but not yet implemented (`missing_atoms.strategy: impute`, `assembly_rules.strategy: standardize_biological_assembly`, `validation_rules.strictness: permissive`). Check there before assuming a policy field does something.
 
-Known sharp edge: `_validate()` (`canonicalisation/validation.py`) computes a `"failed"/"warning"/"success"` status from `validation_rules`, but `canonicalise_structure` discards that return value — a policy with `fail_on_unresolved_issues=True` cannot currently signal failure to the caller. The collected `DiagnosticBundle` itself is also not part of the function's return tuple; only aggregate warning/error *counts* surface, and only when `provenance_rules.emit_canonicalisation_report=True` (default `False`).
+`_validate()` (`canonicalisation/validation.py`) computes a `"failed"/"warning"/"success"` status from `validation_rules`; `canonicalise_structure` raises `ValueError` when it comes back `"failed"`, so `fail_on_unresolved_issues=True` does signal failure to the caller. Remaining sharp edge: the collected `DiagnosticBundle` itself is still not part of the function's return tuple — only aggregate warning/error *counts* surface, and only when `provenance_rules.emit_canonicalisation_report=True` (default `False`).
 
 ### Raw category passthrough
 
