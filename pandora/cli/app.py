@@ -136,7 +136,7 @@ def _cmd_fetch(args: argparse.Namespace) -> None:
     provenance: dict[str, IngestionProvenance] = {}
     for entry_id in args.entry_ids:
         try:
-            provenance[entry_id] = fetch_mmcif(
+            provenance[entry_id.upper()] = fetch_mmcif(
                 entry_id, args.provider, None, output_dir, fetch_options
             )
         except (RuntimeError, ValueError) as exc:
@@ -254,7 +254,7 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
     relationships = _load_json_list(
         SimilarityRelationship, Path(args.relationships)
     )
-    item_ids = sorted(path.stem for path in input_dir.glob("*.cif"))
+    item_ids = sorted(path.stem.upper() for path in input_dir.glob("*.cif"))
 
     clusters, prov = cluster_similar_items(
         item_ids, relationships, args.threshold
