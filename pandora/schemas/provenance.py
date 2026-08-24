@@ -19,6 +19,21 @@ from pandora.schemas.similarity import ClusteringProvenance, PartitionProvenance
 
 
 class AnnotationProvenanceRecord(BaseModel):
+    """Record of one annotation layer's method and parameters, for
+    reproducing it later.
+
+    Attributes:
+        layer_name: The annotation layer's human-readable name.
+        layer_type: The annotation layer's machine-readable type
+            (e.g. "ligand_contacts").
+        method: The identifier of the method/algorithm used to
+            compute the layer.
+        target_ids: The entry id(s) the layer applies to.
+        parameters: The parameters the layer was computed with.
+        provenance: Additional provenance details about how the layer
+            was computed.
+    """
+
     layer_name: str
     layer_type: str
     method: str
@@ -28,6 +43,24 @@ class AnnotationProvenanceRecord(BaseModel):
 
 
 class ProvenanceBundle(BaseModel):
+    """Every provenance collected for one structure: ingestion,
+    canonicalisation, metadata sources, and annotations.
+
+    Attributes:
+        entry_id: The structure's entry id.
+        pandora_version: The Pandora version that produced this
+            bundle.
+        generated_at: When this bundle was assembled, as an ISO 8601
+            timestamp.
+        ingestion: How the structure's raw file was fetched, if known.
+        canonicalisation: How the structure was canonicalised, if
+            known.
+        metadata_sources: Which sources the structure's metadata came
+            from.
+        annotations: Every annotation layer computed for this
+            structure.
+    """
+
     entry_id: str
     pandora_version: str
     generated_at: str
@@ -38,6 +71,31 @@ class ProvenanceBundle(BaseModel):
 
 
 class DatasetManifest(BaseModel):
+    """A single-file report of how a dataset was built: policies,
+    exclusions, dedup/clustering/partition provenance, splits, and every
+    retained structure's `ProvenanceBundle`.
+
+    Attributes:
+        dataset_id: A unique identifier for the dataset.
+        dataset_name: A human-readable name for the dataset.
+        dataset_version: The dataset's version string.
+        pandora_version: The Pandora version that produced this
+            manifest.
+        generated_at: When this manifest was assembled, as an ISO
+            8601 timestamp.
+        curation_policy: The curation policy applied, if any.
+        canonicalisation_policy: The canonicalisation policy applied,
+            if any.
+        excluded: Every structure excluded during curation or
+            deduplication.
+        deduplication: How deduplication was applied, if any.
+        clustering: How similarity clustering was applied, if any.
+        partition: How the train/val/test split was computed, if any.
+        splits: The resulting split assignment, keyed by split name.
+        structures: The `ProvenanceBundle` for every retained
+            structure.
+    """
+
     dataset_id: str
     dataset_name: str
     dataset_version: str

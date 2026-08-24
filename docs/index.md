@@ -53,5 +53,6 @@ See [Installation](installation.md) for what each optional extra
   five-minute, fully offline walkthrough using the bundled sample data.
 - **Configuring canonicalisation?** [Policies](policies.md) covers
   every policy field.
-- **Looking for a specific function?** The [Reference](reference/reference.md)
-  is generated straight from the docstrings.
+- **Looking for a specific function?** The [Functions](reference/functions.md)
+  and [Schemas](reference/schemas.md) references are generated straight from
+  the docstrings.

@@ -14,6 +14,9 @@ def _normalize_residue_numbering(
     preserve_insertion_codes: bool,
     record: bool,
 ) -> tuple[list[AtomSiteRecord], ResidueNumberMapping]:
+    """Renumber residues (or fall back to auth numbering) per the
+    residue-numbering strategy."""
+
     mapping = ResidueNumberMapping()
 
     if strategy == "preserve":

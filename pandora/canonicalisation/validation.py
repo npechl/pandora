@@ -16,6 +16,9 @@ def _validate(
     diagnostics: DiagnosticBundle,
     entry_id: str,
 ) -> str:
+    """Check for chain-id/residue-number collisions and compute a
+    "failed"/"warning"/"success" status per validation_rules."""
+
     chain_ids = [a.id for a in asym_units]
     if len(chain_ids) != len(set(chain_ids)):
         diagnostics.errors.append(

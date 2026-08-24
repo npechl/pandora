@@ -18,6 +18,9 @@ def _handle_missing_atoms(
     diagnostics: DiagnosticBundle,
     entry_id: str,
 ) -> list[AtomSiteRecord]:
+    """Flag/drop polymer residues missing backbone atoms, per the
+    missing_atoms rules."""
+
     strategy = rules.strategy
     if strategy in ("preserve", "impute"):
         return atoms
@@ -84,6 +87,9 @@ def _handle_missing_residues(
     diagnostics: DiagnosticBundle,
     entry_id: str,
 ) -> list[AtomSiteRecord]:
+    """Flag/drop chain segments with sequence gaps, per the
+    missing_residues rules."""
+
     strategy = rules.strategy
     record = rules.record_gaps
 
@@ -134,6 +140,9 @@ def _handle_incomplete_chains(
     asym_units: list[AsymRecord],
     rules,
 ) -> tuple[list[AtomSiteRecord], list[AsymRecord]]:
+    """Exclude or truncate chains with non-contiguous residue numbering,
+    per the rules."""
+
     strategy = rules.strategy
     if strategy == "preserve":
         return atoms, asym_units

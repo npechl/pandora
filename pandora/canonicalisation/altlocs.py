@@ -12,6 +12,9 @@ def _resolve_altlocs(
     atoms: list[AtomSiteRecord],
     rules,
 ) -> tuple[list[AtomSiteRecord], AltlocSelectionMapping]:
+    """Resolve altloc-disordered atoms to a single conformer per residue,
+    per the altloc rules."""
+
     mapping = AltlocSelectionMapping()
     strategy = rules.strategy
 
@@ -52,6 +55,8 @@ def _resolve_altlocs(
         else:  # select_best_occupancy
 
             def _mean_occ(alt: str) -> float:
+                """Mean occupancy of alt's atoms."""
+
                 grp = alt_groups[alt]
                 return sum(a.occupancy for a in grp) / len(grp)
 
@@ -68,6 +73,8 @@ def _resolve_altlocs(
                 elif tb == "lowest_b_factor":
 
                     def _mean_b(alt: str) -> float:
+                        """Mean B-factor of alt's atoms."""
+
                         grp = alt_groups[alt]
                         return sum(a.B_iso_or_equiv for a in grp) / len(grp)
 
@@ -75,6 +82,8 @@ def _resolve_altlocs(
                 elif tb == "highest_b_factor":
 
                     def _mean_b(alt: str) -> float:
+                        """Mean B-factor of alt's atoms."""
+
                         grp = alt_groups[alt]
                         return sum(a.B_iso_or_equiv for a in grp) / len(grp)
 

@@ -48,6 +48,9 @@ def _reproduce_similarity(
     structures: dict[str, Structure],
     output_dir: Path,
 ) -> list[SimilarityRelationship]:
+    """Recompute the similarity network for structures using the
+    recorded engine/parameters."""
+
     if method_engine == "MMseqs2":
         return compute_sequence_similarity(
             entry_sequences(structures), **method_parameters
@@ -68,6 +71,9 @@ def _reproduce_similarity(
 def _reproduce_annotations(
     manifest: DatasetManifest, structures: dict[str, Structure]
 ) -> dict[str, list[AnnotationLayer]]:
+    """Recompute every entry-level and pairwise annotation layer
+    recorded in manifest, for structures."""
+
     layers_by_entry: dict[str, list[AnnotationLayer]] = {
         entry_id: [] for entry_id in structures
     }

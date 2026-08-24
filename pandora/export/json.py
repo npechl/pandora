@@ -11,6 +11,14 @@ def write_json(model: BaseModel, path: str | Path) -> Path:
     Covers every stage that returns a single model — canonicalisation
     provenance/mappings, MetadataRecord, AnnotationLayer,
     ProvenanceBundle, etc.
+
+    Args:
+        model: The pydantic model instance to write.
+        path: Destination file path; parent directories are created
+            if missing.
+
+    Returns:
+        The resolved `Path` the JSON was written to.
     """
 
     out_path = Path(path)

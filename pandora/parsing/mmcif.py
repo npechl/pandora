@@ -43,10 +43,14 @@ _MALFORMED_CIF_ERRORS = (
 
 
 def _cs(v: str) -> str | None:
+    """mmCIF string value, or None if it's a null token ("."/"?")."""
+
     return None if v in _NULL_CIF else v
 
 
 def _ci(v: str) -> int | None:
+    """mmCIF value as int, or None if null/not parseable."""
+
     if v in _NULL_CIF:
         return None
     try:
@@ -56,6 +60,8 @@ def _ci(v: str) -> int | None:
 
 
 def _cf(v: str) -> float | None:
+    """mmCIF value as float, or None if null/not parseable."""
+
     if v in _NULL_CIF:
         return None
     try:
@@ -65,6 +71,9 @@ def _cf(v: str) -> float | None:
 
 
 def _extract_raw(block: object) -> dict[str, list[dict[str, str | None]]]:
+    """Every mmCIF category in block, as raw rows, excluding the
+    categories in _SKIP_RAW."""
+
     raw: dict[str, list[dict[str, str | None]]] = {}
     for item in block:  # type: ignore[union-attr]
         loop = getattr(item, "loop", None)

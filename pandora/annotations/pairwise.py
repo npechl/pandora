@@ -59,6 +59,8 @@ def annotate_pairwise_sequence_identity(
 
 
 def _entity_sequences(structure: Structure) -> list[tuple[str, str]]:
+    """Cleaned, uppercased polymer sequence per entity in structure."""
+
     sequences: list[tuple[str, str]] = []
     for entity in structure.entities:
         if entity.poly is None:
@@ -73,6 +75,9 @@ def _entity_sequences(structure: Structure) -> list[tuple[str, str]]:
 
 
 def _clean_sequence(value: str | None) -> str | None:
+    """Normalize a sequence value: strip, treat mmCIF null tokens as
+    None, drop internal whitespace."""
+
     if value is None:
         return None
     stripped = value.strip()
@@ -82,6 +87,9 @@ def _clean_sequence(value: str | None) -> str | None:
 
 
 def _ungapped_identity(left: str, right: str) -> dict[str, float | int]:
+    """Position-wise (ungapped) identity/coverage stats between two
+    sequences."""
+
     if not left or not right:
         return {
             "identity": 0.0,

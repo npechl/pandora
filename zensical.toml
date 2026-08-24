@@ -329,6 +329,18 @@ toggle.icon = "lucide/moon"
 toggle.name = "Switch to light mode"
 
 # ----------------------------------------------------------------------------
+# The mkdocstrings plugin renders API reference pages (docs/reference/*.md)
+# straight from Python docstrings via `::: pandora.module` directives.
+# Mirrors the equivalent `plugins.mkdocstrings` block in mkdocs.yml.
+# ----------------------------------------------------------------------------
+[project.plugins.mkdocstrings.config.handlers.python]
+paths = ["."]
+options.docstring_style = "google"
+options.show_source = true
+options.show_root_heading = true
+options.merge_init_into_class = true
+
+# ----------------------------------------------------------------------------
 # The "extra" section contains miscellaneous settings.
 # ----------------------------------------------------------------------------
 #[[project.extra.social]]
