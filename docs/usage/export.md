@@ -17,8 +17,16 @@ encountered, and a status string.
 ```python
 from pandora.parsing import mmcif_to_structure
 
-structure, diagnostics, status = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
-print(status, len(structure.atoms), "atoms,", len(diagnostics.warnings), "warnings")
+structure, diagnostics, status = mmcif_to_structure(
+    "datasets/dev/mmcif/104m.cif"
+)
+print(
+    status,
+    len(structure.atoms),
+    "atoms,",
+    len(diagnostics.warnings),
+    "warnings",
+)
 # success 1450 atoms, 0 warnings
 ```
 
@@ -42,7 +50,9 @@ from pandora.canonicalisation import canonicalise_structure
 from pandora.export import structure_to_mmcif
 from pandora.schemas.canonicalisation import canonicalisationPolicy
 
-policy = canonicalisationPolicy(policy_id="p", policy_name="p", policy_version="1.0.0")
+policy = canonicalisationPolicy(
+    policy_id="p", policy_name="p", policy_version="1.0.0"
+)
 canonical, _, _ = canonicalise_structure(structure, policy)
 
 output_dir = Path("./datasets/output/export/")
@@ -79,9 +89,13 @@ from pandora.export import write_records
 
 chain_records = extract_chain_records(canonical)
 
-write_records(chain_records, output_dir / "chains.jsonl")  # one JSON object per line
-write_records(chain_records, output_dir / "chains.json")   # a JSON array
-write_records(chain_records, output_dir / "chains.parquet")  # columnar, needs the `export` extra
+write_records(
+    chain_records, output_dir / "chains.jsonl"
+)  # one JSON object per line
+write_records(chain_records, output_dir / "chains.json")  # a JSON array
+write_records(
+    chain_records, output_dir / "chains.parquet"
+)  # columnar, needs the `export` extra
 ```
 
 `.parquet` needs `pandas`/`pyarrow` (`uv sync --extra export`) and

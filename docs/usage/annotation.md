@@ -14,11 +14,16 @@ something to find.
 from pandora.parsing import mmcif_to_structure
 from pandora.canonicalisation import canonicalise_structure
 from pandora.schemas.canonicalisation import (
-    canonicalisationPolicy, AltlocRules, EntityRules, LigandRules,
+    canonicalisationPolicy,
+    AltlocRules,
+    EntityRules,
+    LigandRules,
 )
 
 policy = canonicalisationPolicy(
-    policy_id="p", policy_name="p", policy_version="1.0.0",
+    policy_id="p",
+    policy_name="p",
+    policy_version="1.0.0",
     altloc_rules=AltlocRules(strategy="select_best_occupancy"),
     entity_rules=EntityRules(strategy="merge_equivalent_entities"),
     ligand_rules=LigandRules(strategy="filter", keep_waters=False),
@@ -37,7 +42,12 @@ every structure in a batch.
 from pandora.annotations import annotate_structure_counts
 
 counts = annotate_structure_counts(canonical)
-print(counts.data["asym_unit_count"], "chains,", counts.data["residue_count"], "residues")
+print(
+    counts.data["asym_unit_count"],
+    "chains,",
+    counts.data["residue_count"],
+    "residues",
+)
 # 8 chains, 576 residues
 ```
 
@@ -53,7 +63,11 @@ interfaces = annotate_chain_interfaces(canonical, distance_cutoff=4.0)
 print(len(interfaces.data["interfaces"]), "interfaces")
 # 5 interfaces
 for interface in interfaces.data["interfaces"][:2]:
-    print(interface["chain_id_1"], interface["chain_id_2"], interface["contact_count"])
+    print(
+        interface["chain_id_1"],
+        interface["chain_id_2"],
+        interface["contact_count"],
+    )
 # A B 35
 # A C 6
 ```

@@ -15,7 +15,9 @@ from pandora.parsing import mmcif_to_structure
 from pandora.canonicalisation import canonicalise_structure
 from pandora.schemas.canonicalisation import canonicalisationPolicy
 
-policy = canonicalisationPolicy(policy_id="p", policy_name="p", policy_version="1.0.0")
+policy = canonicalisationPolicy(
+    policy_id="p", policy_name="p", policy_version="1.0.0"
+)
 entry_ids = ["104m", "112m", "118l", "138l", "1ayi"]
 structures = {}
 for entry_id in entry_ids:
@@ -101,7 +103,9 @@ edges become their own singleton cluster.
 ```python
 from pandora.similarity import cluster_similar_items
 
-clusters, provenance = cluster_similar_items(list(structures), relationships, threshold=0.9)
+clusters, provenance = cluster_similar_items(
+    list(structures), relationships, threshold=0.9
+)
 for cluster in clusters:
     print(cluster.components)
 # ['104M', '112M']
@@ -119,7 +123,9 @@ target share.
 ```python
 from pandora.similarity import partition_dataset
 
-splits, provenance = partition_dataset(clusters, pct_train=0.6, pct_val=0.2, pct_test=0.2)
+splits, provenance = partition_dataset(
+    clusters, pct_train=0.6, pct_val=0.2, pct_test=0.2
+)
 print(splits)
 # {'train': ['104M', '112M', '118L', '138L'], 'val': ['1AYI'], 'test': []}
 ```

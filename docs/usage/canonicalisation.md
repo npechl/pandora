@@ -60,7 +60,9 @@ policy = canonicalisationPolicy(
         strategy="select_best_occupancy", tie_breaker="lowest_b_factor"
     ),
     entity_rules=EntityRules(strategy="merge_equivalent_entities"),
-    ligand_rules=LigandRules(strategy="filter", keep_waters=False, keep_ions=False),
+    ligand_rules=LigandRules(
+        strategy="filter", keep_waters=False, keep_ions=False
+    ),
 )
 canonical, mappings, provenance = canonicalise_structure(structure, policy)
 

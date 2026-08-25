@@ -37,9 +37,7 @@ def main() -> None:
     erd.create(canonicalisationPolicy).draw(
         OUTPUT_DIR / "canonicalisation-policy.svg"
     )
-    erd.create(DatasetCurationPolicy).draw(
-        OUTPUT_DIR / "curation-policy.svg"
-    )
+    erd.create(DatasetCurationPolicy).draw(OUTPUT_DIR / "curation-policy.svg")
     erd.create(
         DatasetManifest,
         SimilarityRelationship,

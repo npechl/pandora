@@ -12,7 +12,9 @@ from pandora.canonicalisation import canonicalise_structure
 from pandora.metadata import collect_metadata
 from pandora.schemas.canonicalisation import canonicalisationPolicy
 
-policy = canonicalisationPolicy(policy_id="p", policy_name="p", policy_version="1.0.0")
+policy = canonicalisationPolicy(
+    policy_id="p", policy_name="p", policy_version="1.0.0"
+)
 structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
 canonical, _, _ = canonicalise_structure(structure, policy)
 metadata = collect_metadata(canonical)
@@ -32,7 +34,9 @@ from pandora.schemas.dataset import DatasetCurationPolicy, QualityRules
 curation_policy = DatasetCurationPolicy(
     policy_id="c1", policy_name="Default", policy_version="1.0.0"
 )
-curated, exclusion, provenance = curate_structure(canonical, metadata, curation_policy)
+curated, exclusion, provenance = curate_structure(
+    canonical, metadata, curation_policy
+)
 print(curated is not None, exclusion)
 # True None
 ```
@@ -42,7 +46,9 @@ reason:
 
 ```python
 strict_policy = DatasetCurationPolicy(
-    policy_id="c2", policy_name="Strict", policy_version="1.0.0",
+    policy_id="c2",
+    policy_name="Strict",
+    policy_version="1.0.0",
     quality_rules=QualityRules(max_resolution=1.0),
 )
 curated, exclusion, _ = curate_structure(canonical, metadata, strict_policy)
@@ -58,8 +64,12 @@ the retained structure's atoms in place, the same way
 from pandora.schemas.dataset import ContentRules
 
 content_policy = DatasetCurationPolicy(
-    policy_id="c3", policy_name="NoLigands", policy_version="1.0.0",
-    content_rules=ContentRules(keep_ligands=False, keep_waters=False, keep_ions=False),
+    policy_id="c3",
+    policy_name="NoLigands",
+    policy_version="1.0.0",
+    content_rules=ContentRules(
+        keep_ligands=False, keep_waters=False, keep_ions=False
+    ),
 )
 curated, _, _ = curate_structure(canonical, metadata, content_policy)
 print(len(canonical.atoms), "->", len(curated.atoms))
@@ -85,7 +95,13 @@ duplicate_canonical, _, _ = canonicalise_structure(duplicate, policy)
 retained, removed, provenance = deduplicate_structures(
     [canonical, duplicate_canonical], DeduplicationRules(enabled=True)
 )
-print(len(retained), "retained,", len(removed), "removed:", [r.reason_code for r in removed])
+print(
+    len(retained),
+    "retained,",
+    len(removed),
+    "removed:",
+    [r.reason_code for r in removed],
+)
 # 1 retained, 1 removed: ['DUPLICATE']
 ```
 
@@ -123,7 +139,12 @@ print(len(residues), residues[0].chain_id, residues[0].comp_id)
 structure2, _, _ = mmcif_to_structure("datasets/dev/mmcif/1a3n.cif")
 canonical2, _, _ = canonicalise_structure(structure2, policy)
 interfaces = extract_interface_records(canonical2, distance_cutoff=4.0)
-print(len(interfaces), interfaces[0].chain_id_1, interfaces[0].chain_id_2, interfaces[0].contact_count)
+print(
+    len(interfaces),
+    interfaces[0].chain_id_1,
+    interfaces[0].chain_id_2,
+    interfaces[0].contact_count,
+)
 # 5 A B 35
 ```
 
