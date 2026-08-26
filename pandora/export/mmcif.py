@@ -83,6 +83,9 @@ def _unwrap(value):
 def _set_category(
     block: gemmi.cif.Block, name: str, columns: dict[str, list]
 ) -> None:
+    """Write columns as one mmCIF category on block, unwrapping any
+    embedded CIF quoting first."""
+
     cleaned = {
         col: [_unwrap(v) for v in values] for col, values in columns.items()
     }
@@ -100,6 +103,14 @@ def structure_to_mmcif(structure: Structure, path: str | Path) -> Path:
     This is a lossy round-trip: loop ordering, comments, and any field
     mmCIF supports but Pandora's schema doesn't carry (e.g. anisotropic
     B-factors) won't survive.
+
+    Args:
+        structure: The structure to write out.
+        path: Destination file path; parent directories are created
+            if missing.
+
+    Returns:
+        The resolved `Path` the mmCIF file was written to.
     """
 
     doc = gemmi.cif.Document()
@@ -125,16 +136,25 @@ def structure_to_mmcif(structure: Structure, path: str | Path) -> Path:
 
 
 def _columns_from_fields(records: list, fields: list[str]) -> dict[str, list]:
+    """Column-oriented {field: [values]} built by reading field off
+    each record."""
+
     return {field: [getattr(r, field) for r in records] for field in fields}
 
 
 def _columns(rows: list[dict]) -> dict[str, list]:
+    """Column-oriented {key: [values]} built from a list of row dicts,
+    keyed by the first row's columns."""
+
     if not rows:
         return {}
     return {key: [row.get(key) for row in rows] for key in rows[0]}
 
 
 def _write_entities(block: gemmi.cif.Block, structure: Structure) -> None:
+    """Write the `_entity` and `_entity_poly` categories from
+    structure.entities."""
+
     if structure.entities:
         _set_category(
             block,
@@ -169,6 +189,8 @@ def _write_entities(block: gemmi.cif.Block, structure: Structure) -> None:
 
 
 def _write_struct_asym(block: gemmi.cif.Block, structure: Structure) -> None:
+    """Write the `_struct_asym` category from structure.asym_units."""
+
     if structure.asym_units:
         _set_category(
             block,
@@ -178,6 +200,8 @@ def _write_struct_asym(block: gemmi.cif.Block, structure: Structure) -> None:
 
 
 def _write_atom_site(block: gemmi.cif.Block, structure: Structure) -> None:
+    """Write the `_atom_site` category from structure.atoms."""
+
     if structure.atoms:
         _set_category(
             block,
@@ -187,6 +211,8 @@ def _write_atom_site(block: gemmi.cif.Block, structure: Structure) -> None:
 
 
 def _write_struct_conn(block: gemmi.cif.Block, structure: Structure) -> None:
+    """Write the `_struct_conn` category from structure.connections."""
+
     if not structure.connections:
         return
     rows = [
@@ -218,6 +244,9 @@ def _write_struct_conn(block: gemmi.cif.Block, structure: Structure) -> None:
 
 
 def _write_assemblies(block: gemmi.cif.Block, structure: Structure) -> None:
+    """Write the `_pdbx_struct_assembly*` categories from
+    structure.assemblies."""
+
     if not structure.assemblies:
         return
 
@@ -270,6 +299,9 @@ def _write_assemblies(block: gemmi.cif.Block, structure: Structure) -> None:
 def _write_secondary_structure(
     block: gemmi.cif.Block, structure: Structure
 ) -> None:
+    """Write the `_struct_conf`/`_struct_sheet_range` categories from
+    structure.secondary_structure."""
+
     ss = structure.secondary_structure
     if ss.conf_records:
         _set_category(
@@ -290,6 +322,9 @@ def _write_secondary_structure(
 
 
 def _write_raw(block: gemmi.cif.Block, structure: Structure) -> None:
+    """Re-emit every category in structure.raw not already covered by
+    a typed category."""
+
     for category, rows in structure.raw.items():
         if category in _TYPED_CATEGORIES:
             continue

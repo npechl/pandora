@@ -58,6 +58,7 @@ use_directory_urls = true
 # Read more: https://zensical.org/docs/setup/navigation/
 nav = [
   { "Overview" = "index.md" },
+  { "Architecture" = "architecture.md" },
   { "Getting Started" = "getting-started.md" },
   { "Installation" = "installation.md" },
   { "Usage" = [
@@ -65,7 +66,10 @@ nav = [
     "usage/canonicalisation.md",
     "usage/metadata.md",
     "usage/annotation.md",
+    "usage/datasets.md",
     "usage/similarity.md",
+    "usage/export.md",
+    "usage/provenance.md",
     "usage/cli.md"
   ]},
   { "Examples" = "examples.md" },
@@ -327,6 +331,18 @@ toggle.name = "Switch to dark mode"
 scheme = "slate"
 toggle.icon = "lucide/moon"
 toggle.name = "Switch to light mode"
+
+# ----------------------------------------------------------------------------
+# The mkdocstrings plugin renders API reference pages (docs/reference/*.md)
+# straight from Python docstrings via `::: pandora.module` directives.
+# Mirrors the equivalent `plugins.mkdocstrings` block in mkdocs.yml.
+# ----------------------------------------------------------------------------
+[project.plugins.mkdocstrings.config.handlers.python]
+paths = ["."]
+options.docstring_style = "google"
+options.show_source = true
+options.show_root_heading = true
+options.merge_init_into_class = true
 
 # ----------------------------------------------------------------------------
 # The "extra" section contains miscellaneous settings.

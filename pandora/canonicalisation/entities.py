@@ -22,6 +22,9 @@ def _normalize_entities(
 ) -> tuple[
     list[EntityRecord], list[AsymRecord], list[AtomSiteRecord], EntityMapping
 ]:
+    """Apply the entity id/merge strategy to entities, propagating ids to
+    asym_units/atoms, per rules."""
+
     mapping = EntityMapping()
 
     if rules.strategy == "preserve":

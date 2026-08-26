@@ -14,6 +14,15 @@ def write_records(records: Sequence[BaseModel], path: str | Path) -> Path:
         .json    — a JSON array of the records
         .jsonl   — one JSON object per line
 
+    Args:
+        records: The record models to write; must be non-empty.
+        path: Destination file path; its suffix (`.json`/`.jsonl`/
+            `.parquet`) selects the output format. Parent directories
+            are created if missing.
+
+    Returns:
+        The resolved `Path` the records were written to.
+
     Raises:
         ValueError: `records` is empty, or the suffix is unsupported.
         RuntimeError: `.parquet` requested without pandas/pyarrow installed.

@@ -17,6 +17,8 @@ from pandora.schemas.canonicalisation import (
 
 # dump function for remap
 def _sequential_chain_ids() -> Iterator[str]:
+    """Infinite generator of sequential chain ids: A, B, ..., Z, AA, AB, ..."""
+
     letters = string.ascii_uppercase
     for c in letters:
         yield c
@@ -30,6 +32,9 @@ def _normalize_chain_ids(
     strategy: str,
     record: bool,
 ) -> tuple[dict[str, str], ChainIdMapping]:
+    """Compute the original-to-canonical chain id mapping for the given
+    strategy."""
+
     chain_map: dict[str, str] = {}
     mapping = ChainIdMapping()
     id_gen = _sequential_chain_ids()
@@ -61,6 +66,8 @@ def _apply_chain_map(
     structure: Structure,
     chain_map: dict[str, str],
 ) -> tuple[list[AtomSiteRecord], list[AsymRecord], Structure]:
+    """Rewrite every chain id reference in atoms/asym_units/structure
+    through chain_map."""
 
     new_atoms = [
         (

@@ -22,6 +22,9 @@ from pandora.schemas.structure import Structure
 def _check_quality(
     structure: Structure, metadata: MetadataRecord | None, rules: QualityRules
 ) -> ExclusionRecord | None:
+    """ExclusionRecord if structure fails the resolution/method/chain-length
+    quality rules, else None."""
+
     quality = metadata.quality if metadata else None
     resolution = quality.resolution if quality else None
 
@@ -81,6 +84,9 @@ def _check_quality(
 def _check_organism(
     structure: Structure, metadata: MetadataRecord | None, rules: OrganismRules
 ) -> ExclusionRecord | None:
+    """ExclusionRecord if structure's taxonomy is excluded by the organism
+    rules, else None."""
+
     if not rules.include_taxa and not rules.exclude_taxa:
         return None
 
@@ -112,6 +118,8 @@ def _check_organism(
 def _apply_content_rules(
     structure: Structure, rules: ContentRules
 ) -> Structure:
+    """Filter ligands/waters/ions out of structure per the content rules."""
+
     if rules.keep_ligands and rules.keep_waters and rules.keep_ions:
         return structure
 

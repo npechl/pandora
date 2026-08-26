@@ -20,10 +20,24 @@ def partition_dataset(
     keep_similar_items=False: each cluster's members are divided
     proportionally across all three splits.
 
+    Args:
+        clusters: The similarity clusters to assign, as returned by
+            `cluster_similar_items`.
+        pct_train: Target fraction of items assigned to the train split.
+        pct_val: Target fraction of items assigned to the val split.
+        pct_test: Target fraction of items assigned to the test split.
+            `pct_train + pct_val + pct_test` must equal 1.0.
+        keep_similar_items: If True (default), each cluster is assigned
+            whole to a single split (leakage-safe). If False, each
+            cluster's members are divided proportionally across splits.
+
     Returns:
         `(splits, provenance)` — the split assignment, and a record of
         the fractions/mode applied and the resulting split sizes (for
         reporting how a dataset's split was built).
+
+    Raises:
+        ValueError: `pct_train + pct_val + pct_test` does not equal 1.0.
     """
 
     if abs(pct_train + pct_val + pct_test - 1.0) > _FRACTION_TOLERANCE:

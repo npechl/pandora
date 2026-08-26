@@ -20,6 +20,15 @@ def cluster_similar_items(
     (isolates) form their own singleton cluster, so every id in
     `item_ids` ends up in exactly one cluster.
 
+    Args:
+        item_ids: Every item id to place into a cluster.
+        relationships: Pairwise similarity relationships between items,
+            as returned by `compute_sequence_similarity`/
+            `compute_structure_similarity`. Must all share the same
+            `.method.engine`.
+        threshold: Minimum `SimilarityRelationship.score` for an edge
+            to count as a connection between two items.
+
     Returns:
         `(clusters, provenance)` — the clusters, and a record of the
         threshold applied, how many relationships/clusters resulted, and
@@ -42,6 +51,8 @@ def cluster_similar_items(
     parent = {item_id: item_id for item_id in item_ids}
 
     def find(item_id: str) -> str:
+        """Union-find: root id of item_id's cluster, with path compression."""
+
         while parent[item_id] != item_id:
             parent[item_id] = parent[parent[item_id]]
             item_id = parent[item_id]

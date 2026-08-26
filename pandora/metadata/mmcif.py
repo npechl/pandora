@@ -375,6 +375,8 @@ def extract_uniprot_mappings(
 
 
 def _taxonomy_from_generated_source(row: RawRow) -> TaxonomyRecord:
+    """Build a TaxonomyRecord from one `_entity_src_gen` row."""
+
     return TaxonomyRecord(
         entity_id=clean(row.get("entity_id")),
         ncbi_taxon_id=as_int(row.get("pdbx_gene_src_ncbi_taxonomy_id")),
@@ -395,6 +397,8 @@ def _taxonomy_from_generated_source(row: RawRow) -> TaxonomyRecord:
 
 
 def _taxonomy_from_natural_source(row: RawRow) -> TaxonomyRecord:
+    """Build a TaxonomyRecord from one `_entity_src_nat` row."""
+
     return TaxonomyRecord(
         entity_id=clean(row.get("entity_id")),
         ncbi_taxon_id=as_int(
@@ -416,6 +420,8 @@ def _taxonomy_from_natural_source(row: RawRow) -> TaxonomyRecord:
 
 
 def _taxonomy_from_synthetic_source(row: RawRow) -> TaxonomyRecord:
+    """Build a TaxonomyRecord from one `_pdbx_entity_src_syn` row."""
+
     return TaxonomyRecord(
         entity_id=clean(row.get("entity_id")),
         ncbi_taxon_id=as_int(row.get("ncbi_taxonomy_id")),
@@ -429,6 +435,9 @@ def _ligands_from_atoms(
     structure: Structure,
     include_waters: bool,
 ) -> list[LigandMetadataRecord]:
+    """Derive ligand records from HETATM atoms when no
+    `_pdbx_entity_nonpoly` category is present."""
+
     by_comp: dict[tuple[str | None, str], set[str]] = defaultdict(set)
     for atom in structure.atoms:
         if atom.group_PDB != "HETATM":
@@ -454,6 +463,8 @@ def _append_mapping(
     seen: set[tuple[Any, ...]],
     record: UniProtMappingRecord,
 ) -> None:
+    """Append record to records if its dedup key isn't already in seen."""
+
     key = (
         record.entity_id,
         record.asym_id,

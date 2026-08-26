@@ -11,6 +11,8 @@ def _normalize_assemblies(
     id_strategy: str,
     record: bool,
 ) -> tuple[list[AssemblyRecord], AssemblyMapping]:
+    """Apply the assembly selection/id strategy to assemblies, per assembly_rules."""
+
     mapping = AssemblyMapping()
     result = list(assemblies)
 

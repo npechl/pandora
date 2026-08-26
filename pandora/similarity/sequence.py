@@ -16,6 +16,8 @@ _FASTA_GLOBS = ("*.fasta", "*.fa", "*.fna", "*.faa")
 
 
 def _mmseqs_version(mmseqs_bin: str) -> str | None:
+    """Installed MMseqs2 version string, or None if it can't be determined."""
+
     result = subprocess.run(
         [mmseqs_bin, "version"], capture_output=True, text=True, check=False
     )
@@ -23,12 +25,16 @@ def _mmseqs_version(mmseqs_bin: str) -> str | None:
 
 
 def _write_fasta(sequences: dict[str, str], path: Path) -> None:
+    """Write sequences as a FASTA file at path."""
+
     with path.open("w") as handle:
         for seq_id, sequence in sequences.items():
             handle.write(f">{seq_id}\n{sequence}\n")
 
 
 def _concat_fasta_dir(directory: Path, path: Path) -> None:
+    """Concatenate every FASTA file in directory into a single file at path."""
+
     fasta_files = sorted(
         f for pattern in _FASTA_GLOBS for f in directory.glob(pattern)
     )

@@ -39,6 +39,8 @@ def is_stale(path: Path, max_age_seconds: int | None) -> bool:
 
 
 def mtime_iso(path: Path) -> str:
+    """path's mtime as an ISO 8601 UTC timestamp."""
+
     return datetime.fromtimestamp(
         path.stat().st_mtime, tz=timezone.utc
     ).isoformat()

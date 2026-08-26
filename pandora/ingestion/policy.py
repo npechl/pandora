@@ -6,6 +6,15 @@ from pandora.schemas.canonicalisation import canonicalisationPolicy
 
 
 def load_policy(path: str) -> canonicalisationPolicy:
+    """Load a `canonicalisationPolicy` from a YAML file.
+
+    Args:
+        path: Path to the policy YAML file.
+
+    Returns:
+        The parsed, validated `canonicalisationPolicy`.
+    """
+
     with open(path) as stream:
         data = yaml.safe_load(stream)
 

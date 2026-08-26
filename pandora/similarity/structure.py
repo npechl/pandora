@@ -11,6 +11,8 @@ _OUTPUT_COLUMNS = "query,target,fident,alnlen,qcov,tcov,alntmscore"
 
 
 def _foldseek_version(foldseek_bin: str) -> str | None:
+    """Installed Foldseek version string, or None if it can't be determined."""
+
     result = subprocess.run(
         [foldseek_bin, "version"], capture_output=True, text=True, check=False
     )
@@ -18,6 +20,9 @@ def _foldseek_version(foldseek_bin: str) -> str | None:
 
 
 def _structure_suffix(path: Path) -> str:
+    """path's file suffix, treating a trailing .gz as part of it
+    (e.g. ".cif.gz")."""
+
     suffixes = path.suffixes
     if len(suffixes) > 1 and suffixes[-1] == ".gz":
         return "".join(suffixes[-2:])
@@ -27,6 +32,9 @@ def _structure_suffix(path: Path) -> str:
 def _link_structures(
     structures: dict[str, str | Path], directory: Path
 ) -> None:
+    """Symlink (or copy, if symlinking fails) each structure file into
+    directory, named by its item id."""
+
     for item_id, path in structures.items():
         src = Path(path)
         dest = directory / f"{item_id}{_structure_suffix(src)}"

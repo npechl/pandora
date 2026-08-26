@@ -220,6 +220,9 @@ def _chain_pair_contacts(
     cutoff: float,
     cutoff_sq: float,
 ) -> tuple[set[str], set[str]]:
+    """Residue ids on each side of atoms_a/atoms_b with atoms within
+    cutoff of each other."""
+
     grid_b = _spatial_grid(atoms_b, cutoff)
     cell_size = _cell_size(cutoff)
     residues_a: set[str] = set()
@@ -234,6 +237,8 @@ def _chain_pair_contacts(
 
 
 def _is_ligand_atom(atom: AtomSiteRecord, include_waters: bool) -> bool:
+    """Whether atom is a HETATM ligand atom (optionally including waters)."""
+
     if atom.group_PDB != "HETATM":
         return False
     if include_waters:
@@ -247,6 +252,9 @@ def _residues_within_cutoff(
     cutoff: float,
     cutoff_sq: float,
 ) -> list[dict[str, Any]]:
+    """Polymer residues in polymer_grid within cutoff of any ligand_atoms
+    atom, with nearest distance."""
+
     contacts: dict[tuple[str, int | None, str], float] = {}
     cell_size = _cell_size(cutoff)
     for ligand_atom in ligand_atoms:
@@ -284,10 +292,15 @@ def _residues_within_cutoff(
 
 
 def _cell_size(cutoff: float) -> float:
+    """Grid cell edge length for a distance cutoff (guards against a
+    zero/negative cutoff)."""
+
     return cutoff if cutoff > 0 else 1e-6
 
 
 def _cell_key(atom: AtomSiteRecord, cell_size: float) -> tuple[int, int, int]:
+    """Grid cell coordinates containing atom, for a given cell_size."""
+
     return (
         int(atom.Cartn_x // cell_size),
         int(atom.Cartn_y // cell_size),
@@ -298,6 +311,8 @@ def _cell_key(atom: AtomSiteRecord, cell_size: float) -> tuple[int, int, int]:
 def _spatial_grid(
     atoms: list[AtomSiteRecord], cutoff: float
 ) -> dict[tuple[int, int, int], list[AtomSiteRecord]]:
+    """Bucket atoms into cutoff-sized grid cells for neighbor queries."""
+
     cell_size = _cell_size(cutoff)
     grid: dict[tuple[int, int, int], list[AtomSiteRecord]] = defaultdict(list)
     for atom in atoms:
@@ -309,6 +324,9 @@ def _neighbor_atoms(
     grid: dict[tuple[int, int, int], list[AtomSiteRecord]],
     key: tuple[int, int, int],
 ):
+    """Atoms in the 27 grid cells around key (the cell plus its
+    immediate neighbors)."""
+
     x, y, z = key
     for dx in (-1, 0, 1):
         for dy in (-1, 0, 1):
@@ -317,6 +335,8 @@ def _neighbor_atoms(
 
 
 def _squared_distance(left: AtomSiteRecord, right: AtomSiteRecord) -> float:
+    """Squared Euclidean distance between two atoms' Cartesian coordinates."""
+
     return (
         (left.Cartn_x - right.Cartn_x) ** 2
         + (left.Cartn_y - right.Cartn_y) ** 2

@@ -83,12 +83,17 @@ def _read_structures_dir(input_dir: Path) -> dict[str, Structure]:
 def _write_structures_dir(
     structures: dict[str, Structure], output_dir: Path
 ) -> None:
+    """Write each structure to `<entry_id>.cif` (lowercase) in output_dir."""
+
     output_dir.mkdir(parents=True, exist_ok=True)
     for entry_id, structure in structures.items():
         structure_to_mmcif(structure, output_dir / f"{entry_id.lower()}.cif")
 
 
 def _write_json_dict(data: dict[str, BaseModel], path: Path) -> None:
+    """Write a dict of pydantic models as one pretty-printed JSON object,
+    keyed by dict key."""
+
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps({k: v.model_dump() for k, v in data.items()}, indent=2),
@@ -97,20 +102,28 @@ def _write_json_dict(data: dict[str, BaseModel], path: Path) -> None:
 
 
 def _load_json_model(model_cls: type[BaseModel], path: Path) -> BaseModel:
+    """Load and validate a single model instance from a JSON file."""
+
     return model_cls.model_validate(json.loads(path.read_text()))
 
 
 def _load_json_list(model_cls: type[BaseModel], path: Path) -> list:
+    """Load and validate a JSON array as a list of model instances."""
+
     data = json.loads(path.read_text())
     return [model_cls.model_validate(item) for item in data]
 
 
 def _load_json_dict(model_cls: type[BaseModel], path: Path) -> dict:
+    """Load and validate a JSON object as a dict of model instances."""
+
     data = json.loads(path.read_text())
     return {k: model_cls.model_validate(v) for k, v in data.items()}
 
 
 def _load_annotations(path: Path) -> dict[str, list[AnnotationLayer]]:
+    """Load a JSON object of entry_id -> list of AnnotationLayer."""
+
     data = json.loads(path.read_text())
     return {
         entry_id: [AnnotationLayer.model_validate(item) for item in layers]
@@ -119,6 +132,8 @@ def _load_annotations(path: Path) -> dict[str, list[AnnotationLayer]]:
 
 
 def _load_yaml_model(model_cls: type[BaseModel], path: Path) -> BaseModel:
+    """Load and validate a single model instance from a YAML file."""
+
     with path.open() as stream:
         data = yaml.safe_load(stream)
     return model_cls.model_validate(data)
@@ -128,6 +143,9 @@ def _load_yaml_model(model_cls: type[BaseModel], path: Path) -> BaseModel:
 
 
 def _cmd_fetch(args: argparse.Namespace) -> None:
+    """Handle the `fetch` subcommand: download raw mmCIF files and write
+    ingestion provenance."""
+
     from pandora.ingestion.mmcif import fetch_mmcif
 
     output_dir = Path(args.output_dir)
@@ -153,6 +171,9 @@ def _cmd_fetch(args: argparse.Namespace) -> None:
 
 
 def _cmd_canonicalise(args: argparse.Namespace) -> None:
+    """Handle the `canonicalise` subcommand: parse and canonicalise a
+    directory of mmCIF files."""
+
     output_dir = Path(args.output_dir)
     policy = load_policy(args.policy)
     structures = _read_structures_dir(Path(args.input_dir))
@@ -172,6 +193,9 @@ def _cmd_canonicalise(args: argparse.Namespace) -> None:
 
 
 def _cmd_curate(args: argparse.Namespace) -> None:
+    """Handle the `curate` subcommand: apply quality/organism/content
+    rules to a directory of structures."""
+
     output_dir = Path(args.output_dir)
     policy = _load_yaml_model(DatasetCurationPolicy, Path(args.policy))
     structures = _read_structures_dir(Path(args.input_dir))
@@ -199,6 +223,9 @@ def _cmd_curate(args: argparse.Namespace) -> None:
 
 
 def _cmd_dedup(args: argparse.Namespace) -> None:
+    """Handle the `dedup` subcommand: remove structures sharing the same
+    entry_id."""
+
     output_dir = Path(args.output_dir)
     structures = _read_structures_dir(Path(args.input_dir))
     rules = DeduplicationRules(enabled=not args.disable)
@@ -218,6 +245,9 @@ def _cmd_dedup(args: argparse.Namespace) -> None:
 
 
 def _cmd_similarity(args: argparse.Namespace) -> None:
+    """Handle the `similarity` subcommand: run all-vs-all sequence or
+    structure similarity."""
+
     output = Path(args.output)
 
     if args.engine == "mmseqs2":
@@ -250,6 +280,9 @@ def _cmd_similarity(args: argparse.Namespace) -> None:
 
 
 def _cmd_cluster(args: argparse.Namespace) -> None:
+    """Handle the `cluster` subcommand: connected-component clustering
+    of a relationship network."""
+
     input_dir = Path(args.input_dir)
     relationships = _load_json_list(
         SimilarityRelationship, Path(args.relationships)
@@ -267,6 +300,9 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
 
 
 def _cmd_partition(args: argparse.Namespace) -> None:
+    """Handle the `partition` subcommand: leakage-safe train/val/test
+    split of clusters."""
+
     clusters = _load_json_list(SimilarityCluster, Path(args.clusters))
     splits, prov = partition_dataset(
         clusters,
@@ -284,6 +320,9 @@ def _cmd_partition(args: argparse.Namespace) -> None:
 
 
 def _cmd_annotate(args: argparse.Namespace) -> None:
+    """Handle the `annotate` subcommand: compute entry-level and/or
+    pairwise annotation layers."""
+
     output_dir = Path(args.output_dir)
     structures = _read_structures_dir(Path(args.input_dir))
 
@@ -318,6 +357,9 @@ def _cmd_annotate(args: argparse.Namespace) -> None:
 
 
 def _cmd_manifest(args: argparse.Namespace) -> None:
+    """Handle the `manifest` subcommand: assemble a DatasetManifest from
+    prior-stage outputs."""
+
     structures = _read_structures_dir(Path(args.structures_dir))
 
     canonicalisation_policy = (
@@ -394,6 +436,9 @@ def _cmd_manifest(args: argparse.Namespace) -> None:
 
 
 def _cmd_reproduce(args: argparse.Namespace) -> None:
+    """Handle the `reproduce` subcommand: replay a DatasetManifest from
+    scratch."""
+
     from pandora.provenance.reproduce import reproduce_dataset
 
     manifest = DatasetManifest.model_validate_json(
@@ -412,6 +457,9 @@ def _cmd_reproduce(args: argparse.Namespace) -> None:
 
 
 def _cmd_export(args: argparse.Namespace) -> None:
+    """Handle the `export` subcommand: convert one mmCIF file to mmCIF
+    or JSON."""
+
     structure, _, status = mmcif_to_structure(args.input)
     if structure is None:
         raise SystemExit(f"failed to parse {args.input}: {status}")
@@ -428,6 +476,9 @@ def _cmd_export(args: argparse.Namespace) -> None:
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    """Build the `pandora` CLI's argparse parser with all subcommands
+    registered."""
+
     parser = argparse.ArgumentParser(
         prog="pandora", description="Pandora dataset-curation pipeline CLI."
     )
@@ -557,12 +608,24 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Parse CLI arguments and dispatch to the selected subcommand's
+    handler."""
+
     parser = _build_parser()
     args = parser.parse_args(argv)
     args.func(args)
 
 
 def app() -> None:
-    """Pandora CLI entry point."""
+    """Pandora CLI entry point (the `pandora` console script).
+
+    Parses arguments from `sys.argv` and dispatches to the selected
+    subcommand's handler (`fetch`, `canonicalise`, `curate`, `dedup`,
+    `similarity`, `cluster`, `partition`, `annotate`, `manifest`,
+    `reproduce`, or `export`); see `pandora/cli/README.md` for the
+    I/O convention between subcommands. Takes no arguments and returns
+    nothing — each subcommand handler writes its output to disk and
+    prints a summary.
+    """
 
     main()

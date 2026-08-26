@@ -14,7 +14,17 @@ DEFAULT_INTERFACE_CUTOFF = 4.0
 
 
 def extract_chain_records(structure: Structure) -> list[ChainRecord]:
-    """Build one ChainRecord per polymer chain (asym unit) in `structure`."""
+    """Build one ChainRecord per polymer chain (asym unit) in `structure`.
+
+    Args:
+        structure: The canonical structure to extract chain records
+            from. Non-polymer asym units, and polymer asym units with
+            no atoms, are skipped.
+
+    Returns:
+        A `ChainRecord` per polymer chain, with its sequence (from the
+        entity's polymer record, if any), residue count, and atom count.
+    """
 
     entities_by_id = {entity.id: entity for entity in structure.entities}
     atoms_by_chain = atoms_by_asym_id(structure)
@@ -60,6 +70,14 @@ def entry_sequences(structures: dict[str, Structure]) -> dict[str, str]:
     `ChainRecord`s) returns relationships keyed like "1abc_A", which won't
     match entry-keyed item_ids (e.g. for clustering) — this picks one
     sequence per entry instead.
+
+    Args:
+        structures: Structures keyed by entry_id.
+
+    Returns:
+        A mapping of entry_id -> sequence, one entry per structure that
+        has at least one polymer chain with a sequence; entries with
+        none are omitted.
     """
 
     sequences: dict[str, str] = {}
@@ -78,6 +96,15 @@ def extract_residue_records(structure: Structure) -> list[ResidueRecord]:
     Each record carries its full atom list (coordinates, B-factor, etc.)
     rather than a bare count, so residue-level ML use cases (contact
     maps, solvent exposure) don't need to go back to the structure.
+
+    Args:
+        structure: The canonical structure to extract residue records
+            from. Only atoms belonging to polymer asym units are
+            considered.
+
+    Returns:
+        A `ResidueRecord` per distinct polymer residue, sorted by chain
+        then sequence id, each carrying every atom belonging to it.
     """
 
     polymer_ids = polymer_asym_ids(structure)
@@ -120,6 +147,15 @@ def extract_interface_records(
     Contact detection itself lives in
     `annotations.entry.annotate_chain_interfaces` — this function only
     reshapes that annotation layer's output into records.
+
+    Args:
+        structure: The canonical structure to extract interface
+            records from.
+        distance_cutoff: Contact distance in angstroms.
+
+    Returns:
+        An `InterfaceRecord` per polymer chain pair with at least one
+        contact within `distance_cutoff`.
     """
 
     layer = annotate_chain_interfaces(structure, distance_cutoff)
