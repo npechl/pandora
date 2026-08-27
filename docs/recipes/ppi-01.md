@@ -82,9 +82,7 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
     )
     exclusions.extend(removed)
     structures = {s.entry_id: s for s in retained}
-    print(
-        f"curation+dedup: {len(structures)} retained, {len(exclusions)} excluded"
-    )
+    print(f"curation+dedup: {len(structures)} retained, {len(exclusions)} excluded")
 
     # 2. Keep only structures with >=1 chain-chain interface, and collect
     #    Pandora's own InterfaceRecord for each one found. This is the PPI
@@ -219,9 +217,7 @@ retained, removed, dedup_prov = deduplicate_structures(
 )
 exclusions.extend(removed)
 structures = {s.entry_id: s for s in retained}
-print(
-    f"curation+dedup: {len(structures)} retained, {len(exclusions)} excluded"
-)
+print(f"curation+dedup: {len(structures)} retained, {len(exclusions)} excluded")
 ```
 
 ### 3. Keep only heteromeric structures, collect interfaces
