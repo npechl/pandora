@@ -1,6 +1,6 @@
 # Architecture
 
-Pandora's pipeline (see [Home](index.md)) is a chain of plain functions, but
+Pandora's pipeline (see [Home](../index.md)) is a chain of plain functions, but
 the *data* those functions pass around is what actually defines the
 framework's shape. This page maps how the typed [Pydantic](https://docs.pydantic.dev/)
 models in `pandora/schemas/` reference each other — diagrams below are
@@ -12,9 +12,9 @@ from the code. Regenerate them after changing a model:
 uv run --extra docs python docs/scripts/generate_erd.py
 ```
 
-For per-field descriptions, see [Schemas](reference/schemas.md); for the
+For per-field descriptions, see [Schemas](../reference/schemas.md); for the
 functions that build and consume these models, see
-[Functions](reference/functions.md).
+[Functions](../reference/functions.md).
 
 ## The parsed molecule
 
@@ -27,7 +27,7 @@ transforms one, returns a new `Structure` rather than mutating in place.
 into flatter, ML-friendlier views (`ChainRecord`, `ResidueRecord`,
 `InterfaceRecord`) for export.
 
-<img src="assets/diagrams/structure.svg" alt="Structure entity-relationship diagram" style="max-width: 100%;">
+<img src="../assets/diagrams/structure.svg" alt="Structure entity-relationship diagram" style="max-width: 100%;">
 
 ## Canonicalisation policy
 
@@ -35,9 +35,9 @@ into flatter, ML-friendlier views (`ChainRecord`, `ResidueRecord`,
 IDs, residue numbering, assemblies, entities, missing data, altlocs,
 ligands, then validation — each configured by one rules sub-model bundled
 into a single `canonicalisationPolicy`. This tree is exactly what a
-policy YAML file (`docs/policies.md`) deserializes into.
+policy YAML file (see [Policies](../reference/policies.md)) deserializes into.
 
-<img src="assets/diagrams/canonicalisation-policy.svg" alt="canonicalisationPolicy entity-relationship diagram" style="max-width: 100%;">
+<img src="../assets/diagrams/canonicalisation-policy.svg" alt="canonicalisationPolicy entity-relationship diagram" style="max-width: 100%;">
 
 ## Dataset curation policy
 
@@ -45,7 +45,7 @@ policy YAML file (`docs/policies.md`) deserializes into.
 (resolution, experimental method, chain length), source organism, and
 non-polymer content — governed by a much smaller `DatasetCurationPolicy`.
 
-<img src="assets/diagrams/curation-policy.svg" alt="DatasetCurationPolicy entity-relationship diagram" style="max-width: 100%;">
+<img src="../assets/diagrams/curation-policy.svg" alt="DatasetCurationPolicy entity-relationship diagram" style="max-width: 100%;">
 
 ## Provenance and the dataset manifest
 
@@ -58,7 +58,7 @@ structure's bundle into one `DatasetManifest`, the single JSON file that
 and `DatasetCurationPolicy` boxes below are the same models diagrammed
 above, shown collapsed here to keep this diagram readable.
 
-<img src="assets/diagrams/provenance-manifest.svg" alt="DatasetManifest entity-relationship diagram" style="max-width: 100%;">
+<img src="../assets/diagrams/provenance-manifest.svg" alt="DatasetManifest entity-relationship diagram" style="max-width: 100%;">
 
 ## Standalone models
 
@@ -75,14 +75,3 @@ referenced by — any other schema:
 - **`FetchOptions`** (`pandora.schemas.ingestion`) configures one
   `fetch_mmcif()` call and isn't retained afterward — only its result,
   `IngestionProvenance`, is.
-
-## Where the gaps are
-
-This is also the fastest way to spot missing wiring — e.g. the
-[design-doc caveat in CLAUDE.md](https://github.com/npechl/pandora/blob/main/CLAUDE.md)
-notes there's still no `PandoraArtifact`/dataset-store system; on this page
-that shows up as `DatasetManifest` having no model that embeds actual
-structure *content* (mmCIF bytes, coordinates) — only ids, policies, and
-provenance. If you're looking for a contribution, tracing a diagram back to
-its building function (via [Functions](reference/functions.md)) is a quick
-way to find a stage whose output model is thinner than it could be.

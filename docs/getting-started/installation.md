@@ -26,7 +26,7 @@ for one specific capability.
 
 ## Components
 
-`pandora/` is one package per pipeline stage (see the [Overview](index.md)
+`pandora/` is one package per pipeline stage (see the [Overview](../index.md)
 diagram), but most stages need nothing beyond the base install — only
 `ingestion`, `export`, and `similarity` pull in extra dependencies.
 Rows below with no `pip install` command aren't real `pyproject.toml`

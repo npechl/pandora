@@ -12,7 +12,9 @@ signatures.
 
 `mmcif_to_structure()` returns a 3-tuple: the parsed `Structure` (or
 `None` if parsing failed outright), a `DiagnosticBundle` of warnings
-encountered, and a status string.
+encountered, and a status string. No CLI subcommand exposes parsing on
+its own — `pandora export` (below) and every other stage's `--input-dir`
+call it internally.
 
 ```python
 from pandora.parsing import mmcif_to_structure
@@ -44,24 +46,36 @@ lossy round-trip (loop ordering, comments, and any field mmCIF
 supports but Pandora's schema doesn't carry won't survive), but the
 result reparses cleanly:
 
-```python
-from pathlib import Path
-from pandora.canonicalisation import canonicalise_structure
-from pandora.export import structure_to_mmcif
-from pandora.schemas.canonicalisation import canonicalisationPolicy
+=== "`library`"
 
-policy = canonicalisationPolicy(
-    policy_id="p", policy_name="p", policy_version="1.0.0"
-)
-canonical, _, _ = canonicalise_structure(structure, policy)
+    ```python
+    from pathlib import Path
+    from pandora.canonicalisation import canonicalise_structure
+    from pandora.export import structure_to_mmcif
+    from pandora.schemas.canonicalisation import canonicalisationPolicy
 
-output_dir = Path("./datasets/output/export/")
-mmcif_path = structure_to_mmcif(canonical, output_dir / "104m.canonical.cif")
+    policy = canonicalisationPolicy(
+        policy_id="p", policy_name="p", policy_version="1.0.0"
+    )
+    canonical, _, _ = canonicalise_structure(structure, policy)
 
-reparsed, _, reparse_status = mmcif_to_structure(str(mmcif_path))
-print(reparse_status, len(reparsed.atoms), "atoms")
-# success 1450 atoms
-```
+    output_dir = Path("./datasets/output/export/")
+    mmcif_path = structure_to_mmcif(canonical, output_dir / "104m.canonical.cif")
+
+    reparsed, _, reparse_status = mmcif_to_structure(str(mmcif_path))
+    print(reparse_status, len(reparsed.atoms), "atoms")
+    # success 1450 atoms
+    ```
+
+=== "`cli`"
+
+    ```bash
+    pandora export --input canonical/104m.cif --output 104m.export.cif
+    # exported -> 104m.export.cif
+    ```
+
+    The output format is inferred from `--output`'s suffix — `.cif`
+    (or anything but `.json`) calls `structure_to_mmcif()`.
 
 ## Write any model to JSON
 
@@ -69,19 +83,33 @@ print(reparse_status, len(reparsed.atoms), "atoms")
 provenance record, `AnnotationLayer`, anything in `pandora/schemas/` —
 as pretty-printed JSON.
 
-```python
-from pandora.export import write_json
+=== "`library`"
 
-json_path = write_json(canonical, output_dir / "104m.json")
-print(json_path)
-# datasets/output/export/104m.json
-```
+    ```python
+    from pandora.export import write_json
+
+    json_path = write_json(canonical, output_dir / "104m.json")
+    print(json_path)
+    # datasets/output/export/104m.json
+    ```
+
+=== "`cli`"
+
+    ```bash
+    pandora export --input canonical/104m.cif --output 104m.json
+    # exported -> 104m.json
+    ```
+
+    `pandora export` only ever writes the parsed `Structure` itself as
+    JSON this way — for provenance records, `AnnotationLayer`s, or
+    anything else `write_json()` accepts, use the library form.
 
 ## Write a list of records
 
 `write_records()` writes a list of record models — `ChainRecord`,
 `ResidueRecord`, `InterfaceRecord` from [Datasets](datasets.md) — and
-dispatches on the output path's suffix:
+dispatches on the output path's suffix. `pandora export` only handles a
+single `Structure`, so there's no CLI equivalent for record lists:
 
 ```python
 from pandora.datasets import extract_chain_records

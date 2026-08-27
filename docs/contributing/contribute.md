@@ -5,7 +5,7 @@ For environment setup, branching, and how to open a PR, see
 in the repo root. This page covers what to do for each kind of
 contribution.
 
-Before diving in, [Architecture](architecture.md) shows how the data
+Before diving in, [Architecture](../getting-started/architecture.md) shows how the data
 models fit together — the fastest way to see where a new piece belongs.
 
 ## Report a bug
@@ -23,7 +23,7 @@ approach if you have one.
 
 ## Fix a bug
 
-1. Find the function via [Functions](reference/functions.md) or
+1. Find the function via [Functions](../reference/functions.md) or
    `grep -rn` in `pandora/`.
 2. Write a failing test in `tests/` that reproduces it (or extend an
    existing one).
@@ -40,7 +40,7 @@ approach if you have one.
 ## Add a function to an existing component
 
 Every stage follows the same split: **schema in `pandora/schemas/`,
-logic in `pandora/<package>/`** (see [Architecture](architecture.md)).
+logic in `pandora/<package>/`** (see [Architecture](../getting-started/architecture.md)).
 
 1. Add/extend the Pydantic model in `pandora/schemas/<module>.py`, if
    the function needs a new typed input or output.
@@ -52,7 +52,7 @@ logic in `pandora/<package>/`** (see [Architecture](architecture.md)).
 4. Docstring it: exported functions get a full description with
    `Args:`/`Returns:` (and `Raises:` if applicable); internal helpers
    get one brief line. This is what powers
-   [Functions](reference/functions.md) and [Schemas](reference/schemas.md)
+   [Functions](../reference/functions.md) and [Schemas](../reference/schemas.md)
    — nothing else to do to get a new function or model documented there.
 5. Add a test in `tests/`.
 6. If you changed which schemas reference each other, regenerate the
@@ -88,7 +88,7 @@ binaries required. Follow the existing scripts' shape (see
 uv run python examples/your_script.py
 ```
 
-[Recipes](recipes/recipes.md) is a currently-empty stub for narrated,
+[Recipes](../recipes/recipes.md) is a currently-empty stub for narrated,
 task-oriented write-ups ("how do I do X") built on top of an example
 script — the first one is a welcome contribution. Add a page under
 `docs/recipes/` and link it from `docs/recipes/recipes.md`.

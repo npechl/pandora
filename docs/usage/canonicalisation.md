@@ -3,7 +3,7 @@
 `pandora.canonicalisation` normalizes a parsed `Structure` according to a
 policy — chain IDs, residue numbering, assemblies, entities, missing
 data, altlocs, ligands, then validation, always in that order. See
-[Architecture](../architecture.md#canonicalisation-policy) for how the
+[Architecture](../getting-started/architecture.md#canonicalisation-policy) for how the
 policy's rule groups relate to each other, and
 [Functions](../reference/functions.md#pandora.canonicalisation) for full
 signatures.
@@ -15,21 +15,41 @@ default to something other than `"preserve"` (missing-atom/residue
 flagging, best-occupancy altloc selection), so even the default policy
 records transforms.
 
-```python
-from pandora.parsing import mmcif_to_structure
-from pandora.canonicalisation import canonicalise_structure
-from pandora.schemas.canonicalisation import canonicalisationPolicy
+=== "`library`"
 
-structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
+    ```python
+    from pandora.parsing import mmcif_to_structure
+    from pandora.canonicalisation import canonicalise_structure
+    from pandora.schemas.canonicalisation import canonicalisationPolicy
 
-policy = canonicalisationPolicy(
-    policy_id="p1", policy_name="Default", policy_version="1.0.0"
-)
-canonical, mappings, provenance = canonicalise_structure(structure, policy)
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
 
-print(provenance.transforms)
-# ['missing_atoms:annotate', 'missing_residues:annotate', 'altloc:select_best_occupancy']
-```
+    policy = canonicalisationPolicy(
+        policy_id="p1", policy_name="Default", policy_version="1.0.0"
+    )
+    canonical, mappings, provenance = canonicalise_structure(structure, policy)
+
+    print(provenance.transforms)
+    # ['missing_atoms:annotate', 'missing_residues:annotate', 'altloc:select_best_occupancy']
+    ```
+
+=== "`cli`"
+
+    The same minimal policy, as YAML:
+
+    ```yaml
+    policy_id: p1
+    policy_name: Default
+    policy_version: 1.0.0
+    ```
+
+    ```bash
+    pandora canonicalise --input-dir raw/ --policy policy.yaml --output-dir canonical/
+    # canonicalised 1 structures -> canonical/
+    ```
+
+    `canonical/canonicalisation_provenance.json` records the same
+    `transforms` list per entry as `provenance.transforms` above.
 
 ## Canonicalise with a custom policy
 
@@ -37,52 +57,64 @@ Remap chain IDs, renumber residues, merge equivalent entities, and drop
 waters/ions — the policy `examples/overview.py` and
 `datasets/canonicalisation.yaml` both use:
 
-```python
-from pandora.schemas.canonicalisation import (
-    canonicalisationPolicy,
-    IdentifierRules,
-    ChainIdRules,
-    ResidueNumberingRules,
-    AltlocRules,
-    EntityRules,
-    LigandRules,
-)
+=== "`library`"
 
-policy = canonicalisationPolicy(
-    policy_id="remap-1",
-    policy_name="Remap",
-    policy_version="1.0.0",
-    identifier_rules=IdentifierRules(
-        chain_id=ChainIdRules(strategy="remap"),
-        residue_numbering=ResidueNumberingRules(strategy="renumber"),
-    ),
-    altloc_rules=AltlocRules(
-        strategy="select_best_occupancy", tie_breaker="lowest_b_factor"
-    ),
-    entity_rules=EntityRules(strategy="merge_equivalent_entities"),
-    ligand_rules=LigandRules(
-        strategy="filter", keep_waters=False, keep_ions=False
-    ),
-)
-canonical, mappings, provenance = canonicalise_structure(structure, policy)
+    ```python
+    from pandora.schemas.canonicalisation import (
+        canonicalisationPolicy,
+        IdentifierRules,
+        ChainIdRules,
+        ResidueNumberingRules,
+        AltlocRules,
+        EntityRules,
+        LigandRules,
+    )
 
-print(provenance.transforms)
-# ['chain_id:remap', 'residue_numbering:renumber', 'missing_atoms:annotate',
-#  'missing_residues:annotate', 'altloc:select_best_occupancy',
-#  'entity:merge_equivalent_entities', 'ligands:filter']
-print(len(mappings.chain_id_mapping.items))
-# 5 — one entry per original chain, mapping it to its new remapped id
-```
+    policy = canonicalisationPolicy(
+        policy_id="remap-1",
+        policy_name="Remap",
+        policy_version="1.0.0",
+        identifier_rules=IdentifierRules(
+            chain_id=ChainIdRules(strategy="remap"),
+            residue_numbering=ResidueNumberingRules(strategy="renumber"),
+        ),
+        altloc_rules=AltlocRules(
+            strategy="select_best_occupancy", tie_breaker="lowest_b_factor"
+        ),
+        entity_rules=EntityRules(strategy="merge_equivalent_entities"),
+        ligand_rules=LigandRules(
+            strategy="filter", keep_waters=False, keep_ions=False
+        ),
+    )
+    canonical, mappings, provenance = canonicalise_structure(structure, policy)
 
-You can load the same policy from YAML instead of building it in code —
-see [`load_policy()`](ingestion.md#load-a-canonicalisation-policy).
+    print(provenance.transforms)
+    # ['chain_id:remap', 'residue_numbering:renumber', 'missing_atoms:annotate',
+    #  'missing_residues:annotate', 'altloc:select_best_occupancy',
+    #  'entity:merge_equivalent_entities', 'ligands:filter']
+    print(len(mappings.chain_id_mapping.items))
+    # 5 — one entry per original chain, mapping it to its new remapped id
+    ```
+
+    You can load the same policy from YAML instead of building it in
+    code — see [`load_policy()`](ingestion.md#load-a-canonicalisation-policy).
+
+=== "`cli`"
+
+    `datasets/canonicalisation.yaml` is exactly this policy, as YAML:
+
+    ```bash
+    pandora canonicalise --input-dir raw/ --policy datasets/canonicalisation.yaml --output-dir canonical/
+    # canonicalised 1 structures -> canonical/
+    ```
 
 ## Filter ligands directly
 
 `filter_ligands()` is what `ligand_rules` calls internally, but it's
 also exported standalone — useful if you want ligand filtering without
 running the rest of canonicalisation (this is exactly how
-`pandora.datasets.curate_structure()`'s content rules reuse it).
+`pandora.datasets.curate_structure()`'s content rules reuse it). No
+standalone CLI subcommand wraps it directly.
 
 ```python
 from pandora.canonicalisation import filter_ligands

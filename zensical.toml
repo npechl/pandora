@@ -8,6 +8,9 @@
 
 [project]
 
+repo_url = "https://github.com/npechl/pandora"
+repo_name = "npechl/pandora"
+
 # The site_name is shown in the page header and the browser window title
 #
 # Read more: https://zensical.org/docs/setup/basics/#site_name
@@ -58,10 +61,14 @@ use_directory_urls = true
 # Read more: https://zensical.org/docs/setup/navigation/
 nav = [
   { "Overview" = "index.md" },
-  { "Architecture" = "architecture.md" },
-  { "Getting Started" = "getting-started.md" },
-  { "Installation" = "installation.md" },
+  { "Getting started" = [
+    "getting-started/overview.md",
+    "getting-started/installation.md",
+    "getting-started/architecture.md",
+    "getting-started/glossary.md"
+  ]},
   { "Usage" = [
+    "usage/overview.md",
     "usage/ingestion.md",
     "usage/canonicalisation.md",
     "usage/metadata.md",
@@ -70,15 +77,17 @@ nav = [
     "usage/similarity.md",
     "usage/export.md",
     "usage/provenance.md",
-    "usage/cli.md"
+    # "usage/cli.md"
   ]},
-  { "Examples" = "examples.md" },
-  { "Policies" = "policies.md" },
   { "Recipes" = [
     "recipes/recipes.md",
-  ] },
-  { "Contributing" = "contribute.md" },
+  ]},
+  { "Contributing" = [
+    "contributing/overview.md",
+    "contributing/contribute.md"
+  ]},
   { "Reference" = [
+    "reference/policies.md",
     "reference/functions.md",
     "reference/schemas.md"
   ]}
@@ -106,6 +115,10 @@ nav = [
 # Section for configuring theme options
 # ----------------------------------------------------------------------------
 [project.theme]
+
+font.text = "Roboto"
+font.code = "Google Sans Code"
+
 
 # change this to "classic" to use the traditional Material for MkDocs look.
 #variant = "classic"
@@ -189,7 +202,7 @@ features = [
     # "JavaScript", "Cobol"), this feature causes all of them to switch to
     # at the same time when the user chooses their language in one.
     # https://zensical.org/docs/authoring/content-tabs/#linked-content-tabs
-    "content.tabs.link",
+    #"content.tabs.link",
 
     # With this feature enabled users can add tooltips to links that will be
     # displayed when the mouse pointer hovers the link.
@@ -199,7 +212,7 @@ features = [
     # With this feature enabled, Zensical will automatically hide parts
     # of the header when the user scrolls past a certain point.
     # https://zensical.org/docs/setup/header/#automatic-hiding
-    # "header.autohide",
+    "header.autohide",
 
     # Turn on this feature to expand all collapsible sections in the
     # navigation sidebar by default.
@@ -230,7 +243,7 @@ features = [
     # In order to provide a better user experience on slow connections when
     # using instant navigation, a progress indicator can be enabled.
     # https://zensical.org/docs/setup/navigation/#progress-indicator
-    #"navigation.instant.progress",
+    "navigation.instant.progress",
 
     # When navigation paths are activated, a breadcrumb navigation is rendered
     # above the title of each page
@@ -245,7 +258,7 @@ features = [
     # When sections are enabled, top-level sections are rendered as groups in
     # the sidebar for viewports above 1220px, but remain as-is on mobile.
     # https://zensical.org/docs/setup/navigation/#navigation-sections
-    "navigation.sections",
+    # "navigation.sections",
 
     # When tabs are enabled, top-level sections are rendered in a menu layer
     # below the header for viewports above 1220px, but remain as-is on mobile.
@@ -300,8 +313,9 @@ features = [
 # - https://zensical.org/docs/setup/logo-and-icons
 # - https://github.com/zensical/ui/tree/master/dist/.icons
 # ----------------------------------------------------------------------------
-#[project.theme.icon]
-#logo = "lucide/smile"
+[project.theme.icon]
+logo = "lucide/package"
+repo = "fontawesome/brands/github"
 
 # ----------------------------------------------------------------------------
 # In the "font" subsection you can configure the fonts used. By default, fonts

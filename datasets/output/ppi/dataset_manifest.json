@@ -1,0 +1,1080 @@
+{
+  "dataset_id": "ppi-dev-dataset",
+  "dataset_name": "PPI interface dataset (dev fixtures)",
+  "dataset_version": "1.0.0",
+  "pandora_version": "0.1.0",
+  "generated_at": "2026-08-26T14:27:20.580405+00:00",
+  "curation_policy": {
+    "policy_id": "ppi-curation-default",
+    "policy_name": "Default",
+    "policy_version": "1.0.0",
+    "description": "",
+    "quality_rules": {
+      "max_resolution": null,
+      "null_resolution_behavior": "exclude",
+      "min_chain_length": null,
+      "include_experimental_methods": [],
+      "exclude_experimental_methods": []
+    },
+    "organism_rules": {
+      "include_taxa": [],
+      "exclude_taxa": []
+    },
+    "content_rules": {
+      "keep_ligands": true,
+      "keep_waters": true,
+      "keep_ions": true
+    }
+  },
+  "canonicalisation_policy": {
+    "policy_id": "ppi-default",
+    "policy_name": "Default",
+    "policy_version": "1.0.0",
+    "description": "",
+    "identifier_rules": {
+      "chain_id": {
+        "strategy": "preserve"
+      },
+      "residue_numbering": {
+        "strategy": "preserve",
+        "preserve_insertion_codes": true
+      },
+      "assembly_id": {
+        "strategy": "preserve"
+      }
+    },
+    "missing_data_rules": {
+      "missing_atoms": {
+        "strategy": "annotate",
+        "allow_imputation": false,
+        "record_missingness": true
+      },
+      "missing_residues": {
+        "strategy": "annotate",
+        "record_gaps": true
+      },
+      "incomplete_chains": {
+        "strategy": "preserve"
+      }
+    },
+    "altloc_rules": {
+      "strategy": "select_best_occupancy",
+      "tie_breaker": "alphabetical_first",
+      "user_defined_altloc": null,
+      "record_selection": true
+    },
+    "assembly_rules": {
+      "strategy": "preserve_as_reported",
+      "preferred_assembly_source": "author",
+      "record_original_assembly_mapping": true
+    },
+    "entity_rules": {
+      "strategy": "preserve",
+      "preserve_original_entity_ids": true
+    },
+    "ligand_rules": {
+      "strategy": "preserve",
+      "keep_waters": true,
+      "keep_ions": true,
+      "keep_nonpolymer_ligands": true
+    },
+    "validation_rules": {
+      "strictness": "moderate",
+      "fail_on_unresolved_issues": true,
+      "warnings_as_errors": false
+    },
+    "provenance_rules": {
+      "record_original_mappings": true,
+      "record_transforms": true,
+      "record_policy_application": true,
+      "emit_canonicalisation_report": false
+    }
+  },
+  "excluded": [],
+  "deduplication": {
+    "deduplicated_at": "2026-08-26T14:27:19.082300+00:00",
+    "enabled": true,
+    "duplicates_found": 0
+  },
+  "clustering": {
+    "clustered_at": "2026-08-26T14:27:20.579204+00:00",
+    "threshold": 0.3,
+    "n_relationships": 19,
+    "n_clusters": 35,
+    "similarity_method": {
+      "engine": "MMseqs2",
+      "version": "18.8cc5c",
+      "parameters": {
+        "sensitivity": 5.7,
+        "mmseqs_bin": "mmseqs"
+      }
+    }
+  },
+  "partition": {
+    "partitioned_at": "2026-08-26T14:27:20.579264+00:00",
+    "pct_train": 0.7,
+    "pct_val": 0.15,
+    "pct_test": 0.15,
+    "keep_similar_items": true,
+    "split_sizes": {
+      "train": 31,
+      "val": 7,
+      "test": 7
+    }
+  },
+  "splits": {
+    "train": [
+      "13SD",
+      "13SJ",
+      "13SK",
+      "13SR",
+      "13SV",
+      "1A2C",
+      "1A3E",
+      "1ABI",
+      "1AVG",
+      "1A08",
+      "1A1B",
+      "1A3N",
+      "1ABW",
+      "1AL4",
+      "1AV2",
+      "10TM",
+      "11KB",
+      "12HH",
+      "12UM",
+      "13DG",
+      "179D",
+      "1A02",
+      "1A03",
+      "1A7F",
+      "1AC9",
+      "1AUI",
+      "1AX7",
+      "1BU1",
+      "1C9O",
+      "1D1K",
+      "1P58"
+    ],
+    "val": [
+      "1ALL",
+      "1AUU",
+      "1BKV",
+      "1BVI",
+      "1CA7",
+      "1I0T",
+      "1TRJ"
+    ],
+    "test": [
+      "1AO7",
+      "1AUY",
+      "1BMS",
+      "1BYZ",
+      "1CE0",
+      "1LS2",
+      "22JY"
+    ]
+  },
+  "structures": [
+    {
+      "entry_id": "10TM",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580227+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:16.955219+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "11KB",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580240+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.024742+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "12HH",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580245+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.044368+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "12UM",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580248+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.055015+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "13DG",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580252+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.092050+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "13SD",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580256+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.419236+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "13SJ",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580260+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.448052+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "13SK",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580263+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.472861+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "13SR",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580267+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.498177+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "13SV",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580273+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.522538+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "179D",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580276+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.538506+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1A02",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580280+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.565772+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1A03",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580282+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.639867+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1A08",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580286+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.694334+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1A1B",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580289+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.707354+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1A2C",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580294+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.726281+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1A3E",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580298+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.743607+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1A3N",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580301+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.778410+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1A7F",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580306+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.914752+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1ABI",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580309+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.934347+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1ABW",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580315+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.965610+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1AC9",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580317+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:17.973003+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1AL4",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580320+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.050969+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1ALL",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580325+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.068301+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1AO7",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580329+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.103638+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1AUI",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580332+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.200127+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1AUU",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580335+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.225560+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1AUY",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580338+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.251737+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1AV2",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580342+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.330606+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1AVG",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580345+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.356834+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1AX7",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580355+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.474976+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1BKV",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580357+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.590743+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1BMS",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580361+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.621784+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1BU1",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580364+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.667070+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1BVI",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580367+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.693864+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1BYZ",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580371+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.715645+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1C9O",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580374+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.732348+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1CA7",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580378+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.749033+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1CE0",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580381+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.757012+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1D1K",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580384+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.811749+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1I0T",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580387+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:18.854403+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1LS2",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580392+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:19.025941+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1P58",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580396+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:19.053550+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "1TRJ",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580399+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:19.066451+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    },
+    {
+      "entry_id": "22JY",
+      "pandora_version": "0.1.0",
+      "generated_at": "2026-08-26T14:27:20.580400+00:00",
+      "ingestion": null,
+      "canonicalisation": {
+        "canonicalised_at": "2026-08-26T14:27:19.082069+00:00",
+        "policy_id": "ppi-default",
+        "policy_name": "Default",
+        "policy_version": "1.0.0",
+        "transforms": [
+          "missing_atoms:annotate",
+          "missing_residues:annotate",
+          "altloc:select_best_occupancy"
+        ],
+        "report": {}
+      },
+      "metadata_sources": [],
+      "annotations": []
+    }
+  ]
+}

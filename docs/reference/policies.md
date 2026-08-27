@@ -2,7 +2,7 @@
 
 ## Canonicalisation
 
-`canonicalise_structure(structure, policy)` never guesses. Every normalization decision, how chains are named, how altlocs are resolved, whether ligands are kept, comes from a `canonicalisationPolicy` (`pandora.schemas.canonicalisation.canonicalisationPolicy`). Unset rules fall back to "preserve as reported", so an empty policy is a no-op pass that only records provenance.
+`canonicalise_structure(structure, policy)` never guesses. Every normalization decision, how chains are named, how altlocs are resolved, whether ligands are kept, comes from a `canonicalisationPolicy` (`pandora.schemas.canonicalisation.canonicalisationPolicy`). Each rule group has its own default below — most fall back to "preserve as reported", but not all: `missing_atoms`/`missing_residues` default to `annotate` and `altloc` defaults to `select_best_occupancy`, so an *empty* policy still records transforms, not just provenance. See each rule group's default below.
 
 ```python
 from pandora.schemas.canonicalisation import canonicalisationPolicy
