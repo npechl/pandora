@@ -116,8 +116,8 @@ nav = [
 # ----------------------------------------------------------------------------
 [project.theme]
 
-font.text = "Roboto"
-font.code = "Google Sans Code"
+font.text = "IBM Plex Sans"
+font.code = "IBM Plex Mono"
 
 
 # change this to "classic" to use the traditional Material for MkDocs look.
