@@ -5,8 +5,10 @@ file, canonicalise it, collect its metadata, and compute a couple of
 annotations. It uses a file already checked into the repo, so it runs
 fully offline — no network access, no PDB account.
 
-Pandora installed (`pip install -e ".[full]"`) and a checkout of this
-repo are all you need.
+Pandora's base install (`pip install -e .`) and a checkout of this repo
+are all you need — steps 1-4 below use no optional extras. The last,
+optional section (fetching a file yourself over the network) needs the
+`ingestion` extra instead; see [Installation](installation.md).
 
 ## The file we'll use
 
@@ -59,7 +61,7 @@ An unconfigured policy still resolves alternate locations (the default
 `altloc_rules` strategy) and annotates missing atoms/residues rather
 than silently dropping them — nothing here changed chain IDs or
 residue numbers, because this entry didn't need it. See
-[Policies](../policies.md) for every field you can configure.
+[Policies](../reference/policies.md) for every field you can configure.
 
 ## 3. Collect metadata
 
@@ -157,7 +159,7 @@ above.
 
 ## Next steps
 
-- [Policies](../policies.md) — every canonicalisation policy field, with
+- [Policies](../reference/policies.md) — every canonicalisation policy field, with
   worked examples.
 - [Usage](../usage/ingestion.md) — a per-stage reference for ingestion,
   canonicalisation, metadata, annotation, similarity, and the CLI.

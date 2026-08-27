@@ -27,7 +27,7 @@ it, `manifest` needs it later if you want `reproduce` to work.
 ## canonicalise
 
 Parse and canonicalise every `*.cif` in a directory against a policy
-YAML (see [Policies](../policies.md)):
+YAML (see [Policies](../reference/policies.md)):
 
 ```sh
 pandora canonicalise --input-dir raw/ --policy datasets/canonicalisation.yaml --output-dir canonical/

@@ -62,12 +62,13 @@ use_directory_urls = true
 nav = [
   { "Overview" = "index.md" },
   { "Getting started" = [
-    "getting-started/getting-started.md",
+    "getting-started/overview.md",
     "getting-started/installation.md",
     "getting-started/architecture.md",
     "getting-started/glossary.md"
   ]},
   { "Usage" = [
+    "usage/overview.md",
     "usage/ingestion.md",
     "usage/canonicalisation.md",
     "usage/metadata.md",
@@ -78,12 +79,15 @@ nav = [
     "usage/provenance.md",
     # "usage/cli.md"
   ]},
-  { "Policies" = "policies.md" },
   { "Recipes" = [
     "recipes/recipes.md",
   ]},
-  { "Contributing" = "contribute.md" },
+  { "Contributing" = [
+    "contributing/overview.md",
+    "contributing/contribute.md"
+  ]},
   { "Reference" = [
+    "reference/policies.md",
     "reference/functions.md",
     "reference/schemas.md"
   ]}
@@ -198,7 +202,7 @@ features = [
     # "JavaScript", "Cobol"), this feature causes all of them to switch to
     # at the same time when the user chooses their language in one.
     # https://zensical.org/docs/authoring/content-tabs/#linked-content-tabs
-    "content.tabs.link",
+    #"content.tabs.link",
 
     # With this feature enabled users can add tooltips to links that will be
     # displayed when the mouse pointer hovers the link.

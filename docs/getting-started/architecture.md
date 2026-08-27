@@ -35,7 +35,7 @@ into flatter, ML-friendlier views (`ChainRecord`, `ResidueRecord`,
 IDs, residue numbering, assemblies, entities, missing data, altlocs,
 ligands, then validation — each configured by one rules sub-model bundled
 into a single `canonicalisationPolicy`. This tree is exactly what a
-policy YAML file (`docs/policies.md`) deserializes into.
+policy YAML file (see [Policies](../reference/policies.md)) deserializes into.
 
 <img src="../assets/diagrams/canonicalisation-policy.svg" alt="canonicalisationPolicy entity-relationship diagram" style="max-width: 100%;">
 

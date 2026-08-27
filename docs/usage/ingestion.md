@@ -103,4 +103,4 @@ print(policy.policy_id, policy.ligand_rules.strategy)
 # overview-remap filter
 ```
 
-See [Policies](../policies.md) for every field a policy YAML can set.
+See [Policies](../reference/policies.md) for every field a policy YAML can set.
