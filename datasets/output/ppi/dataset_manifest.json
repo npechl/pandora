@@ -3,7 +3,7 @@
   "dataset_name": "PPI interface dataset (dev fixtures)",
   "dataset_version": "1.0.0",
   "pandora_version": "0.1.0",
-  "generated_at": "2026-08-26T14:27:20.580405+00:00",
+  "generated_at": "2026-08-27T13:40:30.147529+00:00",
   "curation_policy": {
     "policy_id": "ppi-curation-default",
     "policy_name": "Default",
@@ -92,12 +92,12 @@
   },
   "excluded": [],
   "deduplication": {
-    "deduplicated_at": "2026-08-26T14:27:19.082300+00:00",
+    "deduplicated_at": "2026-08-27T13:40:28.348044+00:00",
     "enabled": true,
     "duplicates_found": 0
   },
   "clustering": {
-    "clustered_at": "2026-08-26T14:27:20.579204+00:00",
+    "clustered_at": "2026-08-27T13:40:30.146426+00:00",
     "threshold": 0.3,
     "n_relationships": 19,
     "n_clusters": 35,
@@ -111,7 +111,7 @@
     }
   },
   "partition": {
-    "partitioned_at": "2026-08-26T14:27:20.579264+00:00",
+    "partitioned_at": "2026-08-27T13:40:30.146469+00:00",
     "pct_train": 0.7,
     "pct_val": 0.15,
     "pct_test": 0.15,
@@ -179,10 +179,10 @@
     {
       "entry_id": "10TM",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580227+00:00",
+      "generated_at": "2026-08-27T13:40:30.147366+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:16.955219+00:00",
+        "canonicalised_at": "2026-08-27T13:40:26.229025+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -199,10 +199,10 @@
     {
       "entry_id": "11KB",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580240+00:00",
+      "generated_at": "2026-08-27T13:40:30.147378+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.024742+00:00",
+        "canonicalised_at": "2026-08-27T13:40:26.303726+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -219,10 +219,10 @@
     {
       "entry_id": "12HH",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580245+00:00",
+      "generated_at": "2026-08-27T13:40:30.147383+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.044368+00:00",
+        "canonicalised_at": "2026-08-27T13:40:26.322423+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -239,10 +239,10 @@
     {
       "entry_id": "12UM",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580248+00:00",
+      "generated_at": "2026-08-27T13:40:30.147386+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.055015+00:00",
+        "canonicalised_at": "2026-08-27T13:40:26.333476+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -259,10 +259,10 @@
     {
       "entry_id": "13DG",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580252+00:00",
+      "generated_at": "2026-08-27T13:40:30.147390+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.092050+00:00",
+        "canonicalised_at": "2026-08-27T13:40:26.371535+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -279,10 +279,10 @@
     {
       "entry_id": "13SD",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580256+00:00",
+      "generated_at": "2026-08-27T13:40:30.147393+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.419236+00:00",
+        "canonicalised_at": "2026-08-27T13:40:26.699101+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -299,10 +299,10 @@
     {
       "entry_id": "13SJ",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580260+00:00",
+      "generated_at": "2026-08-27T13:40:30.147396+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.448052+00:00",
+        "canonicalised_at": "2026-08-27T13:40:26.725444+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -319,10 +319,10 @@
     {
       "entry_id": "13SK",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580263+00:00",
+      "generated_at": "2026-08-27T13:40:30.147399+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.472861+00:00",
+        "canonicalised_at": "2026-08-27T13:40:26.749490+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -339,10 +339,10 @@
     {
       "entry_id": "13SR",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580267+00:00",
+      "generated_at": "2026-08-27T13:40:30.147402+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.498177+00:00",
+        "canonicalised_at": "2026-08-27T13:40:26.774415+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -359,10 +359,10 @@
     {
       "entry_id": "13SV",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580273+00:00",
+      "generated_at": "2026-08-27T13:40:30.147408+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.522538+00:00",
+        "canonicalised_at": "2026-08-27T13:40:26.800050+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -379,10 +379,10 @@
     {
       "entry_id": "179D",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580276+00:00",
+      "generated_at": "2026-08-27T13:40:30.147412+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.538506+00:00",
+        "canonicalised_at": "2026-08-27T13:40:26.814653+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -399,10 +399,10 @@
     {
       "entry_id": "1A02",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580280+00:00",
+      "generated_at": "2026-08-27T13:40:30.147415+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.565772+00:00",
+        "canonicalised_at": "2026-08-27T13:40:26.839286+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -419,10 +419,10 @@
     {
       "entry_id": "1A03",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580282+00:00",
+      "generated_at": "2026-08-27T13:40:30.147417+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.639867+00:00",
+        "canonicalised_at": "2026-08-27T13:40:26.925100+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -439,10 +439,10 @@
     {
       "entry_id": "1A08",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580286+00:00",
+      "generated_at": "2026-08-27T13:40:30.147420+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.694334+00:00",
+        "canonicalised_at": "2026-08-27T13:40:26.980795+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -459,10 +459,10 @@
     {
       "entry_id": "1A1B",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580289+00:00",
+      "generated_at": "2026-08-27T13:40:30.147423+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.707354+00:00",
+        "canonicalised_at": "2026-08-27T13:40:26.994746+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -479,10 +479,10 @@
     {
       "entry_id": "1A2C",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580294+00:00",
+      "generated_at": "2026-08-27T13:40:30.147429+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.726281+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.013854+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -499,10 +499,10 @@
     {
       "entry_id": "1A3E",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580298+00:00",
+      "generated_at": "2026-08-27T13:40:30.147432+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.743607+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.031997+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -519,10 +519,10 @@
     {
       "entry_id": "1A3N",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580301+00:00",
+      "generated_at": "2026-08-27T13:40:30.147437+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.778410+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.067539+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -539,10 +539,10 @@
     {
       "entry_id": "1A7F",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580306+00:00",
+      "generated_at": "2026-08-27T13:40:30.147440+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.914752+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.199496+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -559,10 +559,10 @@
     {
       "entry_id": "1ABI",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580309+00:00",
+      "generated_at": "2026-08-27T13:40:30.147445+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.934347+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.220438+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -579,10 +579,10 @@
     {
       "entry_id": "1ABW",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580315+00:00",
+      "generated_at": "2026-08-27T13:40:30.147448+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.965610+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.255889+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -599,10 +599,10 @@
     {
       "entry_id": "1AC9",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580317+00:00",
+      "generated_at": "2026-08-27T13:40:30.147452+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:17.973003+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.262685+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -619,10 +619,10 @@
     {
       "entry_id": "1AL4",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580320+00:00",
+      "generated_at": "2026-08-27T13:40:30.147454+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.050969+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.344104+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -639,10 +639,10 @@
     {
       "entry_id": "1ALL",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580325+00:00",
+      "generated_at": "2026-08-27T13:40:30.147457+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.068301+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.362344+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -659,10 +659,10 @@
     {
       "entry_id": "1AO7",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580329+00:00",
+      "generated_at": "2026-08-27T13:40:30.147460+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.103638+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.398772+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -679,10 +679,10 @@
     {
       "entry_id": "1AUI",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580332+00:00",
+      "generated_at": "2026-08-27T13:40:30.147463+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.200127+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.495855+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -699,10 +699,10 @@
     {
       "entry_id": "1AUU",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580335+00:00",
+      "generated_at": "2026-08-27T13:40:30.147466+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.225560+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.529242+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -719,10 +719,10 @@
     {
       "entry_id": "1AUY",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580338+00:00",
+      "generated_at": "2026-08-27T13:40:30.147469+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.251737+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.559004+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -739,10 +739,10 @@
     {
       "entry_id": "1AV2",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580342+00:00",
+      "generated_at": "2026-08-27T13:40:30.147472+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.330606+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.633076+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -759,10 +759,10 @@
     {
       "entry_id": "1AVG",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580345+00:00",
+      "generated_at": "2026-08-27T13:40:30.147475+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.356834+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.656718+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -779,10 +779,10 @@
     {
       "entry_id": "1AX7",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580355+00:00",
+      "generated_at": "2026-08-27T13:40:30.147478+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.474976+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.758544+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -799,10 +799,10 @@
     {
       "entry_id": "1BKV",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580357+00:00",
+      "generated_at": "2026-08-27T13:40:30.147480+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.590743+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.865407+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -819,10 +819,10 @@
     {
       "entry_id": "1BMS",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580361+00:00",
+      "generated_at": "2026-08-27T13:40:30.147483+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.621784+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.894716+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -839,10 +839,10 @@
     {
       "entry_id": "1BU1",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580364+00:00",
+      "generated_at": "2026-08-27T13:40:30.147487+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.667070+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.937810+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -859,10 +859,10 @@
     {
       "entry_id": "1BVI",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580367+00:00",
+      "generated_at": "2026-08-27T13:40:30.147490+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.693864+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.963131+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -879,10 +879,10 @@
     {
       "entry_id": "1BYZ",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580371+00:00",
+      "generated_at": "2026-08-27T13:40:30.147495+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.715645+00:00",
+        "canonicalised_at": "2026-08-27T13:40:27.984738+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -899,10 +899,10 @@
     {
       "entry_id": "1C9O",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580374+00:00",
+      "generated_at": "2026-08-27T13:40:30.147498+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.732348+00:00",
+        "canonicalised_at": "2026-08-27T13:40:28.001886+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -919,10 +919,10 @@
     {
       "entry_id": "1CA7",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580378+00:00",
+      "generated_at": "2026-08-27T13:40:30.147501+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.749033+00:00",
+        "canonicalised_at": "2026-08-27T13:40:28.019708+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -939,10 +939,10 @@
     {
       "entry_id": "1CE0",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580381+00:00",
+      "generated_at": "2026-08-27T13:40:30.147504+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.757012+00:00",
+        "canonicalised_at": "2026-08-27T13:40:28.027855+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -959,10 +959,10 @@
     {
       "entry_id": "1D1K",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580384+00:00",
+      "generated_at": "2026-08-27T13:40:30.147507+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.811749+00:00",
+        "canonicalised_at": "2026-08-27T13:40:28.082688+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -979,10 +979,10 @@
     {
       "entry_id": "1I0T",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580387+00:00",
+      "generated_at": "2026-08-27T13:40:30.147510+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:18.854403+00:00",
+        "canonicalised_at": "2026-08-27T13:40:28.121683+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -999,10 +999,10 @@
     {
       "entry_id": "1LS2",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580392+00:00",
+      "generated_at": "2026-08-27T13:40:30.147513+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:19.025941+00:00",
+        "canonicalised_at": "2026-08-27T13:40:28.291597+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -1019,10 +1019,10 @@
     {
       "entry_id": "1P58",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580396+00:00",
+      "generated_at": "2026-08-27T13:40:30.147519+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:19.053550+00:00",
+        "canonicalised_at": "2026-08-27T13:40:28.320349+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -1039,10 +1039,10 @@
     {
       "entry_id": "1TRJ",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580399+00:00",
+      "generated_at": "2026-08-27T13:40:30.147523+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:19.066451+00:00",
+        "canonicalised_at": "2026-08-27T13:40:28.333389+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",
@@ -1059,10 +1059,10 @@
     {
       "entry_id": "22JY",
       "pandora_version": "0.1.0",
-      "generated_at": "2026-08-26T14:27:20.580400+00:00",
+      "generated_at": "2026-08-27T13:40:30.147524+00:00",
       "ingestion": null,
       "canonicalisation": {
-        "canonicalised_at": "2026-08-26T14:27:19.082069+00:00",
+        "canonicalised_at": "2026-08-27T13:40:28.347841+00:00",
         "policy_id": "ppi-default",
         "policy_name": "Default",
         "policy_version": "1.0.0",

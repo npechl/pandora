@@ -88,7 +88,7 @@ binaries required. Follow the existing scripts' shape (see
 uv run python examples/your_script.py
 ```
 
-[Recipes](../recipes/recipes.md) is a currently-empty stub for narrated,
+[Recipes](../recipes/ppi-01.md) is a currently-empty stub for narrated,
 task-oriented write-ups ("how do I do X") built on top of an example
 script — the first one is a welcome contribution. Add a page under
 `docs/recipes/` and link it from `docs/recipes/recipes.md`.

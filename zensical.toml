@@ -80,7 +80,7 @@ nav = [
     # "usage/cli.md"
   ]},
   { "Recipes" = [
-    "recipes/recipes.md",
+    "recipes/ppi-01.md",
   ]},
   { "Contributing" = [
     "contributing/overview.md",

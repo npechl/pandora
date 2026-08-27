@@ -163,7 +163,7 @@ above.
   worked examples.
 - [Usage](../usage/ingestion.md) — a per-stage reference for ingestion,
   canonicalisation, metadata, annotation, similarity, and the CLI.
-- [Recipes](../recipes/recipes.md) — end-to-end multi-structure workflows
+- [Recipes](../recipes/ppi-01.md) — end-to-end multi-structure workflows
   (clustering, leakage-safe splits).
 - [Examples](../examples.md) — runnable scripts under `examples/`.
 
