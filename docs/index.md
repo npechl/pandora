@@ -44,12 +44,12 @@ cd pandora
 pip install -e .
 ```
 
-See [Installation](installation.md) for what each optional extra
+See [Installation](getting-started/installation.md) for what each optional extra
 (`ingestion`, `export`, `similarity`, ...) unlocks.
 
 ## Where to go next
 
-- **New here?** Start with [Getting Started](getting-started.md) — a
+- **New here?** Start with [Getting Started](getting-started/getting-started.md) — a
   five-minute, fully offline walkthrough using the bundled sample data.
 - **Configuring canonicalisation?** [Policies](policies.md) covers
   every policy field.

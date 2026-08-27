@@ -3,7 +3,7 @@
 `pandora.canonicalisation` normalizes a parsed `Structure` according to a
 policy — chain IDs, residue numbering, assemblies, entities, missing
 data, altlocs, ligands, then validation, always in that order. See
-[Architecture](../architecture.md#canonicalisation-policy) for how the
+[Architecture](../getting-started/architecture.md#canonicalisation-policy) for how the
 policy's rule groups relate to each other, and
 [Functions](../reference/functions.md#pandora.canonicalisation) for full
 signatures.

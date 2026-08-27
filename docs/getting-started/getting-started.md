@@ -1,4 +1,4 @@
-# Getting Started
+# What is Pandora?
 
 This walks through the implemented pipeline end to end: parse an mmCIF
 file, canonicalise it, collect its metadata, and compute a couple of
@@ -59,7 +59,7 @@ An unconfigured policy still resolves alternate locations (the default
 `altloc_rules` strategy) and annotates missing atoms/residues rather
 than silently dropping them — nothing here changed chain IDs or
 residue numbers, because this entry didn't need it. See
-[Policies](policies.md) for every field you can configure.
+[Policies](../policies.md) for every field you can configure.
 
 ## 3. Collect metadata
 
@@ -157,12 +157,12 @@ above.
 
 ## Next steps
 
-- [Policies](policies.md) — every canonicalisation policy field, with
+- [Policies](../policies.md) — every canonicalisation policy field, with
   worked examples.
-- [Usage](usage/ingestion.md) — a per-stage reference for ingestion,
+- [Usage](../usage/ingestion.md) — a per-stage reference for ingestion,
   canonicalisation, metadata, annotation, similarity, and the CLI.
-- [Recipes](recipes/recipes.md) — end-to-end multi-structure workflows
+- [Recipes](../recipes/recipes.md) — end-to-end multi-structure workflows
   (clustering, leakage-safe splits).
-- [Examples](examples.md) — runnable scripts under `examples/`.
+- [Examples](../examples.md) — runnable scripts under `examples/`.
 
 ## Comment
