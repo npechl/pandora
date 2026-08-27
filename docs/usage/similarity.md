@@ -33,21 +33,33 @@ It accepts a `{id: sequence}` mapping — `pandora.datasets.entry_sequences()`
 builds exactly that from a batch of structures (one representative
 sequence per entry, its longest polymer chain).
 
-```python
-from pandora.datasets import entry_sequences
-from pandora.similarity import compute_sequence_similarity
+=== "`library`"
 
-sequences = entry_sequences(structures)
-relationships = compute_sequence_similarity(sequences, sensitivity=5.7)
+    ```python
+    from pandora.datasets import entry_sequences
+    from pandora.similarity import compute_sequence_similarity
 
-for r in relationships:
-    print(r.source_id, r.target_id, round(r.score, 3), r.method.engine)
-# 104M 112M 0.993 MMseqs2
-# 118L 138L 0.987 MMseqs2
-```
+    sequences = entry_sequences(structures)
+    relationships = compute_sequence_similarity(sequences, sensitivity=5.7)
 
-Only related pairs come back — unrelated pairs simply don't appear
-(`104M`/`118L`, `1AYI`/anything, etc. are absent above).
+    for r in relationships:
+        print(r.source_id, r.target_id, round(r.score, 3), r.method.engine)
+    # 104M 112M 0.993 MMseqs2
+    # 118L 138L 0.987 MMseqs2
+    ```
+
+    Only related pairs come back — unrelated pairs simply don't appear
+    (`104M`/`118L`, `1AYI`/anything, etc. are absent above).
+
+=== "`cli`"
+
+    ```bash
+    pandora similarity --input-dir deduped/ --engine mmseqs2 --sensitivity 5.7 --output relationships.json
+    # computed 2 relationships -> relationships.json
+    ```
+
+    `entry_sequences()` is called internally over every `*.cif` in
+    `--input-dir`.
 
 ## Structural similarity (Foldseek)
 
@@ -55,30 +67,44 @@ Only related pairs come back — unrelated pairs simply don't appear
 easy-search` over structure files on disk — pass a `{id: path}` mapping,
 or a directory of files to use their filenames as ids directly.
 
-```python
-from pathlib import Path
-from pandora.export import structure_to_mmcif
-from pandora.similarity import compute_structure_similarity
+=== "`library`"
 
-output_dir = Path("./datasets/output/struct/")
-paths = {
-    entry_id: structure_to_mmcif(structure, output_dir / f"{entry_id}.cif")
-    for entry_id, structure in structures.items()
-}
-relationships = compute_structure_similarity(paths, sensitivity=9.5)
+    ```python
+    from pathlib import Path
+    from pandora.export import structure_to_mmcif
+    from pandora.similarity import compute_structure_similarity
 
-for r in relationships:
-    print(r.source_id, r.target_id, round(r.score, 3))
-# 104M 112M 0.999
-# 104M 118L 0.265
-# 104M 138L 0.257
-# ... (9 total — structural similarity finds distant relationships
-#      sequence similarity misses, since a fold can be conserved
-#      long after sequence identity drops)
-```
+    output_dir = Path("./datasets/output/struct/")
+    paths = {
+        entry_id: structure_to_mmcif(structure, output_dir / f"{entry_id}.cif")
+        for entry_id, structure in structures.items()
+    }
+    relationships = compute_structure_similarity(paths, sensitivity=9.5)
 
-`score` is the alignment's TM-score; `identity` is its fraction of
-identical aligned residues.
+    for r in relationships:
+        print(r.source_id, r.target_id, round(r.score, 3))
+    # 104M 112M 0.999
+    # 104M 118L 0.265
+    # 104M 138L 0.257
+    # ... (9 total — structural similarity finds distant relationships
+    #      sequence similarity misses, since a fold can be conserved
+    #      long after sequence identity drops)
+    ```
+
+    `score` is the alignment's TM-score; `identity` is its fraction of
+    identical aligned residues.
+
+=== "`cli`"
+
+    ```bash
+    pandora similarity --input-dir deduped/ --engine foldseek --sensitivity 9.5 --output relationships.json
+    # computed 9 relationships -> relationships.json
+    ```
+
+    `--input-dir` is passed straight to `compute_structure_similarity()`
+    as a directory — the `*.cif` filenames (uppercased stem) become the
+    ids, which is why [keeping ids consistent between
+    stages](#keep-ids-consistent-between-stages) is automatic here.
 
 ### Keep ids consistent between stages
 
@@ -100,18 +126,32 @@ two items land in the same cluster iff connected through a chain of
 relationships scoring at or above `threshold`. Items with no qualifying
 edges become their own singleton cluster.
 
-```python
-from pandora.similarity import cluster_similar_items
+=== "`library`"
 
-clusters, provenance = cluster_similar_items(
-    list(structures), relationships, threshold=0.9
-)
-for cluster in clusters:
-    print(cluster.components)
-# ['104M', '112M']
-# ['118L', '138L']
-# ['1AYI']
-```
+    ```python
+    from pandora.similarity import cluster_similar_items
+
+    clusters, provenance = cluster_similar_items(
+        list(structures), relationships, threshold=0.9
+    )
+    for cluster in clusters:
+        print(cluster.components)
+    # ['104M', '112M']
+    # ['118L', '138L']
+    # ['1AYI']
+    ```
+
+=== "`cli`"
+
+    ```bash
+    pandora cluster --input-dir deduped/ --relationships relationships.json --threshold 0.9 --output clusters.json
+    # 3 clusters at threshold=0.9 -> clusters.json
+    ```
+
+    Item ids come from `--input-dir`'s `*.cif` filenames (uppercased),
+    not from `relationships.json` — this is the ordering
+    [Keep ids consistent between stages](#keep-ids-consistent-between-stages)
+    warns about.
 
 ## Leakage-safe partitioning
 
@@ -120,16 +160,27 @@ similar structures never end up split across partitions, since a
 whole cluster moves together to whichever split is furthest from its
 target share.
 
-```python
-from pandora.similarity import partition_dataset
+=== "`library`"
 
-splits, provenance = partition_dataset(
-    clusters, pct_train=0.6, pct_val=0.2, pct_test=0.2
-)
-print(splits)
-# {'train': ['104M', '112M', '118L', '138L'], 'val': ['1AYI'], 'test': []}
-```
+    ```python
+    from pandora.similarity import partition_dataset
 
-Pass `keep_similar_items=False` to instead divide each cluster's
-members proportionally across splits — only do this if leakage between
-splits genuinely doesn't matter for your use case.
+    splits, provenance = partition_dataset(
+        clusters, pct_train=0.6, pct_val=0.2, pct_test=0.2
+    )
+    print(splits)
+    # {'train': ['104M', '112M', '118L', '138L'], 'val': ['1AYI'], 'test': []}
+    ```
+
+    Pass `keep_similar_items=False` to instead divide each cluster's
+    members proportionally across splits — only do this if leakage
+    between splits genuinely doesn't matter for your use case.
+
+=== "`cli`"
+
+    ```bash
+    pandora partition --clusters clusters.json --pct-train 0.6 --pct-val 0.2 --pct-test 0.2 --output splits.json
+    # split sizes: {'train': 4, 'val': 1, 'test': 0} -> splits.json
+    ```
+
+    `--no-keep-similar-items` is the CLI form of `keep_similar_items=False`.

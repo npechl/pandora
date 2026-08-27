@@ -46,7 +46,8 @@ for entry_id in ["104m", "112m"]:
 
 `collect_metadata_provenance()` pulls the per-field `MetadataProvenance`
 stamps out of a `MetadataRecord` into a flat list — what
-`build_provenance_bundle()` stores as `metadata_sources`.
+`build_provenance_bundle()` stores as `metadata_sources`. It's an
+internal helper with no standalone CLI subcommand.
 
 ```python
 from pandora.provenance import collect_metadata_provenance
@@ -60,7 +61,10 @@ print(len(stamps), stamps[0])
 ## Bundle one structure's provenance
 
 `build_provenance_bundle()` assembles a `ProvenanceBundle` from
-whichever stage provenance you pass — every argument is optional.
+whichever stage provenance you pass — every argument is optional. There's
+no single-structure CLI subcommand for this; the CLI only builds
+bundles as part of a full [`pandora manifest`](cli.md#manifest) run,
+below.
 
 ```python
 from pandora.provenance import build_provenance_bundle
@@ -85,35 +89,58 @@ actual rules), exclusions, dedup/clustering/partition provenance, the
 split assignment — plus every retained structure's `ProvenanceBundle`
 into one `DatasetManifest`.
 
-```python
-from pandora.provenance import build_dataset_manifest
-from pandora.export import write_json
+=== "`library`"
 
-bundles = [
-    build_provenance_bundle(
-        structures[entry_id],
-        ingestion=ingestion_prov[entry_id],
-        canonicalisation=canon_prov[entry_id],
+    ```python
+    from pandora.provenance import build_dataset_manifest
+    from pandora.export import write_json
+
+    bundles = [
+        build_provenance_bundle(
+            structures[entry_id],
+            ingestion=ingestion_prov[entry_id],
+            canonicalisation=canon_prov[entry_id],
+        )
+        for entry_id in structures
+    ]
+    manifest = build_dataset_manifest(
+        dataset_id="demo",
+        dataset_name="Demo",
+        dataset_version="1.0.0",
+        canonicalisation_policy=policy,
+        curation_policy=curation_policy,
+        structures=bundles,
     )
-    for entry_id in structures
-]
-manifest = build_dataset_manifest(
-    dataset_id="demo",
-    dataset_name="Demo",
-    dataset_version="1.0.0",
-    canonicalisation_policy=policy,
-    curation_policy=curation_policy,
-    structures=bundles,
-)
-manifest_path = write_json(manifest, output_dir / "manifest.json")
-print(manifest.dataset_id, len(manifest.structures), "structures")
-# demo 2 structures
-```
+    manifest_path = write_json(manifest, output_dir / "manifest.json")
+    print(manifest.dataset_id, len(manifest.structures), "structures")
+    # demo 2 structures
+    ```
 
-This is exactly what the [`pandora manifest`](cli.md#manifest) CLI
-subcommand builds — reach for the CLI when you're assembling a manifest
-from already-written stage outputs on disk, and this function directly
-when you're scripting the whole pipeline in one process, as above.
+    Reach for the library form when you're scripting the whole pipeline
+    in one process, as above; reach for the CLI when you're assembling a
+    manifest from already-written stage outputs on disk.
+
+=== "`cli`"
+
+    ```bash
+    pandora manifest \
+      --dataset-id dev-cli-demo \
+      --dataset-name "CLI demo dataset" \
+      --dataset-version 1.0.0 \
+      --structures-dir deduped/ \
+      --canonicalisation-policy datasets/canonicalisation.yaml \
+      --curation-policy curation.yaml \
+      --ingestion-provenance raw/ingestion_provenance.json \
+      --canonicalisation-provenance canonical/canonicalisation_provenance.json \
+      --output manifest.json
+    # manifest for 5 structures -> manifest.json
+    ```
+
+    Every `--*-provenance`/`--*-policy` flag is optional — only pass
+    what the earlier stages actually produced. `--ingestion-provenance`
+    is the one flag worth not skipping: without it, `reproduce` (below)
+    can't re-fetch that structure later. See [`pandora
+    manifest`](cli.md#manifest) for the full flag list.
 
 ## Replay a manifest from scratch
 
@@ -122,20 +149,31 @@ when you're scripting the whole pipeline in one process, as above.
 similarity/clustering, partitioning, and annotation exactly as the
 manifest recorded them.
 
-```python
-from pandora.provenance import reproduce_dataset
+=== "`library`"
 
-reproduced, new_manifest = reproduce_dataset(
-    manifest, output_dir / "reproduced"
-)
-print(len(reproduced), "structures reproduced")
-# 2 structures reproduced
-```
+    ```python
+    from pandora.provenance import reproduce_dataset
+
+    reproduced, new_manifest = reproduce_dataset(
+        manifest, output_dir / "reproduced"
+    )
+    print(len(reproduced), "structures reproduced")
+    # 2 structures reproduced
+    ```
+
+=== "`cli`"
+
+    ```bash
+    pandora reproduce --manifest manifest.json --output-dir reproduced/
+    # reproduced 5 structures -> reproduced/
+    ```
+
+    `--no-cache` skips the ingestion cache and always re-downloads.
 
 It's a best-effort re-run, not a guaranteed byte-identical rebuild —
-diff `new_manifest` against `manifest` to see what changed. Two hard
-requirements, both raising `ValueError` if unmet: every structure's
-bundle needs `ingestion` provenance (this is why the walkthrough above
-fetches for real, unlike the other usage pages), and reproducing
-`clustering` needs `ClusteringProvenance.similarity_method` set. See
-[`pandora reproduce`](cli.md#reproduce) for the CLI equivalent.
+diff the reproduced manifest against the input to see what changed.
+Two hard requirements, both raising `ValueError` if unmet: every
+structure's bundle needs `ingestion` provenance (this is why the
+walkthrough above fetches for real, unlike the other usage pages), and
+reproducing `clustering` needs `ClusteringProvenance.similarity_method`
+set.

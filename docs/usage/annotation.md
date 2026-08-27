@@ -38,39 +38,63 @@ canonical, _, _ = canonicalise_structure(structure, policy)
 assembly counts and a few breakdowns — a cheap sanity check to run on
 every structure in a batch.
 
-```python
-from pandora.annotations import annotate_structure_counts
+=== "`library`"
 
-counts = annotate_structure_counts(canonical)
-print(
-    counts.data["asym_unit_count"],
-    "chains,",
-    counts.data["residue_count"],
-    "residues",
-)
-# 8 chains, 576 residues
-```
+    ```python
+    from pandora.annotations import annotate_structure_counts
+
+    counts = annotate_structure_counts(canonical)
+    print(
+        counts.data["asym_unit_count"],
+        "chains,",
+        counts.data["residue_count"],
+        "residues",
+    )
+    # 8 chains, 576 residues
+    ```
+
+=== "`cli`"
+
+    ```bash
+    pandora annotate --input-dir deduped/ --layers structure_counts --output-dir annotations/
+    # annotated 5 entries -> annotations/
+    ```
+
+    Each entry's `structure_counts` layer lands in
+    `annotations/annotations.json`, keyed by entry id.
 
 ## Chain-chain interfaces
 
 `annotate_chain_interfaces()` finds every polymer chain pair with at
 least one contact within `distance_cutoff` angstroms.
 
-```python
-from pandora.annotations import annotate_chain_interfaces
+=== "`library`"
 
-interfaces = annotate_chain_interfaces(canonical, distance_cutoff=4.0)
-print(len(interfaces.data["interfaces"]), "interfaces")
-# 5 interfaces
-for interface in interfaces.data["interfaces"][:2]:
-    print(
-        interface["chain_id_1"],
-        interface["chain_id_2"],
-        interface["contact_count"],
-    )
-# A B 35
-# A C 6
-```
+    ```python
+    from pandora.annotations import annotate_chain_interfaces
+
+    interfaces = annotate_chain_interfaces(canonical, distance_cutoff=4.0)
+    print(len(interfaces.data["interfaces"]), "interfaces")
+    # 5 interfaces
+    for interface in interfaces.data["interfaces"][:2]:
+        print(
+            interface["chain_id_1"],
+            interface["chain_id_2"],
+            interface["contact_count"],
+        )
+    # A B 35
+    # A C 6
+    ```
+
+=== "`cli`"
+
+    ```bash
+    pandora annotate --input-dir deduped/ --layers chain_interfaces --output-dir annotations/
+    # annotated 5 entries -> annotations/
+    ```
+
+    `distance_cutoff` isn't exposed as a CLI flag — the CLI always uses
+    `annotate_chain_interfaces()`'s default.
 
 ## Ligand contacts
 
@@ -78,13 +102,26 @@ for interface in interfaces.data["interfaces"][:2]:
 non-polymer ligand (set `include_waters=True` to treat waters as
 ligands too).
 
-```python
-from pandora.annotations import annotate_ligand_contacts
+=== "`library`"
 
-contacts = annotate_ligand_contacts(canonical, distance_cutoff=4.0)
-print(len(contacts.data["ligands"]), "ligands")
-# 4 ligands — one per heme group
-```
+    ```python
+    from pandora.annotations import annotate_ligand_contacts
+
+    contacts = annotate_ligand_contacts(canonical, distance_cutoff=4.0)
+    print(len(contacts.data["ligands"]), "ligands")
+    # 4 ligands — one per heme group
+    ```
+
+=== "`cli`"
+
+    ```bash
+    pandora annotate --input-dir deduped/ --layers ligand_contacts --output-dir annotations/
+    # annotated 5 entries -> annotations/
+    ```
+
+    `--layers` accepts several names at once (`--layers structure_counts
+    ligand_contacts chain_interfaces`) to compute them all in one pass —
+    it defaults to all three when omitted.
 
 ## Pairwise sequence identity
 
@@ -94,16 +131,31 @@ simple ungapped, position-wise comparison (no alignment step — see
 `examples/dataset_pipeline.py` for where this genuinely fools itself
 on a shifted reading frame), and reports the best-scoring pair.
 
-```python
-from pandora.annotations import annotate_pairwise_sequence_identity
+=== "`library`"
 
-s2, _, _ = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
-c2, _, _ = canonicalise_structure(s2, policy)
+    ```python
+    from pandora.annotations import annotate_pairwise_sequence_identity
 
-identity = annotate_pairwise_sequence_identity(canonical, c2)
-print(identity.data["best_identity"])
-# 0.168 — 1a3n (hemoglobin) and 104m (myoglobin) are only distantly related
-```
+    s2, _, _ = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
+    c2, _, _ = canonicalise_structure(s2, policy)
+
+    identity = annotate_pairwise_sequence_identity(canonical, c2)
+    print(identity.data["best_identity"])
+    # 0.168 — 1a3n (hemoglobin) and 104m (myoglobin) are only distantly related
+    ```
+
+=== "`cli`"
+
+    `--pairwise` computes this layer for every pair in the batch,
+    alongside whichever `--layers` you pick:
+
+    ```bash
+    pandora annotate --input-dir deduped/ --layers structure_counts --pairwise --output-dir annotations/
+    # annotated 5 entries -> annotations/
+    ```
+
+    Each pair's result is attached to both entries' entries in
+    `annotations/annotations.json`.
 
 For a real alignment-based identity between *sequences* (not entities
 within structures) at dataset scale, see

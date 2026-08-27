@@ -76,7 +76,7 @@ nav = [
     "usage/similarity.md",
     "usage/export.md",
     "usage/provenance.md",
-    "usage/cli.md"
+    # "usage/cli.md"
   ]},
   { "Policies" = "policies.md" },
   { "Recipes" = [

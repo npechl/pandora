@@ -7,6 +7,10 @@ everything here comes straight from an mmCIF category) from a parsed
 signatures, and [Schemas](../reference/schemas.md) for every record's
 fields.
 
+There's no `pandora metadata` CLI subcommand — `collect_metadata()` only
+runs internally, inside [`pandora curate`](cli.md#curate). Everything
+below is library-only.
+
 ## Collect everything at once
 
 `collect_metadata()` is the orchestrator: it calls every `extract_*()`
