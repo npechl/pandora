@@ -14,6 +14,20 @@ python examples/overview.py
 Requires network access on first run (the fetched mmCIF file is cached
 under `examples/mmcif/` afterwards, so subsequent runs are offline).
 
+## `examples/ppi_dataset_pipeline.py`
+
+Builds a protein-protein interaction dataset — chain-chain
+`InterfaceRecord`s from heteromeric structures, entry-level
+sequence-identity clustering, and a leakage-safe split + manifest.
+Narrated walkthrough: [PPI interface dataset](recipes/ppi-01.md).
+
+```bash
+uv run python examples/ppi_dataset_pipeline.py
+```
+
+Runs against the local fixtures in `datasets/dev/mmcif/`, but needs
+`mmseqs2` on `PATH` (see [Installation](getting-started/installation.md#external-binaries)).
+
 ## Dev dataset
 
 `scripts/build_dev_dataset.py` builds the small, checked-in mmCIF sample
