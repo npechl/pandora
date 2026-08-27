@@ -255,9 +255,45 @@ splits, partition_prov = partition_dataset(
 )
 ```
 
-### 5. Write outputs
+### 5. Build manifest & write outputs
 
 `InterfaceRecord` has no split field of its own, so the script splits by filtering on `entry_split` instead of touching the schema, then writes one file per non-empty split plus a [dataset manifest](../usage/provenance.md#assemble-a-dataset-manifest) recording every policy, exclusion, and provenance record used along the way:
+
+```python linenums="1"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+for split_name in splits:
+    split_interfaces = [
+        record
+        for record in interfaces
+        if entry_split.get(record.entry_id) == split_name
+    ]
+    if split_interfaces:
+        write_records(
+            split_interfaces, OUTPUT_DIR / f"interfaces_{split_name}.json"
+        )
+
+manifest = build_dataset_manifest(
+    dataset_id="ppi-dev-dataset",
+    dataset_name="PPI interface dataset (dev fixtures)",
+    dataset_version="1.0.0",
+    curation_policy=curation_policy,
+    canonicalisation_policy=policy,
+    excluded=exclusions,
+    deduplication=dedup_prov,
+    clustering=cluster_prov,
+    partition=partition_prov,
+    splits=splits,
+    structures=[
+        build_provenance_bundle(
+            structures[entry_id],
+            canonicalisation=canonicalisation_provenance[entry_id],
+        )
+        for entry_id in structures
+    ],
+)
+write_json(manifest, OUTPUT_DIR / "dataset_manifest.json")
+print(f"\nwrote {len(interfaces)} interfaces + manifest -> {OUTPUT_DIR}")
+```
 
 ```text
 datasets/output/ppi/

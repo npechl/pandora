@@ -1,0 +1,8 @@
+/* The "modern" theme variant doesn't tie the header to the `primary`
+   palette color by design (unlike "classic") — wire it up explicitly so
+   the header (site name, nav, search) follows the configured primary
+   color instead of staying a neutral background. */
+.md-header {
+  background-color: var(--md-primary-fg-color);
+  color: var(--md-primary-bg-color);
+}
