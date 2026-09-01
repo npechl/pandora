@@ -64,7 +64,6 @@ nav = [
   { "Getting started" = [
     "getting-started/overview.md",
     "getting-started/installation.md",
-    "getting-started/architecture.md",
     "getting-started/glossary.md"
   ]},
   { "Usage" = [
@@ -84,7 +83,8 @@ nav = [
   ]},
   { "Contributing" = [
     "contributing/overview.md",
-    "contributing/contribute.md"
+    "contributing/contribute.md",
+    "contributing/architecture.md"
   ]},
   { "Reference" = [
     "reference/policies.md",
