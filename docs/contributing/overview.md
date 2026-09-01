@@ -3,7 +3,7 @@
 Pandora is developed in the open, and contributions are welcome —
 bug reports, feature requests, code, examples, or docs.
 
-New to the codebase? [Architecture](../getting-started/architecture.md)
+New to the codebase? [Architecture](architecture.md)
 is the fastest way to see how the schemas and stages fit together
 before you go looking for where a change belongs.
 

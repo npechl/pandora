@@ -5,7 +5,7 @@ For environment setup, branching, and how to open a PR, see
 in the repo root. This page covers what to do for each kind of
 contribution.
 
-Before diving in, [Architecture](../getting-started/architecture.md) shows how the data
+Before diving in, [Architecture](architecture.md) shows how the data
 models fit together — the fastest way to see where a new piece belongs.
 
 ## Report a bug
@@ -40,7 +40,7 @@ approach if you have one.
 ## Add a function to an existing component
 
 Every stage follows the same split: **schema in `pandora/schemas/`,
-logic in `pandora/<package>/`** (see [Architecture](../getting-started/architecture.md)).
+logic in `pandora/<package>/`** (see [Architecture](architecture.md)).
 
 1. Add/extend the Pydantic model in `pandora/schemas/<module>.py`, if
    the function needs a new typed input or output.
