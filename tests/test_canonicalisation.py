@@ -21,6 +21,7 @@ from pandora.canonicalisation.validation import _validate
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.canonicalisation import (
     AltlocRules,
+    AssemblyChainCopy,
     AssemblyRules,
     EntityRules,
     IdentifierRules,
@@ -508,12 +509,149 @@ def test_select_first_assembly_keeps_only_the_first():
 
     assemblies = [AssemblyRecord(id="1"), AssemblyRecord(id="2")]
     rules = AssemblyRules(strategy="select_first_assembly")
+    diagnostics = DiagnosticBundle()
 
-    result, _ = _normalize_assemblies(
-        assemblies, rules, "preserve", record=False
+    result, _, _, _ = _normalize_assemblies(
+        assemblies, [], [], rules, "preserve", False, diagnostics, "test"
     )
 
     assert [a.id for a in result] == ["1"]
+
+
+def test_standardize_biological_assembly_noop_without_assemblies():
+    rules = AssemblyRules(strategy="standardize_biological_assembly")
+    diagnostics = DiagnosticBundle()
+    atoms = [_atom(label_asym_id="A")]
+    asym_units = [AsymRecord(id="A", entity_id="1")]
+
+    result, new_atoms, new_asyms, _ = _normalize_assemblies(
+        [], atoms, asym_units, rules, "preserve", False, diagnostics, "test"
+    )
+
+    assert result == []
+    assert new_atoms == atoms
+    assert new_asyms == asym_units
+
+
+def test_standardize_biological_assembly_identity_only_is_unchanged():
+    from pandora.schemas.structure import (
+        AssemblyGenRecord,
+        AssemblyOperRecord,
+        AssemblyRecord,
+    )
+
+    identity_op = AssemblyOperRecord(
+        id="1",
+        matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        vector=[0.0, 0.0, 0.0],
+    )
+    assemblies = [
+        AssemblyRecord(
+            id="1",
+            author_determined=True,
+            generators=[
+                AssemblyGenRecord(
+                    assembly_id="1", oper_expression="1", asym_id_list=["A"]
+                )
+            ],
+            operators=[identity_op],
+        )
+    ]
+    atoms = [_atom(label_asym_id="A")]
+    asym_units = [AsymRecord(id="A", entity_id="1")]
+    rules = AssemblyRules(strategy="standardize_biological_assembly")
+    diagnostics = DiagnosticBundle()
+
+    result, new_atoms, new_asyms, mapping = _normalize_assemblies(
+        assemblies,
+        atoms,
+        asym_units,
+        rules,
+        "preserve",
+        True,
+        diagnostics,
+        "test",
+    )
+
+    assert [a.label_asym_id for a in new_atoms] == ["A"]
+    assert [a.id for a in new_asyms] == ["A"]
+    assert result[0].generators == []
+    assert mapping.items[0].chain_copies == []
+
+
+def test_standardize_biological_assembly_expands_symmetry_copy():
+    from pandora.schemas.structure import (
+        AssemblyGenRecord,
+        AssemblyOperRecord,
+        AssemblyRecord,
+    )
+
+    translate_op = AssemblyOperRecord(
+        id="2",
+        matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        vector=[10.0, 0.0, 0.0],
+    )
+    assemblies = [
+        AssemblyRecord(
+            id="1",
+            author_determined=True,
+            oligomeric_count=1,
+            generators=[
+                AssemblyGenRecord(
+                    assembly_id="1", oper_expression="2", asym_id_list=["A"]
+                )
+            ],
+            operators=[translate_op],
+        )
+    ]
+    atoms = [_atom(label_asym_id="A", x=1.0, y=2.0, z=3.0)]
+    asym_units = [AsymRecord(id="A", entity_id="1")]
+    rules = AssemblyRules(strategy="standardize_biological_assembly")
+    diagnostics = DiagnosticBundle()
+
+    result, new_atoms, new_asyms, mapping = _normalize_assemblies(
+        assemblies,
+        atoms,
+        asym_units,
+        rules,
+        "preserve",
+        True,
+        diagnostics,
+        "test",
+    )
+
+    assert {a.label_asym_id for a in new_atoms} == {"A", "A_2"}
+    copy_atom = next(a for a in new_atoms if a.label_asym_id == "A_2")
+    assert (copy_atom.Cartn_x, copy_atom.Cartn_y, copy_atom.Cartn_z) == (
+        11.0,
+        2.0,
+        3.0,
+    )
+    assert {a.id for a in new_asyms} == {"A", "A_2"}
+    assert result[0].oligomeric_count == 2
+    assert mapping.items[0].chain_copies == [
+        AssemblyChainCopy(
+            canonical_chain_id="A_2", source_chain_id="A", operator_id="2"
+        )
+    ]
+
+
+def test_standardize_biological_assembly_pdbe_source_falls_back_with_warning():
+    from pandora.schemas.structure import AssemblyRecord
+
+    assemblies = [AssemblyRecord(id="1", software_determined=True)]
+    rules = AssemblyRules(
+        strategy="standardize_biological_assembly",
+        preferred_assembly_source="pdbe",
+    )
+    diagnostics = DiagnosticBundle()
+
+    result, _, _, _ = _normalize_assemblies(
+        assemblies, [], [], rules, "preserve", False, diagnostics, "test"
+    )
+
+    assert result[0].id == "1"
+    assert diagnostics.warnings[0].code == "ASSEMBLY_SOURCE_UNAVAILABLE"
 
 
 # canonicalise_structure (end to end) ------------------------------------

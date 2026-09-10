@@ -238,6 +238,10 @@ class AssemblyRecord(BaseModel):
         generators: The generator instructions (which operators apply
             to which chains) that build this assembly.
         operators: The symmetry operators referenced by `generators`.
+        author_determined: Whether the depositing author flagged this
+            as the biological assembly.
+        software_determined: Whether assembly-detection software (e.g.
+            PISA) flagged this as the biological assembly.
     """
 
     id: str
@@ -247,6 +251,8 @@ class AssemblyRecord(BaseModel):
     oligomeric_count: int | None = None
     generators: list[AssemblyGenRecord] = Field(default_factory=list)
     operators: list[AssemblyOperRecord] = Field(default_factory=list)
+    author_determined: bool = False
+    software_determined: bool = False
 
 
 class ConfRecord(BaseModel):

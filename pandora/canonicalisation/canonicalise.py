@@ -101,8 +101,15 @@ def canonicalise_structure(
         transforms.append(f"residue_numbering:{ir.residue_numbering.strategy}")
 
     # normalize_assemblies --------------------------------
-    assemblies, assembly_mapping = _normalize_assemblies(
-        assemblies, asmr, ir.assembly_id.strategy, record
+    assemblies, atoms, asym_units, assembly_mapping = _normalize_assemblies(
+        assemblies,
+        atoms,
+        asym_units,
+        asmr,
+        ir.assembly_id.strategy,
+        record,
+        diagnostics,
+        structure.entry_id,
     )
     if (
         ir.assembly_id.strategy != "preserve"
