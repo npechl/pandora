@@ -10,6 +10,7 @@ CANON_POLICY = (
 
 _SUBCOMMANDS = [
     "fetch",
+    "ingest",
     "canonicalise",
     "curate",
     "dedup",
@@ -27,6 +28,31 @@ def test_parser_registers_all_subcommands():
     help_text = _build_parser().format_help()
     for name in _SUBCOMMANDS:
         assert name in help_text
+
+
+def test_ingest_local_directory(tmp_path):
+    mirror_dir = tmp_path / "mirror"
+    mirror_dir.mkdir()
+    (mirror_dir / "104m.cif").write_text(
+        (FIXTURES_DIR / "104m.cif").read_text()
+    )
+
+    output_dir = tmp_path / "raw"
+    main(
+        [
+            "ingest",
+            "--input-dir",
+            str(mirror_dir),
+            "--output-dir",
+            str(output_dir),
+            "--source-uri",
+            "dev-fixture-snapshot",
+        ]
+    )
+
+    prov = json.loads((output_dir / "ingestion_provenance.json").read_text())
+    assert prov["104M"]["provider"] == "local"
+    assert prov["104M"]["source_uri"] == "dev-fixture-snapshot"
 
 
 def test_canonicalise_curate_dedup_export_chain(tmp_path):

@@ -1,6 +1,8 @@
 from pathlib import Path
 
 import gzip
+
+import gemmi
 import httpx
 
 from pandora._util import now_iso
@@ -14,6 +16,45 @@ _PROVIDER_URLS: dict[str, str] = {
     "pdbe": "https://www.ebi.ac.uk/pdbe/entry-files/download/{id}_updated.cif",
     "pdb": "https://files.rcsb.org/download/{id}.cif",
 }
+
+_PDBE_SUMMARY_URL = "https://www.ebi.ac.uk/pdbe/api/pdb/entry/summary/{id}"
+
+_NULL_CIF = frozenset({".", "?"})
+
+
+def _revision_date_from_cif_file(path: Path) -> str | None:
+    """Latest `_pdbx_audit_revision_history.revision_date` in an mmCIF
+    file (RCSB files carry this category; PDBe's don't), or None if the
+    category is absent or the file can't be parsed. Reads gzip-compressed
+    files transparently.
+    """
+
+    try:
+        block = gemmi.cif.read(str(path)).sole_block()
+        dates = list(
+            block.find_loop("_pdbx_audit_revision_history.revision_date")
+        )
+    except (RuntimeError, ValueError):
+        return None
+    return dates[-1] if dates and dates[-1] not in _NULL_CIF else None
+
+
+def _pdbe_revision_date(entry_id: str) -> str | None:
+    """Revision date for entry_id via PDBe's summary API (its mmCIF
+    download has no revision-history category of its own), or None on
+    any failure — this enrichment must never fail the fetch itself.
+    """
+
+    try:
+        resp = httpx.get(
+            _PDBE_SUMMARY_URL.format(id=entry_id.lower()), timeout=30.0
+        )
+        resp.raise_for_status()
+        entry = resp.json()[entry_id.lower()][0]
+        raw_date = entry["revision_date"]
+        return f"{raw_date[0:4]}-{raw_date[4:6]}-{raw_date[6:8]}"
+    except (httpx.HTTPError, KeyError, IndexError, ValueError, TypeError):
+        return None
 
 
 def fetch_mmcif(
@@ -44,7 +85,8 @@ def fetch_mmcif(
 
     Returns:
         `IngestionProvenance` describing the provider, source URL,
-        retrieval timestamp, and whether the result came from cache.
+        retrieval timestamp, whether the result came from cache, and
+        the entry's own revision date where the provider exposes one.
 
     Raises:
         ValueError: If `provider` is not "pdbe"/"pdb" and no
@@ -79,6 +121,11 @@ def fetch_mmcif(
                 source_uri=url,
                 retrieved_at=mtime_iso(cached),
                 from_cache=True,
+                revision_date=(
+                    _revision_date_from_cif_file(cached)
+                    if provider == "pdb"
+                    else None
+                ),
             )
 
     try:
@@ -119,11 +166,19 @@ def fetch_mmcif(
         out_path = output_dir / f"{entry_id.lower()}.cif"
         out_path.write_text(content, encoding="utf-8")
 
+    if provider == "pdb":
+        revision_date = _revision_date_from_cif_file(out_path)
+    elif provider == "pdbe":
+        revision_date = _pdbe_revision_date(entry_id)
+    else:
+        revision_date = None
+
     return IngestionProvenance(
         provider=provider,
         source_uri=url,
         retrieved_at=now_iso(),
         from_cache=False,
+        revision_date=revision_date,
     )
 
 
@@ -189,3 +244,45 @@ def fetch_list_mmcif(
         provenance_list.append(provenance)
 
     return provenance_list
+
+
+def ingest_local_mmcif(
+    path: Path,
+    source_uri: str | None = None,
+) -> IngestionProvenance:
+    """Describe an already-downloaded mmCIF file as provenance, without
+    fetching or copying anything.
+
+    For a file that arrived via some external bulk source — a local
+    rsync mirror of PDB, an archived dated snapshot, a lab file server —
+    rather than `fetch_mmcif()`. Pandora has no bulk-download step of its
+    own; this just lets such a file's origin be recorded the same way a
+    live fetch's is, so it can still be attached to a `ProvenanceBundle`.
+
+    Args:
+        path: Path to the existing mmCIF file on disk. Not modified or
+            copied.
+        source_uri: A label for where this file came from (e.g.
+            "pdb_snapshot_2024-01-29"), stored verbatim. Defaults to
+            `str(path)` when not given.
+
+    Returns:
+        `IngestionProvenance` with `provider="local"`, `from_cache=False`
+        (this isn't Pandora's own fetch cache), the file's own mtime as
+        `retrieved_at`, and `revision_date` read from the file's
+        `_pdbx_audit_revision_history` category when present.
+
+    Raises:
+        ValueError: If `path` doesn't exist.
+    """
+
+    if not path.exists():
+        raise ValueError(f"path={path} does not exist")
+
+    return IngestionProvenance(
+        provider="local",
+        source_uri=source_uri or str(path),
+        retrieved_at=mtime_iso(path),
+        from_cache=False,
+        revision_date=_revision_date_from_cif_file(path),
+    )

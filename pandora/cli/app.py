@@ -170,6 +170,32 @@ def _cmd_fetch(args: argparse.Namespace) -> None:
     )
 
 
+def _cmd_ingest(args: argparse.Namespace) -> None:
+    """Handle the `ingest` subcommand: record ingestion provenance for a
+    directory of already-downloaded mmCIF files (e.g. a local bulk
+    mirror/snapshot), without fetching or copying anything."""
+
+    from pandora.ingestion.mmcif import ingest_local_mmcif
+
+    input_dir = Path(args.input_dir)
+    output_dir = Path(args.output_dir)
+
+    provenance: dict[str, IngestionProvenance] = {}
+    paths = sorted(input_dir.glob("*.cif"))
+    for path in paths:
+        try:
+            provenance[path.stem.upper()] = ingest_local_mmcif(
+                path, args.source_uri
+            )
+        except ValueError as exc:
+            if not args.allow_partial:
+                raise
+            print(f"warning: failed to ingest {path}: {exc}", file=sys.stderr)
+
+    _write_json_dict(provenance, output_dir / "ingestion_provenance.json")
+    print(f"ingested {len(provenance)}/{len(paths)} entries -> {output_dir}")
+
+
 def _cmd_canonicalise(args: argparse.Namespace) -> None:
     """Handle the `canonicalise` subcommand: parse and canonicalise a
     directory of mmCIF files."""
@@ -491,6 +517,22 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-cache", action="store_true")
     p.add_argument("--allow-partial", action="store_true")
     p.set_defaults(func=_cmd_fetch)
+
+    p = subparsers.add_parser(
+        "ingest",
+        help="Record ingestion provenance for an already-downloaded "
+        "directory of mmCIF files (e.g. a local bulk mirror/snapshot).",
+    )
+    p.add_argument("--input-dir", required=True)
+    p.add_argument("--output-dir", required=True)
+    p.add_argument(
+        "--source-uri",
+        help="Label for where these files came from (e.g. "
+        "'pdb_snapshot_2024-01-29'), applied to every entry. Defaults to "
+        "each file's own path.",
+    )
+    p.add_argument("--allow-partial", action="store_true")
+    p.set_defaults(func=_cmd_ingest)
 
     p = subparsers.add_parser(
         "canonicalise", help="Parse + canonicalise a directory of mmCIF files."
