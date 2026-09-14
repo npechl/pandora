@@ -1,10 +1,22 @@
-from pandora.schemas.structure import AssemblyRecord, AsymRecord, AtomSiteRecord
+from typing import TypeVar
+
+from pandora.schemas.structure import (
+    AssemblyRecord,
+    AsymRecord,
+    AtomSiteRecord,
+    ConfRecord,
+    ConnRecord,
+    SheetStrandRecord,
+    SSRecord,
+)
 from pandora.schemas.canonicalisation import (
     AssemblyChainCopy,
     AssemblyMapping,
     AssemblyMappingItem,
 )
 from pandora.schemas.common import Diagnostic, DiagnosticBundle
+
+_SpanRecordT = TypeVar("_SpanRecordT", ConfRecord, SheetStrandRecord)
 
 _IDENTITY_MATRIX = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
 _TOLERANCE = 1e-6
@@ -37,6 +49,88 @@ def _apply_transform(
         matrix[1][0] * x + matrix[1][1] * y + matrix[1][2] * z + vector[1],
         matrix[2][0] * x + matrix[2][1] * y + matrix[2][2] * z + vector[2],
     )
+
+
+def _expand_connections(
+    connections: list[ConnRecord],
+    copy_by_source_and_op: dict[tuple[str, str], str],
+) -> list[ConnRecord]:
+    """Duplicate connections (bonds/contacts) whose partner chain(s) were
+    copied into new assembly chains, remapping both partners to the same
+    operator's copy.
+
+    Only remaps a connection under an operator that copied *both*
+    partner chains (trivially true when both sides are the same chain,
+    e.g. an intra-chain disulfide) — valid because a rigid-body copy
+    preserves distances between its own atoms exactly. A connection
+    whose partners were copied under different operators, or where one
+    partner has no copy at all, has no single valid transform and is
+    left as-is (not duplicated).
+    """
+
+    operator_ids = {op_id for _, op_id in copy_by_source_and_op}
+    expanded: list[ConnRecord] = []
+    for conn in connections:
+        for op_id in operator_ids:
+            new_chain_1 = copy_by_source_and_op.get(
+                (conn.ptnr1.label_asym_id, op_id)
+            )
+            new_chain_2 = copy_by_source_and_op.get(
+                (conn.ptnr2.label_asym_id, op_id)
+            )
+            if new_chain_1 is None or new_chain_2 is None:
+                continue
+            expanded.append(
+                conn.model_copy(
+                    update={
+                        "id": f"{conn.id}_{op_id}",
+                        "ptnr1": conn.ptnr1.model_copy(
+                            update={
+                                "label_asym_id": new_chain_1,
+                                "auth_asym_id": new_chain_1,
+                            }
+                        ),
+                        "ptnr2": conn.ptnr2.model_copy(
+                            update={
+                                "label_asym_id": new_chain_2,
+                                "auth_asym_id": new_chain_2,
+                            }
+                        ),
+                    }
+                )
+            )
+    return expanded
+
+
+def _expand_span_records(
+    records: list[_SpanRecordT],
+    copy_by_source_and_op: dict[tuple[str, str], str],
+) -> list[_SpanRecordT]:
+    """Duplicate secondary-structure spans (`ConfRecord` helix/turn/strand
+    elements, `SheetStrandRecord` sheet ranges) whose chain(s) were
+    copied into new assembly chains, same operator-matching rule as
+    `_expand_connections`."""
+
+    operator_ids = {op_id for _, op_id in copy_by_source_and_op}
+    expanded: list[_SpanRecordT] = []
+    for rec in records:
+        for op_id in operator_ids:
+            new_beg = copy_by_source_and_op.get((rec.beg_label_asym_id, op_id))
+            new_end = copy_by_source_and_op.get((rec.end_label_asym_id, op_id))
+            if new_beg is None or new_end is None:
+                continue
+            expanded.append(
+                rec.model_copy(
+                    update={
+                        "id": f"{rec.id}_{op_id}",
+                        "beg_label_asym_id": new_beg,
+                        "end_label_asym_id": new_end,
+                        "beg_auth_asym_id": new_beg,
+                        "end_auth_asym_id": new_end,
+                    }
+                )
+            )
+    return expanded
 
 
 def _select_biological_assembly(
@@ -77,14 +171,19 @@ def _expand_biological_assembly(
     selected: AssemblyRecord,
     atoms: list[AtomSiteRecord],
     asym_units: list[AsymRecord],
+    connections: list[ConnRecord],
+    secondary_structure: SSRecord,
     record: bool,
 ) -> tuple[
     AssemblyRecord,
     list[AtomSiteRecord],
     list[AsymRecord],
+    list[ConnRecord],
+    SSRecord,
     list[AssemblyChainCopy],
 ]:
-    """Materialize `selected`'s symmetry operators into concrete chains."""
+    """Materialize `selected`'s symmetry operators into concrete chains,
+    and propagate connections/secondary structure onto the new chains."""
 
     atoms_by_chain: dict[str, list[AtomSiteRecord]] = {}
     for atom in atoms:
@@ -144,14 +243,13 @@ def _expand_biological_assembly(
                     )
                 )
 
-                if record:
-                    chain_copies.append(
-                        AssemblyChainCopy(
-                            canonical_chain_id=new_id,
-                            source_chain_id=source_chain,
-                            operator_id=oper_id,
-                        )
+                chain_copies.append(
+                    AssemblyChainCopy(
+                        canonical_chain_id=new_id,
+                        source_chain_id=source_chain,
+                        operator_id=oper_id,
                     )
+                )
 
     all_atoms = atoms + new_atoms
     all_asym_units = asym_units + new_asym_units
@@ -167,13 +265,42 @@ def _expand_biological_assembly(
             "oligomeric_count": new_oligomeric_count,
         }
     )
-    return materialized, all_atoms, all_asym_units, chain_copies
+
+    copy_by_source_and_op = {
+        (copy.source_chain_id, copy.operator_id): copy.canonical_chain_id
+        for copy in chain_copies
+    }
+    all_connections = connections + _expand_connections(
+        connections, copy_by_source_and_op
+    )
+    all_secondary_structure = SSRecord(
+        conf_records=secondary_structure.conf_records
+        + _expand_span_records(
+            secondary_structure.conf_records, copy_by_source_and_op
+        ),
+        sheet_strands=secondary_structure.sheet_strands
+        + _expand_span_records(
+            secondary_structure.sheet_strands, copy_by_source_and_op
+        ),
+    )
+
+    reported_chain_copies = chain_copies if record else []
+    return (
+        materialized,
+        all_atoms,
+        all_asym_units,
+        all_connections,
+        all_secondary_structure,
+        reported_chain_copies,
+    )
 
 
 def _normalize_assemblies(
     assemblies: list[AssemblyRecord],
     atoms: list[AtomSiteRecord],
     asym_units: list[AsymRecord],
+    connections: list[ConnRecord],
+    secondary_structure: SSRecord,
     assembly_rules,
     id_strategy: str,
     record: bool,
@@ -183,6 +310,8 @@ def _normalize_assemblies(
     list[AssemblyRecord],
     list[AtomSiteRecord],
     list[AsymRecord],
+    list[ConnRecord],
+    SSRecord,
     AssemblyMapping,
 ]:
     """Apply the assembly selection/standardization/id strategy, per
@@ -203,8 +332,20 @@ def _normalize_assemblies(
             entry_id,
         )
         if selected is not None:
-            materialized, atoms, asym_units, chain_copies = (
-                _expand_biological_assembly(selected, atoms, asym_units, record)
+            (
+                materialized,
+                atoms,
+                asym_units,
+                connections,
+                secondary_structure,
+                chain_copies,
+            ) = _expand_biological_assembly(
+                selected,
+                atoms,
+                asym_units,
+                connections,
+                secondary_structure,
+                record,
             )
             result = [materialized]
             chain_copies_by_assembly_id[materialized.id] = chain_copies
@@ -221,7 +362,14 @@ def _normalize_assemblies(
                         ),
                     )
                 )
-        return result, atoms, asym_units, mapping
+        return (
+            result,
+            atoms,
+            asym_units,
+            connections,
+            secondary_structure,
+            mapping,
+        )
 
     # remap or standardize → sequential integers
     new_result = []
@@ -237,4 +385,11 @@ def _normalize_assemblies(
             )
         new_result.append(asm.model_copy(update={"id": new_id}))
 
-    return new_result, atoms, asym_units, mapping
+    return (
+        new_result,
+        atoms,
+        asym_units,
+        connections,
+        secondary_structure,
+        mapping,
+    )

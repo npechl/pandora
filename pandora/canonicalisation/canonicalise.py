@@ -5,7 +5,9 @@ from pandora.schemas.structure import (
     AsymRecord,
     AssemblyRecord,
     AtomSiteRecord,
+    ConnRecord,
     EntityRecord,
+    SSRecord,
     Structure,
 )
 from pandora.schemas.canonicalisation import (
@@ -77,6 +79,8 @@ def canonicalise_structure(
     asym_units: list[AsymRecord] = list(structure.asym_units)
     entities: list[EntityRecord] = list(structure.entities)
     assemblies: list[AssemblyRecord] = list(structure.assemblies)
+    connections: list[ConnRecord] = list(structure.connections)
+    secondary_structure: SSRecord = structure.secondary_structure
 
     # normalize_chain_ids --------------------------------
     chain_map, chain_id_mapping = _normalize_chain_ids(
@@ -86,6 +90,8 @@ def canonicalise_structure(
         atoms, asym_units, structure, chain_map
     )
     assemblies = list(structure.assemblies)
+    connections = list(structure.connections)
+    secondary_structure = structure.secondary_structure
     if ir.chain_id.strategy != "preserve":
         transforms.append(f"chain_id:{ir.chain_id.strategy}")
 
@@ -101,10 +107,19 @@ def canonicalise_structure(
         transforms.append(f"residue_numbering:{ir.residue_numbering.strategy}")
 
     # normalize_assemblies --------------------------------
-    assemblies, atoms, asym_units, assembly_mapping = _normalize_assemblies(
+    (
         assemblies,
         atoms,
         asym_units,
+        connections,
+        secondary_structure,
+        assembly_mapping,
+    ) = _normalize_assemblies(
+        assemblies,
+        atoms,
+        asym_units,
+        connections,
+        secondary_structure,
         asmr,
         ir.assembly_id.strategy,
         record,
@@ -173,6 +188,8 @@ def canonicalise_structure(
             "asym_units": asym_units,
             "entities": entities,
             "assemblies": assemblies,
+            "connections": connections,
+            "secondary_structure": secondary_structure,
         }
     )
 
