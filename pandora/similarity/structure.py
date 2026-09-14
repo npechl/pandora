@@ -5,7 +5,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from pandora.schemas.annotation import AnnotationLayer
 from pandora.schemas.similarity import SimilarityMethod, SimilarityRelationship
+from pandora.schemas.structure import Structure
 
 _OUTPUT_COLUMNS = (
     "query,target,fident,alnlen,qcov,tcov,alntmscore,qstart,qend,tstart,tend"
@@ -44,6 +46,99 @@ def _link_structures(
             dest.symlink_to(src.resolve())
         except OSError:
             shutil.copy(src, dest)
+
+
+def residue_positions(structure: Structure, chain_id: str) -> dict[int, int]:
+    """`label_seq_id -> 1-indexed position` for one chain, in the order
+    `export_chain_mmcif()`/`structure_to_mmcif()` write that chain's
+    atoms — i.e. the same numbering Foldseek assigns that chain's
+    residues when it parses the resulting file.
+
+    Args:
+        structure: The structure to read chain_id's atoms from.
+        chain_id: The `label_asym_id` of the chain.
+
+    Returns:
+        One entry per residue that has atoms for this chain in
+        `structure.atoms` (first-appearance order). A residue missing
+        from `structure.atoms` (no resolved density) is absent here too
+        — it's also absent from the exported file, so there's nothing
+        for Foldseek to number.
+    """
+
+    positions: dict[int, int] = {}
+    for atom in structure.atoms:
+        if atom.label_asym_id != chain_id or atom.label_seq_id is None:
+            continue
+        if atom.label_seq_id not in positions:
+            positions[atom.label_seq_id] = len(positions) + 1
+    return positions
+
+
+def chain_item_id(entry_id: str, chain_id: str) -> str:
+    """Item id for one chain's exported file — pair with
+    `export_chain_mmcif(structure, chain_id, ...)` so the id used for
+    `compute_structure_similarity()` matches the file it names."""
+
+    return f"{entry_id}_{chain_id}"
+
+
+def interface_residues_from_annotation(
+    structures: dict[str, Structure],
+    interface_layers: dict[str, AnnotationLayer],
+) -> dict[str, set[int]]:
+    """Bridge `annotate_chain_interfaces()` output into the
+    `interface_residues` mapping `compute_structure_similarity()` expects,
+    for one exported file per chain (`export_chain_mmcif()`).
+
+    Converts each interface's `label_asym_id:label_seq_id` residue ids to
+    Foldseek-aligned positions via `residue_positions()`, so callers never
+    have to reason about the numbering mismatch between mmCIF's
+    `label_seq_id` and Foldseek's own per-file residue order themselves.
+
+    Args:
+        structures: `entry_id -> Structure`, the same structures the
+            layers in `interface_layers` were computed from.
+        interface_layers: `entry_id -> its "chain_interfaces"
+            AnnotationLayer` (from `annotate_chain_interfaces()`).
+
+    Returns:
+        `{chain_item_id(entry_id, chain_id): {positions...}}` — one
+        entry per chain that appears in at least one interface. Pass
+        this straight to `compute_structure_similarity(structures=...,
+        interface_residues=...)` where `structures` was built with
+        `export_chain_mmcif()` using the same ids.
+    """
+
+    result: dict[str, set[int]] = {}
+    for entry_id, layer in interface_layers.items():
+        structure = structures[entry_id]
+        positions_by_chain: dict[str, dict[int, int]] = {}
+        for interface in layer.data.get("interfaces", []):
+            sides = (
+                (
+                    interface["chain_id_1"],
+                    interface["interface_residues_chain_1"],
+                ),
+                (
+                    interface["chain_id_2"],
+                    interface["interface_residues_chain_2"],
+                ),
+            )
+            for chain_id, residue_ids in sides:
+                if chain_id not in positions_by_chain:
+                    positions_by_chain[chain_id] = residue_positions(
+                        structure, chain_id
+                    )
+                positions = positions_by_chain[chain_id]
+                item_id = chain_item_id(entry_id, chain_id)
+                for residue_id in residue_ids:
+                    label_seq_id = int(residue_id.rsplit(":", 1)[1])
+                    if label_seq_id in positions:
+                        result.setdefault(item_id, set()).add(
+                            positions[label_seq_id]
+                        )
+    return result
 
 
 def _interface_coverage(residues: set[int], start: int, end: int) -> float:

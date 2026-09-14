@@ -130,8 +130,8 @@ item's interface residues instead:
 relationships = compute_structure_similarity(
     paths,
     interface_residues={
-        "104M": {12, 13, 14, 88, 89},
-        "112M": {12, 13, 15, 90},
+        "104M_A": {4, 5, 12},
+        "112M_A": {4, 6, 13},
     },
 )
 for r in relationships:
@@ -142,20 +142,68 @@ for r in relationships:
 appear in `interface_residues` — otherwise it's `None` and `coverage`
 (whole-chain) is unaffected either way.
 
-The CLI's `--engine foldseek` takes the same mapping as a JSON file:
+!!! warning
+    `interface_residues` positions must match Foldseek's own 1-indexed
+    residue numbering for that item's structure file — the order residues
+    appear *in the file*, not `label_seq_id`. These only coincide for a
+    single-chain, gap-free file; a missing loop shifts every residue after
+    it, and a multi-chain file adds chain-order ambiguity on top. Don't
+    hand-build this mapping — derive it, below.
 
-```bash
-pandora similarity --input-dir deduped/ --engine foldseek --interface-residues interfaces.json --output relationships.json
-# interfaces.json: {"104M": [12, 13, 14, 88, 89], "112M": [12, 13, 15, 90]}
+#### Deriving `interface_residues` correctly
+
+`annotate_chain_interfaces()` reports residues as `label_asym_id:label_seq_id`
+strings (mmCIF's own numbering, gaps and all) — not Foldseek positions.
+Bridge the two with `export_chain_mmcif()` (writes one chain per file,
+removing the multi-chain ambiguity) and `interface_residues_from_annotation()`
+(converts `label_seq_id` to that file's actual residue order):
+
+```python
+from pandora.annotations import annotate_chain_interfaces
+from pandora.export import export_chain_mmcif
+from pandora.similarity import (
+    chain_item_id,
+    compute_structure_similarity,
+    interface_residues_from_annotation,
+)
+
+interface_layers = {
+    entry_id: annotate_chain_interfaces(structure)
+    for entry_id, structure in structures.items()
+}
+interface_residues = interface_residues_from_annotation(
+    structures, interface_layers
+)
+
+paths = {}
+for entry_id, structure in structures.items():
+    for chain_id in {a.label_asym_id for a in structure.atoms}:
+        item_id = chain_item_id(entry_id, chain_id)
+        paths[item_id] = export_chain_mmcif(
+            structure, chain_id, output_dir / f"{item_id}.cif"
+        )
+
+relationships = compute_structure_similarity(
+    paths, interface_residues=interface_residues
+)
 ```
 
-!!! warning
-    Positions in `interface_residues` must match Foldseek's own 1-indexed
-    residue numbering for that item's structure file — i.e. the order
-    residues appear in the file, not necessarily `label_seq_id`. This is
-    the identity mapping only for a single-chain, gap-free structure file
-    (true of the `structure_to_mmcif()`-per-chain pattern used above); a
-    multi-chain file or one with numbering gaps needs its own mapping.
+The CLI's `--interface-residues` takes the same mapping as a JSON file —
+write `interface_residues` from the recipe above as `{item_id: [position,
+...]}` (`json.dumps` needs lists, not sets), point `--input-dir` at the
+`chains/` directory `paths` was written into, then:
+
+```python
+import json
+
+output_dir.joinpath("interfaces.json").write_text(
+    json.dumps({k: sorted(v) for k, v in interface_residues.items()})
+)
+```
+
+```bash
+pandora similarity --input-dir chains/ --engine foldseek --interface-residues interfaces.json --output relationships.json
+```
 
 ## Clustering
 

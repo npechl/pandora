@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from pandora.export import structure_to_mmcif, write_json, write_records
+from pandora.export import (
+    export_chain_mmcif,
+    structure_to_mmcif,
+    write_json,
+    write_records,
+)
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.dataset import ChainRecord
 
@@ -24,6 +29,21 @@ def test_structure_to_mmcif_round_trips_core_fields(tmp_path):
         e.id for e in structure.entities
     }
     assert len(reparsed.assemblies) == len(structure.assemblies)
+
+
+def test_export_chain_mmcif_keeps_only_that_chain(tmp_path):
+    structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
+    all_chain_ids = {a.label_asym_id for a in structure.atoms}
+    assert "B" in all_chain_ids and len(all_chain_ids) > 1
+
+    out_path = export_chain_mmcif(structure, "B", tmp_path / "1ayi_B.cif")
+    reparsed, _, status = mmcif_to_structure(str(out_path))
+
+    assert status in ("success", "warning")
+    assert {a.label_asym_id for a in reparsed.atoms} == {"B"}
+    assert len(reparsed.atoms) == sum(
+        1 for a in structure.atoms if a.label_asym_id == "B"
+    )
 
 
 def test_write_json_round_trips(tmp_path):
