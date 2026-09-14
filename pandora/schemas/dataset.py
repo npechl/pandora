@@ -90,6 +90,7 @@ ExclusionReason = Literal[
     "RESOLUTION_THRESHOLD",
     "NULL_RESOLUTION",
     "CHAIN_TOO_SHORT",
+    "TOO_FEW_CHAINS",
     "METHOD_EXCLUDED",
     "ORGANISM_EXCLUDED",
     "MISSING_TAXONOMY",
@@ -114,8 +115,8 @@ class ExclusionRecord(BaseModel):
 
 
 class QualityRules(BaseModel):
-    """Curation policy for resolution, experimental method, and minimum
-    chain length.
+    """Curation policy for resolution, experimental method, minimum chain
+    length, and minimum polymer chain count.
 
     Attributes:
         max_resolution: The maximum resolution (in angstroms) allowed;
@@ -125,6 +126,8 @@ class QualityRules(BaseModel):
             is set.
         min_chain_length: The minimum residue count a structure's
             longest chain must reach.
+        min_polymer_chains: The minimum number of polymer chains
+            (asym units) a structure must have.
         include_experimental_methods: If non-empty, only these
             experimental methods are allowed.
         exclude_experimental_methods: Experimental methods that are
@@ -134,6 +137,7 @@ class QualityRules(BaseModel):
     max_resolution: float | None = None
     null_resolution_behavior: Literal["exclude", "include"] = "exclude"
     min_chain_length: int | None = None
+    min_polymer_chains: int | None = None
     include_experimental_methods: list[str] = Field(default_factory=list)
     exclude_experimental_methods: list[str] = Field(default_factory=list)
 
