@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from pandora.schemas.similarity import SimilarityMethod, SimilarityRelationship
-from pandora.similarity.clustering import cluster_similar_items
+from pandora.similarity.clustering import (
+    cluster_similar_items,
+    pair_cluster_keys,
+)
 
 
 def _rel(
@@ -53,8 +56,17 @@ def test_higher_threshold_splits_the_cluster() -> None:
     assert all(c.n_components == 1 for c in clusters)
 
 
+def test_pair_cluster_keys_uses_each_clusters_min_component_id() -> None:
+    clusters, _ = cluster_similar_items(ITEM_IDS, RELATIONSHIPS, threshold=0.5)
+    keys = pair_cluster_keys([("a", "d"), ("c", "e")], clusters)
+    # a,c are both in the {a,b,c} cluster (keyed by its min id "a");
+    # d and e are each their own singleton cluster.
+    assert keys == {("a", "d"): ("a", "d"), ("c", "e"): ("a", "e")}
+
+
 if __name__ == "__main__":
     test_transitive_merge_and_isolate()
     test_every_item_appears_exactly_once()
     test_higher_threshold_splits_the_cluster()
+    test_pair_cluster_keys_uses_each_clusters_min_component_id()
     print("ok")

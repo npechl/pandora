@@ -51,6 +51,9 @@ class SimilarityRelationship(BaseModel):
         score: The relationship's primary similarity score.
         coverage: The alignment coverage between the two items, if
             reported.
+        interface_coverage: The alignment coverage restricted to each
+            item's interface residues, if computed (see
+            `compute_structure_similarity(interface_residues=...)`).
         identity: The sequence/structural identity between the two
             items, if reported.
         method: Which engine/parameters produced this relationship.
@@ -64,6 +67,7 @@ class SimilarityRelationship(BaseModel):
     similarity_type: SimilarityType
     score: float
     coverage: float | None = None
+    interface_coverage: float | None = None
     identity: float | None = None
     method: SimilarityMethod
     provenance: SimilarityRelationshipProvenance = Field(

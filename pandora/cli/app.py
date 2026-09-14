@@ -50,6 +50,7 @@ from pandora.similarity import (
     cluster_similar_items,
     compute_sequence_similarity,
     compute_structure_similarity,
+    pair_cluster_keys,
     partition_dataset,
 )
 
@@ -137,6 +138,21 @@ def _load_yaml_model(model_cls: type[BaseModel], path: Path) -> BaseModel:
     with path.open() as stream:
         data = yaml.safe_load(stream)
     return model_cls.model_validate(data)
+
+
+def _load_interface_residues(path: Path) -> dict[str, set[int]]:
+    """Load a JSON object of item_id -> [residue position, ...] as
+    `compute_structure_similarity(interface_residues=...)` expects."""
+
+    data = json.loads(path.read_text())
+    return {item_id: set(positions) for item_id, positions in data.items()}
+
+
+def _load_pairs(path: Path) -> list[tuple[str, str]]:
+    """Load a JSON array of [item_id_1, item_id_2] pairs."""
+
+    data = json.loads(path.read_text())
+    return [(item_1, item_2) for item_1, item_2 in data]
 
 
 # Subcommands -------------------------------------------------------------
@@ -290,6 +306,10 @@ def _cmd_similarity(args: argparse.Namespace) -> None:
         }
         if args.sensitivity is not None:
             kwargs["sensitivity"] = args.sensitivity
+        if args.interface_residues:
+            kwargs["interface_residues"] = _load_interface_residues(
+                Path(args.interface_residues)
+            )
         relationships = compute_structure_similarity(
             Path(args.input_dir), **kwargs
         )
@@ -323,6 +343,30 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
     write_records(clusters, output)
     write_json(prov, output.parent / "cluster_provenance.json")
     print(f"{len(clusters)} clusters at threshold={args.threshold} -> {output}")
+
+    if args.pairs:
+        pairs = _load_pairs(Path(args.pairs))
+        keys = pair_cluster_keys(pairs, clusters)
+        pairs_output = output.parent / "cluster_pairs.json"
+        pairs_output.write_text(
+            json.dumps(
+                [
+                    {
+                        "item_id_1": item_1,
+                        "item_id_2": item_2,
+                        "cluster_id_1": cluster_1,
+                        "cluster_id_2": cluster_2,
+                    }
+                    for (item_1, item_2), (
+                        cluster_1,
+                        cluster_2,
+                    ) in keys.items()
+                ],
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        print(f"{len(keys)} paired cluster keys -> {pairs_output}")
 
 
 def _cmd_partition(args: argparse.Namespace) -> None:
@@ -571,6 +615,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--foldseek-bin", default="foldseek")
     p.add_argument("--sensitivity", type=float, default=None)
     p.add_argument("--alignment-type", type=int, default=2)
+    p.add_argument(
+        "--interface-residues",
+        help=(
+            "foldseek only: JSON file of {item_id: [residue position, ...]} "
+            "to compute interface-restricted coverage alongside whole-chain "
+            "coverage (see docs/usage/similarity.md)"
+        ),
+    )
     p.add_argument("--output", required=True)
     p.set_defaults(func=_cmd_similarity)
 
@@ -583,6 +635,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--relationships", required=True)
     p.add_argument("--threshold", type=float, default=0.9)
+    p.add_argument(
+        "--pairs",
+        help=(
+            "JSON file of [item_id_1, item_id_2] PPI pairs to also derive "
+            "per-side paired cluster keys for -> cluster_pairs.json"
+        ),
+    )
     p.add_argument("--output", required=True)
     p.set_defaults(func=_cmd_cluster)
 

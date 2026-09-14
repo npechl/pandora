@@ -7,7 +7,9 @@ from pathlib import Path
 
 from pandora.schemas.similarity import SimilarityMethod, SimilarityRelationship
 
-_OUTPUT_COLUMNS = "query,target,fident,alnlen,qcov,tcov,alntmscore"
+_OUTPUT_COLUMNS = (
+    "query,target,fident,alnlen,qcov,tcov,alntmscore,qstart,qend,tstart,tend"
+)
 
 
 def _foldseek_version(foldseek_bin: str) -> str | None:
@@ -44,9 +46,19 @@ def _link_structures(
             shutil.copy(src, dest)
 
 
+def _interface_coverage(residues: set[int], start: int, end: int) -> float:
+    """Fraction of residues (1-indexed positions) that fall within the
+    inclusive [start, end] alignment range. 0.0 if residues is empty."""
+
+    if not residues:
+        return 0.0
+    return sum(1 for r in residues if start <= r <= end) / len(residues)
+
+
 def compute_structure_similarity(
     structures: dict[str, str | Path] | str | Path,
     *,
+    interface_residues: dict[str, set[int]] | None = None,
     foldseek_bin: str = "foldseek",
     sensitivity: float = 9.5,
     alignment_type: int = 2,
@@ -60,6 +72,16 @@ def compute_structure_similarity(
             optionally gzipped), or a path to a directory of existing
             structure files to run similarity over directly (ids are then
             Foldseek's own file-derived names).
+        interface_residues: Optional mapping of item id -> 1-indexed
+            interface residue positions, as Foldseek numbers residues for
+            that item's structure file (identity mapping from
+            `label_seq_id` only holds for a single-chain, gap-free file —
+            see `docs/usage/similarity.md`). When given, each resulting
+            relationship's `interface_coverage` is the fraction of the
+            (source or target) item's interface residues falling inside
+            the alignment range, rather than Foldseek's whole-chain
+            coverage. A pair gets no `interface_coverage` unless both its
+            items are present in this mapping.
         foldseek_bin: Path or name of the Foldseek binary.
         sensitivity: Foldseek `-s` sensitivity value.
         alignment_type: Foldseek `--alignment-type` (0: 3Di alignment,
@@ -74,8 +96,11 @@ def compute_structure_similarity(
         when building a similarity network. `score` is the best hit's
         TM-score (`alntmscore`), `identity` its fraction of identical
         aligned residues (`fident`), `coverage` the min of query/target
-        coverage.
+        whole-chain coverage, `interface_coverage` the min of query/target
+        interface-restricted coverage (if `interface_residues` given).
     """
+
+    interface_residues = interface_residues or {}
 
     if shutil.which(foldseek_bin) is None:
         raise RuntimeError(
@@ -120,11 +145,23 @@ def compute_structure_similarity(
         )
 
         version = _foldseek_version(foldseek_bin)
-        best_hits: dict[tuple[str, str], tuple[float, float, float]] = {}
+        best_hits: dict[
+            tuple[str, str], tuple[float, float, float, float | None]
+        ] = {}
         for line in result_path.read_text().splitlines():
-            query, target, fident, _alnlen, qcov, tcov, alntmscore = line.split(
-                "\t"
-            )
+            (
+                query,
+                target,
+                fident,
+                _alnlen,
+                qcov,
+                tcov,
+                alntmscore,
+                qstart,
+                qend,
+                tstart,
+                tend,
+            ) = line.split("\t")
             if query == target:
                 continue
 
@@ -133,10 +170,25 @@ def compute_structure_similarity(
             identity = float(fident)
             coverage = min(float(qcov), float(tcov))
 
+            interface_coverage = None
+            if query in interface_residues and target in interface_residues:
+                q_iface_cov = _interface_coverage(
+                    interface_residues[query], int(qstart), int(qend)
+                )
+                t_iface_cov = _interface_coverage(
+                    interface_residues[target], int(tstart), int(tend)
+                )
+                interface_coverage = min(q_iface_cov, t_iface_cov)
+
             pair = (source_id, target_id)
             current = best_hits.get(pair)
             if current is None or score > current[0]:
-                best_hits[pair] = (score, identity, coverage)
+                best_hits[pair] = (
+                    score,
+                    identity,
+                    coverage,
+                    interface_coverage,
+                )
 
     return [
         SimilarityRelationship(
@@ -145,6 +197,7 @@ def compute_structure_similarity(
             similarity_type="structure_similarity",
             score=score,
             coverage=coverage,
+            interface_coverage=interface_coverage,
             identity=identity,
             method=SimilarityMethod(
                 engine="Foldseek",
@@ -156,7 +209,10 @@ def compute_structure_similarity(
                 },
             ),
         )
-        for (source_id, target_id), (score, identity, coverage) in sorted(
-            best_hits.items()
-        )
+        for (source_id, target_id), (
+            score,
+            identity,
+            coverage,
+            interface_coverage,
+        ) in sorted(best_hits.items())
     ]

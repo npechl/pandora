@@ -119,6 +119,44 @@ or a directory of files to use their filenames as ids directly.
     `cluster_similar_items()` silently drops every relationship instead
     of erroring.
 
+### Interface-restricted coverage (PPI pairs)
+
+For PPI work, whole-chain coverage can hide that two complexes only
+resemble each other away from the interface (or vice versa). Pass
+`interface_residues={id: {positions...}}` to restrict coverage to each
+item's interface residues instead:
+
+```python
+relationships = compute_structure_similarity(
+    paths,
+    interface_residues={
+        "104M": {12, 13, 14, 88, 89},
+        "112M": {12, 13, 15, 90},
+    },
+)
+for r in relationships:
+    print(r.source_id, r.target_id, r.coverage, r.interface_coverage)
+```
+
+`interface_coverage` is only set on a relationship when both its items
+appear in `interface_residues` — otherwise it's `None` and `coverage`
+(whole-chain) is unaffected either way.
+
+The CLI's `--engine foldseek` takes the same mapping as a JSON file:
+
+```bash
+pandora similarity --input-dir deduped/ --engine foldseek --interface-residues interfaces.json --output relationships.json
+# interfaces.json: {"104M": [12, 13, 14, 88, 89], "112M": [12, 13, 15, 90]}
+```
+
+!!! warning
+    Positions in `interface_residues` must match Foldseek's own 1-indexed
+    residue numbering for that item's structure file — i.e. the order
+    residues appear in the file, not necessarily `label_seq_id`. This is
+    the identity mapping only for a single-chain, gap-free structure file
+    (true of the `structure_to_mmcif()`-per-chain pattern used above); a
+    multi-chain file or one with numbering gaps needs its own mapping.
+
 ## Clustering
 
 `cluster_similar_items()` groups ids into connected-component clusters:
@@ -152,6 +190,34 @@ edges become their own singleton cluster.
     not from `relationships.json` — this is the ordering
     [Keep ids consistent between stages](#keep-ids-consistent-between-stages)
     warns about.
+
+### Paired cluster keys (PPI pairs)
+
+`pair_cluster_keys()` looks up each side of a PPI pair in item-level
+clusters and returns a `(cluster_id_1, cluster_id_2)` key per pair
+(Pinder-style `{cluster_id_R, cluster_id_L}`) — useful for deduplicating
+PPI pairs by which fold-pair they represent, not just which structure
+they came from:
+
+```python
+from pandora.similarity import pair_cluster_keys
+
+keys = pair_cluster_keys([("104M", "112M")], clusters)
+# {('104M', '112M'): ('104M', '112M')}
+```
+
+Each cluster's own lexicographically-smallest member id is used as its
+key, so it's stable regardless of clustering order.
+
+The CLI's `cluster` subcommand takes the same pairs as a JSON file and
+writes the keys alongside its usual output:
+
+```bash
+pandora cluster --input-dir deduped/ --relationships relationships.json --threshold 0.9 --pairs pairs.json --output clusters.json
+# pairs.json: [["104M", "112M"]]
+# 1 clusters at threshold=0.9 -> clusters.json
+# 1 paired cluster keys -> cluster_pairs.json
+```
 
 ## Leakage-safe partitioning
 

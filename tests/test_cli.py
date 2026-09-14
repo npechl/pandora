@@ -119,3 +119,57 @@ def test_canonicalise_curate_dedup_export_chain(tmp_path):
         ]
     )
     assert json.loads(exported.read_text())["entry_id"] == "104M"
+
+
+def test_cluster_with_pairs(tmp_path):
+    input_dir = tmp_path / "clustered"
+    input_dir.mkdir()
+    (input_dir / "104m.cif").touch()
+    (input_dir / "112m.cif").touch()
+    (input_dir / "118l.cif").touch()
+
+    relationships = tmp_path / "relationships.json"
+    relationships.write_text(
+        json.dumps(
+            [
+                {
+                    "source_id": "104M",
+                    "target_id": "112M",
+                    "similarity_type": "structure_similarity",
+                    "score": 0.99,
+                    "method": {"engine": "Foldseek"},
+                }
+            ]
+        )
+    )
+
+    pairs = tmp_path / "pairs.json"
+    pairs.write_text(json.dumps([["104M", "112M"], ["104M", "118L"]]))
+
+    output = tmp_path / "clusters.json"
+    main(
+        [
+            "cluster",
+            "--input-dir",
+            str(input_dir),
+            "--relationships",
+            str(relationships),
+            "--threshold",
+            "0.9",
+            "--pairs",
+            str(pairs),
+            "--output",
+            str(output),
+        ]
+    )
+
+    cluster_pairs = json.loads(
+        (output.parent / "cluster_pairs.json").read_text()
+    )
+    by_pair = {(p["item_id_1"], p["item_id_2"]): p for p in cluster_pairs}
+    # 104M/112M share a cluster (edge above threshold) -> same cluster key.
+    same = by_pair[("104M", "112M")]
+    assert same["cluster_id_1"] == same["cluster_id_2"]
+    # 118L is its own singleton cluster -> different key from 104M's.
+    different = by_pair[("104M", "118L")]
+    assert different["cluster_id_1"] != different["cluster_id_2"]
