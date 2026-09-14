@@ -740,7 +740,7 @@ wheels = [
 
 [[package]]
 name = "pandora"
-version = "0.1.1a1"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "gemmi" },
