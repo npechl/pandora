@@ -1,6 +1,6 @@
 # Architecture
 
-Pandora's pipeline (see [Home](../index.md)) is a chain of plain functions, but
+Pandora's pipeline (see [Home](../getting-started/index.md)) is a chain of plain functions, but
 the *data* those functions pass around is what actually defines the
 framework's shape. This page maps how the typed [Pydantic](https://docs.pydantic.dev/)
 models in `pandora/schemas/` reference each other — diagrams below are

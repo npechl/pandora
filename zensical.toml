@@ -60,36 +60,34 @@ use_directory_urls = true
 #
 # Read more: https://zensical.org/docs/setup/navigation/
 nav = [
-  { "Overview" = "index.md" },
   { "Getting started" = [
-    "getting-started/overview.md",
-    "getting-started/installation.md",
-    "getting-started/glossary.md"
+    { "Overview" = "getting-started/index.md" },
+    { "Installation" = "getting-started/installation.md" },
+    { "Glossary" = "getting-started/glossary.md" }
   ]},
   { "Usage" = [
-    "usage/overview.md",
-    "usage/ingestion.md",
-    "usage/canonicalisation.md",
-    "usage/metadata.md",
-    "usage/annotation.md",
-    "usage/datasets.md",
-    "usage/similarity.md",
-    "usage/export.md",
-    "usage/provenance.md",
+    { "Overview" = "usage/overview.md"},
+    { "Ingestion" = "usage/ingestion.md" },
+    { "Canonicalisation" = "usage/canonicalisation.md" },
+    { "Metadata" = "usage/metadata.md"},
+    { "Annotation" = "usage/annotation.md"},
+    { "Datasets" = "usage/datasets.md"},
+    { "Similarity" = "usage/similarity.md"},
+    { "Export" = "usage/export.md"},
+    { "Provenance" = "usage/provenance.md" },
     # "usage/cli.md"
   ]},
   { "Recipes" = [
     "recipes/ppi-01.md",
   ]},
   { "Contributing" = [
-    "contributing/overview.md",
     "contributing/contribute.md",
     "contributing/architecture.md"
   ]},
   { "Reference" = [
-    "reference/policies.md",
-    "reference/functions.md",
-    "reference/schemas.md"
+    { "Policies" = "reference/policies.md" },
+    { "Functions" = "reference/functions.md" },
+    { "Data models" = "reference/schemas.md" }
   ]}
 ]
 
@@ -360,9 +358,9 @@ options.merge_init_into_class = true
 # ----------------------------------------------------------------------------
 # The "extra" section contains miscellaneous settings.
 # ----------------------------------------------------------------------------
-#[[project.extra.social]]
-#icon = "fontawesome/brands/github"
-#link = "https://github.com/user/repo"
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/npechl/pandora"
 
 # ----------------------------------------------------------------------------
 # In this section you can configure the Markdown extensions that are used when

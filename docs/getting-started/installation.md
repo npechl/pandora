@@ -23,7 +23,7 @@ The base install includes `pydantic`, `pyyaml`, and `gemmi` — enough to **pars
 
 ## Components
 
-`pandora/` is one package per pipeline stage (see the [Overview](../index.md) diagram), but most stages need nothing beyond the base install — only `ingestion`, `export`, and `similarity` pull in extra dependencies. Rows below with no `pip install` command aren't real `pyproject.toml` extras; running `pip install -e ".[parsing]"` (for example) would just error with "extra not found".
+`pandora/` is one package per pipeline stage (see the [Overview](index.md) diagram), but most stages need nothing beyond the base install — only `ingestion`, `export`, and `similarity` pull in extra dependencies. Rows below with no `pip install` command aren't real `pyproject.toml` extras; running `pip install -e ".[parsing]"` (for example) would just error with "extra not found".
 
 | Install | Description | Adds |
 |---------|-------------|------|
