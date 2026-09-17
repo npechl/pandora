@@ -1,4 +1,4 @@
-# Overview
+# Contributing to `Pandora`
 
 Pandora is developed in the open, and contributions are welcome —
 bug reports, feature requests, code, examples, or docs.
