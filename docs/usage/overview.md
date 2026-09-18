@@ -1,6 +1,6 @@
 # How to use `Pandora`?
 
-[Getting Started](../getting-started/overview.md) is a single walkthrough
+[Quickstart](../getting-started/quickstart.md) is a single walkthrough
 of the pipeline end to end. This section is the per-stage reference
 underneath it — one page per stage, covering every function's
 signature, edge cases, and (where one exists) the equivalent `pandora`
