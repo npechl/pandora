@@ -38,7 +38,12 @@ contacts = annotate_ligand_contacts(canonical)
 
 print(metadata.entry.title)
 # SPERM WHALE MYOGLOBIN N-BUTYL ISOCYANIDE AT PH 7.0
-print([(l["ligand_comp_id"], l["contact_count"]) for l in contacts.data["ligands"]])
+print(
+    [
+        (l["ligand_comp_id"], l["contact_count"])
+        for l in contacts.data["ligands"]
+    ]
+)
 # [('SO4', 4), ('HEM', 15), ('NBN', 4)]
 ```
 

@@ -152,7 +152,9 @@ for structure in structures.values():
     if resolution is not None:
         resolutions.append(resolution)
 
-print(f"resolution range: {min(resolutions):.2f}-{max(resolutions):.2f} Å ({len(resolutions)} entries)")
+print(
+    f"resolution range: {min(resolutions):.2f}-{max(resolutions):.2f} Å ({len(resolutions)} entries)"
+)
 # resolution range: 0.60-16.80 Å (79 entries)
 
 ligand_counts = Counter()
@@ -173,7 +175,9 @@ from pandora.datasets import curate_structure, deduplicate_structures
 from pandora.schemas.dataset import DatasetCurationPolicy, DeduplicationRules
 
 curation_policy = DatasetCurationPolicy(
-    policy_id="quickstart-curation", policy_name="Default", policy_version="1.0.0"
+    policy_id="quickstart-curation",
+    policy_name="Default",
+    policy_version="1.0.0",
 )
 exclusions = []
 for entry_id in list(structures):
