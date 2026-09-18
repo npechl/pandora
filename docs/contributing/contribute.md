@@ -5,8 +5,22 @@ For environment setup, branching, and how to open a PR, see
 in the repo root. This page covers what to do for each kind of
 contribution.
 
-Before diving in, [Architecture](architecture.md) shows how the data
-models fit together — the fastest way to see where a new piece belongs.
+Before diving in, [Architecture](architecture.md) maps every pipeline
+function to the data model it takes and returns — the fastest way to see
+where a new piece belongs.
+
+## Ways to contribute
+
+| I want to... | Go to |
+|---|---|
+| Report something broken | [Report a bug](#report-a-bug) |
+| Propose something new | [Request a feature](#request-a-feature) |
+| Fix an existing bug | [Fix a bug](#fix-a-bug) |
+| Add a function to `pandora/ingestion`, `parsing`, `canonicalisation`, `metadata`, `datasets`, `similarity`, `provenance`, or `export` | [Add a function to an existing component](#add-a-function-to-an-existing-component) |
+| Add a new `annotate_*()` function | [Add a new annotation](#add-a-new-annotation) |
+| Write a runnable script or a narrated write-up | [Write an example or recipe](#write-an-example-or-recipe) |
+| Add a bundled fixture dataset | [Build a new dataset](#build-a-new-dataset) |
+| Fix or extend the docs site | [Update the docs](#update-the-docs) |
 
 ## Report a bug
 
@@ -88,10 +102,23 @@ binaries required. Follow the existing scripts' shape (see
 uv run python examples/your_script.py
 ```
 
-[Recipes](../recipes/ppi-01.md) is a currently-empty stub for narrated,
-task-oriented write-ups ("how do I do X") built on top of an example
-script — the first one is a welcome contribution. Add a page under
-`docs/recipes/` and link it from `docs/recipes/recipes.md`.
+A [recipe](../recipes/ppi-01.md) is a narrated, task-oriented write-up
+("how do I build a PPI dataset") built on top of an example script —
+[PPI interface dataset](../recipes/ppi-01.md) is the only one so far,
+and a second one covering a different task (e.g. clustering by
+structural rather than sequence similarity, or a single-organism
+dataset) is a welcome contribution. To add one:
+
+1. Write the runnable script under `examples/` first, if one doesn't
+   already exist for the workflow.
+2. Add a narrated page under `docs/recipes/` that walks through it
+   step by step — see `ppi-01.md`'s source for the shape (prerequisites,
+   a collapsible full script, expected output, then a per-step
+   breakdown with links to the [Usage](../usage/overview.md) pages
+   each step comes from).
+3. Register the new page in `zensical.toml`'s `nav`, under the
+   `"Recipes"` list — a page not listed there builds but won't appear
+   anywhere in the site.
 
 ## Build a new dataset
 
