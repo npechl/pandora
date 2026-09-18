@@ -1,4 +1,6 @@
-# What is `Pandora`?
+<!-- # What is `Pandora`? -->
+
+# Pandora
 
 Pandora turns raw PDBe mmCIF files into typed, policy-driven, ML-ready protein structure datasets. Structural biology data usually arrives as loosely-typed, inconsistently-annotated mmCIF — Pandora parses it into a typed `Structure`, applies a configurable policy to normalize it (chain IDs, altlocs, ligands, missing atoms), and derives the metadata, annotations, and provenance records you need for downstream ML work.
 
@@ -40,7 +42,7 @@ print([(l["ligand_comp_id"], l["contact_count"]) for l in contacts.data["ligands
 # [('SO4', 4), ('HEM', 15), ('NBN', 4)]
 ```
 
-`HEM` (the heme group) has the most polymer residues in contact — exactly what you'd expect from myoglobin's oxygen-binding pocket. See [Usage](../usage/overview.md) for this same pipeline broken down stage by stage, library and CLI side by side.
+`HEM` (the heme group) has the most polymer residues in contact — exactly what you'd expect from myoglobin's oxygen-binding pocket. See [Usage](usage/overview.md) for this same pipeline broken down stage by stage, library and CLI side by side.
 
 ## Install
 
@@ -54,14 +56,14 @@ cd pandora
 pip install -e .
 ```
 
-See [Installation](installation.md) for what each optional extra (`ingestion`, `export`, `similarity`, ...) unlocks.
+See [Installation](getting-started/installation.md) for what each optional extra (`ingestion`, `export`, `similarity`, ...) unlocks.
 
 ## Where to go next
 
-- **New here?** [Quickstart](quickstart.md) — a five-minute, fully offline walkthrough using the bundled sample data.
-- **Want the full pipeline, stage by stage?** [Usage](../usage/overview.md) has the library call and its CLI equivalent side by side.
-- **Configuring canonicalisation?** [Policies](../reference/policies.md) covers every policy field.
-- **Building a training dataset?** [Recipes](../recipes/ppi-01.md) has end-to-end multi-structure workflows — clustering, leakage-safe splits.
-- **Looking for a specific function?** [Functions](../reference/functions.md) and [Data models](../reference/schemas.md) are generated straight from the docstrings.
-- **Hit an unfamiliar term?** Check the [Glossary](glossary.md).
+- **New here?** [Quickstart](getting-started/quickstart.md) — a five-minute, fully offline walkthrough using the bundled sample data.
+- **Want the full pipeline, stage by stage?** [Usage](usage/overview.md) has the library call and its CLI equivalent side by side.
+- **Configuring canonicalisation?** [Policies](reference/policies.md) covers every policy field.
+- **Building a training dataset?** [Recipes](recipes/ppi-01.md) has end-to-end multi-structure workflows — clustering, leakage-safe splits.
+- **Looking for a specific function?** [Functions](reference/functions.md) and [Data models](reference/schemas.md) are generated straight from the docstrings.
+- **Hit an unfamiliar term?** Check the [Glossary](getting-started/glossary.md).
 </content>

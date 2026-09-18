@@ -30,7 +30,6 @@ site_author = "Nikos Pechlivanis"
 # The site_url is the canonical URL for your site. When building online
 # documentation you should set this.
 # Read more: https://zensical.org/docs/setup/basics/#site_url
-# site_url = "https://npechl.github.io/pandora/"
 
 # The copyright notice appears in the page footer and can contain an HTML
 # fragment.
@@ -61,13 +60,13 @@ use_directory_urls = true
 # Read more: https://zensical.org/docs/setup/navigation/
 nav = [
   { "Getting started" = [
-    { "Overview" = "getting-started/index.md" },
-    { "Quickstart" = "getting-started/quickstart.md" },
+    { "Overview" = "index.md" },
     { "Installation" = "getting-started/installation.md" },
+    { "Quickstart" = "getting-started/quickstart.md" },
     { "Glossary" = "getting-started/glossary.md" }
   ]},
   { "Usage" = [
-    { "Overview" = "usage/overview.md"},
+    { "Components" = "usage/overview.md"},
     { "Ingestion" = "usage/ingestion.md" },
     { "Canonicalisation" = "usage/canonicalisation.md" },
     { "Metadata" = "usage/metadata.md"},
