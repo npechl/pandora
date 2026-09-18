@@ -135,6 +135,53 @@ def structure_to_mmcif(structure: Structure, path: str | Path) -> Path:
     return out_path
 
 
+def export_chain_mmcif(
+    structure: Structure, chain_id: str, path: str | Path
+) -> Path:
+    """Write a single chain (`label_asym_id`) of a Structure out as its
+    own mmCIF file.
+
+    Keeps only `chain_id`'s atoms and connections; drops `raw` (verbatim
+    passthrough categories, e.g. `_pdbx_sifts_xref_db`, commonly
+    reference asym ids no longer present once other chains are dropped —
+    gemmi refuses to re-parse a dangling reference). `entities`/
+    `asym_units`/`assemblies`/`secondary_structure` are written
+    unfiltered, same as `structure_to_mmcif` — harmless extra rows a
+    structure-only consumer like Foldseek ignores.
+
+    Useful for per-chain structural similarity (e.g. PPI interface
+    coverage — see `pandora.similarity.structure.residue_positions`,
+    which numbers residues to match this file's atom order).
+
+    Args:
+        structure: The structure to pull chain_id's atoms from.
+        chain_id: The `label_asym_id` of the chain to write.
+        path: Destination file path; parent directories are created
+            if missing.
+
+    Returns:
+        The resolved `Path` the mmCIF file was written to.
+    """
+
+    chain_only = structure.model_copy(
+        update={
+            "atoms": [
+                atom
+                for atom in structure.atoms
+                if atom.label_asym_id == chain_id
+            ],
+            "connections": [
+                conn
+                for conn in structure.connections
+                if conn.ptnr1.label_asym_id == chain_id
+                and conn.ptnr2.label_asym_id == chain_id
+            ],
+            "raw": {},
+        }
+    )
+    return structure_to_mmcif(chain_only, path)
+
+
 def _columns_from_fields(records: list, fields: list[str]) -> dict[str, list]:
     """Column-oriented {field: [values]} built by reading field off
     each record."""

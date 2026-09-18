@@ -50,6 +50,7 @@ from pandora.similarity import (
     cluster_similar_items,
     compute_sequence_similarity,
     compute_structure_similarity,
+    pair_cluster_keys,
     partition_dataset,
 )
 
@@ -139,6 +140,21 @@ def _load_yaml_model(model_cls: type[BaseModel], path: Path) -> BaseModel:
     return model_cls.model_validate(data)
 
 
+def _load_interface_residues(path: Path) -> dict[str, set[int]]:
+    """Load a JSON object of item_id -> [residue position, ...] as
+    `compute_structure_similarity(interface_residues=...)` expects."""
+
+    data = json.loads(path.read_text())
+    return {item_id: set(positions) for item_id, positions in data.items()}
+
+
+def _load_pairs(path: Path) -> list[tuple[str, str]]:
+    """Load a JSON array of [item_id_1, item_id_2] pairs."""
+
+    data = json.loads(path.read_text())
+    return [(item_1, item_2) for item_1, item_2 in data]
+
+
 # Subcommands -------------------------------------------------------------
 
 
@@ -168,6 +184,32 @@ def _cmd_fetch(args: argparse.Namespace) -> None:
     print(
         f"fetched {len(provenance)}/{len(args.entry_ids)} entries -> {output_dir}"
     )
+
+
+def _cmd_ingest(args: argparse.Namespace) -> None:
+    """Handle the `ingest` subcommand: record ingestion provenance for a
+    directory of already-downloaded mmCIF files (e.g. a local bulk
+    mirror/snapshot), without fetching or copying anything."""
+
+    from pandora.ingestion.mmcif import ingest_local_mmcif
+
+    input_dir = Path(args.input_dir)
+    output_dir = Path(args.output_dir)
+
+    provenance: dict[str, IngestionProvenance] = {}
+    paths = sorted(input_dir.glob("*.cif"))
+    for path in paths:
+        try:
+            provenance[path.stem.upper()] = ingest_local_mmcif(
+                path, args.source_uri
+            )
+        except ValueError as exc:
+            if not args.allow_partial:
+                raise
+            print(f"warning: failed to ingest {path}: {exc}", file=sys.stderr)
+
+    _write_json_dict(provenance, output_dir / "ingestion_provenance.json")
+    print(f"ingested {len(provenance)}/{len(paths)} entries -> {output_dir}")
 
 
 def _cmd_canonicalise(args: argparse.Namespace) -> None:
@@ -264,6 +306,10 @@ def _cmd_similarity(args: argparse.Namespace) -> None:
         }
         if args.sensitivity is not None:
             kwargs["sensitivity"] = args.sensitivity
+        if args.interface_residues:
+            kwargs["interface_residues"] = _load_interface_residues(
+                Path(args.interface_residues)
+            )
         relationships = compute_structure_similarity(
             Path(args.input_dir), **kwargs
         )
@@ -297,6 +343,30 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
     write_records(clusters, output)
     write_json(prov, output.parent / "cluster_provenance.json")
     print(f"{len(clusters)} clusters at threshold={args.threshold} -> {output}")
+
+    if args.pairs:
+        pairs = _load_pairs(Path(args.pairs))
+        keys = pair_cluster_keys(pairs, clusters)
+        pairs_output = output.parent / "cluster_pairs.json"
+        pairs_output.write_text(
+            json.dumps(
+                [
+                    {
+                        "item_id_1": item_1,
+                        "item_id_2": item_2,
+                        "cluster_id_1": cluster_1,
+                        "cluster_id_2": cluster_2,
+                    }
+                    for (item_1, item_2), (
+                        cluster_1,
+                        cluster_2,
+                    ) in keys.items()
+                ],
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+        print(f"{len(keys)} paired cluster keys -> {pairs_output}")
 
 
 def _cmd_partition(args: argparse.Namespace) -> None:
@@ -493,6 +563,22 @@ def _build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=_cmd_fetch)
 
     p = subparsers.add_parser(
+        "ingest",
+        help="Record ingestion provenance for an already-downloaded "
+        "directory of mmCIF files (e.g. a local bulk mirror/snapshot).",
+    )
+    p.add_argument("--input-dir", required=True)
+    p.add_argument("--output-dir", required=True)
+    p.add_argument(
+        "--source-uri",
+        help="Label for where these files came from (e.g. "
+        "'pdb_snapshot_2024-01-29'), applied to every entry. Defaults to "
+        "each file's own path.",
+    )
+    p.add_argument("--allow-partial", action="store_true")
+    p.set_defaults(func=_cmd_ingest)
+
+    p = subparsers.add_parser(
         "canonicalise", help="Parse + canonicalise a directory of mmCIF files."
     )
     p.add_argument("--input-dir", required=True)
@@ -529,6 +615,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--foldseek-bin", default="foldseek")
     p.add_argument("--sensitivity", type=float, default=None)
     p.add_argument("--alignment-type", type=int, default=2)
+    p.add_argument(
+        "--interface-residues",
+        help=(
+            "foldseek only: JSON file of {item_id: [residue position, ...]} "
+            "to compute interface-restricted coverage alongside whole-chain "
+            "coverage (see docs/usage/similarity.md)"
+        ),
+    )
     p.add_argument("--output", required=True)
     p.set_defaults(func=_cmd_similarity)
 
@@ -541,6 +635,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--relationships", required=True)
     p.add_argument("--threshold", type=float, default=0.9)
+    p.add_argument(
+        "--pairs",
+        help=(
+            "JSON file of [item_id_1, item_id_2] PPI pairs to also derive "
+            "per-side paired cluster keys for -> cluster_pairs.json"
+        ),
+    )
     p.add_argument("--output", required=True)
     p.set_defaults(func=_cmd_cluster)
 

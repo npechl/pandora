@@ -28,6 +28,12 @@ signatures.
     `provider` is `"pdbe"` or `"pdb"`; pass an explicit `source_uri` instead
     to fetch from a mirror or local file server.
 
+    `provenance.revision_date` carries the entry's own most recent revision
+    date (from RCSB's mmCIF file directly, or PDBe's summary API — PDBe's
+    mmCIF download doesn't include revision history itself), so a later
+    re-fetch of the same entry can detect drift; it's `None` when a
+    `source_uri` mirror doesn't expose one.
+
 === "`cli`"
 
     Download raw mmCIF files (with on-disk caching):
@@ -39,6 +45,96 @@ signatures.
 
     `raw/ingestion_provenance.json` is written alongside the files — keep
     it, `manifest` needs it later if you want `reproduce` to work.
+
+## Find entry ids to fetch
+
+No CLI subcommand for this yet (`search_rcsb`/`search_pdbe` output feeds
+straight into `fetch`'s `entry_ids` argument, or `fetch_list_mmcif` in
+code) — if you don't already have a list of ids, `search_rcsb()` and
+`search_pdbe()` query each provider's own search API and return matching
+entry ids. Each takes that provider's *native* query syntax verbatim —
+Pandora doesn't translate between the two (they don't even share field
+names for the same concept), so pick the one whose query language you
+want to write.
+
+```python
+from pandora.ingestion import search_rcsb, search_pdbe
+
+# RCSB: a query tree (https://search.rcsb.org/#search-api)
+rcsb_ids = search_rcsb(
+    {
+        "type": "group",
+        "logical_operator": "and",
+        "nodes": [
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "exptl.method",
+                    "operator": "exact_match",
+                    "value": "X-RAY DIFFRACTION",
+                },
+            },
+            {
+                "type": "terminal",
+                "service": "text",
+                "parameters": {
+                    "attribute": "rcsb_entry_info.resolution_combined",
+                    "operator": "less_or_equal",
+                    "value": 1.2,
+                },
+            },
+        ],
+    },
+    rows=50,
+)
+
+# PDBe: a raw Solr/Lucene query string (https://www.ebi.ac.uk/pdbe/api/doc/search.html)
+pdbe_ids = search_pdbe(
+    'experimental_method:"X-ray diffraction" AND resolution:[0 TO 1.2]',
+    rows=50,
+)
+```
+
+Both are a single page (`rows`/`start`) of the full result set, not
+auto-paginated — loop and increment `start` yourself for more than `rows`
+matches. PDBe's Solr endpoint doesn't reject a malformed query (an
+unparseable clause is silently dropped rather than erroring), so
+sanity-check the returned count against what you expect.
+
+## Ingest already-downloaded files
+
+Pandora has no bulk-download step of its own — for a full PDB snapshot,
+use an existing mirror (e.g. `rsync.rcsb.org`) rather than fetching entries
+one at a time. `ingest_local_mmcif()` records provenance for files you
+already have on disk, without fetching or copying anything.
+
+=== "`library`"
+
+    ```python
+    from pandora.ingestion import ingest_local_mmcif
+    from pathlib import Path
+
+    provenance = ingest_local_mmcif(
+        Path("./mirror/pdb_snapshot_2024-01-29/1crn.cif")
+    )
+    print(provenance.provider)
+    # local
+    ```
+
+    Pass `source_uri` to record a more meaningful label than the raw path,
+    e.g. `"pdb_snapshot_2024-01-29"`.
+
+=== "`cli`"
+
+    ```bash
+    pandora ingest --input-dir mirror/pdb_snapshot_2024-01-29/ --output-dir raw/
+    # ingested 5/5 entries -> raw/
+    ```
+
+    Same `ingestion_provenance.json` shape as `fetch`, so `manifest` reads
+    it the same way regardless of which one produced it. `--source-uri`
+    applies one label to every file in `--input-dir`.
 
 ## Fetch a batch, tolerating failures
 

@@ -40,9 +40,16 @@ class IngestionProvenance(BaseModel):
             timestamp.
         from_cache: Whether the file came from the local cache rather
             than a fresh download.
+        revision_date: The entry's own most recent revision date (ISO
+            "YYYY-MM-DD"), when the provider exposes one. Lets a caller
+            detect drift on a later re-fetch of the same entry_id
+            without Pandora computing a content checksum. `None` when
+            the provider doesn't expose revision info or it couldn't
+            be determined.
     """
 
     provider: str
     source_uri: str | None = None
     retrieved_at: str | None = None
     from_cache: bool = False
+    revision_date: str | None = None

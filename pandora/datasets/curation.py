@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pandora._util import now_iso
+from pandora.annotations.entry import polymer_asym_ids
 from pandora.canonicalisation import filter_ligands
 from pandora.datasets.records import extract_chain_records
 from pandora.schemas.canonicalisation import LigandRules
@@ -76,6 +77,16 @@ def _check_quality(
                 reason_code="CHAIN_TOO_SHORT",
                 message="no polymer chain reaches min_chain_length="
                 f"{rules.min_chain_length}",
+            )
+
+    if rules.min_polymer_chains is not None:
+        chain_count = len(polymer_asym_ids(structure))
+        if chain_count < rules.min_polymer_chains:
+            return ExclusionRecord(
+                entry_id=structure.entry_id,
+                reason_code="TOO_FEW_CHAINS",
+                message=f"{chain_count} polymer chain(s) found, fewer than "
+                f"min_polymer_chains={rules.min_polymer_chains}",
             )
 
     return None

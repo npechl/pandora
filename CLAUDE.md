@@ -19,8 +19,8 @@ uv sync --all-extras        # install everything into .venv/ (locked via uv.lock
 
 uv run pytest                                    # run all tests
 uv run pytest tests/test_clustering.py::test_transitive_merge_and_isolate  # single test
-uv run ruff check .                              # lint
 uv run ruff format .                             # format (format --check . for CI-style check)
+uv run ruff check .                              # lint
 ```
 
 - The `similarity` extra in `pyproject.toml` is deliberately empty — `pandora.similarity.sequence`/`.structure` shell out to the `mmseqs`/`foldseek` binaries, which must be installed separately and be on `PATH`. Nothing in `tests/` currently exercises them.
@@ -58,7 +58,7 @@ Each stage is independently callable — `examples/overview.py` shows the intend
 
 `canonicalisation/canonicalise.py::canonicalise_structure(structure, policy)` is the single entry point. It runs, in a fixed order, one function per rule group — `chain_ids`, `residues`, `assemblies`, `entities`, `missing_data` (atoms/residues/incomplete-chains), `altlocs`, `ligands`, then `validation` — each living in its own sibling module. Every step returns `(transformed_data, mapping)`; `canonicalise_structure` assembles the mappings into `CanonicalMappings` and appends a transform label (e.g. `"chain_id:remap"`) whenever a rule deviates from "preserve".
 
-`docs/reference/policies.md` is the authoritative, implementation-accurate reference for every policy field — including explicit callouts for pieces accepted by the schema but not yet implemented (`missing_atoms.strategy: impute`, `assembly_rules.strategy: standardize_biological_assembly`, `validation_rules.strictness: permissive`). Check there before assuming a policy field does something.
+`docs/reference/policies.md` is the authoritative, implementation-accurate reference for every policy field — including explicit callouts for pieces accepted by the schema but not yet implemented (`missing_atoms.strategy: impute`, `validation_rules.strictness: permissive`) and known limitations of what is implemented (e.g. `assembly_rules.strategy: standardize_biological_assembly` doesn't propagate generated chains into `connections`/`secondary_structure`). Check there before assuming a policy field does something.
 
 `_validate()` (`canonicalisation/validation.py`) computes a `"failed"/"warning"/"success"` status from `validation_rules`; `canonicalise_structure` raises `ValueError` when it comes back `"failed"`, so `fail_on_unresolved_issues=True` does signal failure to the caller. Remaining sharp edge: the collected `DiagnosticBundle` itself is still not part of the function's return tuple — only aggregate warning/error *counts* surface, and only when `provenance_rules.emit_canonicalisation_report=True` (default `False`).
 
@@ -75,11 +75,3 @@ Each stage is independently callable — `examples/overview.py` shows the intend
 ### External-tool wrappers (`pandora/similarity/`)
 
 `sequence.py` (MMseqs2) and `structure.py` (Foldseek) both follow the same shape: validate the binary is on `PATH`, materialize inputs to a temp directory (FASTA for sequences, symlinked structure files for structures — or point directly at a directory the caller already has), shell out to the tool's `easy-search`, parse the tab-separated result, dedupe to the best hit per `(source_id, target_id)` pair (`source_id < target_id`), and return `SimilarityRelationship` objects. Neither tool is a Python dependency — both are external binaries the caller must install.
-
-### Design-doc vs. implemented API — don't conflate them
-
-`docs/components/*.md` documents an aspirational six-component architecture (C01–C06: `PandoraDataset`, `LeakageSafeDataset`, `DatasetStore`, `PandoraArtifact`, function names like `ingest_mmCIF`, `attach_metadata`, `build_leakage_safe_dataset`) that is **not** what exists in `pandora/` today — none of those types/functions are implemented. This includes `docs/components/06-provenance.md`: the implemented `pandora/provenance/` is a much smaller, per-structure `build_provenance_bundle()` (see above), not the `PandoraArtifact`/embedded-vs-by-reference/manifest-export system the doc describes, because that system depends on `PandoraDataset`/`LeakageSafeDataset`/`DatasetStore`, none of which exist. Treat `docs/components/` as a target design spec, not API documentation. `docs/reference/policies.md`, by contrast, documents the real, implemented canonicalisation policy and stays accurate to the code (including "not implemented yet" notes). When in doubt about what's actually callable, check `pandora/*/__init__.py`'s `__all__` or `examples/overview.py`, not `docs/components/`.
-
-## Workflow
-
-Prefer running commands with Bash tool for verification, but batch related shell operations and prefer non-destructive read commands first.

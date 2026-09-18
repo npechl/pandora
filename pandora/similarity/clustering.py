@@ -84,3 +84,40 @@ def cluster_similar_items(
         similarity_method=relationships[0].method if relationships else None,
     )
     return clusters, provenance
+
+
+def pair_cluster_keys(
+    pairs: list[tuple[str, str]],
+    clusters: list[SimilarityCluster],
+) -> dict[tuple[str, str], tuple[str, str]]:
+    """Derive a per-side cluster key for each PPI pair from item-level
+    clusters (e.g. Pinder-style `{cluster_id_R, cluster_id_L}`).
+
+    Each cluster's own lexicographically-smallest component id is used
+    as that cluster's key, so the same item always maps to the same key
+    regardless of clustering order.
+
+    Args:
+        pairs: `(item_id_1, item_id_2)` tuples — e.g. the two chain ids
+            of a PPI pair. Both ids must appear in `clusters`.
+        clusters: Item-level clusters, as returned by
+            `cluster_similar_items()`.
+
+    Returns:
+        `{(item_id_1, item_id_2): (cluster_id_1, cluster_id_2)}`, one
+        entry per input pair.
+
+    Raises:
+        KeyError: A pair references an item id not present in any
+            cluster.
+    """
+
+    cluster_of: dict[str, str] = {
+        item_id: cluster.components[0]
+        for cluster in clusters
+        for item_id in cluster.components
+    }
+    return {
+        (item_1, item_2): (cluster_of[item_1], cluster_of[item_2])
+        for item_1, item_2 in pairs
+    }

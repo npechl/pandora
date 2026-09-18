@@ -84,6 +84,20 @@ def test_missing_metadata_treated_as_unknown_not_skipped():
     assert exclusion is None
 
 
+def test_min_polymer_chains_excludes_too_few_chains():
+    structure = _load("1ayi")  # one polymer chain (A) + water (B)
+
+    policy = _policy(quality_rules=QualityRules(min_polymer_chains=2))
+    curated, exclusion, _ = curate_structure(structure, None, policy)
+    assert curated is None
+    assert exclusion.reason_code == "TOO_FEW_CHAINS"
+
+    policy = _policy(quality_rules=QualityRules(min_polymer_chains=1))
+    curated, exclusion, _ = curate_structure(structure, None, policy)
+    assert curated is not None
+    assert exclusion is None
+
+
 def test_organism_filter_requires_taxonomy():
     structure = _load("1ayi")
     metadata = collect_metadata(structure)
@@ -136,6 +150,7 @@ def test_deduplicate_structures():
 if __name__ == "__main__":
     test_curate_structure_pass_and_fail()
     test_missing_metadata_treated_as_unknown_not_skipped()
+    test_min_polymer_chains_excludes_too_few_chains()
     test_organism_filter_requires_taxonomy()
     test_content_rules_strip_ligands()
     test_deduplicate_structures()

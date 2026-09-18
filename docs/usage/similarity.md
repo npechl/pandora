@@ -119,6 +119,92 @@ or a directory of files to use their filenames as ids directly.
     `cluster_similar_items()` silently drops every relationship instead
     of erroring.
 
+### Interface-restricted coverage (PPI pairs)
+
+For PPI work, whole-chain coverage can hide that two complexes only
+resemble each other away from the interface (or vice versa). Pass
+`interface_residues={id: {positions...}}` to restrict coverage to each
+item's interface residues instead:
+
+```python
+relationships = compute_structure_similarity(
+    paths,
+    interface_residues={
+        "104M_A": {4, 5, 12},
+        "112M_A": {4, 6, 13},
+    },
+)
+for r in relationships:
+    print(r.source_id, r.target_id, r.coverage, r.interface_coverage)
+```
+
+`interface_coverage` is only set on a relationship when both its items
+appear in `interface_residues` — otherwise it's `None` and `coverage`
+(whole-chain) is unaffected either way.
+
+!!! warning
+    `interface_residues` positions must match Foldseek's own 1-indexed
+    residue numbering for that item's structure file — the order residues
+    appear *in the file*, not `label_seq_id`. These only coincide for a
+    single-chain, gap-free file; a missing loop shifts every residue after
+    it, and a multi-chain file adds chain-order ambiguity on top. Don't
+    hand-build this mapping — derive it, below.
+
+#### Deriving `interface_residues` correctly
+
+`annotate_chain_interfaces()` reports residues as `label_asym_id:label_seq_id`
+strings (mmCIF's own numbering, gaps and all) — not Foldseek positions.
+Bridge the two with `export_chain_mmcif()` (writes one chain per file,
+removing the multi-chain ambiguity) and `interface_residues_from_annotation()`
+(converts `label_seq_id` to that file's actual residue order):
+
+```python
+from pandora.annotations import annotate_chain_interfaces
+from pandora.export import export_chain_mmcif
+from pandora.similarity import (
+    chain_item_id,
+    compute_structure_similarity,
+    interface_residues_from_annotation,
+)
+
+interface_layers = {
+    entry_id: annotate_chain_interfaces(structure)
+    for entry_id, structure in structures.items()
+}
+interface_residues = interface_residues_from_annotation(
+    structures, interface_layers
+)
+
+paths = {}
+for entry_id, structure in structures.items():
+    for chain_id in {a.label_asym_id for a in structure.atoms}:
+        item_id = chain_item_id(entry_id, chain_id)
+        paths[item_id] = export_chain_mmcif(
+            structure, chain_id, output_dir / f"{item_id}.cif"
+        )
+
+relationships = compute_structure_similarity(
+    paths, interface_residues=interface_residues
+)
+```
+
+The CLI's `--interface-residues` takes the same mapping as a JSON file —
+write `interface_residues` from the recipe above as `{item_id: [position,
+...]}` (`json.dumps` needs lists, not sets), point `--input-dir` at the
+`chains/` directory `paths` was written into, then:
+
+```python
+import json
+
+output_dir.joinpath("interfaces.json").write_text(
+    json.dumps({k: sorted(v) for k, v in interface_residues.items()})
+)
+```
+
+```bash
+pandora similarity --input-dir chains/ --engine foldseek --interface-residues interfaces.json --output relationships.json
+```
+
 ## Clustering
 
 `cluster_similar_items()` groups ids into connected-component clusters:
@@ -152,6 +238,34 @@ edges become their own singleton cluster.
     not from `relationships.json` — this is the ordering
     [Keep ids consistent between stages](#keep-ids-consistent-between-stages)
     warns about.
+
+### Paired cluster keys (PPI pairs)
+
+`pair_cluster_keys()` looks up each side of a PPI pair in item-level
+clusters and returns a `(cluster_id_1, cluster_id_2)` key per pair
+(Pinder-style `{cluster_id_R, cluster_id_L}`) — useful for deduplicating
+PPI pairs by which fold-pair they represent, not just which structure
+they came from:
+
+```python
+from pandora.similarity import pair_cluster_keys
+
+keys = pair_cluster_keys([("104M", "112M")], clusters)
+# {('104M', '112M'): ('104M', '112M')}
+```
+
+Each cluster's own lexicographically-smallest member id is used as its
+key, so it's stable regardless of clustering order.
+
+The CLI's `cluster` subcommand takes the same pairs as a JSON file and
+writes the keys alongside its usual output:
+
+```bash
+pandora cluster --input-dir deduped/ --relationships relationships.json --threshold 0.9 --pairs pairs.json --output clusters.json
+# pairs.json: [["104M", "112M"]]
+# 1 clusters at threshold=0.9 -> clusters.json
+# 1 paired cluster keys -> cluster_pairs.json
+```
 
 ## Leakage-safe partitioning
 

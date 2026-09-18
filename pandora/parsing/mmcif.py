@@ -453,7 +453,7 @@ def mmcif_to_structure(
                 AssemblyGenRecord(
                     assembly_id=asm.name,
                     oper_expression=",".join(op.name for op in gen.operators),
-                    asym_id_list=list(gen.chains),
+                    asym_id_list=list(gen.subchains),
                 )
             )
             for op in gen.operators:
@@ -479,6 +479,8 @@ def mmcif_to_structure(
                 oligomeric_count=meta.get("oligomeric_count"),
                 generators=gens,
                 operators=operators,
+                author_determined=asm.author_determined,
+                software_determined=asm.software_determined,
             )
         )
 
