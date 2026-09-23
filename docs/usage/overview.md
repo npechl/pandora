@@ -1,6 +1,6 @@
-# Overview
+# How to use `Pandora`?
 
-[Getting Started](../getting-started/overview.md) is a single walkthrough
+[Quickstart](../getting-started/quickstart.md) is a single walkthrough
 of the pipeline end to end. This section is the per-stage reference
 underneath it — one page per stage, covering every function's
 signature, edge cases, and (where one exists) the equivalent `pandora`
@@ -15,16 +15,18 @@ you're jumping straight to a page rather than reading in order.
 Every operation that a `pandora` subcommand wraps is shown twice:
 
 === "`library`"
-
+    ```sh
     Call the Python function directly — for scripting the pipeline in
     one process, or when you need something a subcommand doesn't
     expose (a keyword argument, an in-memory object).
+    ```
 
 === "`cli`"
-
-    The equivalent `pandora <subcommand>` invocation — for running a
+    ```sh
+    The equivalent pandora <subcommand> invocation — for running a
     stage from the shell over a directory of files, chaining it with
-    the next stage's `--input-dir`.
+    the next stage's --input-dir.
+    ```
 
 Both call the same underlying function; the CLI just reads/writes
 files where the library form passes objects in memory. A handful of
