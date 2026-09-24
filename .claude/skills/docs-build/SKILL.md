@@ -7,7 +7,7 @@ description: Build and sanity-check Pandora's documentation site (Zensical, conf
 
 The site is built with Zensical. The config is `zensical.toml` at the repo root, source pages are under `docs/`, and the output goes to `site/`.
 
-To draft a new page from scratch with the user, use `doc-coauthoring`, then come back here to build it. Use this skill for editing and checking existing pages.
+To draft or edit a new page from scratch with the user, use `doc-coauthoring`, then come back here to apply any conventions. Use this skill for refining and checking existing pages.
 
 ## 1. Build
 
