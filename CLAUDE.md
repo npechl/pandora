@@ -23,7 +23,7 @@ uv run ruff format .                             # format (format --check . for 
 uv run ruff check .                              # lint
 ```
 
-- The `similarity` extra in `pyproject.toml` is deliberately empty — `pandora.similarity.sequence`/`.structure` shell out to the `mmseqs`/`foldseek` binaries, which must be installed separately and be on `PATH`. Nothing in `tests/` currently exercises them.
+- The `similarity` extra in `pyproject.toml` is deliberately empty — `pandora.similarity.sequence`/`.structure` shell out to the `mmseqs`/`foldseek` binaries, which must be installed separately and be on `PATH`. Tests never call the real binaries (`test_sequence_similarity.py` uses a fake `mmseqs` shell script).
 - `pandora/ingestion` needs network access (fetches from PDBe/RCSB); `datasets/dev/mmcif/` has local fixture files for offline work — see `examples/overview.py` for an end-to-end run against them.
 - Ruff's rule set is deliberately pinned in `pyproject.toml` (`select = ["E4", "E7", "E9", "F", "BLE001", "S110"]`) rather than relying on Ruff's version-dependent defaults; line length is 80 but `E501` is ignored (formatter's job).
 
