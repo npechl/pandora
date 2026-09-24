@@ -1,40 +1,54 @@
 ---
 name: docs-build
-description: Build and sanity-check Pandora's documentation site (Zensical, config at zensical.toml, source under docs/) and apply this project's doc-writing conventions. Use this whenever you finish editing any file under docs/, whenever the user asks to "build the docs", "help me build the docs for a specific page", "check the docs site", "does the site still build", or mentions broken links/anchors in the documentation, and before telling the user a docs change is done — a docs edit isn't finished until it's been built.
+description: Build and sanity-check Pandora's documentation site (Zensical, config at zensical.toml, source under docs/) and apply this project's doc-writing conventions. Use this whenever you finish editing any file under docs/, whenever the user asks to "build the docs", "check the docs site", "does the site still build", or mentions broken links/anchors in the documentation, and before telling the user a docs change is done — a docs edit isn't finished until it's been built.
 ---
 
 # Building Pandora's docs
 
-Pandora's documentation site is built with Zensical (a Material-for-MkDocs-style static site generator). Config lives in `zensical.toml` at the repo root; source pages live under `docs/`.
+The site is built with Zensical. The config is `zensical.toml` at the repo root, source pages are under `docs/`, and the output goes to `site/`.
 
-## 1. Build and read the output
+To draft a new page from scratch with the user, use `doc-coauthoring`, then come back here to build it. Use this skill for editing and checking existing pages.
+
+## 1. Build
 
 From the repo root:
 
 ```bash
-zensical build
+uv run zensical build --clean --strict
 ```
 
-Treat any warning or error in the output as something to fix before calling the docs change done — this is the fastest way to catch broken internal links, duplicate heading anchors, and other issues that are easy to introduce by hand and easy to miss by eye. A clean build prints something like `No issues found`.
+`--strict` makes the build exit non-zero on any warning (a broken link or a missing anchor). Without it the build exits 0 even with warnings. A non-zero exit means the change isn't done: fix every warning it prints. If `zensical` isn't found, run `uv sync --all-extras` first.
 
-If `zensical` isn't on `PATH`, say so rather than skipping the check silently — don't guess that the docs are fine.
+## 2. Checks Zensical doesn't do
 
-## 2. Conventions to apply while editing
+Zensical passes both of these problems without a warning, so run both checks after every build.
 
-These conventions were settled on for this project; apply them without being asked so the docs stay consistent across pages.
+**Duplicate anchors.** Two headings with the same explicit `{: #id }` produce duplicate HTML ids. Deep links then land on the first one.
 
-**Don't hard-wrap prose.** Markdown treats a single `\n` inside a paragraph as a soft break, so hard-wrapping lines at ~80 chars (the Python line-length convention from `pyproject.toml`) buys nothing visually and only makes docs harder to diff and grep. Write each paragraph or list/glossary entry as one line, however long.
+```bash
+for f in $(find site -name '*.html'); do grep -o ' id="[^"_][^"]*"' "$f" | sort | uniq -d | sed "s|^|$f:|"; done
+```
 
-**Group reference-style content under headings, and give terms stable anchors.** For glossary-like or reference pages, group related terms under `##` section headings rather than one flat list — `zensical.toml` already enables `toc` with `permalink = true`, so headings automatically populate the page's in-page table of contents, giving readers a real way to scan and jump around instead of just scrolling. Give each individual term its own `###` heading with an explicit anchor via the `attr_list` extension (also already enabled):
+Any output is a clash to fix. The `[^"_]` skips the `__codelineno-*` ids that mkdocstrings repeats on purpose.
+
+**Pages missing from `nav`.** Navigation is an explicit list in `zensical.toml`. A page left out of it builds fine but can't be reached from the site.
+
+```bash
+uv run python -c "import pathlib,re; nav=set(re.findall(r'\"([^\"]+\.md)\"', pathlib.Path('zensical.toml').read_text())); print([str(p.relative_to('docs')) for p in pathlib.Path('docs').rglob('*.md') if str(p.relative_to('docs')) not in nav])"
+```
+
+It should print `[]`. Otherwise, add each listed page to `nav`.
+
+## 3. Conventions
+
+**One line per paragraph.** Write each paragraph and each list or glossary entry as a single line, however long. Don't hard-wrap prose at 80 characters; that limit is for Python code only. Leave code blocks and tables as they are. When you edit a paragraph on a page that is still hard-wrapped, join the paragraph you touched into one line.
+
+**Reference pages: headings and stable anchors.** Group terms under `##` sections. Give each term its own `###` heading with an explicit anchor, so the URL survives renames and other pages can deep-link to it:
 
 ```markdown
 ### Term name {: #term-slug }
 ```
 
-An explicit anchor keeps the URL stable even if the heading text changes later, and lets other pages deep-link straight to that term.
+When a `##` section and a `###` term inside it have the same text, give the section its own id, e.g. `## Canonicalisation {: #canonicalisation-section }`. Otherwise the second heading is silently renamed `…_1`.
 
-Watch for anchor collisions: if a `##` section heading and a `###` term inside it share the same text (e.g. a "Canonicalisation" section containing a "Canonicalisation" term), they'll auto-slug to the same id. Give the section heading its own explicit id in that case (e.g. `## Canonicalisation {: #canonicalisation-section }`) — `zensical build` will flag the clash as a duplicate-anchor warning if you miss it.
-
-**Cross-link to encourage exploration.** Link related terms to each other using their anchors, and link out from reference content to the matching `docs/usage/*.md` guide, `docs/recipes/*.md` recipe, or `docs/reference/*.md` API page. The goal is that a reader following one link keeps finding another one worth clicking, rather than dead-ending on a single page.
-
-**Update `nav` in `zensical.toml` for new pages.** The site's navigation is an explicit list in `zensical.toml`, not derived from the `docs/` directory structure. A new page that isn't added to `nav` will build without error but simply won't show up anywhere in the site — check for this whenever a docs edit adds a new file.
+**Cross-link.** Link related terms to each other by their anchors. Link from reference content to the matching `docs/usage/*.md` guide, `docs/recipes/*.md` recipe or `docs/reference/*.md` page, so a reader always has somewhere to go next.
