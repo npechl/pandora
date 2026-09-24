@@ -1,6 +1,6 @@
 # CLI
 
-The `pandora` command exposes the pipeline as subcommands: `fetch`, `ingest`, `canonicalise`, `curate`, `dedup`, `similarity`, `cluster`, `partition`, `annotate`, `manifest`, `reproduce`, `export`. Run `pandora <subcommand> -h` for its arguments, or `pandora -h` for the full list.
+The `pandora` command exposes each component as a subcommand: `fetch`, `ingest`, `canonicalise`, `curate`, `dedup`, `similarity`, `cluster`, `partition`, `annotate`, `manifest`, `reproduce`, `export`. Run `pandora <subcommand> -h` for its arguments, or `pandora -h` for the full list.
 
 `fetch` downloads from PDBe/PDB; `ingest` instead records the same shape of `ingestion_provenance.json` for mmCIF files you already have on disk (e.g. a local bulk PDB mirror) — it doesn't download or copy anything, just describes what's already there.
 

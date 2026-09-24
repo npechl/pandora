@@ -1,6 +1,6 @@
 # CLI
 
-The `pandora` command wraps the whole pipeline as subcommands. Every
+The `pandora` command wraps each component as a subcommand. Every
 example below was actually run against `datasets/dev/mmcif/` and a
 handful of small fixture entries; run `pandora <subcommand> -h` for the
 full argument list, or see `pandora/cli/README.md` for the directory/

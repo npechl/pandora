@@ -3,9 +3,8 @@ from pathlib import Path
 import gzip
 
 import gemmi
-import httpx
 
-from pandora._util import now_iso
+from pandora._util import now_iso, require
 from pandora.ingestion.cache import mtime_iso, resolve_cache_hit
 from pandora.schemas.ingestion import (
     FetchOptions,
@@ -45,6 +44,7 @@ def _pdbe_revision_date(entry_id: str) -> str | None:
     any failure — this enrichment must never fail the fetch itself.
     """
 
+    httpx = require("httpx", "ingestion")
     try:
         resp = httpx.get(
             _PDBE_SUMMARY_URL.format(id=entry_id.lower()), timeout=30.0
@@ -128,6 +128,7 @@ def fetch_mmcif(
                 ),
             )
 
+    httpx = require("httpx", "ingestion")
     try:
         resp = httpx.get(url, follow_redirects=True, timeout=60.0)
         resp.raise_for_status()

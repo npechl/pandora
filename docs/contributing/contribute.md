@@ -5,7 +5,7 @@ For environment setup, branching, and how to open a PR, see
 in the repo root. This page covers what to do for each kind of
 contribution.
 
-Before diving in, [Architecture](architecture.md) maps every pipeline
+Before diving in, [Architecture](architecture.md) maps every public
 function to the data model it takes and returns — the fastest way to see
 where a new piece belongs.
 

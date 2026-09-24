@@ -1,77 +1,157 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working in this repository.
 
-## Conventions
+## What Pandora is
 
-This is primarily a Python project (with Markdown docs and YAML config). Follow PEP 8 conventions and use type hints for new Python code.
+Pandora is a Python library of building blocks for preparing ML-ready
+datasets from structural biology data (PDB/PDBe mmCIF today). It provides
+typed data models, plain functions, and policies that users combine for
+their own use case: parse a structure, normalise it, attach metadata and
+annotations, filter and deduplicate, compute similarity, split without
+leakage, record provenance, and export.
 
-## What this is
+It is a toolkit, not a pipeline. The set of components and how they fit
+together are still evolving. Do not assume a fixed stage order. Do not
+add orchestrators, runners, registries, or framework base classes unless
+asked. `examples/` shows some ways to combine the pieces; none of them
+is the canonical flow.
 
-Pandora is a Python library that turns raw PDB/PDBe mmCIF files into typed, policy-driven, ML-ready protein structure datasets. Every stage is a plain function: pass a `Structure` (or typed record) in, get one out — nothing is hidden behind a framework object or global state.
+## Architecture decisions
 
-**Status:** ingestion, parsing, canonicalisation, metadata, annotations, export (`pandora/export/`), dataset curation (`pandora/datasets/curation.py`), provenance (`pandora/provenance/`, including per-structure bundles, dataset manifests, and `reproduce_dataset()`), and the CLI (`pandora/cli/app.py`, entry point `pandora`) are all implemented. The CLI wraps every stage as a subcommand (`fetch`, `canonicalise`, `curate`, `dedup`, `similarity`, `cluster`, `partition`, `annotate`, `manifest`, `reproduce`, `export`) — see `pandora/cli/README.md` for the directory/JSON I/O convention between stages.
+- **Schemas are separate from logic.** `pandora/schemas/` holds pydantic
+  models only, no behaviour. Each logic package (`pandora/<package>/`)
+  builds on its schema counterpart.
+- **Functions, not objects with state.** Public API is plain functions
+  that take a `Structure` or typed record and return a new one. No global
+  state, no hidden configuration.
+- **Never mutate inputs.** Return new objects via
+  `.model_copy(update=...)`.
+- **Behaviour is driven by policies.** Choices a user might want to vary
+  (canonicalisation rules, curation filters, split settings) live in
+  pydantic policy models, loadable from YAML via `load_policy()` (see
+  `datasets/canonicalisation.yaml`; `docs/policies/*.yaml` only document
+  each policy's field types).
+  Do not hard-code them.
+- **Report problems, don't swallow them.** Use `Diagnostic` /
+  `DiagnosticBundle` (`schemas/common.py`) for recoverable issues. Catch
+  named exception types only; Ruff enforces no blind `except Exception`
+  (BLE001) and no silent `try/except/pass` (S110).
+- **Provenance is a recipe, not a checksum.** Record source, policies,
+  and tool versions so a dataset can be rebuilt. Pandora deliberately
+  computes no content checksums.
+- **Unknown mmCIF data is kept.** The parser promotes known categories to
+  typed records and keeps every other category verbatim in
+  `Structure.raw`.
+- **Heavy or external tools stay optional.** Extra Python dependencies go
+  behind an extra in `pyproject.toml` and are imported inside the function
+  that needs them (see `export/records.py`). MMseqs2 and Foldseek are
+  external binaries on `PATH`, not Python dependencies.
+
+## Where to look
+
+| Area | Logic | Models |
+|---|---|---|
+| Fetching files and policy loading | `pandora/ingestion/` | `schemas/ingestion.py` |
+| mmCIF to `Structure` | `pandora/parsing/` | `schemas/structure.py` |
+| Normalisation (chain IDs, residues, assemblies, altlocs, ligands, ...) | `pandora/canonicalisation/` (one module per rule group, `canonicalise.py` runs them) | `schemas/canonicalisation.py` |
+| Entry, entity, quality, taxonomy, UniProt metadata | `pandora/metadata/` | `schemas/metadata.py` |
+| Derived annotation layers | `pandora/annotations/` | `schemas/annotation.py` |
+| Chain/residue/interface records, curation, dedup | `pandora/datasets/` | `schemas/dataset.py` |
+| Similarity, clustering, leakage-safe splits | `pandora/similarity/` | `schemas/similarity.py` |
+| Provenance bundles, dataset manifests, rebuilds | `pandora/provenance/` | `schemas/provenance.py` |
+| mmCIF / JSON / JSONL / Parquet output | `pandora/export/` | — |
+| Command-line wrappers | `pandora/cli/app.py` (argparse; I/O convention in `pandora/cli/README.md`) | — |
+
+Other places:
+
+- `docs/reference/policies.md` is the authoritative description of what
+  every policy field does, including fields accepted but not implemented.
+  Check it before assuming a policy field has an effect.
+- `docs/contributing/architecture.md` maps functions to the models they
+  take and return.
+- `datasets/dev/mmcif/` holds offline mmCIF fixtures for tests and
+  examples.
+
+## Preferred libraries
+
+- pydantic v2 for all data models.
+- gemmi for reading and writing mmCIF.
+- httpx for HTTP (the `ingestion` extra).
+- pandas and pyarrow only for Parquet export (the `export` extra).
+- PyYAML for policy files.
+- argparse (stdlib) for the CLI.
+- pytest for tests, Ruff for lint and format, uv for environments,
+  Zensical for docs.
+
+Reach for the stdlib or an existing dependency first. Ask before adding a
+new dependency (for example BioPython, Biotite, or a CLI framework).
+
+## Coding standards
+
+- PEP 8, formatted by `ruff format`. Line length 80.
+- Type hints on all new code. Start modules with
+  `from __future__ import annotations`.
+- Public functions get a Google-style docstring with `Args:`,
+  `Returns:`, and `Raises:` where relevant. The docs site generates its
+  reference pages from these. Internal helpers get one short line.
+- Public names are exported through the package `__init__.py` and its
+  `__all__`. Internal helpers start with `_`.
+- Keep functions small and composable. Prefer a new function over a new
+  flag on an existing one.
+
+## Tests
+
+- One test file per area in `tests/`, plain pytest functions.
+- Use the fixtures in `datasets/dev/mmcif/`. Tests must not need network
+  access or real MMseqs2/Foldseek binaries; fake the binary with a small
+  shell script (see `tests/test_sequence_similarity.py`).
+- Pin a known bug with `pytest.mark.xfail(strict=True, reason=...)` so
+  the test starts failing once the bug is fixed.
 
 ## Commands
 
 ```sh
-uv sync --all-extras        # install everything into .venv/ (locked via uv.lock)
-
-uv run pytest                                    # run all tests
-uv run pytest tests/test_clustering.py::test_transitive_merge_and_isolate  # single test
-uv run ruff format .                             # format (format --check . for CI-style check)
-uv run ruff check .                              # lint
+uv sync --all-extras                 # install into .venv/ from uv.lock
+uv run pytest                        # all tests
+uv run pytest tests/test_parsing.py::test_missing_model_falls_back_with_warning
+uv run ruff format .                 # format
+uv run ruff check .                  # lint
+uv run zensical build --clean        # build the docs site
 ```
 
-- The `similarity` extra in `pyproject.toml` is deliberately empty — `pandora.similarity.sequence`/`.structure` shell out to the `mmseqs`/`foldseek` binaries, which must be installed separately and be on `PATH`. Tests never call the real binaries (`test_sequence_similarity.py` uses a fake `mmseqs` shell script).
-- `pandora/ingestion` needs network access (fetches from PDBe/RCSB); `datasets/dev/mmcif/` has local fixture files for offline work — see `examples/overview.py` for an end-to-end run against them.
-- Ruff's rule set is deliberately pinned in `pyproject.toml` (`select = ["E4", "E7", "E9", "F", "BLE001", "S110"]`) rather than relying on Ruff's version-dependent defaults; line length is 80 but `E501` is ignored (formatter's job).
+If you move the project directory, delete `.venv/` and run
+`uv sync --all-extras` again. The venv scripts keep absolute paths, so
+`uv run pytest` fails with `No module named 'pandora'`.
 
-## Architecture
+## Known issues
 
-### Layout: schemas vs. logic
+- `parsing/mmcif.py::_cs()` keeps CIF quote delimiters in string values
+  (`"'X-ray diffraction'"`) and `;` markers in multi-line values,
+  including sequences. `export/mmcif.py::_unwrap()` works around it.
+  Tests in `tests/test_parsing.py` pin it as `xfail`.
+- `canonicalise_structure` does not return its `DiagnosticBundle`; only
+  warning/error counts surface, and only when
+  `provenance_rules.emit_canonicalisation_report=True`.
+- `reproduce_dataset` is a best-effort rebuild, not byte-identical.
+  Upstream data and external tool versions can drift.
 
-- `pandora/schemas/` — pydantic models only, no logic. One module per pipeline stage: `structure.py` (the mmCIF data model — `Structure`, `AtomSiteRecord`, etc.), `canonicalisation.py` (policy + rule + mapping + provenance models), `metadata.py`, `annotation.py`, `similarity.py`, `dataset.py`, `ingestion.py`, `provenance.py` (`ProvenanceBundle`, `AnnotationProvenanceRecord`), and `common.py` (shared `Diagnostic`/`DiagnosticBundle`).
-- `pandora/{ingestion,parsing,canonicalisation,metadata,annotations,similarity,datasets,provenance}/` — logic, one package per stage, each built on its schema counterpart. Structures are never mutated in place; every transform returns a new object via pydantic's `.model_copy(update=...)`.
+## Review checklist
 
-### The implemented pipeline
+Before calling a change done:
 
-```
-fetch_mmcif()          pandora.ingestion    — HTTP fetch from PDBe/PDB, with on-disk caching
-mmcif_to_structure()   pandora.parsing      — gemmi-backed mmCIF -> Structure
-canonicalise_structure() pandora.canonicalisation — policy-driven normalization
-collect_metadata()     pandora.metadata     — source-backed entry/entity/quality/taxonomy records
-annotate_*()           pandora.annotations  — derived per-entry/pairwise layers (counts, contacts, interfaces)
-extract_*_records()    pandora.datasets     — reshape a canonical Structure into Chain/Residue/Interface records
-compute_*_similarity() pandora.similarity   — MMseqs2/Foldseek wrappers -> SimilarityRelationship
-curate_structure() / deduplicate_structures() pandora.datasets — policy-driven filtering + entry_id dedup
-cluster_similar_items() / partition_dataset() pandora.similarity — leakage-safe train/val/test splitting, each returning its own provenance record alongside the result
-build_provenance_bundle() pandora.provenance — aggregates ingestion/canonicalisation/metadata/annotation provenance for one structure
-build_dataset_manifest() pandora.provenance — aggregates curation/dedup/clustering/partition provenance + every retained structure's ProvenanceBundle into one dataset-level report
-reproduce_dataset()    pandora.provenance   — replays fetch->canonicalise->curate->dedup->similarity->cluster->partition->annotate from a DatasetManifest alone (best-effort, not byte-identical)
-structure_to_mmcif() / write_json() / write_records() pandora.export — serialize a Structure or records back to mmCIF/JSON
-```
-
-Each stage is independently callable — `examples/overview.py` shows the intended chaining, but nothing requires running the whole thing.
-
-### Canonicalisation: one orchestrator over nine rule modules
-
-`canonicalisation/canonicalise.py::canonicalise_structure(structure, policy)` is the single entry point. It runs, in a fixed order, one function per rule group — `chain_ids`, `residues`, `assemblies`, `entities`, `missing_data` (atoms/residues/incomplete-chains), `altlocs`, `ligands`, then `validation` — each living in its own sibling module. Every step returns `(transformed_data, mapping)`; `canonicalise_structure` assembles the mappings into `CanonicalMappings` and appends a transform label (e.g. `"chain_id:remap"`) whenever a rule deviates from "preserve".
-
-`docs/reference/policies.md` is the authoritative, implementation-accurate reference for every policy field — including explicit callouts for pieces accepted by the schema but not yet implemented (`missing_atoms.strategy: impute`, `validation_rules.strictness: permissive`) and known limitations of what is implemented (e.g. `assembly_rules.strategy: standardize_biological_assembly` doesn't propagate generated chains into `connections`/`secondary_structure`). Check there before assuming a policy field does something.
-
-`_validate()` (`canonicalisation/validation.py`) computes a `"failed"/"warning"/"success"` status from `validation_rules`; `canonicalise_structure` raises `ValueError` when it comes back `"failed"`, so `fail_on_unresolved_issues=True` does signal failure to the caller. Remaining sharp edge: the collected `DiagnosticBundle` itself is still not part of the function's return tuple — only aggregate warning/error *counts* surface, and only when `provenance_rules.emit_canonicalisation_report=True` (default `False`).
-
-### Raw category passthrough
-
-`mmcif_to_structure` promotes well-known mmCIF categories to typed records but keeps every other category verbatim in `Structure.raw: dict[str, list[dict[str, str | None]]]`. `metadata/utils.py::raw_rows()`/`first_row()` are the only read path into `.raw`; `metadata/mmcif.py`'s `extract_*` functions are its only consumers. String values read via gemmi (`_cs()` in `parsing/mmcif.py`) are the raw CIF token — quoted values keep their literal `'...'` delimiters unless unquoted, since gemmi's `find_value()`/loop access don't do it for you.
-
-### Provenance: per-structure bundles, aggregated into a per-dataset manifest
-
-`pandora/provenance/manifest.py::build_provenance_bundle(structure, ...)` assembles a `ProvenanceBundle` from whatever provenance the caller already has in hand — `ingestion` (`IngestionProvenance`), `canonicalisation` (`canonicalisationProvenance`), `metadata` (`MetadataRecord`, flattened via `collect_metadata_provenance()`), and `annotations` (a list of `AnnotationLayer`s). `build_dataset_manifest(...)` (same module) is the dataset-level counterpart: it aggregates a `DatasetCurationPolicy`, a `canonicalisationPolicy` (both stored by value, not just id/version, so a rebuild has the actual rules), `ExclusionRecord`s, `DeduplicationProvenance`, `ClusteringProvenance` (including the `SimilarityMethod` — engine/version/parameters — that produced the network that was clustered), `PartitionProvenance`, the split assignment, and a `ProvenanceBundle` per retained structure into one `DatasetManifest` — writable as a single JSON file via `write_json()` (see `examples/dataset_pipeline.py`, step 6). All three are pure aggregators — every argument is optional, and none fetches, re-derives, or validates anything itself; there is still no artifact export (embedded/by-reference dataset store) — see the design-doc caveat below. Pandora deliberately does not compute content checksums anywhere: the provenance goal is a shareable, rerunnable recipe (source + policies + versions), not byte-level integrity verification.
-
-`pandora/provenance/reproduce.py::reproduce_dataset(manifest, output_dir, ...)` is the one function in this package that isn't a pure aggregator — given only a `DatasetManifest`, it re-fetches every structure (via each `ProvenanceBundle.ingestion`), then replays canonicalisation/curation/dedup/similarity/clustering/partition/annotation exactly as the manifest recorded them, returning `(structures, new_manifest)`. It's a best-effort re-run, not a guaranteed byte-identical rebuild — source data can drift upstream and external similarity tools can drift between versions, and since Pandora has no checksums, there's no way to detect that automatically; diff the returned manifest against the input to see what changed. Two hard requirements, both raising `ValueError` if unmet: every structure's bundle must have `ingestion` provenance (nothing to fetch from otherwise), and reproducing `clustering` requires `ClusteringProvenance.similarity_method` to be set. Auto-reproducing the similarity network only works for `engine in {"MMseqs2", "Foldseek"}` (dispatches to `compute_sequence_similarity`/`compute_structure_similarity` with `**SimilarityMethod.parameters`); other engines raise rather than guess. Annotation regeneration dispatches on `AnnotationProvenanceRecord.layer_type` through a small fixed table (`ENTRY_ANNOTATION_DISPATCH`/`PAIRWISE_ANNOTATION_DISPATCH` in that module) covering the 4 functions in `pandora.annotations`.
-
-### External-tool wrappers (`pandora/similarity/`)
-
-`sequence.py` (MMseqs2) and `structure.py` (Foldseek) both follow the same shape: validate the binary is on `PATH`, materialize inputs to a temp directory (FASTA for sequences, symlinked structure files for structures — or point directly at a directory the caller already has), shell out to the tool's `easy-search`, parse the tab-separated result, dedupe to the best hit per `(source_id, target_id)` pair (`source_id < target_id`), and return `SimilarityRelationship` objects. Neither tool is a Python dependency — both are external binaries the caller must install.
+- [ ] `uv run pytest`, and
+      `uv run ruff format --check .` pass.
+- [ ] New behaviour has a test that uses local fixtures only.
+- [ ] No input object is mutated; new objects come from `model_copy`.
+- [ ] New models live in `pandora/schemas/`, new logic in the matching
+      package.
+- [ ] User-facing choices are policy fields, not hard-coded values.
+- [ ] Public functions have type hints, a full docstring, and an
+      `__all__` entry.
+- [ ] No new dependency without agreement; optional ones sit behind an
+      extra and are imported lazily.
+- [ ] If a policy field's behaviour changed, `docs/reference/policies.md`
+      is updated. If docs changed, the docs site builds.
+- [ ] If schema relationships changed, the diagrams are regenerated:
+      `uv run --extra docs python docs/scripts/generate_erd.py`.

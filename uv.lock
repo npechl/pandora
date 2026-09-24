@@ -191,15 +191,6 @@ wheels = [
 ]
 
 [[package]]
-name = "freesasa"
-version = "2.2.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/52/fc/1b28f7973952934737387172ef0a40c0ea7cb9a6132264c3e731760f8efa/freesasa-2.2.1.tar.gz", hash = "sha256:5630e65d619cf6a062028d7c6297afe8c5b18c677c75f1c32a0938399f4f6850", size = 270138, upload-time = "2023-11-15T16:59:28.197Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5e/08/8d063bcb70ffc11d2b17a667bb4f6708cb187631184a832f9800b447ae77/freesasa-2.2.1-cp311-cp311-win_amd64.whl", hash = "sha256:382bd60728b6f118b34a118c25fca9deb8aa7ae615d6656f35b63892abbeb2a4", size = 278361, upload-time = "2023-11-15T17:00:14.761Z" },
-]
-
-[[package]]
 name = "gemmi"
 version = "0.7.5"
 source = { registry = "https://pypi.org/simple" }
@@ -740,7 +731,7 @@ wheels = [
 
 [[package]]
 name = "pandora"
-version = "0.5.2"
+version = "0.5.3"
 source = { editable = "." }
 dependencies = [
     { name = "gemmi" },
@@ -749,9 +740,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-annotations = [
-    { name = "freesasa" },
-]
 dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -767,7 +755,6 @@ export = [
 ]
 full = [
     { name = "erdantic" },
-    { name = "freesasa" },
     { name = "httpx" },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "pandas" },
@@ -788,12 +775,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "erdantic", marker = "extra == 'docs'", specifier = ">=1.0" },
-    { name = "freesasa", marker = "extra == 'annotations'", specifier = ">=2.1" },
     { name = "gemmi", specifier = ">=0.6" },
     { name = "httpx", marker = "extra == 'ingestion'", specifier = ">=0.27" },
     { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=0.25" },
     { name = "pandas", marker = "extra == 'export'", specifier = ">=2.0" },
-    { name = "pandora", extras = ["ingestion", "annotations", "export", "dev", "docs"], marker = "extra == 'full'" },
+    { name = "pandora", extras = ["ingestion", "export", "dev", "docs"], marker = "extra == 'full'" },
     { name = "pyarrow", marker = "extra == 'export'", specifier = ">=15.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
@@ -801,7 +787,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.16.0" },
 ]
-provides-extras = ["ingestion", "similarity", "annotations", "export", "dev", "docs", "full"]
+provides-extras = ["ingestion", "similarity", "export", "dev", "docs", "full"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "zensical", specifier = ">=0.0.52" }]

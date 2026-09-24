@@ -1,6 +1,6 @@
 # Quickstart
 
-This walks through the implemented pipeline end to end: parse an mmCIF file, canonicalise it, collect its metadata, and compute a couple of annotations. It uses files already checked into the repo, so it runs fully offline — no network access, no PDB account. Steps 1-4 walk through a single structure so each stage's output is easy to read; step 5 then scales the same functions up to all ~100 bundled entries at once.
+This walks through one typical workflow: parse an mmCIF file, canonicalise it, collect its metadata, and compute a couple of annotations. It uses files already checked into the repo, so it runs fully offline — no network access, no PDB account. Steps 1-4 walk through a single structure so each stage's output is easy to read; step 5 then scales the same functions up to all ~100 bundled entries at once.
 
 Pandora's base install (`pip install -e .`) and a checkout of this repo are all you need — steps 1-5 below use no optional extras. The last, optional section (fetching a file yourself over the network) needs the `ingestion` extra instead; see [Installation](installation.md).
 

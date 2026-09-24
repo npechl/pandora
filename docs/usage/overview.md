@@ -1,8 +1,8 @@
 # How to use `Pandora`?
 
 [Quickstart](../getting-started/quickstart.md) is a single walkthrough
-of the pipeline end to end. This section is the per-stage reference
-underneath it — one page per stage, covering every function's
+of one typical workflow. This section is the per-component reference
+underneath it — one page per component, covering every function's
 signature, edge cases, and (where one exists) the equivalent `pandora`
 CLI subcommand.
 

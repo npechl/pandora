@@ -8,7 +8,7 @@ For the underlying pydantic models, see [Schemas](../reference/schemas.md); for 
 
 | Term | Definition |
 |------|------------|
-| **Structure**{: #structure } | Pandora's central typed model of one parsed mmCIF entry: atoms, entities, assemblies, plus the raw passthrough for everything else. Never mutated in place — every pipeline stage returns a new `Structure` via `.model_copy(update=...)`. See [Ingestion & parsing](../usage/ingestion.md). |
+| **Structure**{: #structure } | Pandora's central typed model of one parsed mmCIF entry: atoms, entities, assemblies, plus the raw passthrough for everything else. Never mutated in place — every function returns a new `Structure` via `.model_copy(update=...)`. See [Ingestion & parsing](../usage/ingestion.md). |
 | **Entry**{: #entry } | One PDB/PDBe deposition, identified by its 4-character `entry_id` (e.g. `104M`). One entry's mmCIF file maps to one [`Structure`](#structure). |
 | **Entity**{: #entity } | An mmCIF `entity` — one distinct polymer or non-polymer chemical component in the structure (e.g. "the protein", "a bound heme", "water") — as opposed to a [chain](#chain), which is one physical copy of an entity in the asymmetric unit. |
 | **Chain**{: #chain } | One physical copy of an [entity](#entity) in the asymmetric unit, identified by its `label_asym_id`. Two chains can share the same entity (e.g. a homodimer's two copies of the same protein) — [canonicalisation](#canonicalisation) can remap chain IDs; see `identifier_rules` in [Policies](../reference/policies.md). |
@@ -52,4 +52,4 @@ For the underlying pydantic models, see [Schemas](../reference/schemas.md); for 
 | Term | Definition |
 |------|------------|
 | **Policy**{: #policy } | Pandora's convention for making every stage's rules explicit and inspectable: a typed, versioned pydantic settings object (`canonicalisationPolicy`, `DatasetCurationPolicy`, ...) passed into the stage's function rather than hard-coded. Provenance records reference the policy that was applied via the compact `AppliedPolicyRef` (id, name, version). |
-| **Recipe**{: #recipe } | A narrated, end-to-end walkthrough doc under `docs/recipes/` (e.g. the [PPI interface dataset](../recipes/ppi-01.md) recipe) that chains multiple pipeline stages into one realistic workflow, as opposed to the single-stage guides under `docs/usage/`. |
+| **Recipe**{: #recipe } | A narrated, end-to-end walkthrough doc under `docs/recipes/` (e.g. the [PPI interface dataset](../recipes/ppi-01.md) recipe) that combines several components into one realistic workflow, as opposed to the single-stage guides under `docs/usage/`. |

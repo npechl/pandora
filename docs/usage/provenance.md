@@ -4,7 +4,7 @@
 hand — it never fetches, re-derives, or validates anything itself — into
 one per-structure `ProvenanceBundle` or one dataset-wide
 `DatasetManifest`. `reproduce_dataset()` is the one function that
-actually re-runs the pipeline, replaying a `DatasetManifest` from
+actually re-runs the recorded steps, replaying a `DatasetManifest` from
 scratch. See [Architecture](../contributing/architecture.md#provenance-and-the-dataset-manifest)
 for how these models relate, and
 [Functions](../reference/functions.md#pandora.provenance) for full
@@ -116,7 +116,7 @@ into one `DatasetManifest`.
     # demo 2 structures
     ```
 
-    Reach for the library form when you're scripting the whole pipeline
+    Reach for the library form when you're scripting a whole workflow
     in one process, as above; reach for the CLI when you're assembling a
     manifest from already-written stage outputs on disk.
 

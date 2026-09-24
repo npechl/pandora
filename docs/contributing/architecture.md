@@ -1,9 +1,9 @@
 # Architecture
 
-Pandora's pipeline (see [Home](../index.md)) is a chain of plain functions, but
-the *data* those functions pass around is what actually defines the
-framework's shape. This page has two parts: a table mapping every stage's
-functions to the models they take and return, then entity-relationship
+Pandora (see [Home](../index.md)) is a toolkit of plain functions and typed
+models that you combine as your dataset needs. The *data* those functions
+pass around is what actually defines the library's shape. This page has two
+parts: a table mapping each component's functions to the models they take and return, then entity-relationship
 diagrams showing how those models reference each other. The diagrams are
 generated straight from the models' type hints via
 [erdantic](https://erdantic.drivendata.org/), so they can never drift from
@@ -16,7 +16,7 @@ uv run --extra docs python docs/scripts/generate_erd.py
 For per-field descriptions, see [Schemas](../reference/schemas.md); for full
 signatures and docstrings, see [Functions](../reference/functions.md).
 
-## Pipeline: functions and the models they move
+## Functions and the models they move
 
 Every function below is pure: it takes a `Structure` (or another typed
 model) in and returns a new one, never mutating its input. Types are
@@ -98,7 +98,7 @@ differs; see [Annotation](../usage/annotation.md) for each one's `data` schema.
 |---|---|---|
 | `build_provenance_bundle()` | one `Structure` + whatever ingestion/canonicalisation/metadata/annotation provenance you already have | `ProvenanceBundle` |
 | `build_dataset_manifest()` | policies + every stage's provenance record above, plus a `ProvenanceBundle` per retained structure | `DatasetManifest` |
-| `reproduce_dataset()` | a `DatasetManifest` | `(dict[str, Structure], DatasetManifest)` — replays the whole pipeline from just the manifest |
+| `reproduce_dataset()` | a `DatasetManifest` | `(dict[str, Structure], DatasetManifest)` — replays every recorded step from just the manifest |
 
 ### Export
 

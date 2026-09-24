@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pandora"
-version = "0.5.2"
+version = "0.5.3"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.0",
@@ -21,9 +21,6 @@ ingestion = [
 ]
 similarity = []
 # requires mmseqs2 and foldseek binaries in PATH; install separately
-annotations = [
-    "freesasa>=2.1",
-]
 export = [
     "pandas>=2.0",
     "pyarrow>=15.0",
@@ -38,7 +35,7 @@ docs = [
     "erdantic>=1.0",
 ]
 full = [
-    "pandora[ingestion,annotations,export,dev,docs]",
+    "pandora[ingestion,export,dev,docs]",
 ]
 
 [tool.hatch.build.targets.wheel]

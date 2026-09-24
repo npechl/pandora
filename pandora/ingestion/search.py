@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import httpx
+from pandora._util import require
 
 _RCSB_SEARCH_URL = "https://search.rcsb.org/rcsbsearch/v2/query"
 _PDBE_SEARCH_URL = "https://www.ebi.ac.uk/pdbe/search/pdb/select"
@@ -48,6 +48,7 @@ def search_rcsb(
         "return_type": return_type,
         "request_options": {"paginate": {"start": start, "rows": rows}},
     }
+    httpx = require("httpx", "ingestion")
     try:
         resp = httpx.post(_RCSB_SEARCH_URL, json=body, timeout=60.0)
         resp.raise_for_status()
@@ -108,6 +109,7 @@ def search_pdbe(
         "start": start,
         "wt": "json",
     }
+    httpx = require("httpx", "ingestion")
     try:
         resp = httpx.get(_PDBE_SEARCH_URL, params=params, timeout=60.0)
         resp.raise_for_status()
