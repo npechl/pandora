@@ -123,7 +123,7 @@ Extra flags:
 | Value | Description |
 |---|---|
 | `author` | Use the assembly gemmi flags as `author_determined` (from `_pdbx_struct_assembly.details`). |
-| `pdbe` | Use the PDBe-annotated preferred biological assembly. *No external metadata source is wired up yet (`pandora/metadata/external.py` is a stub) — falls back to the `author`/`pdbx` behavior below and records an `ASSEMBLY_SOURCE_UNAVAILABLE` diagnostic warning.* |
+| `pdbe` | Use the PDBe-annotated preferred biological assembly. *No external metadata source is wired up yet — falls back to the `author`/`pdbx` behavior below and records an `ASSEMBLY_SOURCE_UNAVAILABLE` diagnostic warning.* |
 | `pdbx` | Use the `pdbx_struct_assembly` preferred flag from the mmCIF file — in practice, whichever assembly gemmi flags as `author_determined`, else `software_determined`, else the first listed. |
 | `first` | Fall back to the first listed assembly if no preferred flag exists. |
 

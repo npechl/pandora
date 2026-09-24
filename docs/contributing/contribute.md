@@ -85,9 +85,7 @@ same shape as the existing `annotate_*()` functions: take a
 (`pandora/schemas/annotation.py`). Register it in
 `pandora/annotations/__init__.py`'s `__all__`.
 
-There's no formal plugin-registration system yet —
-`pandora/annotations/plugins.py` and `pandora/annotations/base.py` are
-placeholders for one. If you want a plugin protocol that lets
+There's no formal plugin-registration system yet. If you want a plugin protocol that lets
 annotations be registered/discovered instead of hand-imported, that's
 an open, unclaimed piece of the design.
 
