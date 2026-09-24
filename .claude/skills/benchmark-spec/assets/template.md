@@ -11,6 +11,8 @@ tags: []          # e.g. [protein-protein-interaction, binary-classification, st
 
 # <Dataset name> (v<version>)
 
+*Source: <what this description was built from: notes file, <owner>/<repo>@<commit sha>, or paper DOI>. Items marked "not covered in <source>" need checking.*
+
 <!--
 How to use this template:
 - Replace every <placeholder> and delete the HTML comments.
@@ -90,7 +92,7 @@ How to use this template:
 
 ## Limitations
 
-<!-- One item per limitation. -->
+<!-- One item per limitation. All four parts are required; write "Mitigation: none." if there is none. -->
 
 - **L1. <title>.** *Where:* <step>. *What goes wrong:* <problem>. *Effect:* <consequence for the dataset>. *Mitigation:* <suggestion, or "none">.
 
