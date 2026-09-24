@@ -550,7 +550,8 @@ def _build_parser() -> argparse.ArgumentParser:
     registered."""
 
     parser = argparse.ArgumentParser(
-        prog="pandora", description="Pandora dataset-curation pipeline CLI."
+        prog="pandora",
+        description="Pandora command-line tools for building ML-ready structure datasets.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
