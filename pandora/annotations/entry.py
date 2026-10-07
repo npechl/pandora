@@ -2,12 +2,18 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from itertools import combinations
-from typing import Any
+from typing import Any, get_args
 
-from pandora.schemas.annotation import AnnotationLayer
+from pandora.canonicalisation.missing_data import (
+    _PROTEIN_BACKBONE,
+    _backbone_by_entity,
+)
+from pandora.schemas.annotation import AnnotationLayer, ContactAtomSet
 from pandora.schemas.structure import AtomSiteRecord, Structure
 
 WATER_COMP_IDS = frozenset({"HOH", "WAT", "DOD"})
+HYDROGEN_ELEMENTS = frozenset({"H", "D"})
+CONTACT_ATOM_SETS = frozenset(get_args(ContactAtomSet))
 
 
 def annotate_structure_counts(structure: Structure) -> AnnotationLayer:
@@ -161,30 +167,42 @@ def atoms_by_asym_id(structure: Structure) -> dict[str, list[AtomSiteRecord]]:
 def annotate_chain_interfaces(
     structure: Structure,
     distance_cutoff: float = 4.0,
+    atom_set: ContactAtomSet = "heavy",
+    polymer_types: list[str] | None = None,
 ) -> AnnotationLayer:
     """Compute polymer chain pairs with residues in contact within a cutoff.
 
-    For each pair of polymer chains, finds residues on either side with
-    at least one atom within `distance_cutoff` angstroms of an atom on
-    the other chain.
+    For each pair of polymer chains, finds residue pairs (one per chain)
+    with at least one pair of selected atoms within `distance_cutoff`
+    angstroms. Chain pairs whose bounding boxes are further apart than
+    the cutoff are skipped without comparing atoms.
 
     Args:
         structure: The structure to scan for chain-chain contacts.
         distance_cutoff: Contact distance in angstroms.
+        atom_set: Which atoms count: "all", "heavy" (every atom except
+            H/D), "backbone" (protein N/CA/C/O, nucleic-acid
+            O5'/C5'/C4'/C3'/O3'), or "ca".
+        polymer_types: Keep only chains whose entity polymer type
+            (e.g. "polypeptide(L)") is listed. None keeps every
+            polymer chain; an empty list keeps none.
 
     Returns:
         An `AnnotationLayer` of type "chain_interfaces" whose `data`
-        holds the cutoff used and, per chain pair in contact, the
-        contacting residue ids on each side.
+        holds the settings used and, per chain pair in contact, the
+        contacting residue ids on each side and the residue pairs.
+
+    Raises:
+        ValueError: `atom_set` is not one of the supported values.
     """
 
-    chain_ids = sorted(polymer_asym_ids(structure))
-    atoms_by_chain = atoms_by_asym_id(structure)
-    selected = {
-        chain_id: atoms_by_chain[chain_id]
-        for chain_id in chain_ids
-        if atoms_by_chain.get(chain_id)
-    }
+    if atom_set not in CONTACT_ATOM_SETS:
+        raise ValueError(
+            f"atom_set must be one of {sorted(CONTACT_ATOM_SETS)}, "
+            f"got {atom_set!r}"
+        )
+
+    selected = _select_contact_atoms(structure, atom_set, polymer_types)
     boxes = {
         chain_id: _bounding_box(atoms) for chain_id, atoms in selected.items()
     }
@@ -224,12 +242,76 @@ def annotate_chain_interfaces(
         layer_name="Chain-chain interfaces",
         layer_type="chain_interfaces",
         scope="interface",
-        method="pandora.basic.distance_cutoff_contacts.v1",
+        method="pandora.basic.distance_cutoff_contacts.v2",
         target_ids=[structure.entry_id],
-        parameters={"distance_cutoff": distance_cutoff},
-        data={"distance_cutoff": distance_cutoff, "interfaces": interfaces},
-        provenance={"inputs": ["Structure.atoms"]},
+        parameters=_contact_settings(distance_cutoff, atom_set, polymer_types),
+        data={
+            **_contact_settings(distance_cutoff, atom_set, polymer_types),
+            "interfaces": interfaces,
+        },
+        provenance={"inputs": ["Structure.atoms", "Structure.entities"]},
     )
+
+
+def _contact_settings(
+    distance_cutoff: float,
+    atom_set: ContactAtomSet,
+    polymer_types: list[str] | None,
+) -> dict[str, Any]:
+    """Settings dict with its own copy of polymer_types (never aliased)."""
+
+    return {
+        "distance_cutoff": distance_cutoff,
+        "atom_set": atom_set,
+        "polymer_types": (
+            list(polymer_types) if polymer_types is not None else None
+        ),
+    }
+
+
+def _select_contact_atoms(
+    structure: Structure,
+    atom_set: ContactAtomSet,
+    polymer_types: list[str] | None,
+) -> dict[str, list[AtomSiteRecord]]:
+    """Selected atoms per kept polymer chain; chains with none are dropped."""
+
+    entities = {entity.id: entity for entity in structure.entities}
+    chain_entity: dict[str, str] = {}
+    for asym in structure.asym_units:
+        entity = entities.get(asym.entity_id)
+        if entity is None or entity.type != "polymer":
+            continue
+        if polymer_types is not None and (
+            entity.poly is None or entity.poly.type not in polymer_types
+        ):
+            continue
+        chain_entity[asym.id] = entity.id
+
+    nucleic_backbone = _backbone_by_entity(structure.entities)
+    selected: dict[str, list[AtomSiteRecord]] = defaultdict(list)
+    for atom in structure.atoms:
+        entity_id = chain_entity.get(atom.label_asym_id)
+        if entity_id is None:
+            continue
+        backbone = nucleic_backbone.get(entity_id, _PROTEIN_BACKBONE)
+        if _in_atom_set(atom, atom_set, backbone):
+            selected[atom.label_asym_id].append(atom)
+    return dict(selected)
+
+
+def _in_atom_set(
+    atom: AtomSiteRecord, atom_set: ContactAtomSet, backbone: frozenset[str]
+) -> bool:
+    """Whether atom belongs to atom_set (backbone: its chain's names)."""
+
+    if atom_set == "all":
+        return True
+    if atom_set == "heavy":
+        return atom.type_symbol.upper() not in HYDROGEN_ELEMENTS
+    if atom_set == "backbone":
+        return atom.label_atom_id in backbone
+    return atom.label_atom_id == "CA"
 
 
 def _chain_pair_contacts(

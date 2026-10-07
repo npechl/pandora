@@ -16,6 +16,11 @@ AnnotationScope = Literal[
     "dataset",
 ]
 
+ContactAtomSet = Literal["all", "heavy", "backbone", "ca"]
+"""Atoms that count towards a chain-chain contact: every atom, heavy
+(non-H/D) atoms, backbone atoms (protein N/CA/C/O, nucleic-acid
+O5'/C5'/C4'/C3'/O3'), or CA atoms only."""
+
 
 class AnnotationLayer(BaseModel):
     """One derived annotation result (counts, contacts, identity, etc.)

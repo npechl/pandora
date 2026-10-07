@@ -1,6 +1,8 @@
 from itertools import combinations
 from pathlib import Path
 
+import pytest
+
 from pandora.annotations.entry import (
     annotate_chain_interfaces,
     annotate_ligand_contacts,
@@ -16,6 +18,7 @@ from pandora.schemas.structure import (
 )
 
 MMCIF_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
+HYDROGENS = {"H", "D"}
 
 
 def _atom(
@@ -151,7 +154,11 @@ def test_chain_interfaces_finds_contact_across_a_grid_cell_boundary():
     assert len(interfaces) == 1
     assert interfaces[0]["interface_residues_chain_1"] == ["A:1"]
     assert interfaces[0]["interface_residues_chain_2"] == ["B:1"]
-    assert layer.parameters == {"distance_cutoff": 4.0}
+    assert layer.parameters == {
+        "distance_cutoff": 4.0,
+        "atom_set": "heavy",
+        "polymer_types": None,
+    }
 
 
 def test_ligand_contacts_reports_nearest_polymer_residue():
@@ -196,7 +203,9 @@ def test_ligand_contacts_reports_nearest_polymer_residue():
 def test_chain_interfaces_match_reference_on_fixture():
     structure = _load("1a7f")
 
-    layer = annotate_chain_interfaces(structure, distance_cutoff=4.0)
+    layer = annotate_chain_interfaces(
+        structure, distance_cutoff=4.0, atom_set="all"
+    )
 
     assert _layer_pairs(layer) == _reference_pairs(structure, 4.0)
 
@@ -251,3 +260,148 @@ def test_chain_interfaces_altloc_atoms_give_one_residue_pair():
     layer = annotate_chain_interfaces(_two_chain_structure(atoms))
 
     assert layer.data["interfaces"][0]["residue_pairs"] == [["A:1", "B:1"]]
+
+
+@pytest.mark.parametrize(
+    ("atom_set", "keep"),
+    [
+        ("all", lambda a: True),
+        ("heavy", lambda a: a.type_symbol.upper() not in HYDROGENS),
+        ("backbone", lambda a: a.label_atom_id in {"N", "CA", "C", "O"}),
+        ("ca", lambda a: a.label_atom_id == "CA"),
+    ],
+)
+def test_chain_interfaces_atom_sets_match_reference(atom_set, keep):
+    structure = _load("1a7f")  # two protein chains, explicit hydrogens
+
+    layer = annotate_chain_interfaces(structure, atom_set=atom_set)
+
+    assert _layer_pairs(layer) == _reference_pairs(structure, 4.0, keep)
+
+
+def test_chain_interfaces_heavy_is_subset_of_all():
+    structure = _load("1a7f")
+
+    heavy = _layer_pairs(annotate_chain_interfaces(structure))
+    every = _layer_pairs(annotate_chain_interfaces(structure, atom_set="all"))
+
+    assert heavy
+    for chain_pair, pairs in heavy.items():
+        assert pairs <= every[chain_pair]
+
+
+def test_chain_interfaces_nucleic_backbone_matches_reference():
+    structure = _load("1a02")  # DNA chains A, B; protein chains C, D, E
+    nucleic = {"O5'", "C5'", "C4'", "C3'", "O3'"}
+    protein = {"N", "CA", "C", "O"}
+
+    layer = annotate_chain_interfaces(structure, atom_set="backbone")
+
+    def keep(atom):
+        names = nucleic if atom.label_asym_id in {"A", "B"} else protein
+        return atom.label_atom_id in names
+
+    assert _layer_pairs(layer) == _reference_pairs(structure, 4.0, keep)
+
+
+def test_chain_interfaces_backbone_and_ca_ignore_side_chains():
+    # Only a side-chain CB of A is within 4 A of B's CA.
+    atoms = [
+        _atom(id=1, label_asym_id="A", entity_id="1", x=0.0),
+        _atom(id=2, label_asym_id="A", entity_id="1", atom_name="CB", x=10.0),
+        _atom(id=3, label_asym_id="B", entity_id="2", x=13.0),
+    ]
+    structure = _two_chain_structure(atoms)
+
+    assert annotate_chain_interfaces(structure).data["interfaces"]
+    for atom_set in ("backbone", "ca"):
+        layer = annotate_chain_interfaces(structure, atom_set=atom_set)
+        assert layer.data["interfaces"] == []
+
+
+def test_chain_interfaces_ca_ignores_other_backbone_atoms():
+    # Only the N atoms are within 4 A; the CAs are 20 A apart.
+    atoms = [
+        _atom(id=1, label_asym_id="A", entity_id="1", x=0.0),
+        _atom(
+            id=2,
+            label_asym_id="A",
+            entity_id="1",
+            atom_name="N",
+            element="N",
+            x=10.0,
+        ),
+        _atom(
+            id=3,
+            label_asym_id="B",
+            entity_id="2",
+            atom_name="N",
+            element="N",
+            x=13.0,
+        ),
+        _atom(id=4, label_asym_id="B", entity_id="2", x=20.0),
+    ]
+    structure = _two_chain_structure(atoms)
+
+    backbone = annotate_chain_interfaces(structure, atom_set="backbone")
+    ca = annotate_chain_interfaces(structure, atom_set="ca")
+
+    assert backbone.data["interfaces"][0]["residue_pairs"] == [["A:1", "B:1"]]
+    assert ca.data["interfaces"] == []
+
+
+def test_chain_interfaces_polymer_types_filters_chains():
+    structure = _load("1a02")
+
+    layer = annotate_chain_interfaces(
+        structure, polymer_types=["polypeptide(L)"]
+    )
+
+    chains = {
+        chain
+        for i in layer.data["interfaces"]
+        for chain in (i["chain_id_1"], i["chain_id_2"])
+    }
+    assert chains == {"C", "D", "E"}
+
+
+def test_chain_interfaces_empty_polymer_types_means_no_chains():
+    layer = annotate_chain_interfaces(_load("1a02"), polymer_types=[])
+
+    assert layer.data["interfaces"] == []
+
+
+def test_chain_interfaces_ca_skips_chains_without_selected_atoms():
+    # DNA chains have no CA atoms; they must be skipped, not crash.
+    layer = annotate_chain_interfaces(_load("1a02"), atom_set="ca")
+
+    for interface in layer.data["interfaces"]:
+        assert interface["chain_id_1"] not in {"A", "B"}
+        assert interface["chain_id_2"] not in {"A", "B"}
+
+
+def test_chain_interfaces_rejects_unknown_atom_set():
+    with pytest.raises(ValueError, match="atom_set"):
+        annotate_chain_interfaces(_load("1a7f"), atom_set="CA")
+
+
+def test_chain_interfaces_rebuild_from_recorded_parameters():
+    structure = _load("1a02")
+    polymer_types = ["polypeptide(L)"]
+
+    layer = annotate_chain_interfaces(
+        structure,
+        distance_cutoff=5.0,
+        atom_set="backbone",
+        polymer_types=polymer_types,
+    )
+    polymer_types.append("polyribonucleotide")  # caller mutates its list
+    rebuilt = annotate_chain_interfaces(structure, **layer.parameters)
+
+    assert layer.parameters == {
+        "distance_cutoff": 5.0,
+        "atom_set": "backbone",
+        "polymer_types": ["polypeptide(L)"],
+    }
+    assert layer.method == "pandora.basic.distance_cutoff_contacts.v2"
+    assert rebuilt.data == layer.data
