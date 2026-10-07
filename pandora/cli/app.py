@@ -43,7 +43,8 @@ from pandora.schemas.similarity import (
     ClusteringProvenance,
     PartitionProvenance,
     SimilarityCluster,
-    SimilarityRelationship,
+    HitFilter,
+    SimilaritySearch,
 )
 from pandora.schemas.structure import Structure
 from pandora.similarity import (
@@ -330,19 +331,37 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
     of a relationship network."""
 
     input_dir = Path(args.input_dir)
-    relationships = _load_json_list(
-        SimilarityRelationship, Path(args.relationships)
+    search = _load_json_model(SimilaritySearch, Path(args.search))
+    hit_filter = (
+        _load_yaml_model(HitFilter, Path(args.hit_filter))
+        if args.hit_filter
+        else HitFilter()
+    )
+    overrides = {
+        field: value
+        for field, value in (
+            ("min_score", args.min_score),
+            ("min_coverage", args.min_coverage),
+        )
+        if value is not None
+    }
+    if overrides:
+        hit_filter = hit_filter.model_copy(update=overrides)
+    interface_residues = (
+        _load_interface_residues(Path(args.interface_residues))
+        if args.interface_residues
+        else None
     )
     item_ids = sorted(path.stem.upper() for path in input_dir.glob("*.cif"))
 
     clusters, prov = cluster_similar_items(
-        item_ids, relationships, args.threshold
+        item_ids, search, hit_filter, interface_residues=interface_residues
     )
 
     output = Path(args.output)
     write_records(clusters, output)
     write_json(prov, output.parent / "cluster_provenance.json")
-    print(f"{len(clusters)} clusters at threshold={args.threshold} -> {output}")
+    print(f"{len(clusters)} clusters from {prov.n_edges} edges -> {output}")
 
     if args.pairs:
         pairs = _load_pairs(Path(args.pairs))
@@ -634,8 +653,31 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--input-dir", required=True, help="dir of the clustered *.cif"
     )
-    p.add_argument("--relationships", required=True)
-    p.add_argument("--threshold", type=float, default=0.9)
+    p.add_argument(
+        "--search",
+        required=True,
+        help="<hits>.search.json written by `pandora similarity`",
+    )
+    p.add_argument("--hit-filter", help="HitFilter YAML (thresholds)")
+    p.add_argument(
+        "--min-score",
+        type=float,
+        default=None,
+        help="overrides --hit-filter's min_score",
+    )
+    p.add_argument(
+        "--min-coverage",
+        type=float,
+        default=None,
+        help="overrides --hit-filter's min_coverage",
+    )
+    p.add_argument(
+        "--interface-residues",
+        help=(
+            "JSON file of {item_id: [residue position, ...]} for "
+            "min_interface_coverage (Foldseek searches only)"
+        ),
+    )
     p.add_argument(
         "--pairs",
         help=(

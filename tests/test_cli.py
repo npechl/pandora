@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 
 from pandora.cli.app import _build_parser, main
+from pandora.schemas.similarity import SimilaritySearch
+from pandora.similarity.hits import HIT_COLUMNS
 
 FIXTURES_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
 CANON_POLICY = (
@@ -121,40 +123,38 @@ def test_canonicalise_curate_dedup_export_chain(tmp_path):
     assert json.loads(exported.read_text())["entry_id"] == "104M"
 
 
-def test_cluster_with_pairs(tmp_path):
+def _cluster_inputs(tmp_path):
     input_dir = tmp_path / "clustered"
     input_dir.mkdir()
-    (input_dir / "104m.cif").touch()
-    (input_dir / "112m.cif").touch()
-    (input_dir / "118l.cif").touch()
-
-    relationships = tmp_path / "relationships.json"
-    relationships.write_text(
-        json.dumps(
-            [
-                {
-                    "source_id": "104M",
-                    "target_id": "112M",
-                    "similarity_type": "structure_similarity",
-                    "score": 0.99,
-                    "method": {"engine": "Foldseek"},
-                }
-            ]
-        )
+    for name in ("104m", "112m", "118l"):
+        (input_dir / f"{name}.cif").touch()
+    hits = tmp_path / "hits.tsv"
+    hits.write_text("104M\t112M\t0.95\t100\t0.95\t0.95\n")
+    search = tmp_path / "hits.tsv.search.json"
+    search.write_text(
+        SimilaritySearch(
+            engine="MMseqs2",
+            hits_path=str(hits),
+            columns=list(HIT_COLUMNS["MMseqs2"]),
+        ).model_dump_json()
     )
+    return input_dir, search
 
+
+def test_cluster_with_pairs(tmp_path):
+    input_dir, search = _cluster_inputs(tmp_path)
     pairs = tmp_path / "pairs.json"
     pairs.write_text(json.dumps([["104M", "112M"], ["104M", "118L"]]))
-
     output = tmp_path / "clusters.json"
+
     main(
         [
             "cluster",
             "--input-dir",
             str(input_dir),
-            "--relationships",
-            str(relationships),
-            "--threshold",
+            "--search",
+            str(search),
+            "--min-score",
             "0.9",
             "--pairs",
             str(pairs),
@@ -167,9 +167,63 @@ def test_cluster_with_pairs(tmp_path):
         (output.parent / "cluster_pairs.json").read_text()
     )
     by_pair = {(p["item_id_1"], p["item_id_2"]): p for p in cluster_pairs}
-    # 104M/112M share a cluster (edge above threshold) -> same cluster key.
     same = by_pair[("104M", "112M")]
     assert same["cluster_id_1"] == same["cluster_id_2"]
-    # 118L is its own singleton cluster -> different key from 104M's.
     different = by_pair[("104M", "118L")]
     assert different["cluster_id_1"] != different["cluster_id_2"]
+
+
+def test_cluster_reads_hit_filter_yaml_and_records_it(tmp_path):
+    input_dir, search = _cluster_inputs(tmp_path)
+    hit_filter = tmp_path / "filter.yaml"
+    hit_filter.write_text("min_score: 0.99\nmin_coverage: 0.5\n")
+    output = tmp_path / "clusters.json"
+
+    main(
+        [
+            "cluster",
+            "--input-dir",
+            str(input_dir),
+            "--search",
+            str(search),
+            "--hit-filter",
+            str(hit_filter),
+            "--output",
+            str(output),
+        ]
+    )
+
+    clusters = json.loads(output.read_text())
+    assert all(c["n_components"] == 1 for c in clusters)  # 0.95 < 0.99
+    provenance = json.loads(
+        (output.parent / "cluster_provenance.json").read_text()
+    )
+    assert provenance["hit_filter"]["min_score"] == 0.99
+    assert provenance["hit_filter"]["min_coverage"] == 0.5
+    assert provenance["search"]["engine"] == "MMseqs2"
+
+
+def test_cluster_flag_overrides_hit_filter_yaml(tmp_path):
+    input_dir, search = _cluster_inputs(tmp_path)
+    hit_filter = tmp_path / "filter.yaml"
+    hit_filter.write_text("min_score: 0.99\n")
+    output = tmp_path / "clusters.json"
+
+    main(
+        [
+            "cluster",
+            "--input-dir",
+            str(input_dir),
+            "--search",
+            str(search),
+            "--hit-filter",
+            str(hit_filter),
+            "--min-score",
+            "0.9",
+            "--output",
+            str(output),
+        ]
+    )
+
+    clusters = json.loads(output.read_text())
+    assert ["104M", "112M"] in [c["components"] for c in clusters]

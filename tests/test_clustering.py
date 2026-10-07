@@ -1,72 +1,95 @@
 from __future__ import annotations
 
-from pandora.schemas.similarity import SimilarityMethod, SimilarityRelationship
+from pandora.schemas.similarity import (
+    ClusteringProvenance,
+    HitFilter,
+    SimilaritySearch,
+)
 from pandora.similarity.clustering import (
+    cluster_edges,
     cluster_similar_items,
     pair_cluster_keys,
 )
-
-
-def _rel(
-    source_id: str, target_id: str, score: float
-) -> SimilarityRelationship:
-    return SimilarityRelationship(
-        source_id=source_id,
-        target_id=target_id,
-        similarity_type="sequence_similarity",
-        score=score,
-        method=SimilarityMethod(engine="MMseqs2"),
-    )
-
+from pandora.similarity.hits import HIT_COLUMNS
 
 ITEM_IDS = ["a", "b", "c", "d", "e"]
-RELATIONSHIPS = [
-    _rel("a", "b", 0.9),
-    _rel("b", "c", 0.9),  # transitively joins a-b-c despite no direct a-c edge
-    _rel("d", "e", 0.1),  # below threshold, should not merge d and e
-]
+EDGES = [("a", "b"), ("b", "c")]  # a-b-c joined transitively, no a-c edge
 
 
 def test_transitive_merge_and_isolate() -> None:
-    clusters, provenance = cluster_similar_items(
-        ITEM_IDS, RELATIONSHIPS, threshold=0.5
-    )
-    by_size = sorted(clusters, key=lambda c: c.n_components)
+    clusters, provenance = cluster_edges(ITEM_IDS, EDGES)
 
-    singletons = [c for c in by_size if c.n_components == 1]
-    assert {c.components[0] for c in singletons} == {"d", "e"}
-
-    merged = [c for c in by_size if c.n_components == 3][0]
-    assert merged.components == ["a", "b", "c"]
-
-    assert provenance.threshold == 0.5
-    assert provenance.n_relationships == len(RELATIONSHIPS)
-    assert provenance.n_clusters == len(clusters)
-    assert provenance.similarity_method == RELATIONSHIPS[0].method
+    assert [c.components for c in clusters] == [["a", "b", "c"], ["d"], ["e"]]
+    assert provenance.n_edges == 2
+    assert provenance.n_edges_unknown_ids == 0
+    assert provenance.n_clusters == 3
+    assert provenance.hit_filter is None
+    assert provenance.search is None
 
 
 def test_every_item_appears_exactly_once() -> None:
-    clusters, _ = cluster_similar_items(ITEM_IDS, RELATIONSHIPS, threshold=0.5)
+    clusters, _ = cluster_edges(ITEM_IDS, EDGES)
+
     seen = [item for cluster in clusters for item in cluster.components]
     assert sorted(seen) == sorted(ITEM_IDS)
 
 
-def test_higher_threshold_splits_the_cluster() -> None:
-    clusters, _ = cluster_similar_items(ITEM_IDS, RELATIONSHIPS, threshold=0.95)
-    assert all(c.n_components == 1 for c in clusters)
+def test_unknown_ids_are_ignored_and_counted() -> None:
+    clusters, provenance = cluster_edges(["a", "b"], [("a", "b"), ("a", "z")])
+
+    assert [c.components for c in clusters] == [["a", "b"]]
+    assert provenance.n_edges == 2
+    assert provenance.n_edges_unknown_ids == 1
+
+
+def test_duplicate_edges_do_not_change_clusters() -> None:
+    once, _ = cluster_edges(ITEM_IDS, EDGES)
+    repeated, _ = cluster_edges(ITEM_IDS, EDGES + EDGES + [("b", "a")])
+
+    assert repeated == once
+
+
+def test_cluster_similar_items_filters_hits_and_records_search(tmp_path):
+    path = tmp_path / "hits.tsv"
+    path.write_text(
+        "a\tb\t0.95\t100\t0.9\t0.9\n"
+        "b\tc\t0.95\t100\t0.9\t0.9\n"
+        "d\te\t0.10\t100\t0.9\t0.9\n"
+    )
+    search = SimilaritySearch(
+        engine="MMseqs2",
+        hits_path=str(path),
+        columns=list(HIT_COLUMNS["MMseqs2"]),
+    )
+    hit_filter = HitFilter(min_score=0.5)
+
+    clusters, provenance = cluster_similar_items(ITEM_IDS, search, hit_filter)
+
+    assert [c.components for c in clusters] == [["a", "b", "c"], ["d"], ["e"]]
+    assert provenance.hit_filter == hit_filter
+    assert provenance.search == search
+    assert provenance.n_edges == 2
+
+
+def test_old_clustering_provenance_still_loads() -> None:
+    old = {
+        "clustered_at": "2026-01-01T00:00:00+00:00",
+        "threshold": 0.9,
+        "n_relationships": 3,
+        "n_clusters": 2,
+    }
+
+    provenance = ClusteringProvenance.model_validate(old)
+
+    assert provenance.search is None
+    assert provenance.hit_filter is None
+    assert provenance.n_clusters == 2
 
 
 def test_pair_cluster_keys_uses_each_clusters_min_component_id() -> None:
-    clusters, _ = cluster_similar_items(ITEM_IDS, RELATIONSHIPS, threshold=0.5)
+    clusters, _ = cluster_edges(ITEM_IDS, EDGES)
+
     keys = pair_cluster_keys([("a", "d"), ("c", "e")], clusters)
-    # a,c are both in the {a,b,c} cluster (keyed by its min id "a");
-    # d and e are each their own singleton cluster.
+
+    # a, c share the {a,b,c} cluster (keyed "a"); d, e are singletons.
     assert keys == {("a", "d"): ("a", "d"), ("c", "e"): ("a", "e")}
-
-
-if __name__ == "__main__":
-    test_transitive_merge_and_isolate()
-    test_every_item_appears_exactly_once()
-    test_higher_threshold_splits_the_cluster()
-    test_pair_cluster_keys_uses_each_clusters_min_component_id()
-    print("ok")

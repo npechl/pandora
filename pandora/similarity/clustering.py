@@ -1,52 +1,40 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
+from typing import Any
+
 from pandora._util import now_iso
 from pandora.schemas.similarity import (
     ClusteringProvenance,
+    HitFilter,
     SimilarityCluster,
-    SimilarityRelationship,
+    SimilaritySearch,
 )
+from pandora.similarity.hits import iter_edges
 
 
-def cluster_similar_items(
+def cluster_edges(
     item_ids: list[str],
-    relationships: list[SimilarityRelationship],
-    threshold: float,
+    edges: Iterable[Sequence[Any]],
 ) -> tuple[list[SimilarityCluster], ClusteringProvenance]:
-    """Group item ids into clusters via connected components.
+    """Group item ids into connected-component clusters.
 
-    Two items land in the same cluster iff connected through a chain of
-    relationships each scoring >= threshold. Items with no such edges
-    (isolates) form their own singleton cluster, so every id in
-    `item_ids` ends up in exactly one cluster.
+    Two items land in the same cluster iff connected through a chain
+    of edges. Items with no edges form their own singleton cluster, so
+    every id in `item_ids` ends up in exactly one cluster. `edges` is
+    consumed once and never stored, so it can be a stream.
 
     Args:
         item_ids: Every item id to place into a cluster.
-        relationships: Pairwise similarity relationships between items,
-            as returned by `compute_sequence_similarity`/
-            `compute_structure_similarity`. Must all share the same
-            `.method.engine`.
-        threshold: Minimum `SimilarityRelationship.score` for an edge
-            to count as a connection between two items.
+        edges: Pairs of item ids, as `Edge`s from `iter_edges()` or any
+            tuples whose first two items are the ids. Duplicates are
+            harmless.
 
     Returns:
-        `(clusters, provenance)` — the clusters, and a record of the
-        threshold applied, how many relationships/clusters resulted, and
-        the `SimilarityMethod` of the first relationship — enough to
-        reproduce this clustering step given the same input structures.
-
-    Raises:
-        ValueError: `relationships` mixes more than one similarity
-            engine; clustering assumes a single engine/parameters
-            produced the whole network.
+        `(clusters, provenance)` — the clusters (sorted by their
+        smallest member), and the edge and cluster counts.
+        `provenance.hit_filter` and `.search` are None.
     """
-
-    if len({rel.method.engine for rel in relationships}) > 1:
-        raise ValueError(
-            "cluster_similar_items: relationships use more than one "
-            "similarity engine; clustering assumes a single "
-            "engine/parameters for the whole network"
-        )
 
     parent = {item_id: item_id for item_id in item_ids}
 
@@ -58,15 +46,17 @@ def cluster_similar_items(
             item_id = parent[item_id]
         return item_id
 
-    for rel in relationships:
-        if (
-            rel.score >= threshold
-            and rel.source_id in parent
-            and rel.target_id in parent
-        ):
-            root_source, root_target = find(rel.source_id), find(rel.target_id)
-            if root_source != root_target:
-                parent[root_target] = root_source
+    n_edges = 0
+    n_unknown = 0
+    for edge in edges:
+        n_edges += 1
+        source_id, target_id = edge[0], edge[1]
+        if source_id not in parent or target_id not in parent:
+            n_unknown += 1
+            continue
+        root_source, root_target = find(source_id), find(target_id)
+        if root_source != root_target:
+            parent[root_target] = root_source
 
     groups: dict[str, list[str]] = {}
     for item_id in item_ids:
@@ -74,16 +64,53 @@ def cluster_similar_items(
 
     clusters = [
         SimilarityCluster(components=sorted(members), n_components=len(members))
-        for members in sorted(groups.values(), key=lambda members: members[0])
+        for members in sorted(groups.values(), key=lambda members: min(members))
     ]
     provenance = ClusteringProvenance(
         clustered_at=now_iso(),
-        threshold=threshold,
-        n_relationships=len(relationships),
+        n_edges=n_edges,
+        n_edges_unknown_ids=n_unknown,
         n_clusters=len(clusters),
-        similarity_method=relationships[0].method if relationships else None,
     )
     return clusters, provenance
+
+
+def cluster_similar_items(
+    item_ids: list[str],
+    search: SimilaritySearch,
+    hit_filter: HitFilter,
+    *,
+    interface_residues: dict[str, set[int]] | None = None,
+) -> tuple[list[SimilarityCluster], ClusteringProvenance]:
+    """Cluster item ids from a search's hit file, filtered by a policy.
+
+    Streams `search`'s hit file through `hit_filter` (`iter_edges()`)
+    into `cluster_edges()`; memory is bounded by the number of items,
+    not hits.
+
+    Args:
+        item_ids: Every item id to place into a cluster.
+        search: The search whose hit file to read.
+        hit_filter: Which hit rows become edges.
+        interface_residues: Item id -> interface residue positions,
+            needed when `hit_filter.min_interface_coverage` is set.
+
+    Returns:
+        `(clusters, provenance)`, with `provenance.hit_filter` and
+        `.search` recorded so the clustering can be reproduced.
+
+    Raises:
+        ValueError: The filter can't apply to the search, or the hit
+            file is malformed (see `iter_edges()`).
+    """
+
+    clusters, provenance = cluster_edges(
+        item_ids,
+        iter_edges(search, hit_filter, interface_residues=interface_residues),
+    )
+    return clusters, provenance.model_copy(
+        update={"hit_filter": hit_filter, "search": search}
+    )
 
 
 def pair_cluster_keys(

@@ -177,25 +177,28 @@ class Edge(NamedTuple):
 
 
 class ClusteringProvenance(BaseModel):
-    """Record of one clustering run: threshold, relationship/cluster
-    counts, and the similarity method used.
+    """Record of one clustering run: which search and filter produced
+    the edges, and how many edges and clusters resulted.
 
     Attributes:
         clustered_at: When this clustering run completed, as an ISO
             8601 timestamp.
-        threshold: The similarity score threshold used to connect
-            items.
-        n_relationships: How many relationships were considered.
+        hit_filter: The filter that turned hits into edges, or None
+            for hand-built edges (`cluster_edges`).
+        search: The search whose hit file was clustered, or None for
+            hand-built edges.
+        n_edges: How many edges were read (duplicates included).
+        n_edges_unknown_ids: How many of those named an id outside
+            `item_ids` and were ignored.
         n_clusters: How many clusters resulted.
-        similarity_method: Which engine/parameters produced the
-            clustered relationships.
     """
 
     clustered_at: str
-    threshold: float
-    n_relationships: int
+    hit_filter: HitFilter | None = None
+    search: SimilaritySearch | None = None
+    n_edges: int = 0
+    n_edges_unknown_ids: int = 0
     n_clusters: int
-    similarity_method: SimilarityMethod | None = None
 
 
 class PartitionProvenance(BaseModel):
