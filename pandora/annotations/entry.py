@@ -180,24 +180,42 @@ def annotate_chain_interfaces(
 
     chain_ids = sorted(polymer_asym_ids(structure))
     atoms_by_chain = atoms_by_asym_id(structure)
+    selected = {
+        chain_id: atoms_by_chain[chain_id]
+        for chain_id in chain_ids
+        if atoms_by_chain.get(chain_id)
+    }
+    boxes = {
+        chain_id: _bounding_box(atoms) for chain_id, atoms in selected.items()
+    }
+    grids = {
+        chain_id: _spatial_grid(atoms, distance_cutoff)
+        for chain_id, atoms in selected.items()
+    }
     cutoff_sq = distance_cutoff * distance_cutoff
 
     interfaces = []
-    for chain_a, chain_b in combinations(chain_ids, 2):
-        residues_a, residues_b = _chain_pair_contacts(
-            atoms_by_chain.get(chain_a, []),
-            atoms_by_chain.get(chain_b, []),
+    for chain_a, chain_b in combinations(sorted(selected), 2):
+        if _boxes_apart(boxes[chain_a], boxes[chain_b], distance_cutoff):
+            continue
+        pairs = _chain_pair_contacts(
+            selected[chain_a],
+            boxes[chain_b],
+            grids[chain_b],
             distance_cutoff,
             cutoff_sq,
         )
-        if not residues_a and not residues_b:
+        if not pairs:
             continue
+        residues_a = sorted({residue_a for residue_a, _ in pairs})
+        residues_b = sorted({residue_b for _, residue_b in pairs})
         interfaces.append(
             {
                 "chain_id_1": chain_a,
                 "chain_id_2": chain_b,
-                "interface_residues_chain_1": sorted(residues_a),
-                "interface_residues_chain_2": sorted(residues_b),
+                "interface_residues_chain_1": residues_a,
+                "interface_residues_chain_2": residues_b,
+                "residue_pairs": [list(pair) for pair in sorted(pairs)],
                 "contact_count": len(residues_a) + len(residues_b),
             }
         )
@@ -216,24 +234,59 @@ def annotate_chain_interfaces(
 
 def _chain_pair_contacts(
     atoms_a: list[AtomSiteRecord],
-    atoms_b: list[AtomSiteRecord],
+    box_b: tuple[float, float, float, float, float, float],
+    grid_b: dict[tuple[int, int, int], list[AtomSiteRecord]],
     cutoff: float,
     cutoff_sq: float,
-) -> tuple[set[str], set[str]]:
-    """Residue ids on each side of atoms_a/atoms_b with atoms within
-    cutoff of each other."""
+) -> set[tuple[str, str]]:
+    """Residue-id pairs with an atom of atoms_a within cutoff of grid_b."""
 
-    grid_b = _spatial_grid(atoms_b, cutoff)
+    min_x, min_y, min_z, max_x, max_y, max_z = box_b
     cell_size = _cell_size(cutoff)
-    residues_a: set[str] = set()
-    residues_b: set[str] = set()
+    pairs: set[tuple[str, str]] = set()
     for atom_a in atoms_a:
+        # Only atoms inside chain b's box grown by the cutoff can touch it.
+        if not (
+            min_x - cutoff <= atom_a.Cartn_x <= max_x + cutoff
+            and min_y - cutoff <= atom_a.Cartn_y <= max_y + cutoff
+            and min_z - cutoff <= atom_a.Cartn_z <= max_z + cutoff
+        ):
+            continue
         for atom_b in _neighbor_atoms(grid_b, _cell_key(atom_a, cell_size)):
-            if _squared_distance(atom_a, atom_b) > cutoff_sq:
-                continue
-            residues_a.add(f"{atom_a.label_asym_id}:{atom_a.label_seq_id}")
-            residues_b.add(f"{atom_b.label_asym_id}:{atom_b.label_seq_id}")
-    return residues_a, residues_b
+            if _squared_distance(atom_a, atom_b) <= cutoff_sq:
+                pairs.add((_residue_id(atom_a), _residue_id(atom_b)))
+    return pairs
+
+
+def _bounding_box(
+    atoms: list[AtomSiteRecord],
+) -> tuple[float, float, float, float, float, float]:
+    """Axis-aligned box (min x, min y, min z, max x, max y, max z)."""
+
+    xs = [atom.Cartn_x for atom in atoms]
+    ys = [atom.Cartn_y for atom in atoms]
+    zs = [atom.Cartn_z for atom in atoms]
+    return min(xs), min(ys), min(zs), max(xs), max(ys), max(zs)
+
+
+def _boxes_apart(
+    box_a: tuple[float, float, float, float, float, float],
+    box_b: tuple[float, float, float, float, float, float],
+    cutoff: float,
+) -> bool:
+    """Whether the two boxes are more than cutoff apart on any axis."""
+
+    return any(
+        box_a[axis] - box_b[axis + 3] > cutoff
+        or box_b[axis] - box_a[axis + 3] > cutoff
+        for axis in range(3)
+    )
+
+
+def _residue_id(atom: AtomSiteRecord) -> str:
+    """The `label_asym_id:label_seq_id` id of atom's residue."""
+
+    return f"{atom.label_asym_id}:{atom.label_seq_id}"
 
 
 def _is_ligand_atom(atom: AtomSiteRecord, include_waters: bool) -> bool:
