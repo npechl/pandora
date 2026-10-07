@@ -25,7 +25,7 @@ from pandora.schemas.canonicalisation import canonicalisationProvenance
 from pandora.schemas.dataset import DeduplicationRules, ExclusionRecord
 from pandora.schemas.ingestion import FetchOptions, IngestionProvenance
 from pandora.schemas.provenance import DatasetManifest
-from pandora.schemas.similarity import SimilarityRelationship
+from pandora.schemas.similarity import SimilaritySearch
 from pandora.schemas.structure import Structure
 from pandora.similarity.clustering import cluster_similar_items
 from pandora.similarity.partition import partition_dataset
@@ -43,29 +43,32 @@ PAIRWISE_ANNOTATION_DISPATCH = {
 
 
 def _reproduce_similarity(
-    method_engine: str,
-    method_parameters: dict,
+    search: SimilaritySearch,
     structures: dict[str, Structure],
     output_dir: Path,
-) -> list[SimilarityRelationship]:
-    """Recompute the similarity network for structures using the
-    recorded engine/parameters."""
+) -> SimilaritySearch:
+    """Re-run search with its recorded parameters into output_dir, or
+    re-use a precomputed hit file that still exists."""
 
-    if method_engine == "MMseqs2":
-        return compute_sequence_similarity(
-            entry_sequences(structures), **method_parameters
+    if search.origin == "precomputed":
+        if Path(search.hits_path).exists():
+            return search
+        raise ValueError(
+            "cannot reproduce clustering: its precomputed hit file "
+            f"{search.hits_path!r} no longer exists; re-run that search "
+            "and load it with load_similarity_search()"
         )
-    if method_engine == "Foldseek":
-        paths: dict[str, Path] = {}
-        for entry_id, structure in structures.items():
-            paths[entry_id] = structure_to_mmcif(
-                structure, output_dir / f"{entry_id}.reproduced.cif"
-            )
-        return compute_structure_similarity(paths, **method_parameters)
-    raise ValueError(
-        f"cannot reproduce similarity network: unknown engine {method_engine!r} "
-        "(only 'MMseqs2' and 'Foldseek' can be auto-reproduced)"
-    )
+    hits_path = output_dir / "hits.tsv"
+    if search.engine == "MMseqs2":
+        return compute_sequence_similarity(
+            entry_sequences(structures), hits_path, **search.parameters
+        )
+    paths: dict[str, Path] = {}
+    for entry_id, structure in structures.items():
+        paths[entry_id] = structure_to_mmcif(
+            structure, output_dir / f"{entry_id}.reproduced.cif"
+        )
+    return compute_structure_similarity(paths, hits_path, **search.parameters)
 
 
 def _reproduce_annotations(
@@ -146,8 +149,10 @@ def reproduce_dataset(
 
     Raises:
         ValueError: A structure's `ProvenanceBundle` has no `ingestion`
-            provenance to fetch from, or `clustering.similarity_method`
-            names an engine that can't be auto-reproduced.
+            provenance to fetch from; `clustering` lacks a recorded
+            `search` or `hit_filter`; its hit filter uses
+            `min_interface_coverage` (interface residues aren't
+            recorded); or its precomputed hit file no longer exists.
     """
 
     output_dir = Path(output_dir)
@@ -208,17 +213,22 @@ def reproduce_dataset(
     partition_prov = None
     splits: dict[str, list[str]] = {}
     if manifest.clustering is not None:
-        method = manifest.clustering.similarity_method
-        if method is None:
+        recorded = manifest.clustering
+        if recorded.search is None or recorded.hit_filter is None:
             raise ValueError(
-                "cannot reproduce clustering: the original manifest did not "
-                "record which similarity method produced the network"
+                "cannot reproduce clustering: the original manifest did "
+                "not record which similarity search and hit filter "
+                "produced the clusters"
             )
-        relationships = _reproduce_similarity(
-            method.engine, method.parameters or {}, structures, output_dir
-        )
+        if recorded.hit_filter.min_interface_coverage is not None:
+            raise ValueError(
+                "cannot reproduce clustering: its hit filter uses "
+                "min_interface_coverage, and the interface residues it "
+                "was computed with are not recorded in the manifest"
+            )
+        search = _reproduce_similarity(recorded.search, structures, output_dir)
         clusters, cluster_prov = cluster_similar_items(
-            list(structures), relationships, manifest.clustering.threshold
+            list(structures), search, recorded.hit_filter
         )
         if manifest.partition is not None:
             splits, partition_prov = partition_dataset(
