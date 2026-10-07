@@ -5,13 +5,11 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from pandora._util import now_iso
 from pandora.schemas.dataset import ChainRecord
-from pandora.schemas.similarity import (
-    SimilarityMethod,
-    SimilarityRelationship,
-)
+from pandora.schemas.similarity import SimilaritySearch
+from pandora.similarity.hits import HIT_COLUMNS
 
-_OUTPUT_COLUMNS = "query,target,fident,alnlen,qcov,tcov"
 _FASTA_GLOBS = ("*.fasta", "*.fa", "*.fna", "*.faa")
 
 
@@ -51,28 +49,46 @@ def _concat_fasta_dir(directory: Path, path: Path) -> None:
 
 def compute_sequence_similarity(
     sequences: dict[str, str] | list[ChainRecord] | str | Path,
+    hits_path: str | Path,
     *,
     mmseqs_bin: str = "mmseqs",
     sensitivity: float = 5.7,
+    max_seqs: int = 300,
     tmp_dir: str | Path | None = None,
-    mmseqs_options: list[str] = [],
-) -> list[SimilarityRelationship]:
+    mmseqs_options: list[str] | None = None,
+) -> SimilaritySearch:
     """All-vs-all sequence similarity via MMseqs2 `easy-search`.
+
+    Writes MMseqs2's hits to `hits_path` as a TSV with the columns in
+    `HIT_COLUMNS["MMseqs2"]` and keeps it there; nothing is loaded into
+    memory. Read it with `iter_edges()` / `cluster_similar_items()`.
 
     Args:
         sequences: Mapping of item id -> sequence, a list of `ChainRecord`
             (keyed as "{entry_id}_{chain_id}", records with no sequence are
             skipped), or a path to a directory of existing FASTA files to
             run similarity over directly.
+        hits_path: Where to write the hit TSV. Parent directories are
+            created.
         mmseqs_bin: Path or name of the MMseqs2 binary.
         sensitivity: MMseqs2 `-s` sensitivity value.
-        tmp_dir: Working directory for FASTA/result files. None = system temp.
-        mmseqs_options: addition options passed to MMseqs2 implementation.
+        max_seqs: MMseqs2 `--max-seqs`: hits kept per query after the
+            prefilter. The default (MMseqs2's own) can miss similar
+            pairs in large families; raise it for leakage control.
+        tmp_dir: Working directory for FASTA/temporary files. None =
+            system temp.
+        mmseqs_options: Additional options passed to MMseqs2.
 
     Returns:
-        One `SimilarityRelationship` per unordered pair of items with a hit,
-        `source_id < target_id`. Unthresholded — callers filter by score
-        when building a similarity network.
+        A `SimilaritySearch` pointing at `hits_path`. Its `parameters`
+        are this function's keyword arguments, so the search can be
+        re-run with `compute_sequence_similarity(seqs, path,
+        **search.parameters)`.
+
+    Raises:
+        RuntimeError: `mmseqs_bin` is not on PATH.
+        ValueError: `sequences` is a directory with no FASTA files.
+        subprocess.CalledProcessError: MMseqs2 failed.
     """
 
     if shutil.which(mmseqs_bin) is None:
@@ -88,10 +104,12 @@ def compute_sequence_similarity(
             if record.sequence is not None
         }
 
+    options = list(mmseqs_options or [])
+    hits = Path(hits_path)
+    hits.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=tmp_dir) as work_dir:
         work = Path(work_dir)
         fasta_path = work / "sequences.fasta"
-        result_path = work / "result.m8"
         if isinstance(sequences, dict):
             _write_fasta(sequences, fasta_path)
         else:
@@ -103,55 +121,33 @@ def compute_sequence_similarity(
                 "easy-search",
                 str(fasta_path),
                 str(fasta_path),
-                str(result_path),
+                str(hits),
                 str(work / "tmp"),
                 "-s",
                 str(sensitivity),
+                "--max-seqs",
+                str(max_seqs),
                 "--format-output",
-                _OUTPUT_COLUMNS,
+                ",".join(HIT_COLUMNS["MMseqs2"]),
                 "-v",
                 "1",
             ]
-            + mmseqs_options,
+            + options,
             check=True,
             capture_output=True,
             text=True,
         )
 
-        version = _mmseqs_version(mmseqs_bin)
-        best_hits: dict[tuple[str, str], tuple[float, float]] = {}
-        for line in result_path.read_text().splitlines():
-            query, target, fident, _alnlen, qcov, tcov = line.split("\t")
-            if query == target:
-                continue
-
-            source_id, target_id = sorted((query, target))
-            score = float(fident)
-            coverage = min(float(qcov), float(tcov))
-
-            pair = (source_id, target_id)
-            current = best_hits.get(pair)
-            if current is None or score > current[0]:
-                best_hits[pair] = (score, coverage)
-
-    return [
-        SimilarityRelationship(
-            source_id=source_id,
-            target_id=target_id,
-            similarity_type="sequence_similarity",
-            score=score,
-            coverage=coverage,
-            identity=score,
-            method=SimilarityMethod(
-                engine="MMseqs2",
-                version=version,
-                parameters={
-                    "sensitivity": sensitivity,
-                    "mmseqs_bin": mmseqs_bin,
-                },
-            ),
-        )
-        for (source_id, target_id), (score, coverage) in sorted(
-            best_hits.items()
-        )
-    ]
+    return SimilaritySearch(
+        engine="MMseqs2",
+        version=_mmseqs_version(mmseqs_bin),
+        hits_path=str(hits),
+        columns=list(HIT_COLUMNS["MMseqs2"]),
+        parameters={
+            "mmseqs_bin": mmseqs_bin,
+            "sensitivity": sensitivity,
+            "max_seqs": max_seqs,
+            "mmseqs_options": options,
+        },
+        searched_at=now_iso(),
+    )

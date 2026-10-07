@@ -51,6 +51,7 @@ from pandora.similarity import (
     cluster_similar_items,
     compute_sequence_similarity,
     compute_structure_similarity,
+    load_similarity_search,
     pair_cluster_keys,
     partition_dataset,
 )
@@ -287,43 +288,50 @@ def _cmd_dedup(args: argparse.Namespace) -> None:
     )
 
 
+_CLI_ENGINES = {"mmseqs2": "MMseqs2", "foldseek": "Foldseek"}
+
+
 def _cmd_similarity(args: argparse.Namespace) -> None:
-    """Handle the `similarity` subcommand: run all-vs-all sequence or
-    structure similarity."""
+    """Handle the `similarity` subcommand: run (or wrap a precomputed)
+    all-vs-all sequence or structure search, keeping its hit file."""
 
     output = Path(args.output)
 
-    if args.engine == "mmseqs2":
+    if args.precomputed_hits:
+        search = load_similarity_search(
+            args.precomputed_hits, _CLI_ENGINES[args.engine]
+        )
+    elif args.input_dir is None:
+        raise SystemExit(
+            "similarity: --input-dir is required unless --precomputed-hits "
+            "is given"
+        )
+    elif args.engine == "mmseqs2":
         structures = _read_structures_dir(Path(args.input_dir))
         sequences = entry_sequences(structures)
         kwargs = {"mmseqs_bin": args.mmseqs_bin}
         if args.sensitivity is not None:
             kwargs["sensitivity"] = args.sensitivity
-        relationships = compute_sequence_similarity(sequences, **kwargs)
+        if args.max_seqs is not None:
+            kwargs["max_seqs"] = args.max_seqs
+        search = compute_sequence_similarity(sequences, output, **kwargs)
     else:
         kwargs = {
             "foldseek_bin": args.foldseek_bin,
             "alignment_type": args.alignment_type,
+            "exhaustive_search": args.exhaustive_search,
         }
         if args.sensitivity is not None:
             kwargs["sensitivity"] = args.sensitivity
-        if args.interface_residues:
-            kwargs["interface_residues"] = _load_interface_residues(
-                Path(args.interface_residues)
-            )
-        relationships = compute_structure_similarity(
-            Path(args.input_dir), **kwargs
+        if args.max_seqs is not None:
+            kwargs["max_seqs"] = args.max_seqs
+        search = compute_structure_similarity(
+            Path(args.input_dir), output, **kwargs
         )
 
-    # Zero hits above the tool's reporting threshold is a legitimate
-    # result (e.g. an all-vs-all search over unrelated sequences), not
-    # an error — write_records() refuses empty lists, so write directly.
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        json.dumps([r.model_dump() for r in relationships], indent=2),
-        encoding="utf-8",
-    )
-    print(f"computed {len(relationships)} relationships -> {output}")
+    record = output.with_name(output.name + ".search.json")
+    write_json(search, record)
+    print(f"hits -> {search.hits_path}; search record -> {record}")
 
 
 def _cmd_cluster(args: argparse.Namespace) -> None:
@@ -629,21 +637,36 @@ def _build_parser() -> argparse.ArgumentParser:
     p = subparsers.add_parser(
         "similarity", help="All-vs-all sequence or structure similarity."
     )
-    p.add_argument("--input-dir", required=True)
     p.add_argument("--engine", choices=["mmseqs2", "foldseek"], required=True)
     p.add_argument("--mmseqs-bin", default="mmseqs")
     p.add_argument("--foldseek-bin", default="foldseek")
     p.add_argument("--sensitivity", type=float, default=None)
     p.add_argument("--alignment-type", type=int, default=2)
     p.add_argument(
-        "--interface-residues",
-        help=(
-            "foldseek only: JSON file of {item_id: [residue position, ...]} "
-            "to compute interface-restricted coverage alongside whole-chain "
-            "coverage (see docs/usage/similarity.md)"
-        ),
+        "--input-dir", help="required unless --precomputed-hits is given"
     )
-    p.add_argument("--output", required=True)
+    p.add_argument(
+        "--max-seqs",
+        type=int,
+        default=None,
+        help="hits kept per query (default: the tool's own, MMseqs2 300 "
+        "/ Foldseek 1000; raise it for leakage control)",
+    )
+    p.add_argument(
+        "--exhaustive-search",
+        action="store_true",
+        help="foldseek only: skip the prefilter",
+    )
+    p.add_argument(
+        "--precomputed-hits",
+        help="wrap an existing hit TSV (Pandora's --format-output "
+        "columns) instead of running a search",
+    )
+    p.add_argument(
+        "--output",
+        required=True,
+        help="hit TSV path; the search record goes to <output>.search.json",
+    )
     p.set_defaults(func=_cmd_similarity)
 
     p = subparsers.add_parser(

@@ -5,14 +5,11 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from pandora._util import now_iso
 from pandora.schemas.annotation import AnnotationLayer
-from pandora.schemas.similarity import SimilarityMethod, SimilarityRelationship
+from pandora.schemas.similarity import SimilaritySearch
 from pandora.schemas.structure import Structure
-from pandora.similarity.hits import _interface_coverage
-
-_OUTPUT_COLUMNS = (
-    "query,target,fident,alnlen,qcov,tcov,alntmscore,qstart,qend,tstart,tend"
-)
+from pandora.similarity.hits import HIT_COLUMNS
 
 
 def _foldseek_version(foldseek_bin: str) -> str | None:
@@ -89,7 +86,7 @@ def interface_residues_from_annotation(
     interface_layers: dict[str, AnnotationLayer],
 ) -> dict[str, set[int]]:
     """Bridge `annotate_chain_interfaces()` output into the
-    `interface_residues` mapping `compute_structure_similarity()` expects,
+    `interface_residues` mapping `iter_edges()` expects,
     for one exported file per chain (`export_chain_mmcif()`).
 
     Converts each interface's `label_asym_id:label_seq_id` residue ids to
@@ -106,9 +103,9 @@ def interface_residues_from_annotation(
     Returns:
         `{chain_item_id(entry_id, chain_id): {positions...}}` — one
         entry per chain that appears in at least one interface. Pass
-        this straight to `compute_structure_similarity(structures=...,
-        interface_residues=...)` where `structures` was built with
-        `export_chain_mmcif()` using the same ids.
+        this to `iter_edges()` / `cluster_similar_items()` as
+        `interface_residues`, for a search run on files written by
+        `export_chain_mmcif()` with the same ids.
     """
 
     result: dict[str, set[int]] = {}
@@ -144,50 +141,54 @@ def interface_residues_from_annotation(
 
 def compute_structure_similarity(
     structures: dict[str, str | Path] | str | Path,
+    hits_path: str | Path,
     *,
-    interface_residues: dict[str, set[int]] | None = None,
     foldseek_bin: str = "foldseek",
     sensitivity: float = 9.5,
     alignment_type: int = 2,
+    max_seqs: int = 1000,
+    exhaustive_search: bool = False,
     tmp_dir: str | Path | None = None,
     foldseek_options: list[str] | None = None,
-) -> list[SimilarityRelationship]:
+) -> SimilaritySearch:
     """All-vs-all structural similarity via Foldseek `easy-search`.
+
+    Writes Foldseek's hits to `hits_path` as a TSV with the columns in
+    `HIT_COLUMNS["Foldseek"]` (including `qtmscore`/`ttmscore` and the
+    alignment ranges) and keeps it there; nothing is loaded into
+    memory. Interface-restricted coverage is computed when reading,
+    with `iter_edges(..., interface_residues=...)`.
 
     Args:
         structures: Mapping of item id -> structure file path (PDB/mmCIF,
             optionally gzipped), or a path to a directory of existing
-            structure files to run similarity over directly (ids are then
-            Foldseek's own file-derived names).
-        interface_residues: Optional mapping of item id -> 1-indexed
-            interface residue positions, as Foldseek numbers residues for
-            that item's structure file (identity mapping from
-            `label_seq_id` only holds for a single-chain, gap-free file —
-            see `docs/usage/similarity.md`). When given, each resulting
-            relationship's `interface_coverage` is the fraction of the
-            (source or target) item's interface residues falling inside
-            the alignment range, rather than Foldseek's whole-chain
-            coverage. A pair gets no `interface_coverage` unless both its
-            items are present in this mapping.
+            structure files (ids are then Foldseek's own file-derived
+            names).
+        hits_path: Where to write the hit TSV. Parent directories are
+            created.
         foldseek_bin: Path or name of the Foldseek binary.
         sensitivity: Foldseek `-s` sensitivity value.
         alignment_type: Foldseek `--alignment-type` (0: 3Di alignment,
             1: TM-align, 2: 3Di+AA — Foldseek's own default).
-        tmp_dir: Working directory for structure/result files. None = system
-            temp.
-        foldseek_options: additional options passed to the Foldseek binary.
+        max_seqs: Foldseek `--max-seqs`: hits kept per query after the
+            prefilter. The default (Foldseek's own) can miss similar
+            pairs in large families; raise it for leakage control.
+        exhaustive_search: Pass `--exhaustive-search 1` (skip the
+            prefilter; slower, finds every pair).
+        tmp_dir: Working directory for structure/temporary files.
+            None = system temp.
+        foldseek_options: Additional options passed to Foldseek.
 
     Returns:
-        One `SimilarityRelationship` per unordered pair of items with a hit,
-        `source_id < target_id`. Unthresholded — callers filter by score
-        when building a similarity network. `score` is the best hit's
-        TM-score (`alntmscore`), `identity` its fraction of identical
-        aligned residues (`fident`), `coverage` the min of query/target
-        whole-chain coverage, `interface_coverage` the min of query/target
-        interface-restricted coverage (if `interface_residues` given).
-    """
+        A `SimilaritySearch` pointing at `hits_path`. Its `parameters`
+        are this function's keyword arguments, so the search can be
+        re-run with `compute_structure_similarity(structures, path,
+        **search.parameters)`.
 
-    interface_residues = interface_residues or {}
+    Raises:
+        RuntimeError: `foldseek_bin` is not on PATH.
+        subprocess.CalledProcessError: Foldseek failed.
+    """
 
     if shutil.which(foldseek_bin) is None:
         raise RuntimeError(
@@ -195,12 +196,11 @@ def compute_structure_similarity(
             "structure similarity)"
         )
 
-    foldseek_options = foldseek_options or []
-
+    options = list(foldseek_options or [])
+    hits = Path(hits_path)
+    hits.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=tmp_dir) as work_dir:
         work = Path(work_dir)
-        result_path = work / "result.m8"
-
         if isinstance(structures, dict):
             struct_dir = work / "structures"
             struct_dir.mkdir()
@@ -208,98 +208,42 @@ def compute_structure_similarity(
         else:
             struct_dir = Path(structures)
 
+        command = [
+            foldseek_bin,
+            "easy-search",
+            str(struct_dir),
+            str(struct_dir),
+            str(hits),
+            str(work / "tmp"),
+            "-s",
+            str(sensitivity),
+            "--alignment-type",
+            str(alignment_type),
+            "--max-seqs",
+            str(max_seqs),
+            "--format-output",
+            ",".join(HIT_COLUMNS["Foldseek"]),
+            "-v",
+            "1",
+        ]
+        if exhaustive_search:
+            command += ["--exhaustive-search", "1"]
         subprocess.run(
-            [
-                foldseek_bin,
-                "easy-search",
-                str(struct_dir),
-                str(struct_dir),
-                str(result_path),
-                str(work / "tmp"),
-                "-s",
-                str(sensitivity),
-                "--alignment-type",
-                str(alignment_type),
-                "--format-output",
-                _OUTPUT_COLUMNS,
-                "-v",
-                "1",
-            ]
-            + foldseek_options,
-            check=True,
-            capture_output=True,
-            text=True,
+            command + options, check=True, capture_output=True, text=True
         )
 
-        version = _foldseek_version(foldseek_bin)
-        best_hits: dict[
-            tuple[str, str], tuple[float, float, float, float | None]
-        ] = {}
-        for line in result_path.read_text().splitlines():
-            (
-                query,
-                target,
-                fident,
-                _alnlen,
-                qcov,
-                tcov,
-                alntmscore,
-                qstart,
-                qend,
-                tstart,
-                tend,
-            ) = line.split("\t")
-            if query == target:
-                continue
-
-            source_id, target_id = sorted((query, target))
-            score = float(alntmscore)
-            identity = float(fident)
-            coverage = min(float(qcov), float(tcov))
-
-            interface_coverage = None
-            if query in interface_residues and target in interface_residues:
-                q_iface_cov = _interface_coverage(
-                    interface_residues[query], int(qstart), int(qend)
-                )
-                t_iface_cov = _interface_coverage(
-                    interface_residues[target], int(tstart), int(tend)
-                )
-                interface_coverage = min(q_iface_cov, t_iface_cov)
-
-            pair = (source_id, target_id)
-            current = best_hits.get(pair)
-            if current is None or score > current[0]:
-                best_hits[pair] = (
-                    score,
-                    identity,
-                    coverage,
-                    interface_coverage,
-                )
-
-    return [
-        SimilarityRelationship(
-            source_id=source_id,
-            target_id=target_id,
-            similarity_type="structure_similarity",
-            score=score,
-            coverage=coverage,
-            interface_coverage=interface_coverage,
-            identity=identity,
-            method=SimilarityMethod(
-                engine="Foldseek",
-                version=version,
-                parameters={
-                    "sensitivity": sensitivity,
-                    "alignment_type": alignment_type,
-                    "foldseek_bin": foldseek_bin,
-                },
-            ),
-        )
-        for (source_id, target_id), (
-            score,
-            identity,
-            coverage,
-            interface_coverage,
-        ) in sorted(best_hits.items())
-    ]
+    return SimilaritySearch(
+        engine="Foldseek",
+        version=_foldseek_version(foldseek_bin),
+        hits_path=str(hits),
+        columns=list(HIT_COLUMNS["Foldseek"]),
+        parameters={
+            "foldseek_bin": foldseek_bin,
+            "sensitivity": sensitivity,
+            "alignment_type": alignment_type,
+            "max_seqs": max_seqs,
+            "exhaustive_search": exhaustive_search,
+            "foldseek_options": options,
+        },
+        searched_at=now_iso(),
+    )

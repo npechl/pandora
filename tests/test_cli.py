@@ -1,5 +1,9 @@
 import json
+import shutil
+import stat
 from pathlib import Path
+
+import pytest
 
 from pandora.cli.app import _build_parser, main
 from pandora.schemas.similarity import SimilaritySearch
@@ -227,3 +231,78 @@ def test_cluster_flag_overrides_hit_filter_yaml(tmp_path):
 
     clusters = json.loads(output.read_text())
     assert ["104M", "112M"] in [c["components"] for c in clusters]
+
+
+FAKE_MMSEQS_CLI = """#!/bin/sh
+if [ "$1" = version ]; then echo 15.6f452; exit 0; fi
+echo "$@" > "$(dirname "$0")/args.txt"
+printf '104M\\t112M\\t0.99\\t100\\t0.95\\t0.95\\n' > "$4"
+"""
+
+
+def test_similarity_writes_hits_and_search_record(tmp_path):
+    mmseqs = tmp_path / "mmseqs"
+    mmseqs.write_text(FAKE_MMSEQS_CLI)
+    mmseqs.chmod(mmseqs.stat().st_mode | stat.S_IEXEC)
+    input_dir = tmp_path / "in"
+    input_dir.mkdir()
+    for name in ("104m", "112m"):
+        shutil.copy(FIXTURES_DIR / f"{name}.cif", input_dir / f"{name}.cif")
+    output = tmp_path / "hits.tsv"
+
+    main(
+        [
+            "similarity",
+            "--input-dir",
+            str(input_dir),
+            "--engine",
+            "mmseqs2",
+            "--mmseqs-bin",
+            str(mmseqs),
+            "--max-seqs",
+            "500",
+            "--output",
+            str(output),
+        ]
+    )
+
+    record = json.loads((tmp_path / "hits.tsv.search.json").read_text())
+    assert output.read_text().startswith("104M\t112M")
+    assert record["hits_path"] == str(output)
+    assert record["parameters"]["max_seqs"] == 500
+    assert record["origin"] == "computed"
+
+
+def test_similarity_wraps_precomputed_hits(tmp_path):
+    hits = tmp_path / "elsewhere.tsv"
+    hits.write_text("104M\t112M\t0.99\t100\t0.95\t0.95\n")
+    output = tmp_path / "hits.tsv"
+
+    main(
+        [
+            "similarity",
+            "--engine",
+            "mmseqs2",
+            "--precomputed-hits",
+            str(hits),
+            "--output",
+            str(output),
+        ]
+    )
+
+    record = json.loads((tmp_path / "hits.tsv.search.json").read_text())
+    assert record["origin"] == "precomputed"
+    assert record["hits_path"] == str(hits)
+
+
+def test_similarity_needs_input_dir_without_precomputed_hits(tmp_path):
+    with pytest.raises(SystemExit, match="--input-dir"):
+        main(
+            [
+                "similarity",
+                "--engine",
+                "mmseqs2",
+                "--output",
+                str(tmp_path / "hits.tsv"),
+            ]
+        )

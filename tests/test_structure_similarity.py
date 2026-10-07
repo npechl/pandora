@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import stat
+
 from pandora.schemas.annotation import AnnotationLayer
 from pandora.schemas.structure import AtomSiteRecord, EntryRecord, Structure
-from pandora.similarity.hits import _interface_coverage
+from pandora.similarity.hits import HIT_COLUMNS, _interface_coverage
 from pandora.similarity.structure import (
+    compute_structure_similarity,
     chain_item_id,
     interface_residues_from_annotation,
     residue_positions,
@@ -94,6 +97,70 @@ def test_interface_residues_from_annotation_maps_to_file_positions() -> None:
         "ENTRY1_A": {4, 5},
         "ENTRY1_B": {2},
     }
+
+
+FAKE_FOLDSEEK = """#!/bin/sh
+if [ "$1" = version ]; then echo 10.941cd33; exit 0; fi
+echo "$@" > "$(dirname "$0")/args.txt"
+printf 'A\\tB\\t0.5\\t100\\t0.9\\t0.9\\t0.6\\t0.6\\t0.6\\t1\\t100\\t1\\t100\\n' > "$4"
+"""
+
+
+def _fake_foldseek(directory):
+    foldseek = directory / "foldseek"
+    foldseek.write_text(FAKE_FOLDSEEK)
+    foldseek.chmod(foldseek.stat().st_mode | stat.S_IEXEC)
+    return foldseek
+
+
+def test_structure_search_passes_caps_and_keeps_hits(tmp_path):
+    foldseek = _fake_foldseek(tmp_path)
+    struct_dir = tmp_path / "structures"
+    struct_dir.mkdir()
+    hits_path = tmp_path / "hits.tsv"
+
+    search = compute_structure_similarity(
+        struct_dir,
+        hits_path,
+        foldseek_bin=str(foldseek),
+        alignment_type=1,
+        max_seqs=2000,
+        exhaustive_search=True,
+    )
+
+    args = (tmp_path / "args.txt").read_text().split()
+    assert args[args.index("--max-seqs") + 1] == "2000"
+    assert args[args.index("--exhaustive-search") + 1] == "1"
+    assert args[args.index("--alignment-type") + 1] == "1"
+    assert args[args.index("--format-output") + 1] == ",".join(
+        HIT_COLUMNS["Foldseek"]
+    )
+    assert hits_path.read_text().count("\n") == 1
+    assert search.engine == "Foldseek"
+    assert search.version == "10.941cd33"
+    assert search.columns == HIT_COLUMNS["Foldseek"]
+    assert search.parameters == {
+        "foldseek_bin": str(foldseek),
+        "sensitivity": 9.5,
+        "alignment_type": 1,
+        "max_seqs": 2000,
+        "exhaustive_search": True,
+        "foldseek_options": [],
+    }
+
+
+def test_structure_search_omits_exhaustive_flag_by_default(tmp_path):
+    foldseek = _fake_foldseek(tmp_path)
+    struct_dir = tmp_path / "structures"
+    struct_dir.mkdir()
+
+    compute_structure_similarity(
+        struct_dir, tmp_path / "hits.tsv", foldseek_bin=str(foldseek)
+    )
+
+    args = (tmp_path / "args.txt").read_text().split()
+    assert "--exhaustive-search" not in args
+    assert args[args.index("--max-seqs") + 1] == "1000"
 
 
 if __name__ == "__main__":
