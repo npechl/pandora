@@ -185,9 +185,4 @@ print(
 # 5 A B 35
 ```
 
-`extract_residue_records()` carries each residue's full atom list
-(coordinates, B-factor, ...) rather than a bare count — residue-level ML
-use cases (contact maps, solvent exposure) don't need to go back to the
-structure. `extract_interface_records()` reshapes
-[`annotate_chain_interfaces()`](annotation.md#chain-chain-interfaces)'s
-output; it doesn't compute contacts itself.
+`extract_residue_records()` carries each residue's full atom list (coordinates, B-factor, ...) rather than a bare count — residue-level ML use cases (contact maps, solvent exposure) don't need to go back to the structure. `extract_interface_records()` reshapes [`annotate_chain_interfaces()`](annotation.md#chain-chain-interfaces)'s output; it doesn't compute contacts itself. It takes the same `atom_set` and `polymer_types` arguments, and each `InterfaceRecord` carries the `atom_set` used and the `residue_pairs`.

@@ -65,8 +65,23 @@ every structure in a batch.
 
 ## Chain-chain interfaces
 
-`annotate_chain_interfaces()` finds every polymer chain pair with at
-least one contact within `distance_cutoff` angstroms.
+`annotate_chain_interfaces()` finds every polymer chain pair with at least one pair of selected atoms within `distance_cutoff` angstroms. For each pair it reports the contacting residues on each side and the residue pairs themselves (`residue_pairs`).
+
+| Argument | Default | Meaning |
+|---|---|---|
+| `distance_cutoff` | `4.0` | Contact distance in angstroms |
+| `atom_set` | `"heavy"` | Which atoms count; see below |
+| `polymer_types` | `None` | Keep only chains of these entity polymer types, e.g. `["polypeptide(L)"]`. `None` keeps every polymer chain; `[]` keeps none |
+
+| `atom_set` | Atoms | Used by |
+|---|---|---|
+| `all` | Every atom, hydrogens included | — |
+| `heavy` | Every atom except H and D | ATOM3D (heavy-atom option), PRODIGY |
+| `backbone` | Protein N, CA, C, O; nucleic-acid O5′, C5′, C4′, C3′, O3′ | Pinder's 10 Å pair gate |
+| `ca` | CA atoms only | ATOM3D's 8 Å Cα default |
+
+!!! warning "Changed after 0.5.6: hydrogens no longer count"
+    Up to 0.5.6 every atom counted, including hydrogens, so structures that model H atoms got extra contacts. The default is now `atom_set="heavy"`. Layers record `atom_set` in `parameters`, so `reproduce_dataset()` rebuilds them exactly. Layers from older manifests record only `distance_cutoff` and are rebuilt with `heavy`; pass `atom_set="all"` yourself to match the old output.
 
 === "`library`"
 
@@ -93,8 +108,25 @@ least one contact within `distance_cutoff` angstroms.
     # annotated 5 entries -> annotations/
     ```
 
-    `distance_cutoff` isn't exposed as a CLI flag — the CLI always uses
-    `annotate_chain_interfaces()`'s default.
+    `distance_cutoff`, `atom_set` and `polymer_types` aren't exposed as CLI flags. The CLI always uses `annotate_chain_interfaces()`'s defaults.
+
+### Pair gate, then interface (Pinder-style)
+
+Pinder first keeps chain pairs with backbone atoms within 10 Å, then defines the interface with a tighter cutoff. That's two calls:
+
+```python
+gate = annotate_chain_interfaces(
+    canonical, distance_cutoff=10.0, atom_set="backbone"
+)
+interfaces = annotate_chain_interfaces(canonical, distance_cutoff=4.0)
+
+gated = {(i["chain_id_1"], i["chain_id_2"]) for i in gate.data["interfaces"]}
+kept = [
+    i
+    for i in interfaces.data["interfaces"]
+    if (i["chain_id_1"], i["chain_id_2"]) in gated
+]
+```
 
 ## Ligand contacts
 
