@@ -166,6 +166,7 @@ def extract_interface_records(
 
     Raises:
         ValueError: `atom_set` is not one of the supported values.
+        TypeError: `polymer_types` is a single string, not a list.
     """
 
     layer = annotate_chain_interfaces(

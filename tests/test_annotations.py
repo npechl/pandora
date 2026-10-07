@@ -2,6 +2,7 @@ from itertools import combinations
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from pandora.annotations.entry import (
     annotate_chain_interfaces,
@@ -10,6 +11,7 @@ from pandora.annotations.entry import (
 )
 from pandora.datasets import extract_interface_records
 from pandora.parsing import mmcif_to_structure
+from pandora.schemas.dataset import InterfaceRecord
 from pandora.schemas.structure import (
     AsymRecord,
     AtomSiteRecord,
@@ -428,3 +430,28 @@ def test_interface_records_carry_atom_set_and_residue_pairs():
             tuple(pair) for pair in interface["residue_pairs"]
         ]
         assert record.chain_id_1 in {"C", "D", "E"}
+
+
+def test_interface_record_without_atom_set_loads_as_all():
+    # Records exported before atom_set existed were all-atom contacts.
+    old = {
+        "entry_id": "1A3N",
+        "chain_id_1": "A",
+        "chain_id_2": "B",
+        "distance_cutoff": 4.0,
+        "interface_residues_chain_1": ["A:1"],
+        "interface_residues_chain_2": ["B:1"],
+        "contact_count": 2,
+    }
+
+    record = InterfaceRecord.model_validate(old)
+
+    assert record.atom_set == "all"
+    assert record.residue_pairs == []
+    with pytest.raises(ValidationError):
+        InterfaceRecord.model_validate({**old, "atom_set": "bogus"})
+
+
+def test_chain_interfaces_rejects_string_polymer_types():
+    with pytest.raises(TypeError, match="polymer_types"):
+        annotate_chain_interfaces(_load("1a02"), polymer_types="polypeptide(L)")

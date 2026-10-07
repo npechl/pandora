@@ -130,7 +130,7 @@ Layer-level changes:
 
 `InterfaceRecord` gains:
 
-- `atom_set: str`
+- `atom_set: ContactAtomSet`, defaulting to `"all"` so records exported before this change still load (they were all-atom contacts)
 - `residue_pairs: list[tuple[str, str]]`, defaulting to an empty list
 
 ### Algorithm

@@ -194,8 +194,16 @@ def annotate_chain_interfaces(
 
     Raises:
         ValueError: `atom_set` is not one of the supported values.
+        TypeError: `polymer_types` is a single string, not a list.
     """
 
+    if isinstance(polymer_types, str):
+        # A bare string would match by substring here and be recorded
+        # character by character, so the recipe would rebuild differently.
+        raise TypeError(
+            "polymer_types must be a list of polymer types, e.g. "
+            f"[{polymer_types!r}], not a single string"
+        )
     if atom_set not in CONTACT_ATOM_SETS:
         raise ValueError(
             f"atom_set must be one of {sorted(CONTACT_ATOM_SETS)}, "

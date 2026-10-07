@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from pandora.schemas.annotation import ContactAtomSet
 from pandora.schemas.structure import AtomSiteRecord
 
 
@@ -64,7 +65,8 @@ class InterfaceRecord(BaseModel):
         distance_cutoff: The contact distance cutoff used, in
             angstroms.
         atom_set: Which atoms counted towards contacts ("all",
-            "heavy", "backbone" or "ca").
+            "heavy", "backbone" or "ca"). Records written before this
+            field existed load as "all", which is what they used.
         interface_residues_chain_1: Contacting residue ids on
             `chain_id_1`'s side.
         interface_residues_chain_2: Contacting residue ids on
@@ -79,7 +81,7 @@ class InterfaceRecord(BaseModel):
     chain_id_1: str
     chain_id_2: str
     distance_cutoff: float
-    atom_set: str
+    atom_set: ContactAtomSet = "all"
     interface_residues_chain_1: list[str]
     interface_residues_chain_2: list[str]
     contact_count: int
