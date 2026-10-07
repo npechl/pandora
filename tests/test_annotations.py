@@ -8,6 +8,7 @@ from pandora.annotations.entry import (
     annotate_ligand_contacts,
     polymer_asym_ids,
 )
+from pandora.datasets import extract_interface_records
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.structure import (
     AsymRecord,
@@ -391,17 +392,39 @@ def test_chain_interfaces_rebuild_from_recorded_parameters():
 
     layer = annotate_chain_interfaces(
         structure,
-        distance_cutoff=5.0,
-        atom_set="backbone",
+        distance_cutoff=8.0,
+        atom_set="ca",
         polymer_types=polymer_types,
     )
     polymer_types.append("polyribonucleotide")  # caller mutates its list
     rebuilt = annotate_chain_interfaces(structure, **layer.parameters)
 
     assert layer.parameters == {
-        "distance_cutoff": 5.0,
-        "atom_set": "backbone",
+        "distance_cutoff": 8.0,
+        "atom_set": "ca",
         "polymer_types": ["polypeptide(L)"],
     }
     assert layer.method == "pandora.basic.distance_cutoff_contacts.v2"
+    assert layer.data["interfaces"]  # non-empty, so equality means something
     assert rebuilt.data == layer.data
+
+
+def test_interface_records_carry_atom_set_and_residue_pairs():
+    structure = _load("1a02")
+
+    settings = {
+        "distance_cutoff": 8.0,
+        "atom_set": "ca",
+        "polymer_types": ["polypeptide(L)"],
+    }
+
+    records = extract_interface_records(structure, **settings)
+    layer = annotate_chain_interfaces(structure, **settings)
+
+    assert len(records) == len(layer.data["interfaces"]) > 0
+    for record, interface in zip(records, layer.data["interfaces"]):
+        assert record.atom_set == "ca"
+        assert record.residue_pairs == [
+            tuple(pair) for pair in interface["residue_pairs"]
+        ]
+        assert record.chain_id_1 in {"C", "D", "E"}

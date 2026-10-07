@@ -63,21 +63,27 @@ class InterfaceRecord(BaseModel):
         chain_id_2: The second chain in the interface.
         distance_cutoff: The contact distance cutoff used, in
             angstroms.
+        atom_set: Which atoms counted towards contacts ("all",
+            "heavy", "backbone" or "ca").
         interface_residues_chain_1: Contacting residue ids on
             `chain_id_1`'s side.
         interface_residues_chain_2: Contacting residue ids on
             `chain_id_2`'s side.
         contact_count: The total number of contacting residues on
             both sides.
+        residue_pairs: Contacting `(chain_id_1 residue, chain_id_2
+            residue)` id pairs, sorted.
     """
 
     entry_id: str
     chain_id_1: str
     chain_id_2: str
     distance_cutoff: float
+    atom_set: str
     interface_residues_chain_1: list[str]
     interface_residues_chain_2: list[str]
     contact_count: int
+    residue_pairs: list[tuple[str, str]] = Field(default_factory=list)
     # Populated from annotations.entry.annotate_chain_interfaces() — this
     # record never computes contacts itself, only reshapes that layer's
     # output per chain pair.

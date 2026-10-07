@@ -7,6 +7,7 @@ from pandora.annotations.entry import (
     atoms_by_asym_id,
     polymer_asym_ids,
 )
+from pandora.schemas.annotation import ContactAtomSet
 from pandora.schemas.dataset import ChainRecord, InterfaceRecord, ResidueRecord
 from pandora.schemas.structure import AtomSiteRecord, Structure
 
@@ -141,6 +142,8 @@ def extract_residue_records(structure: Structure) -> list[ResidueRecord]:
 def extract_interface_records(
     structure: Structure,
     distance_cutoff: float = DEFAULT_INTERFACE_CUTOFF,
+    atom_set: ContactAtomSet = "heavy",
+    polymer_types: list[str] | None = None,
 ) -> list[InterfaceRecord]:
     """Build one InterfaceRecord per polymer chain pair in contact.
 
@@ -152,22 +155,33 @@ def extract_interface_records(
         structure: The canonical structure to extract interface
             records from.
         distance_cutoff: Contact distance in angstroms.
+        atom_set: Which atoms count towards contacts; see
+            `annotate_chain_interfaces`.
+        polymer_types: Keep only chains of these entity polymer types;
+            None keeps every polymer chain.
 
     Returns:
         An `InterfaceRecord` per polymer chain pair with at least one
         contact within `distance_cutoff`.
+
+    Raises:
+        ValueError: `atom_set` is not one of the supported values.
     """
 
-    layer = annotate_chain_interfaces(structure, distance_cutoff)
+    layer = annotate_chain_interfaces(
+        structure, distance_cutoff, atom_set, polymer_types
+    )
     return [
         InterfaceRecord(
             entry_id=structure.entry_id,
             chain_id_1=interface["chain_id_1"],
             chain_id_2=interface["chain_id_2"],
             distance_cutoff=distance_cutoff,
+            atom_set=atom_set,
             interface_residues_chain_1=interface["interface_residues_chain_1"],
             interface_residues_chain_2=interface["interface_residues_chain_2"],
             contact_count=interface["contact_count"],
+            residue_pairs=[tuple(pair) for pair in interface["residue_pairs"]],
         )
         for interface in layer.data["interfaces"]
     ]
