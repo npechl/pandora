@@ -1,12 +1,6 @@
 # Canonicalisation
 
-`pandora.canonicalisation` normalizes a parsed `Structure` according to a
-policy — chain IDs, residue numbering, assemblies, entities, missing
-data, altlocs, ligands, then validation, always in that order. See
-[Architecture](../contributing/architecture.md#canonicalisation-policy) for how the
-policy's rule groups relate to each other, and
-[Functions](../reference/functions.md#pandora.canonicalisation) for full
-signatures.
+`pandora.canonicalisation` normalizes a parsed `Structure` according to a policy — chain IDs, assemblies, missing data, altlocs, residue numbering, entities, ligands, then validation, always in that order. Residue numbering runs after the missing-data checks so `renumber` can't hide sequence gaps from them. See [Architecture](../contributing/architecture.md#canonicalisation-policy) for how the policy's rule groups relate to each other, and [Functions](../reference/functions.md#pandora.canonicalisation) for full signatures.
 
 ## Canonicalise with the default policy
 
@@ -89,8 +83,8 @@ waters/ions — the policy `examples/overview.py` and
     canonical, mappings, provenance = canonicalise_structure(structure, policy)
 
     print(provenance.transforms)
-    # ['chain_id:remap', 'residue_numbering:renumber', 'missing_atoms:annotate',
-    #  'missing_residues:annotate', 'altloc:select_best_occupancy',
+    # ['chain_id:remap', 'missing_atoms:annotate', 'missing_residues:annotate',
+    #  'altloc:select_best_occupancy', 'residue_numbering:renumber',
     #  'entity:merge_equivalent_entities', 'ligands:filter']
     print(len(mappings.chain_id_mapping.items))
     # 5 — one entry per original chain, mapping it to its new remapped id

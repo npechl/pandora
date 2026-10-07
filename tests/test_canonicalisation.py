@@ -27,6 +27,7 @@ from pandora.schemas.canonicalisation import (
     IdentifierRules,
     LigandRules,
     MissingAtomsRules,
+    MissingDataRules,
     MissingResiduesRules,
     ResidueNumberingRules,
     ValidationRules,
@@ -276,7 +277,7 @@ def test_drop_partial_residue_removes_residue_missing_backbone_atoms():
     diagnostics = DiagnosticBundle()
     rules = MissingAtomsRules(strategy="drop_partial_residue")
 
-    result = _handle_missing_atoms(atoms, rules, diagnostics, "test")
+    result = _handle_missing_atoms(atoms, rules, diagnostics, "test", [])
 
     assert {a.label_seq_id for a in result} == {2}
     assert diagnostics.warnings
@@ -306,7 +307,7 @@ def test_missing_atoms_does_not_collide_distinct_hetatm_residues():
     diagnostics = DiagnosticBundle()
     rules = MissingAtomsRules(strategy="drop_partial_residue")
 
-    result = _handle_missing_atoms(atoms, rules, diagnostics, "test")
+    result = _handle_missing_atoms(atoms, rules, diagnostics, "test", [])
 
     # Neither is a polymer ATOM record, so nothing should be dropped or
     # flagged regardless of grouping.
@@ -926,3 +927,106 @@ def test_canonicalise_structure_raises_on_unresolved_validation_failure():
 
     with pytest.raises(ValueError):
         canonicalise_structure(structure, policy)
+
+
+MMCIF_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
+
+
+def _load(entry_id: str):
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / f"{entry_id}.cif"))
+    return structure
+
+
+def _lenient_policy(**rules) -> canonicalisationPolicy:
+    return canonicalisationPolicy(
+        policy_id="test",
+        policy_name="test",
+        policy_version="1.0.0",
+        validation_rules=ValidationRules(fail_on_unresolved_issues=False),
+        **rules,
+    )
+
+
+def test_use_auth_chain_id_keeps_ligand_and_water_asym_units_distinct():
+    # 104m: one protein chain plus ligands and waters, all with auth "A".
+    structure = _load("104m")
+    policy = _lenient_policy(
+        identifier_rules=IdentifierRules(
+            chain_id=ChainIdRules(strategy="use_auth_chain_id")
+        )
+    )
+
+    canonical, _, _ = canonicalise_structure(structure, policy)
+
+    asym_ids = [asym.id for asym in canonical.asym_units]
+    assert len(asym_ids) == len(structure.asym_units)
+    assert len(set(asym_ids)) == len(asym_ids)
+    assert asym_ids[0] == "A"
+    assert len(canonical.atoms) == len(structure.atoms)
+
+
+def test_filter_ligands_does_not_treat_phosphate_ligand_as_ion():
+    # 1bvi: guanosine-2'-monophosphate (2GP) and a calcium ion.
+    structure = _load("1bvi")
+    rules = LigandRules(
+        strategy="filter",
+        keep_waters=False,
+        keep_ions=False,
+        keep_nonpolymer_ligands=True,
+    )
+
+    atoms, _ = filter_ligands(
+        structure.atoms,
+        structure.asym_units,
+        structure.entities,
+        rules,
+        DiagnosticBundle(),
+        structure.entry_id,
+    )
+
+    het_comp_ids = {a.label_comp_id for a in atoms if a.group_PDB == "HETATM"}
+    assert het_comp_ids == {"2GP"}
+
+
+def test_drop_partial_residue_keeps_complete_nucleotides():
+    # 11kb: protein plus a DNA chain; nucleotides have no N/CA/C/O.
+    structure = _load("11kb")
+    dna_entities = {
+        e.id
+        for e in structure.entities
+        if e.poly and "nucleotide" in e.poly.type
+    }
+    policy = _lenient_policy(
+        missing_data_rules=MissingDataRules(
+            missing_atoms=MissingAtomsRules(strategy="drop_partial_residue")
+        ),
+        altloc_rules=AltlocRules(strategy="preserve"),
+    )
+
+    canonical, _, _ = canonicalise_structure(structure, policy)
+
+    def n_dna_atoms(s):
+        return sum(a.label_entity_id in dna_entities for a in s.atoms)
+
+    assert n_dna_atoms(structure) > 0
+    assert n_dna_atoms(canonical) == n_dna_atoms(structure)
+
+
+def test_renumber_does_not_hide_sequence_gaps():
+    # 1a3e: polymer chain B has a gap in label_seq_id; A and C don't.
+    structure = _load("1a3e")
+    policy = _lenient_policy(
+        identifier_rules=IdentifierRules(
+            residue_numbering=ResidueNumberingRules(strategy="renumber")
+        ),
+        missing_data_rules=MissingDataRules(
+            missing_residues=MissingResiduesRules(strategy="drop_chain_segment")
+        ),
+    )
+
+    canonical, _, _ = canonicalise_structure(structure, policy)
+
+    polymer_chains = {
+        a.label_asym_id for a in canonical.atoms if a.group_PDB == "ATOM"
+    }
+    assert polymer_chains == {"A", "C"}

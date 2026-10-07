@@ -38,15 +38,23 @@ def _normalize_chain_ids(
     chain_map: dict[str, str] = {}
     mapping = ChainIdMapping()
     id_gen = _sequential_chain_ids()
+    used: set[str] = set()
 
     for asym in asym_units:
         if strategy == "preserve":
             canonical = asym.id
         elif strategy == "use_auth_chain_id":
-            canonical = asym.auth_id or asym.id
+            # A polymer and its ligands/waters share one auth_asym_id;
+            # later asym units get a suffix so none of them are merged.
+            base = asym.auth_id or asym.id
+            canonical, n = base, 1
+            while canonical in used:
+                n += 1
+                canonical = f"{base}_{n}"
         else:  # remap
             canonical = next(id_gen)
 
+        used.add(canonical)
         chain_map[asym.id] = canonical
         if record:
             mapping.items.append(

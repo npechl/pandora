@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from pandora.schemas.structure import (
     AsymRecord,
     AtomSiteRecord,
@@ -56,25 +58,6 @@ def filter_ligands(
     }
     asym_entity: dict[str, str] = {a.id: a.entity_id for a in asym_units}
 
-    _ION_KEYWORDS = frozenset(
-        {
-            "ION",
-            "ZINC",
-            "CALCIUM",
-            "MAGNESIUM",
-            "SODIUM",
-            "POTASSIUM",
-            "IRON",
-            "COPPER",
-            "MANGANESE",
-            "COBALT",
-            "NICKEL",
-            "CHLORIDE",
-            "SULFATE",
-            "PHOSPHATE",
-        }
-    )
-
     def _keep(asym_id: str) -> bool:
         """Whether the asym unit at asym_id should be kept under the
         ligand rules."""
@@ -89,9 +72,10 @@ def filter_ligands(
             return False
         if etype == "water":
             return rules.keep_waters
-        desc = entity_desc.get(eid, "")
-        is_ion = any(kw in desc for kw in _ION_KEYWORDS)
-        if is_ion:
+        # PDB names ions "<ELEMENT/ANION> ION" (ZINC ION, SULFATE ION).
+        # Whole-word match only: "PHOSPHATE" alone would also catch
+        # GMP/ATP/NADP, and "ION" as a substring catches glutathione.
+        if "ION" in re.findall(r"[A-Z0-9]+", entity_desc.get(eid, "")):
             return rules.keep_ions
         return rules.keep_nonpolymer_ligands
 

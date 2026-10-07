@@ -126,10 +126,6 @@ If you move the project directory, delete `.venv/` and run
 
 ## Known issues
 
-- `parsing/mmcif.py::_cs()` keeps CIF quote delimiters in string values
-  (`"'X-ray diffraction'"`) and `;` markers in multi-line values,
-  including sequences. `export/mmcif.py::_unwrap()` works around it.
-  Tests in `tests/test_parsing.py` pin it as `xfail`.
 - `canonicalise_structure` does not return its `DiagnosticBundle`; only
   warning/error counts surface, and only when
   `provenance_rules.emit_canonicalisation_report=True`.

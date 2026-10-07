@@ -55,9 +55,6 @@ def test_unreadable_input_fails(path, code):
     assert diag.errors[0].code == code
 
 
-@pytest.mark.xfail(
-    strict=True, reason="_cs() keeps CIF quote delimiters in string values"
-)
 def test_quoted_values_are_unquoted():
     structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
 
@@ -66,12 +63,23 @@ def test_quoted_values_are_unquoted():
     )
 
 
-@pytest.mark.xfail(
-    strict=True, reason="_cs() keeps ';' text-field delimiters in sequences"
-)
 def test_chain_sequence_has_no_text_field_delimiters():
     structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
 
     (chain,) = extract_chain_records(structure)
     assert chain.sequence.startswith("VLSEGEWQL")
     assert chain.sequence.endswith("GYQG")
+
+
+def test_chain_sequence_has_no_line_breaks():
+    structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
+
+    (chain,) = extract_chain_records(structure)
+    assert chain.sequence.isalpha()
+
+
+def test_record_ids_are_unquoted():
+    structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
+
+    conf = structure.secondary_structure.conf_records[0]
+    assert conf.id == "HELX_RH_AL_P1"

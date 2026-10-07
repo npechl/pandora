@@ -155,3 +155,18 @@ if __name__ == "__main__":
     test_content_rules_strip_ligands()
     test_deduplicate_structures()
     print("ok")
+
+
+def test_experimental_method_filter_matches_mmcif_method_values():
+    structure = _load("104m")  # X-ray diffraction
+    metadata = collect_metadata(structure)
+    policy = _policy(
+        quality_rules=QualityRules(
+            include_experimental_methods=["X-RAY DIFFRACTION"]
+        )
+    )
+
+    curated, exclusion, _ = curate_structure(structure, metadata, policy)
+
+    assert exclusion is None
+    assert curated is not None

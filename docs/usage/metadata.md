@@ -24,7 +24,7 @@ structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
 metadata = collect_metadata(structure)
 
 print(metadata.entry.title)
-# 'SPERM WHALE MYOGLOBIN N-BUTYL ISOCYANIDE AT PH 7.0'
+# SPERM WHALE MYOGLOBIN N-BUTYL ISOCYANIDE AT PH 7.0
 print([ligand.comp_id for ligand in metadata.ligands])
 # ['SO4', 'HEM', 'NBN']
 print(len(metadata.taxonomies))
@@ -50,7 +50,7 @@ from pandora.metadata.mmcif import (
 
 entry = extract_entry_metadata(structure)
 print(entry.title, entry.doi)
-# 'SPERM WHALE MYOGLOBIN N-BUTYL ISOCYANIDE AT PH 7.0' None
+# SPERM WHALE MYOGLOBIN N-BUTYL ISOCYANIDE AT PH 7.0 None
 
 entities = extract_entity_metadata(structure)
 print([(e.entity_id, e.entity_type) for e in entities])
@@ -58,30 +58,24 @@ print([(e.entity_id, e.entity_type) for e in entities])
 
 ligands = extract_ligand_metadata(structure)
 print([(l.comp_id, l.name) for l in ligands])
-# [('SO4', "'SULFATE ION'"), ('HEM', "'PROTOPORPHYRIN IX CONTAINING FE'"), ...]
+# [('SO4', 'SULFATE ION'), ('HEM', 'PROTOPORPHYRIN IX CONTAINING FE'), ...]
 
 quality = extract_quality(structure)
 print(quality.experimental_method, quality.resolution)
-# 'X-ray diffraction' 1.71
+# X-ray diffraction 1.71
 
 taxonomies = extract_taxonomies(structure)
 print([t.organism_scientific for t in taxonomies])
-# ["'Physeter catodon'"]
+# ['Physeter catodon']
 
 taxon = extract_taxonomy(structure)  # first taxonomy record, or None
 print(taxon.organism_scientific)
-# 'Physeter catodon'
+# Physeter catodon
 
 mappings = extract_uniprot_mappings(structure)
 print([m.accession for m in mappings])
 # ['P02185', 'P02185']
 ```
-
-!!! note "Quoted values"
-    `name`/`organism_scientific` above keep their literal `'...'`
-    delimiters (e.g. `"'SULFATE ION'"`) — this is the raw mmCIF token,
-    not a formatting bug. See the note on `parsing/mmcif.py::_cs` in
-    `CLAUDE.md` for why.
 
 ## Read a raw category directly
 
@@ -94,7 +88,7 @@ from pandora.metadata.mmcif import extract_metadata_category
 
 rows = extract_metadata_category(structure, "_exptl")
 print(rows)
-# [{'entry_id': '104M', 'method': "'X-ray diffraction'", 'crystals_number': '1'}]
+# [{'entry_id': '104M', 'method': 'X-ray diffraction', 'crystals_number': '1'}]
 ```
 
 Pass `columns=[...]` to restrict which fields come back. `extract_metadata()`

@@ -41,9 +41,10 @@ def canonicalise_structure(
 ) -> tuple[Structure, CanonicalMappings, canonicalisationProvenance]:
     """Convert a parsed structure into a canonical structure.
 
-    Applies chain ID normalization, residue renumbering, assembly and
-    entity normalization, missing-data handling, altloc resolution, and
-    ligand filtering, in that order, according to the given policy. Each
+    Applies chain ID normalization, assembly normalization, missing-data
+    handling, altloc resolution, residue renumbering, entity
+    normalization, and ligand filtering, in that order, according to the
+    given policy. Each
     step records its mapping (for reversibility) and, if the step's
     strategy deviates from "preserve", appends a transform label to the
     returned provenance.
@@ -95,17 +96,6 @@ def canonicalise_structure(
     if ir.chain_id.strategy != "preserve":
         transforms.append(f"chain_id:{ir.chain_id.strategy}")
 
-    # normalize_residue_numbering ---------------------------------
-    atoms, residue_number_mapping = _normalize_residue_numbering(
-        atoms,
-        chain_map,
-        ir.residue_numbering.strategy,
-        ir.residue_numbering.preserve_insertion_codes,
-        record,
-    )
-    if ir.residue_numbering.strategy != "preserve":
-        transforms.append(f"residue_numbering:{ir.residue_numbering.strategy}")
-
     # normalize_assemblies --------------------------------
     (
         assemblies,
@@ -136,7 +126,7 @@ def canonicalise_structure(
 
     # handle_missing_atoms ---------------------------------------
     atoms = _handle_missing_atoms(
-        atoms, mdr.missing_atoms, diagnostics, structure.entry_id
+        atoms, mdr.missing_atoms, diagnostics, structure.entry_id, entities
     )
     if mdr.missing_atoms.strategy not in ("preserve",):
         transforms.append(f"missing_atoms:{mdr.missing_atoms.strategy}")
@@ -155,10 +145,23 @@ def canonicalise_structure(
     if mdr.incomplete_chains.strategy != "preserve":
         transforms.append(f"incomplete_chains:{mdr.incomplete_chains.strategy}")
 
-    # esolve_altlocs ------------------------------
+    # resolve_altlocs ------------------------------
     atoms, altloc_selection_mapping = _resolve_altlocs(atoms, ar)
     if ar.strategy != "preserve":
         transforms.append(f"altloc:{ar.strategy}")
+
+    # normalize_residue_numbering ---------------------------------
+    # After the gap checks (renumbering makes every chain contiguous)
+    # and altloc resolution (so compositional disorder gets one number).
+    atoms, residue_number_mapping = _normalize_residue_numbering(
+        atoms,
+        chain_map,
+        ir.residue_numbering.strategy,
+        ir.residue_numbering.preserve_insertion_codes,
+        record,
+    )
+    if ir.residue_numbering.strategy != "preserve":
+        transforms.append(f"residue_numbering:{ir.residue_numbering.strategy}")
 
     # normalize_entities ---------------------------------------
     entities, asym_units, atoms, entity_mapping = _normalize_entities(

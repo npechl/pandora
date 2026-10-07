@@ -5,11 +5,27 @@ from collections import defaultdict
 from pandora.schemas.structure import (
     AsymRecord,
     AtomSiteRecord,
+    EntityRecord,
 )
 
 from pandora.schemas.common import Diagnostic, DiagnosticBundle
 
-_BACKBONE_ATOMS = frozenset({"N", "CA", "C", "O"})
+_PROTEIN_BACKBONE = frozenset({"N", "CA", "C", "O"})
+# Sugar-phosphate backbone without P, which the 5'-terminal residue
+# normally lacks.
+_NUCLEIC_BACKBONE = frozenset({"O5'", "C5'", "C4'", "C3'", "O3'"})
+
+
+def _backbone_by_entity(
+    entities: list[EntityRecord],
+) -> dict[str, frozenset[str]]:
+    """Backbone atom names per nucleic-acid entity id (others: protein)."""
+
+    return {
+        e.id: _NUCLEIC_BACKBONE
+        for e in entities
+        if e.poly is not None and "nucleotide" in (e.poly.type or "")
+    }
 
 
 def _handle_missing_atoms(
@@ -17,6 +33,7 @@ def _handle_missing_atoms(
     rules,
     diagnostics: DiagnosticBundle,
     entry_id: str,
+    entities: list[EntityRecord],
 ) -> list[AtomSiteRecord]:
     """Flag/drop polymer residues missing backbone atoms, per the
     missing_atoms rules."""
@@ -25,6 +42,7 @@ def _handle_missing_atoms(
     if strategy in ("preserve", "impute"):
         return atoms
 
+    backbone_by_entity = _backbone_by_entity(entities)
     polymer_by_residue: dict[tuple, list[AtomSiteRecord]] = defaultdict(list)
     for a in atoms:
         if a.group_PDB == "ATOM":
@@ -40,7 +58,10 @@ def _handle_missing_atoms(
     drop_residues: set[tuple] = set()
     for key, res_atoms in polymer_by_residue.items():
         present = {a.label_atom_id for a in res_atoms}
-        missing = _BACKBONE_ATOMS - present
+        backbone = backbone_by_entity.get(
+            res_atoms[0].label_entity_id, _PROTEIN_BACKBONE
+        )
+        missing = backbone - present
         if missing:
             asym_id, _auth_seq_id, seq_id, comp_id = key
             if rules.record_missingness:

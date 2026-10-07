@@ -61,35 +61,12 @@ _TYPED_CATEGORIES = frozenset(
 )
 
 
-def _unwrap(value):
-    """Strip a CIF quote/semicolon delimiter `_cs()` leaves embedded.
-
-    Values read via gemmi's low-level accessor keep their literal
-    `'...'`/`"..."` or `;...;` delimiters as part of the string (see
-    CLAUDE.md's note on `parsing/mmcif.py::_cs`). Writing them back
-    through gemmi's own quoting would double-wrap them, so unwrap first
-    and let gemmi decide how to re-quote.
-    """
-
-    if not isinstance(value, str) or len(value) < 2:
-        return value
-    if value[0] == ";" and value.endswith(";"):
-        return value[1:-1].rstrip("\n")
-    if value[0] in "'\"" and value[-1] == value[0]:
-        return value[1:-1]
-    return value
-
-
 def _set_category(
     block: gemmi.cif.Block, name: str, columns: dict[str, list]
 ) -> None:
-    """Write columns as one mmCIF category on block, unwrapping any
-    embedded CIF quoting first."""
+    """Write columns as one mmCIF category on block."""
 
-    cleaned = {
-        col: [_unwrap(v) for v in values] for col, values in columns.items()
-    }
-    block.set_mmcif_category(name, cleaned)
+    block.set_mmcif_category(name, columns)
 
 
 def structure_to_mmcif(structure: Structure, path: str | Path) -> Path:
@@ -117,9 +94,7 @@ def structure_to_mmcif(structure: Structure, path: str | Path) -> Path:
     block = doc.add_new_block(structure.entry_id)
 
     if "_struct" not in structure.raw and structure.entry.title:
-        block.set_pair(
-            "_struct.title", gemmi.cif.quote(_unwrap(structure.entry.title))
-        )
+        block.set_pair("_struct.title", gemmi.cif.quote(structure.entry.title))
 
     _write_entities(block, structure)
     _write_struct_asym(block, structure)

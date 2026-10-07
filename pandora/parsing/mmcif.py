@@ -43,9 +43,17 @@ _MALFORMED_CIF_ERRORS = (
 
 
 def _cs(v: str) -> str | None:
-    """mmCIF string value, or None if it's a null token ("."/"?")."""
+    """mmCIF string value with CIF quoting removed, or None if it's a null
+    token ("."/"?")."""
 
-    return None if v in _NULL_CIF else v
+    return None if v in _NULL_CIF else gemmi.cif.as_string(v)
+
+
+def _cseq(v: str) -> str | None:
+    """mmCIF one-letter sequence value with line breaks removed."""
+
+    seq = _cs(v)
+    return "".join(seq.split()) if seq is not None else None
 
 
 def _ci(v: str) -> int | None:
@@ -212,7 +220,11 @@ def mmcif_to_structure(
             "_entity.",
             ["id", "pdbx_description", "formula_weight", "src_method"],
         ):
-            entity_desc_map[row[0]] = (_cs(row[1]), _cf(row[2]), _cs(row[3]))
+            entity_desc_map[_cs(row[0]) or ""] = (
+                _cs(row[1]),
+                _cf(row[2]),
+                _cs(row[3]),
+            )
     except _MALFORMED_CIF_ERRORS as exc:
         diag.warnings.append(
             Diagnostic(
@@ -235,10 +247,10 @@ def mmcif_to_structure(
                 "pdbx_strand_id",
             ],
         ):
-            entity_poly_map[row[0]] = EntityPolyRecord(
+            entity_poly_map[_cs(row[0]) or ""] = EntityPolyRecord(
                 type=_cs(row[1]),
-                pdbx_seq_one_letter_code=_cs(row[2]),
-                pdbx_seq_one_letter_code_can=_cs(row[3]),
+                pdbx_seq_one_letter_code=_cseq(row[2]),
+                pdbx_seq_one_letter_code_can=_cseq(row[3]),
                 pdbx_strand_id=_cs(row[4]),
             )
     except _MALFORMED_CIF_ERRORS as exc:
@@ -376,7 +388,7 @@ def mmcif_to_structure(
         ):
             connections_out.append(
                 ConnRecord(
-                    id=row[0],
+                    id=_cs(row[0]) or "",
                     conn_type_id=_cs(row[1]) or "covale",
                     ptnr1=ConnPartner(
                         label_asym_id=_cs(row[2]) or "",
@@ -425,7 +437,7 @@ def mmcif_to_structure(
                 "oligomeric_count",
             ],
         ):
-            asm_meta[row[0]] = {
+            asm_meta[_cs(row[0]) or ""] = {
                 "details": _cs(row[1]),
                 "method_details": _cs(row[2]),
                 "oligomeric_details": _cs(row[3]),
@@ -504,7 +516,7 @@ def mmcif_to_structure(
         ):
             conf_records.append(
                 ConfRecord(
-                    id=row[0],
+                    id=_cs(row[0]) or "",
                     conf_type_id=_cs(row[1]) or "",
                     beg_label_asym_id=_cs(row[2]) or "",
                     beg_label_seq_id=_ci(row[3]),
@@ -545,8 +557,8 @@ def mmcif_to_structure(
         ):
             sheet_strands.append(
                 SheetStrandRecord(
-                    sheet_id=row[0],
-                    id=row[1],
+                    sheet_id=_cs(row[0]) or "",
+                    id=_cs(row[1]) or "",
                     beg_label_asym_id=_cs(row[2]) or "",
                     beg_label_seq_id=_ci(row[3]),
                     end_label_asym_id=_cs(row[4]) or "",
