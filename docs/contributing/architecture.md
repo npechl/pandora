@@ -87,9 +87,12 @@ differs; see [Annotation](../usage/annotation.md) for each one's `data` schema.
 
 | Function | Takes | Returns |
 |---|---|---|
-| `compute_sequence_similarity()` | sequences (`dict[str, str]`, `list[ChainRecord]`, or a FASTA directory) | `list[SimilarityRelationship]` — via MMseqs2 |
-| `compute_structure_similarity()` | structure file paths | `list[SimilarityRelationship]` — via Foldseek |
-| `cluster_similar_items()` | `item_ids`, `list[SimilarityRelationship]`, `threshold` | `(list[SimilarityCluster], ClusteringProvenance)` |
+| `compute_sequence_similarity()` | sequences (`dict[str, str]`, `list[ChainRecord]`, or a FASTA directory), `hits_path` | `SimilaritySearch` — MMseqs2's hit TSV kept at `hits_path` |
+| `compute_structure_similarity()` | structure file paths, `hits_path` | `SimilaritySearch` — Foldseek's hit TSV kept at `hits_path` |
+| `load_similarity_search()` | an existing hit TSV, `engine` | `SimilaritySearch` (`origin="precomputed"`) |
+| `iter_edges()` | `SimilaritySearch`, `HitFilter` | `Iterator[Edge]` — streamed, filtered hit rows |
+| `cluster_edges()` | `item_ids`, any iterable of `(id, id)` pairs | `(list[SimilarityCluster], ClusteringProvenance)` |
+| `cluster_similar_items()` | `item_ids`, `SimilaritySearch`, `HitFilter` | `(list[SimilarityCluster], ClusteringProvenance)` — streams `iter_edges()` into `cluster_edges()` |
 | `partition_dataset()` | `list[SimilarityCluster]` | `(dict[str, list[str]], PartitionProvenance)` — the `train`/`val`/`test` split, whole clusters per side |
 
 ### Provenance

@@ -14,11 +14,12 @@ and the ungapped score collapses even though the two are otherwise
 near-identical — a real limitation of this annotation, not a bug in
 this example.
 
-Everything downstream (cluster_similar_items(),
-partition_dataset()) only cares about the resulting
-SimilarityRelationship objects, not how they were computed, so swapping
-in a real MMseqs2 network later (which aligns first) is a one-function
-change and would cluster 104m/112m too.
+Everything downstream only cares about which pairs pass the threshold:
+the hand-built SimilarityRelationship objects are filtered by score and
+fed to cluster_edges(), then partition_dataset(). Swapping in a real
+MMseqs2 search later (compute_sequence_similarity() plus
+cluster_similar_items() with a HitFilter, which aligns first) would
+cluster 104m/112m too.
 """
 
 from datetime import datetime, timezone
@@ -42,7 +43,7 @@ from pandora.schemas.similarity import (
     SimilarityRelationship,
     SimilarityRelationshipProvenance,
 )
-from pandora.similarity import cluster_similar_items, partition_dataset
+from pandora.similarity import cluster_edges, partition_dataset
 
 from os import listdir
 
@@ -135,8 +136,13 @@ for left_id, right_id in combinations(ENTRY_IDS, 2):
     print(f"  {source_id} vs {target_id}: identity={score:.3f}")
 
 # 3. Connected-component clustering ----------------------------------------
-clusters, cluster_prov = cluster_similar_items(
-    ENTRY_IDS, relationships, IDENTITY_THRESHOLD
+clusters, cluster_prov = cluster_edges(
+    ENTRY_IDS,
+    (
+        (r.source_id, r.target_id)
+        for r in relationships
+        if r.score >= IDENTITY_THRESHOLD
+    ),
 )
 print(f"\n{len(clusters)} cluster(s) at threshold={IDENTITY_THRESHOLD}:")
 for cluster in clusters:

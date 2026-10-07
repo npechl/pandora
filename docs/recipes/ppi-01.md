@@ -26,6 +26,7 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
     from pandora.provenance import build_dataset_manifest, build_provenance_bundle
     from pandora.schemas.canonicalisation import canonicalisationPolicy
     from pandora.schemas.dataset import DatasetCurationPolicy, DeduplicationRules
+    from pandora.schemas.similarity import HitFilter
     from pandora.schemas.structure import Structure
     from pandora.similarity import (
         cluster_similar_items,
@@ -105,10 +106,11 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
 
     # 3. Entry-level sequence identity -> similarity network -> clusters.
     sequences = entry_sequences(structures)
-    relationships = compute_sequence_similarity(sequences)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    search = compute_sequence_similarity(sequences, OUTPUT_DIR / "hits.tsv")
     item_ids = sorted(sequences)  # same ids compute_sequence_similarity used
     clusters, cluster_prov = cluster_similar_items(
-        item_ids, relationships, IDENTITY_THRESHOLD
+        item_ids, search, HitFilter(min_score=IDENTITY_THRESHOLD)
     )
     print(
         f"{len(clusters)} sequence-identity cluster(s) at {IDENTITY_THRESHOLD:.0%}"
@@ -130,7 +132,6 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
     # 5. Write outputs — one interfaces file per split (InterfaceRecord has
     #    no split field of its own, so this is the split without touching
     #    the schema).
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     for split_name in splits:
         split_interfaces = [
             record
@@ -238,13 +239,13 @@ structures = heteromeric
 
 ### 4. Cluster and split, leakage-safe
 
-Entry-level sequence identity (via `entry_sequences()` — one representative sequence per entry) feeds [`compute_sequence_similarity()`](../usage/similarity.md#sequence-similarity-mmseqs2), whose relationships feed [`cluster_similar_items()`](../usage/similarity.md#clustering) at ATOM3D PIP's own 30% identity threshold. [`partition_dataset()`](../usage/similarity.md#leakage-safe-partitioning) then moves whole clusters together, so no two complexes above that threshold end up split across train/val/test:
+Entry-level sequence identity (via `entry_sequences()` — one representative sequence per entry) feeds [`compute_sequence_similarity()`](../usage/similarity.md#sequence-similarity-mmseqs2), whose hit file (kept on disk) is filtered by a [`HitFilter`](../usage/similarity.md#filtering-hits-hitfilter) and clustered by [`cluster_similar_items()`](../usage/similarity.md#clustering) at ATOM3D PIP's own 30% identity threshold. [`partition_dataset()`](../usage/similarity.md#leakage-safe-partitioning) then moves whole clusters together, so no two complexes above that threshold end up split across train/val/test:
 
 ```python linenums="1"
 sequences = entry_sequences(structures)
-relationships = compute_sequence_similarity(sequences)
+search = compute_sequence_similarity(sequences, OUTPUT_DIR / "hits.tsv")
 clusters, cluster_prov = cluster_similar_items(
-    sorted(sequences), relationships, IDENTITY_THRESHOLD
+    sorted(sequences), search, HitFilter(min_score=IDENTITY_THRESHOLD)
 )
 splits, partition_prov = partition_dataset(
     clusters, pct_train=0.7, pct_val=0.15, pct_test=0.15
@@ -400,18 +401,39 @@ datasets/output/ppi/
         "duplicates_found": 0
     },
     "clustering": {
-        "clustered_at": "2026-08-27T13:40:30.146426+00:00",
-        "threshold": 0.3,
-        "n_relationships": 19,
-        "n_clusters": 35,
-        "similarity_method": {
-        "engine": "MMseqs2",
-        "version": "18.8cc5c",
-        "parameters": {
-            "sensitivity": 5.7,
-            "mmseqs_bin": "mmseqs"
-        }
-        }
+        "clustered_at": "2026-10-07T19:28:23.898995+00:00",
+        "hit_filter": {
+            "min_score": 0.3,
+            "min_identity": null,
+            "min_coverage": null,
+            "coverage_of": "both",
+            "min_interface_coverage": null,
+            "tm_normalisation": "alignment"
+        },
+        "search": {
+            "engine": "MMseqs2",
+            "version": "18.8cc5c",
+            "hits_path": "datasets/output/ppi/hits.tsv",
+            "columns": [
+                "query",
+                "target",
+                "fident",
+                "alnlen",
+                "qcov",
+                "tcov"
+            ],
+            "parameters": {
+                "mmseqs_bin": "mmseqs",
+                "sensitivity": 5.7,
+                "max_seqs": 300,
+                "mmseqs_options": []
+            },
+            "origin": "computed",
+            "searched_at": "2026-10-07T19:28:23.898396+00:00"
+        },
+        "n_edges": 38,
+        "n_edges_unknown_ids": 0,
+        "n_clusters": 35
     },
     "partition": {
         "partitioned_at": "2026-08-27T13:40:30.146469+00:00",

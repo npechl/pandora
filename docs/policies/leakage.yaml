@@ -11,13 +11,9 @@ LeakagePolicy:
       engine: string
       # Supported: MMseqs2
 
-      threshold: float | null
-      # Minimum score to form a graph edge. Range [0.0, 1.0].
-      # null = include all pairs as edges regardless of score.
-
-      coverage_threshold: float | null
-      # Minimum alignment coverage. Range [0.0, 1.0].
-      # null = no coverage filter.
+      hit_filter: HitFilter
+      # Implemented: pandora.schemas.similarity.HitFilter — see
+      # docs/reference/policies.md#similarity-hit-filter.
 
     structure_similarity:
       enabled: bool
@@ -25,10 +21,9 @@ LeakagePolicy:
       engine: string
       # Supported: Foldseek
 
-      threshold: float | null
-      # Minimum TM-score to form a graph edge. Range [0.0, 1.0].
-
-      coverage_threshold: float | null
+      hit_filter: HitFilter
+      # Implemented: pandora.schemas.similarity.HitFilter — see
+      # docs/reference/policies.md#similarity-hit-filter.
 
   clustering_rules:
     enabled: bool

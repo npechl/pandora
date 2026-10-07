@@ -30,6 +30,7 @@ from pandora.parsing import mmcif_to_structure
 from pandora.provenance import build_dataset_manifest, build_provenance_bundle
 from pandora.schemas.canonicalisation import canonicalisationPolicy
 from pandora.schemas.dataset import DatasetCurationPolicy, DeduplicationRules
+from pandora.schemas.similarity import HitFilter
 from pandora.schemas.structure import Structure
 from pandora.similarity import (
     cluster_similar_items,
@@ -109,10 +110,11 @@ print(
 
 # 3. Entry-level sequence identity -> similarity network -> clusters.
 sequences = entry_sequences(structures)
-relationships = compute_sequence_similarity(sequences)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+search = compute_sequence_similarity(sequences, OUTPUT_DIR / "hits.tsv")
 item_ids = sorted(sequences)  # same ids compute_sequence_similarity used
 clusters, cluster_prov = cluster_similar_items(
-    item_ids, relationships, IDENTITY_THRESHOLD
+    item_ids, search, HitFilter(min_score=IDENTITY_THRESHOLD)
 )
 print(
     f"{len(clusters)} sequence-identity cluster(s) at {IDENTITY_THRESHOLD:.0%}"
@@ -134,7 +136,6 @@ for split_name, entry_ids in splits.items():
 # 5. Write outputs — one interfaces file per split (InterfaceRecord has
 #    no split field of its own, so this is the split without touching
 #    the schema).
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 for split_name in splits:
     split_interfaces = [
         record

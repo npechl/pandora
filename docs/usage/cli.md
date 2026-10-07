@@ -63,13 +63,14 @@ pandora dedup --input-dir curated/ --output-dir deduped/
 
 ## similarity
 
-All-vs-all sequence or structure similarity (requires `mmseqs`/
-`foldseek` on `PATH`):
+All-vs-all sequence or structure similarity (requires `mmseqs`/`foldseek` on `PATH`). The tool's hits are kept in `--output`, and the `SimilaritySearch` record that `cluster` reads goes next to it as `<output>.search.json`:
 
 ```sh
-pandora similarity --input-dir deduped/ --engine mmseqs2 --output relationships.json
-# computed 2 relationships -> relationships.json
+pandora similarity --input-dir deduped/ --engine mmseqs2 --max-seqs 300 --output mmseqs.tsv
+# hits -> mmseqs.tsv; search record -> mmseqs.tsv.search.json
 ```
+
+`--max-seqs` (and `--exhaustive-search` for Foldseek) control how many hits each query keeps; see the [`max_seqs` warning](similarity.md#sequence-similarity-mmseqs2). `--precomputed-hits <tsv>` wraps a hit file you ran yourself instead of searching ([Precomputed searches](similarity.md#precomputed-searches)).
 
 `--engine foldseek` works the same way. When chaining `similarity
 --engine foldseek` into `cluster` below, keep to this exact
@@ -78,12 +79,14 @@ pandora similarity --input-dir deduped/ --engine mmseqs2 --output relationships.
 
 ## cluster
 
-Connected-component clustering of a relationship network:
+Connected-component clustering of a search's hits, filtered by a [`HitFilter`](similarity.md#filtering-hits-hitfilter):
 
 ```sh
-pandora cluster --input-dir deduped/ --relationships relationships.json --threshold 0.9 --output clusters.json
-# 3 clusters at threshold=0.9 -> clusters.json
+pandora cluster --input-dir deduped/ --search mmseqs.tsv.search.json --min-score 0.9 --output clusters.json
+# 3 clusters from 4 edges -> clusters.json
 ```
+
+`--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score`/`--min-coverage` override its fields.
 
 ## partition
 
@@ -156,9 +159,4 @@ pandora reproduce --manifest manifest.json --output-dir reproduced/
 # reproduced 5 structures -> reproduced/
 ```
 
-Requires every structure's manifest entry to carry `ingestion`
-provenance (see `manifest` above), and — if the manifest recorded
-clustering — `ClusteringProvenance.similarity_method` to be set. It's
-a best-effort re-run, not a guaranteed byte-identical rebuild; diff
-`reproduced/reproduced_manifest.json` against the input to see what
-changed.
+Requires every structure's manifest entry to carry `ingestion` provenance (see `manifest` above), and — if the manifest recorded clustering — `ClusteringProvenance.search` and `.hit_filter` to be set (a precomputed hit file is re-used only if it still exists; interface coverage filters can't be reproduced automatically). It's a best-effort re-run, not a guaranteed byte-identical rebuild; diff `reproduced/reproduced_manifest.json` against the input to see what changed.

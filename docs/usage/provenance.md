@@ -170,10 +170,4 @@ manifest recorded them.
 
     `--no-cache` skips the ingestion cache and always re-downloads.
 
-It's a best-effort re-run, not a guaranteed byte-identical rebuild —
-diff the reproduced manifest against the input to see what changed.
-Two hard requirements, both raising `ValueError` if unmet: every
-structure's bundle needs `ingestion` provenance (this is why the
-walkthrough above fetches for real, unlike the other usage pages), and
-reproducing `clustering` needs `ClusteringProvenance.similarity_method`
-set.
+It's a best-effort re-run, not a guaranteed byte-identical rebuild — diff the reproduced manifest against the input to see what changed. Two hard requirements, both raising `ValueError` if unmet: every structure's bundle needs `ingestion` provenance (this is why the walkthrough above fetches for real, unlike the other usage pages), and reproducing `clustering` needs `ClusteringProvenance.search` and `.hit_filter` set (a precomputed hit file is re-used only if it still exists; interface coverage filters can't be reproduced automatically).

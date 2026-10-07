@@ -258,6 +258,26 @@ author_policy = canonicalisationPolicy(
 the no-op `keep_waters=False` under the preserve policy — see the
 warning above.)
 
+## Similarity hit filter
+
+`HitFilter` (`pandora.schemas.similarity.HitFilter`) decides which MMseqs2/Foldseek hit rows become similarity edges when clustering (`iter_edges()`, `cluster_similar_items()`). A pair of items is an edge if any single hit row passes every threshold. `None` thresholds aren't applied; the others are inclusive (`>=`). See [Similarity](../usage/similarity.md#filtering-hits-hitfilter) for usage.
+
+| Field | Default | Description |
+|---|---|---|
+| `min_score` | `None` | Minimum score: TM-score for Foldseek (see `tm_normalisation`), identity for MMseqs2. |
+| `min_identity` | `None` | Minimum fraction of identical aligned residues. |
+| `min_coverage` | `None` | Minimum alignment coverage (see `coverage_of`). |
+| `coverage_of` | `both` | Which coverage is tested: `both` (the smaller of query and target), `query`, `target`, or `either` (the larger). |
+| `min_interface_coverage` | `None` | Minimum fraction of each side's interface residues inside the alignment. Foldseek only; needs `interface_residues`, otherwise `iter_edges()` raises `ValueError`. |
+| `tm_normalisation` | `alignment` | Foldseek TM-score used as the score: `alignment` (`alntmscore`), `query` (`qtmscore`), `target` (`ttmscore`), or `max` (the larger of the two). Must be `alignment` for MMseqs2 searches. |
+
+```yaml
+min_score: 0.5
+min_coverage: 0.8
+coverage_of: both
+tm_normalisation: max
+```
+
 ## Provenance
 
 Every rule that deviates from its "preserve" default is recorded as a transform label (e.g. `"chain_id:remap"`) in the returned `canonicalisationProvenance.transforms`, alongside the policy id/name/ version and, if `provenance_rules.emit_canonicalisation_report` is set, a report of warning/error counts. The original-to-canonical identifier mappings themselves come back separately as `CanonicalMappings`.
