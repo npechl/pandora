@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 from pydantic import BaseModel, Field
 
@@ -85,6 +85,95 @@ class SimilarityCluster(BaseModel):
 
     components: list[str]
     n_components: int
+
+
+SimilarityEngine = Literal["MMseqs2", "Foldseek"]
+
+
+class SimilaritySearch(BaseModel):
+    """One all-vs-all search: where its hit file is and how it was run.
+
+    The hit file is the tool's raw TSV with Pandora's fixed
+    `--format-output` columns; it stays on disk and is streamed by
+    `iter_edges()`, never loaded whole.
+
+    Attributes:
+        engine: Which tool produced the hits.
+        version: The tool's version string, if determined.
+        hits_path: Path to the hit TSV.
+        columns: The TSV's columns, in order.
+        parameters: The search settings (binary, sensitivity,
+            max_seqs, extra options, ...), as passed to the search
+            function, so the search can be re-run.
+        origin: "computed" if Pandora ran the search, "precomputed" if
+            an existing file was wrapped with `load_similarity_search()`.
+        searched_at: When the search ran, as an ISO 8601 timestamp.
+    """
+
+    engine: SimilarityEngine
+    version: str | None = None
+    hits_path: str
+    columns: list[str]
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    origin: Literal["computed", "precomputed"] = "computed"
+    searched_at: str | None = None
+
+
+class HitFilter(BaseModel):
+    """Policy deciding which hit rows become similarity edges.
+
+    A pair of items is an edge if any single hit row passes every
+    threshold. `None` thresholds are not applied; the others are
+    inclusive (`>=`).
+
+    Attributes:
+        min_score: Minimum score: TM-score for Foldseek (see
+            `tm_normalisation`), identity for MMseqs2.
+        min_identity: Minimum fraction of identical aligned residues.
+        min_coverage: Minimum alignment coverage (see `coverage_of`).
+        coverage_of: Which coverage is tested: "both" (the smaller of
+            query and target), "query", "target", or "either" (the
+            larger).
+        min_interface_coverage: Minimum fraction of each side's
+            interface residues inside the alignment (Foldseek only;
+            needs `interface_residues`).
+        tm_normalisation: Foldseek TM-score used as the score:
+            "alignment" (alntmscore), "query" (qtmscore), "target"
+            (ttmscore), or "max" (the larger of the two).
+    """
+
+    min_score: float | None = None
+    min_identity: float | None = None
+    min_coverage: float | None = None
+    coverage_of: Literal["both", "query", "target", "either"] = "both"
+    min_interface_coverage: float | None = None
+    tm_normalisation: Literal["alignment", "query", "target", "max"] = (
+        "alignment"
+    )
+
+
+class Edge(NamedTuple):
+    """One hit row that passed a `HitFilter` (source_id < target_id).
+
+    A plain tuple, not a pydantic model, so streaming millions of edges
+    stays cheap.
+
+    Attributes:
+        source_id: The lexicographically smaller item id.
+        target_id: The lexicographically larger item id.
+        score: The row's score, as selected by the filter.
+        identity: The row's fraction of identical aligned residues.
+        coverage: The row's coverage, as selected by `coverage_of`.
+        interface_coverage: Interface-restricted coverage, or None if
+            not computed for this pair.
+    """
+
+    source_id: str
+    target_id: str
+    score: float
+    identity: float
+    coverage: float
+    interface_coverage: float | None
 
 
 class ClusteringProvenance(BaseModel):

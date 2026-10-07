@@ -8,6 +8,7 @@ from pathlib import Path
 from pandora.schemas.annotation import AnnotationLayer
 from pandora.schemas.similarity import SimilarityMethod, SimilarityRelationship
 from pandora.schemas.structure import Structure
+from pandora.similarity.hits import _interface_coverage
 
 _OUTPUT_COLUMNS = (
     "query,target,fident,alnlen,qcov,tcov,alntmscore,qstart,qend,tstart,tend"
@@ -139,15 +140,6 @@ def interface_residues_from_annotation(
                             positions[label_seq_id]
                         )
     return result
-
-
-def _interface_coverage(residues: set[int], start: int, end: int) -> float:
-    """Fraction of residues (1-indexed positions) that fall within the
-    inclusive [start, end] alignment range. 0.0 if residues is empty."""
-
-    if not residues:
-        return 0.0
-    return sum(1 for r in residues if start <= r <= end) / len(residues)
 
 
 def compute_structure_similarity(

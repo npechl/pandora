@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pandora.schemas.annotation import AnnotationLayer
 from pandora.schemas.structure import AtomSiteRecord, EntryRecord, Structure
+from pandora.similarity.hits import _interface_coverage
 from pandora.similarity.structure import (
-    _interface_coverage,
     chain_item_id,
     interface_residues_from_annotation,
     residue_positions,
