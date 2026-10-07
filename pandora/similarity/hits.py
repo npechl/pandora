@@ -72,7 +72,7 @@ def load_similarity_search(
         raise ValueError(
             f"engine must be one of {sorted(HIT_COLUMNS)}, got {engine!r}"
         )
-    path = Path(hits_path)
+    path = Path(hits_path).resolve()
     columns = HIT_COLUMNS[engine]
     with path.open() as handle:
         for line_number, line in enumerate(handle, start=1):

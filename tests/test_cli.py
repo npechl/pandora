@@ -306,3 +306,42 @@ def test_similarity_needs_input_dir_without_precomputed_hits(tmp_path):
                 str(tmp_path / "hits.tsv"),
             ]
         )
+
+
+def test_cluster_requires_a_threshold(tmp_path):
+    input_dir, search = _cluster_inputs(tmp_path)
+
+    with pytest.raises(SystemExit, match="--min-score"):
+        main(
+            [
+                "cluster",
+                "--input-dir",
+                str(input_dir),
+                "--search",
+                str(search),
+                "--output",
+                str(tmp_path / "clusters.json"),
+            ]
+        )
+
+
+def test_similarity_records_absolute_hits_path(tmp_path, monkeypatch):
+    (tmp_path / "elsewhere.tsv").write_text(
+        "104M\t112M\t0.99\t100\t0.95\t0.95\n"
+    )
+    monkeypatch.chdir(tmp_path)
+
+    main(
+        [
+            "similarity",
+            "--engine",
+            "mmseqs2",
+            "--precomputed-hits",
+            "elsewhere.tsv",
+            "--output",
+            "hits.tsv",
+        ]
+    )
+
+    record = json.loads((tmp_path / "hits.tsv.search.json").read_text())
+    assert record["hits_path"] == str((tmp_path / "elsewhere.tsv").resolve())

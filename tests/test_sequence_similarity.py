@@ -60,3 +60,14 @@ def test_search_keeps_hit_file_and_records_parameters(tmp_path):
     assert args[args.index("--format-output") + 1] == ",".join(
         HIT_COLUMNS["MMseqs2"]
     )
+
+
+def test_search_records_absolute_hits_path(tmp_path, monkeypatch):
+    mmseqs = _fake_mmseqs(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    search = compute_sequence_similarity(
+        {"a_A": "MKV"}, "hits.tsv", mmseqs_bin=str(mmseqs)
+    )
+
+    assert search.hits_path == str((tmp_path / "hits.tsv").resolve())

@@ -100,7 +100,8 @@ class SimilaritySearch(BaseModel):
     Attributes:
         engine: Which tool produced the hits.
         version: The tool's version string, if determined.
-        hits_path: Path to the hit TSV.
+        hits_path: Absolute path to the hit TSV, so the record works
+            from any working directory.
         columns: The TSV's columns, in order.
         parameters: The search settings (binary, sensitivity,
             max_seqs, extra options, ...), as passed to the search

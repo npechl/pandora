@@ -163,6 +163,18 @@ def test_structure_search_omits_exhaustive_flag_by_default(tmp_path):
     assert args[args.index("--max-seqs") + 1] == "1000"
 
 
+def test_structure_search_records_absolute_hits_path(tmp_path, monkeypatch):
+    foldseek = _fake_foldseek(tmp_path)
+    (tmp_path / "structures").mkdir()
+    monkeypatch.chdir(tmp_path)
+
+    search = compute_structure_similarity(
+        "structures", "hits.tsv", foldseek_bin=str(foldseek)
+    )
+
+    assert search.hits_path == str((tmp_path / "hits.tsv").resolve())
+
+
 if __name__ == "__main__":
     test_interface_coverage_full_and_partial_overlap()
     test_interface_coverage_no_overlap()

@@ -86,7 +86,7 @@ pandora cluster --input-dir deduped/ --search mmseqs.tsv.search.json --min-score
 # 3 clusters from 4 edges -> clusters.json
 ```
 
-`--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score`/`--min-coverage` override its fields.
+`--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score`/`--min-coverage` override its fields. One of the three is required — there is no default threshold.
 
 ## partition
 

@@ -273,7 +273,7 @@ The CLI form is `pandora similarity --engine foldseek --precomputed-hits foldsee
     # 3 clusters from 4 edges -> clusters.json
     ```
 
-    `--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score` and `--min-coverage` override its fields. Item ids come from `--input-dir`'s `*.cif` filenames (uppercased) — this is the ordering [Keep ids consistent between stages](#keep-ids-consistent-between-stages) warns about.
+    `--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score` and `--min-coverage` override its fields. At least one of the three is required: with no threshold every reported hit would become an edge. Item ids come from `--input-dir`'s `*.cif` filenames (uppercased) — this is the ordering [Keep ids consistent between stages](#keep-ids-consistent-between-stages) warns about.
 
 ### Paired cluster keys (PPI pairs)
 
@@ -310,6 +310,7 @@ Up to 0.5.6 the searches returned a list of `SimilarityRelationship` objects hel
 | `ClusteringProvenance.threshold` / `.similarity_method` | `.hit_filter` / `.search` |
 | CLI `similarity --output relationships.json` | `--output hits.tsv` (+ `hits.tsv.search.json`) |
 | CLI `cluster --relationships r.json --threshold 0.9` | `cluster --search hits.tsv.search.json --min-score 0.9` |
+| CLI `cluster` with no `--threshold` (defaulted to 0.9) | no default: `cluster` refuses to run without `--min-score`, `--min-coverage` or `--hit-filter` |
 
 Manifests written before this change still load, but `reproduce_dataset()` can't rebuild their clustering: it raises a `ValueError` saying the search and hit filter weren't recorded.
 

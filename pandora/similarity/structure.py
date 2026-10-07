@@ -197,7 +197,7 @@ def compute_structure_similarity(
         )
 
     options = list(foldseek_options or [])
-    hits = Path(hits_path)
+    hits = Path(hits_path).resolve()
     hits.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=tmp_dir) as work_dir:
         work = Path(work_dir)

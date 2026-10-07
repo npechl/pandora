@@ -338,6 +338,17 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
     """Handle the `cluster` subcommand: connected-component clustering
     of a relationship network."""
 
+    if (
+        args.hit_filter is None
+        and args.min_score is None
+        and (args.min_coverage is None)
+    ):
+        # Without a filter every reported hit would become an edge (the
+        # old --threshold defaulted to 0.9), merging clusters silently.
+        raise SystemExit(
+            "cluster: set --min-score, --min-coverage or --hit-filter; "
+            "with no threshold every reported hit becomes an edge"
+        )
     input_dir = Path(args.input_dir)
     search = _load_json_model(SimilaritySearch, Path(args.search))
     hit_filter = (
