@@ -57,7 +57,7 @@ outcome.
     )
     curated, exclusions, _ = curate_structure(canonical, metadata, strict_policy)
     print(exclusions[0].reason_code, "-", exclusions[0].message)
-    # RESOLUTION_THRESHOLD - resolution 1.71 exceeds max_resolution 1.0
+    # RESOLUTION_THRESHOLD - resolution 1.71 exceeds limit 1.0
     ```
 
     `content_rules` (waters/ions/other ligands) never excludes — it

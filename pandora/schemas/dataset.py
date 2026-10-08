@@ -130,6 +130,12 @@ ExclusionReason = Literal[
     "ORGANISM_EXCLUDED",
     "MISSING_TAXONOMY",
     "DUPLICATE",
+    "RFREE_THRESHOLD",
+    "RFREE_GAP_THRESHOLD",
+    "RSYM_THRESHOLD",
+    "NULL_RFACTOR",
+    "NONSTANDARD_RESIDUE",
+    "TOO_MANY_ATOMS",
 ]
 
 
@@ -153,8 +159,8 @@ class ExclusionRecord(BaseModel):
 
 
 class QualityRules(BaseModel):
-    """Curation policy for resolution, experimental method, minimum chain
-    length, and minimum polymer chain count.
+    """Curation policy for resolution, R-factors, experimental method,
+    residue content, size, and chain counts.
 
     Attributes:
         max_resolution: The maximum resolution (in angstroms) allowed;
@@ -170,6 +176,20 @@ class QualityRules(BaseModel):
             experimental methods are allowed.
         exclude_experimental_methods: Experimental methods that are
             always excluded.
+        max_resolution_by_method: Resolution limits per experimental
+            method, overriding `max_resolution` for entries with that
+            method. With several matching methods, the strictest wins.
+        rfactor_methods: The methods the R-factor rules apply to.
+        max_r_free: The maximum Rfree.
+        max_r_free_gap: The maximum |Rfree - Rwork|.
+        max_r_sym: The maximum Rsym, or Rmerge when Rsym is missing.
+        null_rfactor_behavior: Whether an entry missing a value an
+            active R-factor rule needs is excluded or included.
+        exclude_nonstandard_residues: Whether an entry with any
+            non-standard polymer residue is excluded.
+        allowed_nonstandard_residues: Non-standard residues that don't
+            trigger `exclude_nonstandard_residues`.
+        max_atoms: The maximum number of atoms an entry may have.
     """
 
     max_resolution: float | None = None
@@ -178,6 +198,17 @@ class QualityRules(BaseModel):
     min_polymer_chains: int | None = None
     include_experimental_methods: list[str] = Field(default_factory=list)
     exclude_experimental_methods: list[str] = Field(default_factory=list)
+    max_resolution_by_method: dict[str, float] = Field(default_factory=dict)
+    rfactor_methods: list[str] = Field(
+        default_factory=lambda: ["X-RAY DIFFRACTION"]
+    )
+    max_r_free: float | None = None
+    max_r_free_gap: float | None = None
+    max_r_sym: float | None = None
+    null_rfactor_behavior: Literal["exclude", "include"] = "include"
+    exclude_nonstandard_residues: bool = False
+    allowed_nonstandard_residues: list[str] = Field(default_factory=list)
+    max_atoms: int | None = None
 
 
 class OrganismRules(BaseModel):

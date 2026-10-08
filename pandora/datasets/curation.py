@@ -3,6 +3,7 @@ from __future__ import annotations
 from pandora._util import now_iso
 from pandora.annotations.entry import polymer_asym_ids
 from pandora.canonicalisation import filter_ligands
+from pandora.canonicalisation.modified_residues import STANDARD_RESIDUES
 from pandora.datasets.records import extract_chain_records
 from pandora.schemas.canonicalisation import LigandRules
 from pandora.schemas.common import DiagnosticBundle
@@ -16,8 +17,109 @@ from pandora.schemas.dataset import (
     OrganismRules,
     QualityRules,
 )
-from pandora.schemas.metadata import MetadataRecord
+from pandora.schemas.metadata import MetadataRecord, QualityRecord
 from pandora.schemas.structure import Structure
+
+
+def _upper_set(values: list[str]) -> set[str]:
+    """Stripped, upper-cased copies of values."""
+
+    return {v.strip().upper() for v in values}
+
+
+def _entry_methods(quality: QualityRecord | None) -> set[str]:
+    """The entry's experimental methods, split on ';' and normalised."""
+
+    method = quality.experimental_method if quality else None
+    return _upper_set([m for m in (method or "").split(";") if m.strip()])
+
+
+def _resolution_limit(methods: set[str], rules: QualityRules) -> float | None:
+    """The strictest per-method limit that applies, else max_resolution."""
+
+    by_method = {
+        m.strip().upper(): limit
+        for m, limit in rules.max_resolution_by_method.items()
+    }
+    limits = [by_method[m] for m in methods if m in by_method]
+    return min(limits) if limits else rules.max_resolution
+
+
+def _check_rfactors(
+    entry_id: str,
+    quality: QualityRecord | None,
+    methods: set[str],
+    rules: QualityRules,
+) -> ExclusionRecord | None:
+    """ExclusionRecord if an R-factor rule fails, for rfactor_methods only."""
+
+    if not methods & _upper_set(rules.rfactor_methods):
+        return None
+    r_free = quality.r_free if quality else None
+    r_work = quality.r_work if quality else None
+    r_sym = None
+    if quality:
+        r_sym = quality.r_sym if quality.r_sym is not None else quality.r_merge
+    gap = (
+        abs(r_free - r_work)
+        if r_free is not None and r_work is not None
+        else None
+    )
+    checks = [
+        (rules.max_r_free, r_free, "RFREE_THRESHOLD", "r_free"),
+        (rules.max_r_free_gap, gap, "RFREE_GAP_THRESHOLD", "|r_free - r_work|"),
+        (rules.max_r_sym, r_sym, "RSYM_THRESHOLD", "r_sym"),
+    ]
+    for limit, value, code, label in checks:
+        if limit is None:
+            continue
+        if value is None:
+            if rules.null_rfactor_behavior == "exclude":
+                return ExclusionRecord(
+                    entry_id=entry_id,
+                    reason_code="NULL_RFACTOR",
+                    message=f"{label} is null and "
+                    "null_rfactor_behavior='exclude'",
+                )
+            continue
+        if value > limit:
+            return ExclusionRecord(
+                entry_id=entry_id,
+                reason_code=code,
+                message=f"{label} {value:.3f} exceeds {limit}",
+            )
+    return None
+
+
+def _check_composition(
+    structure: Structure, rules: QualityRules
+) -> ExclusionRecord | None:
+    """ExclusionRecord if the entry has non-standard residues or too many
+    atoms, else None."""
+
+    if rules.exclude_nonstandard_residues:
+        allowed = STANDARD_RESIDUES | set(rules.allowed_nonstandard_residues)
+        found = sorted(
+            {
+                a.label_comp_id
+                for a in structure.atoms
+                if a.label_seq_id is not None and a.label_comp_id not in allowed
+            }
+        )
+        if found:
+            return ExclusionRecord(
+                entry_id=structure.entry_id,
+                reason_code="NONSTANDARD_RESIDUE",
+                message=f"non-standard polymer residues {found}",
+            )
+    if rules.max_atoms is not None and len(structure.atoms) > rules.max_atoms:
+        return ExclusionRecord(
+            entry_id=structure.entry_id,
+            reason_code="TOO_MANY_ATOMS",
+            message=f"{len(structure.atoms)} atoms exceed "
+            f"max_atoms={rules.max_atoms}",
+        )
+    return None
 
 
 def _check_quality(
@@ -28,24 +130,22 @@ def _check_quality(
 
     quality = metadata.quality if metadata else None
     resolution = quality.resolution if quality else None
+    methods = _entry_methods(quality)
+    limit = _resolution_limit(methods, rules)
 
     if resolution is None:
-        if (
-            rules.max_resolution is not None
-            and rules.null_resolution_behavior == "exclude"
-        ):
+        if limit is not None and rules.null_resolution_behavior == "exclude":
             return ExclusionRecord(
                 entry_id=structure.entry_id,
                 reason_code="NULL_RESOLUTION",
                 message="resolution is null and "
                 "null_resolution_behavior='exclude'",
             )
-    elif rules.max_resolution is not None and resolution > rules.max_resolution:
+    elif limit is not None and resolution > limit:
         return ExclusionRecord(
             entry_id=structure.entry_id,
             reason_code="RESOLUTION_THRESHOLD",
-            message=f"resolution {resolution} exceeds "
-            f"max_resolution {rules.max_resolution}",
+            message=f"resolution {resolution} exceeds limit {limit}",
         )
 
     method = quality.experimental_method if quality else None
@@ -66,6 +166,10 @@ def _check_quality(
             reason_code="METHOD_EXCLUDED",
             message=f"experimental_method={method!r} excluded by policy",
         )
+
+    rfactor = _check_rfactors(structure.entry_id, quality, methods, rules)
+    if rfactor is not None:
+        return rfactor
 
     if rules.min_chain_length is not None:
         chain_lengths = [
@@ -233,9 +337,11 @@ def curate_structure(
         policy_version=policy.policy_version,
     )
 
-    exclusion = _check_quality(
-        structure, metadata, policy.quality_rules
-    ) or _check_organism(structure, metadata, policy.organism_rules)
+    exclusion = (
+        _check_quality(structure, metadata, policy.quality_rules)
+        or _check_organism(structure, metadata, policy.organism_rules)
+        or _check_composition(structure, policy.quality_rules)
+    )
     if exclusion is not None:
         return None, [exclusion], provenance
     return (

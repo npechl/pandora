@@ -1,8 +1,14 @@
 from pathlib import Path
 
+from pandora.canonicalisation import canonicalise_structure
 from pandora.datasets import curate_structure, deduplicate_structures
 from pandora.metadata import collect_metadata
 from pandora.parsing import mmcif_to_structure
+from pandora.schemas.canonicalisation import (
+    ModifiedResidueRules,
+    ValidationRules,
+    canonicalisationPolicy,
+)
 from pandora.schemas.dataset import (
     ContentRules,
     DatasetCurationPolicy,
@@ -10,6 +16,7 @@ from pandora.schemas.dataset import (
     OrganismRules,
     QualityRules,
 )
+from pandora.schemas.metadata import MetadataRecord, QualityRecord
 
 MMCIF_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
 
@@ -185,3 +192,184 @@ def test_entry_exclusion_has_no_chain_id():
     assert [(e.reason_code, e.chain_id) for e in exclusions] == [
         ("NULL_RESOLUTION", None)
     ]
+
+
+def _meta(entry_id: str, **quality) -> MetadataRecord:
+    return MetadataRecord(entry_id=entry_id, quality=QualityRecord(**quality))
+
+
+def _codes(exclusions):
+    return [e.reason_code for e in exclusions]
+
+
+def test_cryo_em_entry_passes_resolution_rule_with_real_metadata():
+    # Regression: cryo-EM resolution used to be None -> NULL_RESOLUTION.
+    structure = _load("22jy")
+    metadata = collect_metadata(structure)
+    curated, exclusions, _ = curate_structure(
+        structure,
+        metadata,
+        _policy(quality_rules=QualityRules(max_resolution=3.5)),
+    )
+    assert curated is not None and exclusions == []
+
+    strict = QualityRules(
+        max_resolution=3.5,
+        max_resolution_by_method={"ELECTRON MICROSCOPY": 2.0},
+    )
+    curated, exclusions, _ = curate_structure(
+        structure, metadata, _policy(quality_rules=strict)
+    )
+    assert curated is None
+    assert _codes(exclusions) == ["RESOLUTION_THRESHOLD"]
+
+
+def test_resolution_by_method_falls_back_to_max_resolution():
+    structure = _load("1ayi")
+    rules = QualityRules(
+        max_resolution=3.0,
+        max_resolution_by_method={"Electron Microscopy": 2.0},
+    )
+    meta = _meta(
+        "1ayi", experimental_method="X-ray diffraction", resolution=2.4
+    )
+    curated, exclusions, _ = curate_structure(
+        structure, meta, _policy(quality_rules=rules)
+    )
+    assert curated is not None and exclusions == []
+
+
+def test_resolution_by_method_strictest_wins():
+    structure = _load("1ayi")
+    rules = QualityRules(
+        max_resolution_by_method={
+            " x-ray diffraction ": 2.5,
+            "NEUTRON DIFFRACTION": 2.0,
+        }
+    )
+    meta = _meta(
+        "1ayi",
+        experimental_method="X-ray diffraction; Neutron diffraction",
+        resolution=2.4,
+    )
+    _, exclusions, _ = curate_structure(
+        structure, meta, _policy(quality_rules=rules)
+    )
+    assert _codes(exclusions) == ["RESOLUTION_THRESHOLD"]
+
+
+def test_rfactor_rules():
+    structure = _load("1ayi")
+    meta = _meta(
+        "1ayi",
+        experimental_method="X-ray diffraction",
+        r_free=0.30,
+        r_work=0.20,
+        r_merge=0.12,
+    )
+    cases = [
+        (QualityRules(max_r_free=0.25), ["RFREE_THRESHOLD"]),
+        (QualityRules(max_r_free_gap=0.07), ["RFREE_GAP_THRESHOLD"]),
+        (QualityRules(max_r_sym=0.10), ["RSYM_THRESHOLD"]),  # via r_merge
+        (
+            QualityRules(max_r_free=0.35, max_r_free_gap=0.11, max_r_sym=0.2),
+            [],
+        ),
+    ]
+    for rules, expected in cases:
+        _, exclusions, _ = curate_structure(
+            structure, meta, _policy(quality_rules=rules)
+        )
+        assert _codes(exclusions) == expected, rules
+
+
+def test_rfactor_rules_skip_cryo_em():
+    structure = _load("1ayi")
+    meta = _meta(
+        "1ayi", experimental_method="Electron Microscopy", resolution=2.0
+    )
+    rules = QualityRules(max_r_free=0.25, null_rfactor_behavior="exclude")
+    curated, exclusions, _ = curate_structure(
+        structure, meta, _policy(quality_rules=rules)
+    )
+    assert curated is not None and exclusions == []
+
+
+def test_null_rfactor_behavior():
+    structure = _load("1ayi")
+    meta = _meta("1ayi", experimental_method="X-ray diffraction", r_free=None)
+    curated, _, _ = curate_structure(
+        structure, meta, _policy(quality_rules=QualityRules(max_r_free=0.25))
+    )
+    assert curated is not None  # default: include
+    _, exclusions, _ = curate_structure(
+        structure,
+        meta,
+        _policy(
+            quality_rules=QualityRules(
+                max_r_free=0.25, null_rfactor_behavior="exclude"
+            )
+        ),
+    )
+    assert _codes(exclusions) == ["NULL_RFACTOR"]
+
+
+def test_rfactor_rules_skip_entries_without_metadata():
+    structure = _load("1ayi")
+    rules = QualityRules(max_r_free=0.25, null_rfactor_behavior="exclude")
+    curated, exclusions, _ = curate_structure(
+        structure, None, _policy(quality_rules=rules)
+    )
+    assert curated is not None and exclusions == []
+
+
+def test_nonstandard_residues_exclude_entry_unless_allowed():
+    structure = _load("1a08")
+    _, exclusions, _ = curate_structure(
+        structure,
+        None,
+        _policy(quality_rules=QualityRules(exclude_nonstandard_residues=True)),
+    )
+    assert _codes(exclusions) == ["NONSTANDARD_RESIDUE"]
+    assert "FTY" in exclusions[0].message
+
+    curated, exclusions, _ = curate_structure(
+        structure,
+        None,
+        _policy(
+            quality_rules=QualityRules(
+                exclude_nonstandard_residues=True,
+                allowed_nonstandard_residues=["ACE", "DIP", "FTY"],
+            )
+        ),
+    )
+    assert curated is not None and exclusions == []
+
+
+def test_mapped_mse_is_standard_for_curation():
+    canon_policy = canonicalisationPolicy(
+        policy_id="t",
+        policy_name="t",
+        policy_version="1",
+        validation_rules=ValidationRules(fail_on_unresolved_issues=False),
+        modified_residue_rules=ModifiedResidueRules(strategy="map_to_parent"),
+    )
+    canonical, _, _ = canonicalise_structure(_load("1b6w"), canon_policy)
+    curated, exclusions, _ = curate_structure(
+        canonical,
+        None,
+        _policy(quality_rules=QualityRules(exclude_nonstandard_residues=True)),
+    )
+    assert curated is not None and exclusions == []
+
+
+def test_max_atoms():
+    structure = _load("1ayi")  # 704 atoms
+    _, exclusions, _ = curate_structure(
+        structure, None, _policy(quality_rules=QualityRules(max_atoms=700))
+    )
+    assert _codes(exclusions) == ["TOO_MANY_ATOMS"]
+    curated, _, _ = curate_structure(
+        structure, None, _policy(quality_rules=QualityRules(max_atoms=704))
+    )
+    assert curated is not None
