@@ -1,0 +1,4 @@
+asymmetric unit: ['A', 'E', 'B', 'F', 'C', 'G', 'D', 'H']
+after expansion: ['A', 'E', 'B', 'F', 'C', 'G', 'D', 'H', 'A_2', 'A_3', 'B_2', 'B_3', 'C_2', 'C_3', 'D_2', 'D_3']
+  A_2 = chain A under operator 2
+  A_3 = chain A under operator 3

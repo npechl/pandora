@@ -1,0 +1,6 @@
+max 30% missing tails, 10% missing middle:
+  A: MISSING_MIDDLE - missing middle 0.201 exceeds max_missing_middle_fraction=0.1
+  kept polymer chains: ['B']
+the same, but the entry needs two chains:
+  A: MISSING_MIDDLE - missing middle 0.201 exceeds max_missing_middle_fraction=0.1
+  entry: TOO_FEW_CHAINS - 1 polymer chain(s) found, fewer than min_polymer_chains=2

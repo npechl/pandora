@@ -1,0 +1,10 @@
+policy_id: atom3d-pip-quality
+policy_name: ATOM3D PIP filters
+policy_version: 1.0.0
+description: >
+  The ATOM3D PIP corpus filter: X-ray and cryo-EM entries at 3.5 A or
+  better with a chain of at least 50 residues.
+quality_rules:
+  max_resolution: 3.5
+  include_experimental_methods: [X-RAY DIFFRACTION, ELECTRON MICROSCOPY]
+  min_chain_length: 50

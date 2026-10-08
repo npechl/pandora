@@ -1,0 +1,3 @@
+in the policy: 1450 -> 1266
+  kept: ['MYOGLOBIN', 'N-BUTYL ISOCYANIDE', 'PROTOPORPHYRIN IX CONTAINING FE']
+filter_ligands, keep ions: 1450 -> 1271

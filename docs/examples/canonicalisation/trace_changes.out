@@ -1,0 +1,8 @@
+transforms: ['modified_residues:map_to_parent', 'chain_id:use_auth_chain_id', 'missing_atoms:annotate', 'missing_residues:annotate', 'altloc:select_best_occupancy', 'residue_numbering:renumber']
+report: {'warnings': 0, 'errors': 0}
+chain_id_mapping: 2 items
+residue_number_mapping: 82 items
+assembly_mapping: 1 items
+entity_mapping: 2 items
+altloc_selection_mapping: 1 items
+modified_residue_mapping: 2 items

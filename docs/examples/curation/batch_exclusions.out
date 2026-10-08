@@ -1,0 +1,3 @@
+kept: ['104m', '1a08', '1aui']
+entries excluded: [('1P58', 'RESOLUTION_THRESHOLD')]
+chains removed: [('1AUI', 'A', 'MISSING_MIDDLE')]

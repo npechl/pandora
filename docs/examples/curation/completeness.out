@@ -1,0 +1,4 @@
+A: SEQRES 521, missing 13 at the N-terminus, 35 at the C-terminus, 95 in the middle
+B: SEQRES 169, missing 4 at the N-terminus, 0 at the C-terminus, 0 in the middle
+1p58 chain A, unobserved: missing 0 + 0 tails, 5 middle of 495
+1p58 chain A, incomplete_backbone: missing 495 + 0 tails, 0 middle of 495

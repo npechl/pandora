@@ -1,0 +1,2 @@
+remap: A->A, E->B, B->C, F->D, C->E, G->F, D->G, H->H
+use_auth_chain_id: A->A, C->B, B->C, D->D, E->A_2, F->C_2, G->B_2, H->D_2

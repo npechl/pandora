@@ -1,0 +1,5 @@
+1a08: r_free=None r_work=0.192 r_sym=None r_merge=0.086
+max_r_sym=0.05: RSYM_THRESHOLD (r_sym 0.086 exceeds 0.05)
+max_r_free=0.25: kept
+max_r_free=0.25, exclude nulls: NULL_RFACTOR (r_free is null and null_rfactor_behavior='exclude')
+22jy, same rule: kept

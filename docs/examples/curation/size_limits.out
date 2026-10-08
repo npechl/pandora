@@ -1,0 +1,4 @@
+1aui: kept=False
+  entry: TOO_MANY_ATOMS - 4832 atoms exceed max_atoms=4000
+1aui: kept=True
+  A: CHAIN_TOO_LONG - 378 residues exceed max_chain_length=300

@@ -1,0 +1,3 @@
+Electron Microscopy 2.2
+one limit, 3.5: kept=True
+X-ray 2.5, cryo-EM 2.0: kept=False (RESOLUTION_THRESHOLD: resolution 2.2 exceeds limit 2.0)

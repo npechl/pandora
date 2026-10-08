@@ -1,0 +1,4 @@
+1a08: non-standard polymer residues ['ACE', 'DIP', 'FTY']
+1a08, allow-list: kept
+1b6w as deposited: non-standard polymer residues ['MSE']
+1b6w after MSE -> MET: kept
