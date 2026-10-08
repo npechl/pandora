@@ -136,6 +136,11 @@ ExclusionReason = Literal[
     "NULL_RFACTOR",
     "NONSTANDARD_RESIDUE",
     "TOO_MANY_ATOMS",
+    "MISSING_TAILS",
+    "MISSING_MIDDLE",
+    "CHAIN_TOO_LONG",
+    "NO_SEQRES",
+    "NO_CHAINS_LEFT",
 ]
 
 
@@ -169,9 +174,11 @@ class QualityRules(BaseModel):
             resolution is excluded or included when `max_resolution`
             is set.
         min_chain_length: The minimum residue count a structure's
-            longest chain must reach.
+            longest chain must reach, checked after chain rules remove
+            chains.
         min_polymer_chains: The minimum number of polymer chains
-            (asym units) a structure must have.
+            (asym units) a structure must have, checked after chain
+            rules remove chains.
         include_experimental_methods: If non-empty, only these
             experimental methods are allowed.
         exclude_experimental_methods: Experimental methods that are
@@ -190,6 +197,16 @@ class QualityRules(BaseModel):
         allowed_nonstandard_residues: Non-standard residues that don't
             trigger `exclude_nonstandard_residues`.
         max_atoms: The maximum number of atoms an entry may have.
+        missing_residue_definition: What counts as a missing residue
+            for the missing-fraction rules (see `chain_completeness`).
+        max_missing_tail_fraction: Chains whose missing N- plus
+            C-terminal residues exceed this fraction of SEQRES are
+            removed.
+        max_missing_middle_fraction: Chains whose missing middle
+            residues exceed this fraction of SEQRES minus the missing
+            tails are removed.
+        max_chain_length: Chains with more observed residues than this
+            are removed.
     """
 
     max_resolution: float | None = None
@@ -209,6 +226,10 @@ class QualityRules(BaseModel):
     exclude_nonstandard_residues: bool = False
     allowed_nonstandard_residues: list[str] = Field(default_factory=list)
     max_atoms: int | None = None
+    missing_residue_definition: MissingResidueDefinition = "incomplete_backbone"
+    max_missing_tail_fraction: float | None = None
+    max_missing_middle_fraction: float | None = None
+    max_chain_length: int | None = None
 
 
 class OrganismRules(BaseModel):

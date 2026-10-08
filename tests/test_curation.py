@@ -373,3 +373,133 @@ def test_max_atoms():
         structure, None, _policy(quality_rules=QualityRules(max_atoms=704))
     )
     assert curated is not None
+
+
+def _chain_codes(exclusions):
+    return [(e.chain_id, e.reason_code) for e in exclusions]
+
+
+def test_missing_middle_drops_only_that_chain():
+    structure = _load("1aui")  # A: middle 95/473, B: none
+    curated, exclusions, _ = curate_structure(
+        structure,
+        None,
+        _policy(quality_rules=QualityRules(max_missing_middle_fraction=0.1)),
+    )
+    assert _chain_codes(exclusions) == [("A", "MISSING_MIDDLE")]
+    assert {a.label_asym_id for a in curated.atoms if a.label_seq_id} == {"B"}
+    assert "A" not in {u.id for u in curated.asym_units}
+    assert "A" in {u.id for u in structure.asym_units}  # input untouched
+
+
+def test_tail_fraction_boundary():
+    structure = _load("10mv")  # tails 39/275 = 0.1418
+    curated, exclusions, _ = curate_structure(
+        structure,
+        None,
+        _policy(quality_rules=QualityRules(max_missing_tail_fraction=0.15)),
+    )
+    assert curated is not None and exclusions == []
+    curated, exclusions, _ = curate_structure(
+        structure,
+        None,
+        _policy(quality_rules=QualityRules(max_missing_tail_fraction=0.14)),
+    )
+    assert curated is None
+    assert _chain_codes(exclusions) == [
+        ("A", "MISSING_TAILS"),
+        (None, "NO_CHAINS_LEFT"),
+    ]
+
+
+def test_all_chains_dropped_excludes_entry():
+    structure = _load("1aui")
+    curated, exclusions, _ = curate_structure(
+        structure,
+        None,
+        _policy(quality_rules=QualityRules(max_missing_tail_fraction=0.01)),
+    )
+    assert curated is None
+    assert _chain_codes(exclusions) == [
+        ("A", "MISSING_TAILS"),
+        ("B", "MISSING_TAILS"),
+        (None, "NO_CHAINS_LEFT"),
+    ]
+
+
+def test_chain_counts_checked_after_drop():
+    structure = _load("1aui")
+    curated, exclusions, _ = curate_structure(
+        structure,
+        None,
+        _policy(
+            quality_rules=QualityRules(
+                max_missing_middle_fraction=0.1, min_polymer_chains=2
+            )
+        ),
+    )
+    assert curated is None
+    assert _chain_codes(exclusions) == [
+        ("A", "MISSING_MIDDLE"),
+        (None, "TOO_FEW_CHAINS"),
+    ]
+
+
+def test_max_chain_length_drops_long_chain():
+    structure = _load("1aui")  # A: 378 observed residues, B: 165
+    curated, exclusions, _ = curate_structure(
+        structure,
+        None,
+        _policy(quality_rules=QualityRules(max_chain_length=200)),
+    )
+    assert _chain_codes(exclusions) == [("A", "CHAIN_TOO_LONG")]
+    assert curated is not None
+
+
+def test_chain_failing_two_rules_gets_one_record():
+    structure = _load("1aui")
+    _, exclusions, _ = curate_structure(
+        structure,
+        None,
+        _policy(
+            quality_rules=QualityRules(
+                max_chain_length=200, max_missing_middle_fraction=0.1
+            )
+        ),
+    )
+    assert [e.chain_id for e in exclusions] == ["A"]
+
+
+def test_chain_without_seqres_dropped_when_completeness_rule_active():
+    structure = _load("1aui")
+    raw = {k: v for k, v in structure.raw.items() if k != "_entity_poly_seq"}
+    structure = structure.model_copy(update={"raw": raw})
+    curated, exclusions, _ = curate_structure(
+        structure,
+        None,
+        _policy(quality_rules=QualityRules(max_chain_length=1000)),
+    )
+    assert curated is not None and exclusions == []  # no completeness rule
+    curated, exclusions, _ = curate_structure(
+        structure,
+        None,
+        _policy(quality_rules=QualityRules(max_missing_tail_fraction=0.5)),
+    )
+    assert curated is None
+    assert _chain_codes(exclusions) == [
+        ("A", "NO_SEQRES"),
+        ("B", "NO_SEQRES"),
+        (None, "NO_CHAINS_LEFT"),
+    ]
+
+
+def test_middle_fraction_zero_denominator_is_zero():
+    # 1p58 is a CA trace: under incomplete_backbone every residue is
+    # missing, so all of SEQRES is "tail" and the middle denominator is 0.
+    structure = _load("1p58")
+    curated, exclusions, _ = curate_structure(
+        structure,
+        None,
+        _policy(quality_rules=QualityRules(max_missing_middle_fraction=0.0)),
+    )
+    assert curated is not None and exclusions == []

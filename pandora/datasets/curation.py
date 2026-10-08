@@ -4,6 +4,7 @@ from pandora._util import now_iso
 from pandora.annotations.entry import polymer_asym_ids
 from pandora.canonicalisation import filter_ligands
 from pandora.canonicalisation.modified_residues import STANDARD_RESIDUES
+from pandora.datasets.completeness import chain_completeness
 from pandora.datasets.records import extract_chain_records
 from pandora.schemas.canonicalisation import LigandRules
 from pandora.schemas.common import DiagnosticBundle
@@ -13,6 +14,7 @@ from pandora.schemas.dataset import (
     DatasetCurationPolicy,
     DeduplicationProvenance,
     DeduplicationRules,
+    ExclusionReason,
     ExclusionRecord,
     OrganismRules,
     QualityRules,
@@ -125,7 +127,7 @@ def _check_composition(
 def _check_quality(
     structure: Structure, metadata: MetadataRecord | None, rules: QualityRules
 ) -> ExclusionRecord | None:
-    """ExclusionRecord if structure fails the resolution/method/chain-length
+    """ExclusionRecord if structure fails the resolution/method/R-factor
     quality rules, else None."""
 
     quality = metadata.quality if metadata else None
@@ -171,6 +173,101 @@ def _check_quality(
     if rfactor is not None:
         return rfactor
 
+    return None
+
+
+def _chain_exclusions(
+    structure: Structure, rules: QualityRules
+) -> list[ExclusionRecord]:
+    """One ExclusionRecord per polymer chain failing a chain rule."""
+
+    failed: dict[str, ExclusionRecord] = {}
+
+    def fail(chain_id: str, code: ExclusionReason, message: str) -> None:
+        failed.setdefault(
+            chain_id,
+            ExclusionRecord(
+                entry_id=structure.entry_id,
+                chain_id=chain_id,
+                reason_code=code,
+                message=message,
+            ),
+        )
+
+    if rules.max_chain_length is not None:
+        for chain in extract_chain_records(structure):
+            if chain.residue_count > rules.max_chain_length:
+                fail(
+                    chain.chain_id,
+                    "CHAIN_TOO_LONG",
+                    f"{chain.residue_count} residues exceed "
+                    f"max_chain_length={rules.max_chain_length}",
+                )
+
+    max_tail = rules.max_missing_tail_fraction
+    max_middle = rules.max_missing_middle_fraction
+    if max_tail is not None or max_middle is not None:
+        records, _ = chain_completeness(
+            structure, rules.missing_residue_definition
+        )
+        by_chain = {r.chain_id: r for r in records}
+        for chain_id in sorted(polymer_asym_ids(structure)):
+            c = by_chain.get(chain_id)
+            if c is None:
+                fail(
+                    chain_id,
+                    "NO_SEQRES",
+                    "completeness could not be measured against SEQRES",
+                )
+                continue
+            tails = c.missing_n_term + c.missing_c_term
+            tail_fraction = tails / c.seqres_length
+            core = c.seqres_length - tails
+            middle_fraction = c.missing_middle / core if core else 0.0
+            if max_tail is not None and tail_fraction > max_tail:
+                fail(
+                    chain_id,
+                    "MISSING_TAILS",
+                    f"missing tails {tail_fraction:.3f} exceed "
+                    f"max_missing_tail_fraction={max_tail}",
+                )
+            elif max_middle is not None and middle_fraction > max_middle:
+                fail(
+                    chain_id,
+                    "MISSING_MIDDLE",
+                    f"missing middle {middle_fraction:.3f} exceeds "
+                    f"max_missing_middle_fraction={max_middle}",
+                )
+
+    return [failed[c] for c in sorted(failed)]
+
+
+def _drop_chains(structure: Structure, chain_ids: set[str]) -> Structure:
+    """Copy of structure without the atoms and asym units of chain_ids."""
+
+    return structure.model_copy(
+        update={
+            "atoms": [
+                a for a in structure.atoms if a.label_asym_id not in chain_ids
+            ],
+            "asym_units": [
+                u for u in structure.asym_units if u.id not in chain_ids
+            ],
+        }
+    )
+
+
+def _check_chain_counts(
+    structure: Structure, rules: QualityRules, chains_dropped: bool
+) -> ExclusionRecord | None:
+    """ExclusionRecord if too few or too short chains are left, else None."""
+
+    if chains_dropped and not polymer_asym_ids(structure):
+        return ExclusionRecord(
+            entry_id=structure.entry_id,
+            reason_code="NO_CHAINS_LEFT",
+            message="every polymer chain was removed by the chain rules",
+        )
     if rules.min_chain_length is not None:
         chain_lengths = [
             record.residue_count for record in extract_chain_records(structure)
@@ -337,15 +434,24 @@ def curate_structure(
         policy_version=policy.policy_version,
     )
 
+    rules = policy.quality_rules
     exclusion = (
-        _check_quality(structure, metadata, policy.quality_rules)
+        _check_quality(structure, metadata, rules)
         or _check_organism(structure, metadata, policy.organism_rules)
-        or _check_composition(structure, policy.quality_rules)
+        or _check_composition(structure, rules)
     )
     if exclusion is not None:
         return None, [exclusion], provenance
+
+    records = _chain_exclusions(structure, rules)
+    if records:
+        structure = _drop_chains(structure, {r.chain_id for r in records})
+    exclusion = _check_chain_counts(structure, rules, bool(records))
+    if exclusion is not None:
+        return None, [*records, exclusion], provenance
+
     return (
         _apply_content_rules(structure, policy.content_rules),
-        [],
+        records,
         provenance,
     )
