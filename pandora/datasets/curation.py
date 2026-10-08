@@ -23,10 +23,16 @@ from pandora.schemas.metadata import MetadataRecord, QualityRecord
 from pandora.schemas.structure import Structure
 
 
-def _upper_set(values: list[str]) -> set[str]:
-    """Stripped, upper-cased copies of values."""
+def _norm_method(value: str) -> str:
+    """Method name upper-cased with runs of whitespace collapsed."""
 
-    return {v.strip().upper() for v in values}
+    return " ".join(value.split()).upper()
+
+
+def _upper_set(values: list[str]) -> set[str]:
+    """Normalised (`_norm_method`) copies of values."""
+
+    return {_norm_method(v) for v in values}
 
 
 def _entry_methods(quality: QualityRecord | None) -> set[str]:
@@ -40,7 +46,7 @@ def _resolution_limit(methods: set[str], rules: QualityRules) -> float | None:
     """The strictest per-method limit that applies, else max_resolution."""
 
     by_method = {
-        m.strip().upper(): limit
+        _norm_method(m): limit
         for m, limit in rules.max_resolution_by_method.items()
     }
     limits = [by_method[m] for m in methods if m in by_method]
@@ -151,17 +157,13 @@ def _check_quality(
         )
 
     method = quality.experimental_method if quality else None
-    # Case/whitespace-insensitive: raw mmCIF tokens and policy values may
-    # differ in casing (e.g. "X-RAY DIFFRACTION" vs "x-ray diffraction").
-    normalized_method = method.strip().upper() if method else None
-    include_methods = {
-        m.strip().upper() for m in rules.include_experimental_methods
-    }
-    exclude_methods = {
-        m.strip().upper() for m in rules.exclude_experimental_methods
-    }
-    if (include_methods and normalized_method not in include_methods) or (
-        normalized_method in exclude_methods
+    # Case/whitespace-insensitive, per method of a multi-method entry:
+    # raw mmCIF tokens and policy values may differ in casing (e.g.
+    # "X-RAY DIFFRACTION" vs "x-ray diffraction").
+    include_methods = _upper_set(rules.include_experimental_methods)
+    exclude_methods = _upper_set(rules.exclude_experimental_methods)
+    if (include_methods and not methods & include_methods) or (
+        methods & exclude_methods
     ):
         return ExclusionRecord(
             entry_id=structure.entry_id,

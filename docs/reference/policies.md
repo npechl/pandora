@@ -282,9 +282,9 @@ Order: entry rules (resolution, method, R-factors, organism, non-standard residu
 | Field | Default | Level | Description |
 |---|---|---|---|
 | `max_resolution` | `null` | entry | Maximum resolution (Å). Cryo-EM resolution comes from `_em_3d_reconstruction`. |
-| `max_resolution_by_method` | `{}` | entry | Per-method limits, e.g. `{"X-RAY DIFFRACTION": 2.5, "ELECTRON MICROSCOPY": 2.0}`. Overrides `max_resolution` for entries with that method; with several matching methods the strictest wins. Names match case- and whitespace-insensitively. |
+| `max_resolution_by_method` | `{}` | entry | Per-method limits, e.g. `{"X-RAY DIFFRACTION": 2.5, "ELECTRON MICROSCOPY": 2.0}`. Overrides `max_resolution` for entries with that method; with several matching methods the strictest wins. Names match regardless of case and whitespace, here and in every method list. |
 | `null_resolution_behavior` | `exclude` | entry | What happens to an entry with no resolution when a limit applies. |
-| `include_experimental_methods` / `exclude_experimental_methods` | `[]` | entry | Method allow/deny lists. |
+| `include_experimental_methods` / `exclude_experimental_methods` | `[]` | entry | Method allow/deny lists. An entry with several methods is kept if any of them is in the include list, and excluded if any is in the exclude list. |
 | `rfactor_methods` | `["X-RAY DIFFRACTION"]` | entry | Methods the R-factor rules apply to. Other methods (cryo-EM, NMR) are never checked, since they have no R-factors. An entry with no method recorded is not checked. |
 | `max_r_free` | `null` | entry | Maximum Rfree. |
 | `max_r_free_gap` | `null` | entry | Maximum \|Rfree − Rwork\|. |

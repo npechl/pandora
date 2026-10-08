@@ -503,3 +503,60 @@ def test_middle_fraction_zero_denominator_is_zero():
         _policy(quality_rules=QualityRules(max_missing_middle_fraction=0.0)),
     )
     assert curated is not None and exclusions == []
+
+
+def test_method_names_ignore_internal_whitespace():
+    structure = _load("1ayi")
+    meta = _meta(
+        "1ayi",
+        experimental_method="X-ray diffraction",
+        resolution=2.4,
+        r_free=0.30,
+    )
+    _, exclusions, _ = curate_structure(
+        structure,
+        meta,
+        _policy(
+            quality_rules=QualityRules(
+                max_resolution_by_method={"X-RAY  DIFFRACTION": 2.0}
+            )
+        ),
+    )
+    assert _codes(exclusions) == ["RESOLUTION_THRESHOLD"]
+    _, exclusions, _ = curate_structure(
+        structure,
+        meta,
+        _policy(
+            quality_rules=QualityRules(
+                rfactor_methods=["x-ray\tdiffraction"], max_r_free=0.25
+            )
+        ),
+    )
+    assert _codes(exclusions) == ["RFREE_THRESHOLD"]
+
+
+def test_method_lists_match_multi_method_entries():
+    structure = _load("1ayi")
+    meta = _meta(
+        "1ayi", experimental_method="X-ray diffraction; Neutron diffraction"
+    )
+    curated, exclusions, _ = curate_structure(
+        structure,
+        meta,
+        _policy(
+            quality_rules=QualityRules(
+                include_experimental_methods=["X-RAY DIFFRACTION"]
+            )
+        ),
+    )
+    assert curated is not None and exclusions == []
+    _, exclusions, _ = curate_structure(
+        structure,
+        meta,
+        _policy(
+            quality_rules=QualityRules(
+                exclude_experimental_methods=["neutron diffraction"]
+            )
+        ),
+    )
+    assert _codes(exclusions) == ["METHOD_EXCLUDED"]
