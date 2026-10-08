@@ -78,8 +78,12 @@ gets a `MODIFIED_RESIDUE_UNMAPPED` warning. Each mapping is recorded in a new
 `original_comp_id`, `parent_comp_id`) on `CanonicalMappings`. The
 transform label is `modified_residues:map_to_parent`.
 
-The step runs after altloc resolution and before residue renumbering,
-so `label_seq_id` still matches `_pdbx_struct_mod_residue`.
+The step runs first in `canonicalise_structure`, before chain-id
+normalisation, so `label_asym_id` and `label_seq_id` still match
+`_pdbx_struct_mod_residue`. Mapping items record the original chain id.
+"Modified residue" means a polymer residue (`label_seq_id` set) whose
+comp_id is not standard; the parser already marks polymer residues
+`ATOM`, so `group_PDB` is set only for safety.
 
 Known limit: canonicalisation diagnostics are not returned (see
 CLAUDE.md, "Known issues"), so the unmapped warning surfaces only as a
@@ -116,8 +120,12 @@ def chain_completeness(
 - Only polymer chains in `structure.asym_units` are reported.
 - A chain whose entity has no `_entity_poly_seq` rows gets no record and
   a `NO_SEQRES` diagnostic. A chain with a `label_seq_id` outside
-  `1..seqres_length` (for example after renumbering) gets no record and
-  a `SEQRES_MISMATCH` diagnostic.
+  `1..seqres_length`, or a residue whose comp_id differs from every
+  `mon_id` at that position, gets no record and a `SEQRES_MISMATCH`
+  diagnostic. A non-standard `mon_id` matches any comp_id, so a residue
+  mapped by `modified_residue_rules` (MSE → MET) still lines up.
+  Renumbering keeps ids within range, so the comp_id check is what
+  catches it.
 - A chain with no present residue has `missing_n_term = seqres_length`
   and zero elsewhere.
 
@@ -233,8 +241,8 @@ Fixtures from `datasets/dev/mmcif/` only.
 | MSE → MET with SE → SD, mapping recorded | 1b6w |
 | Mod residue with parent in `_pdbx_struct_mod_residue` mapped when listed | 1a08 (FTY → TYR) |
 | Non-standard residue excludes; allowed list lets it through | 1a08 |
-| Completeness counts tails and middle | 1p58 (75 unobserved residues) |
-| `incomplete_backbone` counts a residue with a missing CA | hand-edited copy of a fixture structure |
+| Completeness counts tails and middle | 10mv (275: 21 / 18 / 5), 1aui |
+| `incomplete_backbone` counts CA-only residues as missing | 1p58 (CA trace) |
 | Renumbered chain → `SEQRES_MISMATCH`, no record | fixture after `residue_numbering="renumber"` |
 | Per-method resolution, strictest wins | hand-built `MetadataRecord`s |
 | R-factor rules skip cryo-EM; null behaviour both ways | hand-built `MetadataRecord`s |
