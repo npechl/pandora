@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pandora.datasets.completeness import chain_completeness
 from pandora.datasets.curation import curate_structure, deduplicate_structures
 from pandora.datasets.records import (
     entry_sequences,
@@ -9,6 +10,7 @@ from pandora.datasets.records import (
 )
 
 __all__ = [
+    "chain_completeness",
     "curate_structure",
     "deduplicate_structures",
     "entry_sequences",

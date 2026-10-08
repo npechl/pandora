@@ -91,6 +91,33 @@ class InterfaceRecord(BaseModel):
     # output per chain pair.
 
 
+MissingResidueDefinition = Literal["unobserved", "incomplete_backbone"]
+
+
+class ChainCompleteness(BaseModel):
+    """How much of one polymer chain's SEQRES has coordinates.
+
+    Attributes:
+        entry_id: The structure's entry id.
+        chain_id: The chain's `label_asym_id`.
+        seqres_length: The number of positions in the chain entity's
+            `_entity_poly_seq`.
+        missing_n_term: Missing positions before the first present
+            residue.
+        missing_c_term: Missing positions after the last present
+            residue.
+        missing_middle: Missing positions between the first and last
+            present residue.
+    """
+
+    entry_id: str
+    chain_id: str
+    seqres_length: int
+    missing_n_term: int
+    missing_c_term: int
+    missing_middle: int
+
+
 # Curation ---------------------------------
 
 
