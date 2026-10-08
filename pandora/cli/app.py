@@ -30,7 +30,10 @@ from pandora.provenance.manifest import (
     build_provenance_bundle,
 )
 from pandora.schemas.annotation import AnnotationLayer
-from pandora.schemas.canonicalisation import canonicalisationProvenance
+from pandora.schemas.canonicalisation import (
+    CanonicalMappings,
+    canonicalisationProvenance,
+)
 from pandora.schemas.dataset import (
     DatasetCurationPolicy,
     DeduplicationProvenance,
@@ -224,15 +227,20 @@ def _cmd_canonicalise(args: argparse.Namespace) -> None:
 
     canonical: dict[str, Structure] = {}
     provenance: dict[str, canonicalisationProvenance] = {}
+    mappings: dict[str, CanonicalMappings] = {}
     for entry_id, structure in structures.items():
-        canonical_structure, _, prov = canonicalise_structure(structure, policy)
+        canonical_structure, entry_mappings, prov = canonicalise_structure(
+            structure, policy
+        )
         canonical[entry_id] = canonical_structure
         provenance[entry_id] = prov
+        mappings[entry_id] = entry_mappings
 
     _write_structures_dir(canonical, output_dir)
     _write_json_dict(
         provenance, output_dir / "canonicalisation_provenance.json"
     )
+    _write_json_dict(mappings, output_dir / "canonicalisation_mappings.json")
     print(f"canonicalised {len(canonical)} structures -> {output_dir}")
 
 

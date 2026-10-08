@@ -83,6 +83,10 @@ def test_canonicalise_curate_dedup_export_chain(tmp_path):
         (canonical_dir / "canonicalisation_provenance.json").read_text()
     )
     assert "104M" in canon_prov
+    canon_mappings = json.loads(
+        (canonical_dir / "canonicalisation_mappings.json").read_text()
+    )
+    assert canon_mappings["104M"]["chain_id_mapping"]["items"]
 
     curation_policy = tmp_path / "curation.yaml"
     curation_policy.write_text(
