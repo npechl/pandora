@@ -271,6 +271,37 @@ author_policy = canonicalisationPolicy(
 the no-op `keep_waters=False` under the preserve policy — see the
 warning above.)
 
+## Curation
+
+`curate_structure(structure, metadata, policy)` applies a `DatasetCurationPolicy`. Entry rules exclude the whole entry; chain rules remove failing chains and keep the rest. An entry left with no polymer chain is excluded as `NO_CHAINS_LEFT`.
+
+Order: entry rules (resolution, method, R-factors, organism, non-standard residues, `max_atoms`), then chain rules, then `min_chain_length` and `min_polymer_chains` on what is left, then content rules.
+
+### `quality_rules`
+
+| Field | Default | Level | Description |
+|---|---|---|---|
+| `max_resolution` | `null` | entry | Maximum resolution (Å). Cryo-EM resolution comes from `_em_3d_reconstruction`. |
+| `max_resolution_by_method` | `{}` | entry | Per-method limits, e.g. `{"X-RAY DIFFRACTION": 2.5, "ELECTRON MICROSCOPY": 2.0}`. Overrides `max_resolution` for entries with that method; with several matching methods the strictest wins. Names match case- and whitespace-insensitively. |
+| `null_resolution_behavior` | `exclude` | entry | What happens to an entry with no resolution when a limit applies. |
+| `include_experimental_methods` / `exclude_experimental_methods` | `[]` | entry | Method allow/deny lists. |
+| `rfactor_methods` | `["X-RAY DIFFRACTION"]` | entry | Methods the R-factor rules apply to. Other methods (cryo-EM, NMR) are never checked, since they have no R-factors. An entry with no method recorded is not checked. |
+| `max_r_free` | `null` | entry | Maximum Rfree. |
+| `max_r_free_gap` | `null` | entry | Maximum \|Rfree − Rwork\|. |
+| `max_r_sym` | `null` | entry | Maximum Rsym (`_reflns.pdbx_Rsym_value`), falling back to Rmerge (`_reflns.pdbx_Rmerge_I_obs`), the same statistic under another name. |
+| `null_rfactor_behavior` | `include` | entry | What happens when an active R-factor rule's value is missing. Defaults to `include` because many X-ray entries lack Rsym. |
+| `exclude_nonstandard_residues` | `false` | entry | Exclude an entry with any polymer residue that isn't one of the 20 amino acids, `UNK`, or a standard nucleotide. Runs on the canonical structure, so MSE mapped by `modified_residue_rules` counts as MET. |
+| `allowed_nonstandard_residues` | `[]` | entry | Residues that don't trigger the rule above. |
+| `max_atoms` | `null` | entry | Maximum atoms in the entry. Checked after parsing, so it protects later steps (contacts, export) but not the parse itself. |
+| `missing_residue_definition` | `incomplete_backbone` | chain | `unobserved`: a residue is missing when it has no atoms. `incomplete_backbone`: also when any backbone atom (N, CA, C, O) is missing. |
+| `max_missing_tail_fraction` | `null` | chain | Remove a chain whose missing N- plus C-terminal residues exceed this fraction of its SEQRES length. |
+| `max_missing_middle_fraction` | `null` | chain | Remove a chain whose missing residues between its first and last present residue exceed this fraction of SEQRES length minus the missing tails. |
+| `max_chain_length` | `null` | chain | Remove a chain with more observed residues than this. |
+| `min_chain_length` | `null` | entry | Exclude the entry if no remaining chain reaches this many residues. |
+| `min_polymer_chains` | `null` | entry | Exclude the entry if fewer polymer chains remain. |
+
+When a missing-fraction rule is set, a chain whose completeness can't be measured (no `_entity_poly_seq`, or residues that don't line up with it, for example after renumbering) is removed as `NO_SEQRES`. Use `chain_completeness()` to inspect the numbers directly.
+
 ## Similarity hit filter
 
 `HitFilter` (`pandora.schemas.similarity.HitFilter`) decides which MMseqs2/Foldseek hit rows become similarity edges when clustering (`iter_edges()`, `cluster_similar_items()`). A pair of items is an edge if any single hit row passes every threshold. `None` thresholds aren't applied; the others are inclusive (`>=`). See [Similarity](../usage/similarity.md#filtering-hits-hitfilter) for usage.

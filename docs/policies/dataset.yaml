@@ -26,6 +26,22 @@ DatasetCurationPolicy:
     null_resolution_behavior: string
     # exclude (default) | include
     min_chain_length: int | null
+    min_polymer_chains: int | null
+    max_resolution_by_method: dict[string, float]
+    rfactor_methods: list[string]
+    max_r_free: float | null
+    max_r_free_gap: float | null
+    max_r_sym: float | null
+    null_rfactor_behavior: string
+    # include (default) | exclude
+    exclude_nonstandard_residues: bool
+    allowed_nonstandard_residues: list[string]
+    max_atoms: int | null
+    missing_residue_definition: string
+    # incomplete_backbone (default) | unobserved
+    max_missing_tail_fraction: float | null
+    max_missing_middle_fraction: float | null
+    max_chain_length: int | null
     allow_incomplete_chains: bool
     allow_missing_residues: bool
     allow_missing_atoms: bool

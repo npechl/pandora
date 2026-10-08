@@ -22,12 +22,7 @@ metadata = collect_metadata(canonical)
 
 ## Curate one structure
 
-`curate_structure()` applies quality, organism, and content rules and
-returns `(curated_structure, exclusions, provenance)`. A kept entry has
-`exclusions` empty, or one record per chain the chain rules removed; an
-excluded entry has `curated_structure=None` and ends with an entry-level
-record (`chain_id=None`). Provenance is always populated, regardless of
-outcome.
+`curate_structure()` applies quality, organism, and content rules and returns `(curated_structure, exclusions, provenance)`. A kept entry has `exclusions` empty, or one record per chain the chain rules removed; an excluded entry has `curated_structure=None` and ends with an entry-level record (`chain_id=None`). Provenance is always populated, regardless of outcome.
 
 === "`library`"
 
@@ -81,11 +76,7 @@ outcome.
     ```
 
 !!! note "Migrating from the single-exclusion return"
-    Before chain-level rules, `curate_structure` returned
-    `(structure, exclusion | None, provenance)`. It now returns a list.
-    Replace `if curated is None: excluded.append(exclusion)` with
-    `excluded.extend(exclusions)`, which also keeps the records of
-    chains removed from entries that were kept.
+    Before chain-level rules, `curate_structure` returned `(structure, exclusion | None, provenance)`. It now returns a list. Replace `if curated is None: excluded.append(exclusion)` with `excluded.extend(exclusions)`, which also keeps the records of chains removed from entries that were kept.
 
     `metadata` can be `None` — quality/organism checks that depend on
     missing data (e.g. null resolution) then apply their configured
@@ -112,6 +103,28 @@ outcome.
     `curated/curation_exclusions.json`; `metadata` is always
     `collect_metadata()`'d from each structure internally, so there's no
     way to pass `metadata=None` from the CLI.
+
+Chain-level rules (`max_missing_tail_fraction`, `max_missing_middle_fraction`, `max_chain_length`) remove failing chains and keep the rest of the entry. Each removed chain gets its own `ExclusionRecord` with `chain_id` set. See the [curation policy reference](../reference/policies.md#curation) for every rule.
+
+## Chain completeness
+
+`chain_completeness()` counts each polymer chain's missing residues against SEQRES (`_entity_poly_seq`): missing at the N-terminus, at the C-terminus, and in the middle. The missing-fraction curation rules use it; you can also call it directly, for example to pick the chain with the fewest missing residues.
+
+```python
+from pandora.datasets import chain_completeness
+
+records, diagnostics = chain_completeness(canonical)
+for r in records:
+    print(
+        r.chain_id,
+        r.seqres_length,
+        r.missing_n_term,
+        r.missing_c_term,
+        r.missing_middle,
+    )
+```
+
+Run it on a structure whose `label_seq_id`s still index SEQRES. After `residue_numbering: renumber` they don't, and the chain is reported as `SEQRES_MISMATCH` instead of measured.
 
 ## Deduplicate a batch
 

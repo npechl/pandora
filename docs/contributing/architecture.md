@@ -77,6 +77,7 @@ differs; see [Annotation](../usage/annotation.md) for each one's `data` schema.
 | Function | Takes | Returns |
 |---|---|---|
 | `curate_structure()` | `Structure`, `MetadataRecord | None`, `DatasetCurationPolicy` | `(Structure | None, list[ExclusionRecord], CurationProvenance)` — `None` structure means excluded; records also cover removed chains |
+| `chain_completeness()` | `Structure`, `MissingResidueDefinition` | `(list[ChainCompleteness], DiagnosticBundle)` |
 | `deduplicate_structures()` | `list[Structure]`, `DeduplicationRules` | `(list[Structure], list[ExclusionRecord], DeduplicationProvenance)` |
 | `extract_chain_records()` | `Structure` | `list[ChainRecord]` |
 | `extract_residue_records()` | `Structure` | `list[ResidueRecord]` |
@@ -137,9 +138,7 @@ policy YAML file (see [Policies](../reference/policies.md)) deserializes into.
 
 ## Dataset curation policy
 
-`curate_structure()` filters a canonical `Structure` by quality
-(resolution, experimental method, chain length), source organism, and
-non-polymer content — governed by a much smaller `DatasetCurationPolicy`.
+`curate_structure()` filters a canonical `Structure` by quality (resolution per method, R-factors, experimental method, residue content, size, missing residues, chain length), source organism, and non-polymer content — governed by a much smaller `DatasetCurationPolicy`. Chain rules remove failing chains rather than the whole entry.
 
 <img src="../assets/diagrams/curation-policy.svg" alt="DatasetCurationPolicy entity-relationship diagram" style="max-width: 100%;">
 

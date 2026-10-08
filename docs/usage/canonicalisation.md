@@ -102,6 +102,21 @@ waters/ions — the policy `examples/overview.py` and
     # canonicalised 1 structures -> canonical/
     ```
 
+## Modified residues
+
+`modified_residue_rules` renames modified polymer residues to their parent, for example selenomethionine (`MSE`) to methionine (`MET`). It only maps residues whose parent is known from `_pdbx_struct_mod_residue` (MSE always is); see the [policy reference](../reference/policies.md#modified_residue_rules).
+
+```python
+from pandora.schemas.canonicalisation import ModifiedResidueRules
+
+policy = canonicalisationPolicy(
+    policy_id="p",
+    policy_name="p",
+    policy_version="1.0.0",
+    modified_residue_rules=ModifiedResidueRules(strategy="map_to_parent"),
+)  # MSE -> MET; mappings in CanonicalMappings.modified_residue_mapping
+```
+
 ## Filter ligands directly
 
 `filter_ligands()` is what `ligand_rules` calls internally, but it's
