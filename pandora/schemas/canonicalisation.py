@@ -166,6 +166,35 @@ class ResidueNumberMapping(BaseModel):
     items: list[ResidueNumberMappingItem] = Field(default_factory=list)
 
 
+class ModifiedResidueMappingItem(BaseModel):
+    """One modified residue renamed to its parent.
+
+    Attributes:
+        chain_id: The residue's original `label_asym_id`.
+        seq_id: The residue's `label_seq_id`.
+        auth_seq_id: The residue's `auth_seq_id`.
+        original_comp_id: The modified residue's comp_id (e.g. "MSE").
+        parent_comp_id: The standard parent it was renamed to (e.g.
+            "MET").
+    """
+
+    chain_id: str
+    seq_id: int | None = None
+    auth_seq_id: str | None = None
+    original_comp_id: str
+    parent_comp_id: str
+
+
+class ModifiedResidueMapping(BaseModel):
+    """Every modified residue renamed during one canonicalisation run.
+
+    Attributes:
+        items: One entry per renamed residue.
+    """
+
+    items: list[ModifiedResidueMappingItem] = Field(default_factory=list)
+
+
 # canonicalisation rules ----------------------
 
 ChainIdStrategy = Literal["preserve", "remap", "use_auth_chain_id"]
@@ -197,6 +226,7 @@ AssemblyStrategy = Literal[
 PreferredAssemblySource = Literal["author", "pdbe", "pdbx", "first"]
 EntityStrategy = Literal["preserve", "standardize", "merge_equivalent_entities"]
 LigandStrategy = Literal["preserve", "filter", "annotate_only"]
+ModifiedResidueStrategy = Literal["preserve", "map_to_parent"]
 ValidationStrictness = Literal["strict", "moderate", "permissive"]
 
 
@@ -380,6 +410,20 @@ class LigandRules(BaseModel):
     keep_nonpolymer_ligands: bool = True
 
 
+class ModifiedResidueRules(BaseModel):
+    """Canonicalisation policy for modified polymer residues.
+
+    Attributes:
+        strategy: Kept as-is, or renamed to the parent residue given by
+            `_pdbx_struct_mod_residue` (MSE always maps to MET).
+        comp_ids: Which modified residues to map. Empty means every
+            modified residue with a known parent.
+    """
+
+    strategy: ModifiedResidueStrategy = "preserve"
+    comp_ids: list[str] = Field(default_factory=lambda: ["MSE"])
+
+
 class ValidationRules(BaseModel):
     """Policy for how canonicalisation validation issues are treated.
 
@@ -431,6 +475,8 @@ class CanonicalMappings(BaseModel):
         entity_mapping: The entity id mapping produced by this run.
         altloc_selection_mapping: The altloc selections made during
             this run.
+        modified_residue_mapping: The modified residues renamed during
+            this run.
     """
 
     chain_id_mapping: ChainIdMapping = Field(default_factory=ChainIdMapping)
@@ -441,6 +487,9 @@ class CanonicalMappings(BaseModel):
     entity_mapping: EntityMapping = Field(default_factory=EntityMapping)
     altloc_selection_mapping: AltlocSelectionMapping = Field(
         default_factory=AltlocSelectionMapping
+    )
+    modified_residue_mapping: ModifiedResidueMapping = Field(
+        default_factory=ModifiedResidueMapping
     )
 
 
@@ -461,6 +510,7 @@ class canonicalisationPolicy(BaseModel):
         assembly_rules: The assembly selection rules.
         entity_rules: The entity id rules.
         ligand_rules: The ligand/water/ion filtering rules.
+        modified_residue_rules: The modified-residue mapping rules.
         validation_rules: The validation strictness rules.
         provenance_rules: Which provenance is recorded for this run.
     """
@@ -477,6 +527,9 @@ class canonicalisationPolicy(BaseModel):
     assembly_rules: AssemblyRules = Field(default_factory=AssemblyRules)
     entity_rules: EntityRules = Field(default_factory=EntityRules)
     ligand_rules: LigandRules = Field(default_factory=LigandRules)
+    modified_residue_rules: ModifiedResidueRules = Field(
+        default_factory=ModifiedResidueRules
+    )
     validation_rules: ValidationRules = Field(default_factory=ValidationRules)
     provenance_rules: canonicalisationProvenanceRules = Field(
         default_factory=canonicalisationProvenanceRules

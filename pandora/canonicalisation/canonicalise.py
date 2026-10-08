@@ -32,6 +32,7 @@ from pandora.canonicalisation.missing_data import (
     _handle_incomplete_chains,
 )
 from pandora.canonicalisation.ligands import filter_ligands
+from pandora.canonicalisation.modified_residues import _map_modified_residues
 from pandora.canonicalisation.validation import _validate
 
 
@@ -41,7 +42,8 @@ def canonicalise_structure(
 ) -> tuple[Structure, CanonicalMappings, canonicalisationProvenance]:
     """Convert a parsed structure into a canonical structure.
 
-    Applies chain ID normalization, assembly normalization, missing-data
+    Applies modified-residue mapping, chain ID normalization, assembly
+    normalization, missing-data
     handling, altloc resolution, residue renumbering, entity
     normalization, and ligand filtering, in that order, according to the
     given policy. Each
@@ -59,7 +61,7 @@ def canonicalise_structure(
             - The canonicalised `Structure`.
             - `CanonicalMappings` recording original-to-canonical
               identifier mappings for chains, residues, assemblies,
-              entities, and altloc selections.
+              entities, altloc selections, and modified residues.
             - `canonicalisationProvenance` describing which policy was
               applied, which transforms ran, and diagnostic counts.
     """
@@ -69,6 +71,7 @@ def canonicalise_structure(
     asmr = policy.assembly_rules
     er = policy.entity_rules
     lr = policy.ligand_rules
+    mrr = policy.modified_residue_rules
     vr = policy.validation_rules
     pr = policy.provenance_rules
 
@@ -82,6 +85,19 @@ def canonicalise_structure(
     assemblies: list[AssemblyRecord] = list(structure.assemblies)
     connections: list[ConnRecord] = list(structure.connections)
     secondary_structure: SSRecord = structure.secondary_structure
+
+    # map_modified_residues --------------------------------
+    # First, so chain ids and seq ids still match
+    # _pdbx_struct_mod_residue.
+    atoms, modified_residue_mapping = _map_modified_residues(
+        atoms,
+        structure.raw.get("_pdbx_struct_mod_residue", []),
+        mrr,
+        diagnostics,
+        structure.entry_id,
+    )
+    if mrr.strategy != "preserve":
+        transforms.append(f"modified_residues:{mrr.strategy}")
 
     # normalize_chain_ids --------------------------------
     chain_map, chain_id_mapping = _normalize_chain_ids(
@@ -202,6 +218,7 @@ def canonicalise_structure(
         assembly_mapping=assembly_mapping,
         entity_mapping=entity_mapping,
         altloc_selection_mapping=altloc_selection_mapping,
+        modified_residue_mapping=modified_residue_mapping,
     )
 
     provenance = canonicalisationProvenance(

@@ -11,6 +11,7 @@ from pandora.canonicalisation.chain_ids import (
 )
 from pandora.canonicalisation.entities import _normalize_entities
 from pandora.canonicalisation.ligands import filter_ligands
+from pandora.canonicalisation.modified_residues import _map_modified_residues
 from pandora.canonicalisation.missing_data import (
     _handle_incomplete_chains,
     _handle_missing_atoms,
@@ -29,6 +30,7 @@ from pandora.schemas.canonicalisation import (
     MissingAtomsRules,
     MissingDataRules,
     MissingResiduesRules,
+    ModifiedResidueRules,
     ResidueNumberingRules,
     ValidationRules,
     canonicalisationPolicy,
@@ -1030,3 +1032,96 @@ def test_renumber_does_not_hide_sequence_gaps():
         a.label_asym_id for a in canonical.atoms if a.group_PDB == "ATOM"
     }
     assert polymer_chains == {"A", "C"}
+
+
+def test_modified_residues_preserved_by_default():
+    structure = _load("1b6w")
+    canonical, mappings, _ = canonicalise_structure(
+        structure, _lenient_policy()
+    )
+    assert any(a.label_comp_id == "MSE" for a in canonical.atoms)
+    assert mappings.modified_residue_mapping.items == []
+
+
+def test_mse_mapped_to_met():
+    structure = _load("1b6w")
+    policy = _lenient_policy(
+        modified_residue_rules=ModifiedResidueRules(strategy="map_to_parent")
+    )
+    canonical, mappings, provenance = canonicalise_structure(structure, policy)
+
+    assert not any(a.label_comp_id == "MSE" for a in canonical.atoms)
+    residue_35 = [
+        a
+        for a in canonical.atoms
+        if a.label_asym_id == "A" and a.label_seq_id == 35
+    ]
+    assert residue_35
+    assert all(
+        a.label_comp_id == "MET" and a.auth_comp_id == "MET" for a in residue_35
+    )
+    assert {
+        (i.chain_id, i.seq_id, i.original_comp_id, i.parent_comp_id)
+        for i in mappings.modified_residue_mapping.items
+    } == {("A", 1, "MSE", "MET"), ("A", 35, "MSE", "MET")}
+    assert "modified_residues:map_to_parent" in provenance.transforms
+    # input untouched
+    assert any(a.label_comp_id == "MSE" for a in structure.atoms)
+
+
+def test_mse_selenium_becomes_sulfur_delta():
+    se = _atom(label_comp_id="MSE", atom_id="SE").model_copy(
+        update={"type_symbol": "SE", "auth_atom_id": "SE"}
+    )
+    atoms, mapping = _map_modified_residues(
+        [se],
+        [],
+        ModifiedResidueRules(strategy="map_to_parent"),
+        DiagnosticBundle(),
+        "test",
+    )
+    assert atoms[0].label_comp_id == "MET"
+    assert atoms[0].label_atom_id == "SD"
+    assert atoms[0].auth_atom_id == "SD"
+    assert atoms[0].type_symbol == "S"
+    assert len(mapping.items) == 1
+    assert se.label_atom_id == "SE"
+
+
+def test_listed_modified_residue_mapped_from_mod_residue_table():
+    structure = _load("1a08")
+    diagnostics = DiagnosticBundle()
+    atoms, mapping = _map_modified_residues(
+        list(structure.atoms),
+        structure.raw["_pdbx_struct_mod_residue"],
+        ModifiedResidueRules(strategy="map_to_parent", comp_ids=["FTY"]),
+        diagnostics,
+        structure.entry_id,
+    )
+    assert not any(a.label_comp_id == "FTY" for a in atoms)
+    assert {
+        (i.chain_id, i.seq_id, i.parent_comp_id) for i in mapping.items
+    } == {("B", 2, "TYR"), ("D", 2, "TYR")}
+    # ACE and DIP were not asked for: untouched, no warning
+    assert any(a.label_comp_id == "ACE" for a in atoms)
+    assert diagnostics.warnings == []
+
+
+def test_unmapped_modified_residue_gets_warning_not_guess():
+    structure = _load("1a08")
+    diagnostics = DiagnosticBundle()
+    atoms, _ = _map_modified_residues(
+        list(structure.atoms),
+        structure.raw["_pdbx_struct_mod_residue"],
+        ModifiedResidueRules(strategy="map_to_parent", comp_ids=[]),
+        diagnostics,
+        structure.entry_id,
+    )
+    assert not any(a.label_comp_id == "FTY" for a in atoms)
+    assert any(a.label_comp_id == "ACE" for a in atoms)
+    unmapped = {
+        d.context["comp_id"]
+        for d in diagnostics.warnings
+        if d.code == "MODIFIED_RESIDUE_UNMAPPED"
+    }
+    assert unmapped == {"ACE", "DIP"}

@@ -145,6 +145,13 @@ CanonicalisationPolicy:
     keep_nonpolymer_ligands: bool
     # Active when strategy == "filter". Ignored otherwise.
 
+  modified_residue_rules:
+    strategy: string
+    # preserve      — Keep modified residues as reported (default).
+    # map_to_parent — Rename listed residues to their parent residue.
+    comp_ids: list[string]
+    # Residues to map (default ["MSE"]); empty = every one with a parent.
+
   validation_rules:
     strictness: string
     # strict     — All warning_rules are treated as errors.

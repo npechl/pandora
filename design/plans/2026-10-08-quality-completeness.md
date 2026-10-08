@@ -212,8 +212,7 @@ def test_mse_mapped_to_met():
     ]
     assert residue_35
     assert all(
-        a.label_comp_id == "MET" and a.auth_comp_id == "MET"
-        for a in residue_35
+        a.label_comp_id == "MET" and a.auth_comp_id == "MET" for a in residue_35
     )
     assert {
         (i.chain_id, i.seq_id, i.original_comp_id, i.parent_comp_id)
@@ -254,7 +253,9 @@ def test_listed_modified_residue_mapped_from_mod_residue_table():
         structure.entry_id,
     )
     assert not any(a.label_comp_id == "FTY" for a in atoms)
-    assert {(i.chain_id, i.seq_id, i.parent_comp_id) for i in mapping.items} == {
+    assert {
+        (i.chain_id, i.seq_id, i.parent_comp_id) for i in mapping.items
+    } == {
         ("B", 2, "TYR"),
         ("D", 2, "TYR"),
     }
@@ -772,9 +773,7 @@ def chain_completeness(
     diagnostics = DiagnosticBundle()
     seqres = _seqres_by_entity(structure)
     backbone_by_entity = _backbone_by_entity(structure.entities)
-    polymer_entities = {
-        e.id for e in structure.entities if e.type == "polymer"
-    }
+    polymer_entities = {e.id for e in structure.entities if e.type == "polymer"}
 
     # chain -> seq_id -> (comp_id, atom names)
     residues: dict[str, dict[int, tuple[str, set[str]]]] = defaultdict(dict)
@@ -1051,7 +1050,9 @@ def test_cryo_em_entry_passes_resolution_rule_with_real_metadata():
     structure = _load("22jy")
     metadata = collect_metadata(structure)
     curated, exclusions, _ = curate_structure(
-        structure, metadata, _policy(quality_rules=QualityRules(max_resolution=3.5))
+        structure,
+        metadata,
+        _policy(quality_rules=QualityRules(max_resolution=3.5)),
     )
     assert curated is not None and exclusions == []
 
@@ -1072,8 +1073,12 @@ def test_resolution_by_method_falls_back_to_max_resolution():
         max_resolution=3.0,
         max_resolution_by_method={"Electron Microscopy": 2.0},
     )
-    meta = _meta("1ayi", experimental_method="X-ray diffraction", resolution=2.4)
-    curated, exclusions, _ = curate_structure(structure, meta, _policy(quality_rules=rules))
+    meta = _meta(
+        "1ayi", experimental_method="X-ray diffraction", resolution=2.4
+    )
+    curated, exclusions, _ = curate_structure(
+        structure, meta, _policy(quality_rules=rules)
+    )
     assert curated is not None and exclusions == []
 
 
@@ -1090,7 +1095,9 @@ def test_resolution_by_method_strictest_wins():
         experimental_method="X-ray diffraction; Neutron diffraction",
         resolution=2.4,
     )
-    _, exclusions, _ = curate_structure(structure, meta, _policy(quality_rules=rules))
+    _, exclusions, _ = curate_structure(
+        structure, meta, _policy(quality_rules=rules)
+    )
     assert _codes(exclusions) == ["RESOLUTION_THRESHOLD"]
 
 
@@ -1110,15 +1117,21 @@ def test_rfactor_rules():
         (QualityRules(max_r_free=0.35, max_r_free_gap=0.11, max_r_sym=0.2), []),
     ]
     for rules, expected in cases:
-        _, exclusions, _ = curate_structure(structure, meta, _policy(quality_rules=rules))
+        _, exclusions, _ = curate_structure(
+            structure, meta, _policy(quality_rules=rules)
+        )
         assert _codes(exclusions) == expected, rules
 
 
 def test_rfactor_rules_skip_cryo_em():
     structure = _load("1ayi")
-    meta = _meta("1ayi", experimental_method="Electron Microscopy", resolution=2.0)
+    meta = _meta(
+        "1ayi", experimental_method="Electron Microscopy", resolution=2.0
+    )
     rules = QualityRules(max_r_free=0.25, null_rfactor_behavior="exclude")
-    curated, exclusions, _ = curate_structure(structure, meta, _policy(quality_rules=rules))
+    curated, exclusions, _ = curate_structure(
+        structure, meta, _policy(quality_rules=rules)
+    )
     assert curated is not None and exclusions == []
 
 
@@ -1144,7 +1157,9 @@ def test_null_rfactor_behavior():
 def test_rfactor_rules_skip_entries_without_metadata():
     structure = _load("1ayi")
     rules = QualityRules(max_r_free=0.25, null_rfactor_behavior="exclude")
-    curated, exclusions, _ = curate_structure(structure, None, _policy(quality_rules=rules))
+    curated, exclusions, _ = curate_structure(
+        structure, None, _policy(quality_rules=rules)
+    )
     assert curated is not None and exclusions == []
 
 
@@ -1503,7 +1518,9 @@ def test_chain_without_seqres_dropped_when_completeness_rule_active():
     raw = {k: v for k, v in structure.raw.items() if k != "_entity_poly_seq"}
     structure = structure.model_copy(update={"raw": raw})
     curated, exclusions, _ = curate_structure(
-        structure, None, _policy(quality_rules=QualityRules(max_chain_length=1000))
+        structure,
+        None,
+        _policy(quality_rules=QualityRules(max_chain_length=1000)),
     )
     assert curated is not None and exclusions == []  # no completeness rule
     curated, exclusions, _ = curate_structure(
@@ -1543,12 +1560,10 @@ Add to `ExclusionReason`: `"MISSING_TAILS"`, `"MISSING_MIDDLE"`, `"CHAIN_TOO_LON
 Add to `QualityRules` (after `max_atoms`). `MissingResidueDefinition` is defined earlier in the same module (Task 3):
 
 ```python
-    missing_residue_definition: MissingResidueDefinition = (
-        "incomplete_backbone"
-    )
-    max_missing_tail_fraction: float | None = None
-    max_missing_middle_fraction: float | None = None
-    max_chain_length: int | None = None
+missing_residue_definition: MissingResidueDefinition = "incomplete_backbone"
+max_missing_tail_fraction: float | None = None
+max_missing_middle_fraction: float | None = None
+max_chain_length: int | None = None
 ```
 
 Docstring:
@@ -1613,8 +1628,11 @@ def _chain_exclusions(
         for chain_id in sorted(polymer_asym_ids(structure)):
             c = by_chain.get(chain_id)
             if c is None:
-                fail(chain_id, "NO_SEQRES", "completeness could not be "
-                     "measured against SEQRES")
+                fail(
+                    chain_id,
+                    "NO_SEQRES",
+                    "completeness could not be measured against SEQRES",
+                )
                 continue
             tails = c.missing_n_term + c.missing_c_term
             tail_fraction = tails / c.seqres_length
