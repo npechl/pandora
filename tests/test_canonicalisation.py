@@ -1125,3 +1125,20 @@ def test_unmapped_modified_residue_gets_warning_not_guess():
         if d.code == "MODIFIED_RESIDUE_UNMAPPED"
     }
     assert unmapped == {"ACE", "DIP"}
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="standardize_biological_assembly keeps chains that are not "
+    "in the selected assembly",
+)
+def test_assembly_expansion_keeps_only_assembly_chains():
+    # 13dg: assembly 1 is chains A-D under operators 1, 2, 3; E-H belong
+    # to assembly 2.
+    policy = _lenient_policy(
+        assembly_rules=AssemblyRules(strategy="standardize_biological_assembly")
+    )
+    canonical, _, _ = canonicalise_structure(_load("13dg"), policy)
+    source_chains = {u.id.split("_")[0] for u in canonical.asym_units}
+    assert source_chains == {"A", "B", "C", "D"}
+    assert len(canonical.asym_units) == 12
