@@ -134,17 +134,20 @@ ExclusionReason = Literal[
 
 
 class ExclusionRecord(BaseModel):
-    """Record of why one structure was excluded during curation or
-    deduplication.
+    """Record of why one structure, or one chain of it, was excluded
+    during curation or deduplication.
 
     Attributes:
         entry_id: The excluded structure's entry id.
+        chain_id: The excluded chain's `label_asym_id`, or None when
+            the whole entry was excluded.
         reason_code: A machine-readable reason the structure was
             excluded.
         message: A human-readable description of the exclusion.
     """
 
     entry_id: str
+    chain_id: str | None = None
     reason_code: ExclusionReason
     message: str
 

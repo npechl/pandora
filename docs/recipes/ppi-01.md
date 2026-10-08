@@ -70,11 +70,11 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
     # 1b. Curate + deduplicate.
     exclusions = []
     for entry_id in list(structures):
-        curated, exclusion, _ = curate_structure(
+        curated, records, _ = curate_structure(
             structures[entry_id], None, curation_policy
         )
+        exclusions.extend(records)
         if curated is None:
-            exclusions.append(exclusion)
             del structures[entry_id]
         else:
             structures[entry_id] = curated
@@ -205,11 +205,11 @@ Both default policies here — an empty `DatasetCurationPolicy` and `Deduplicati
 ```python linenums="1"
 exclusions = []
 for entry_id in list(structures):
-    curated, exclusion, _ = curate_structure(
+    curated, records, _ = curate_structure(
         structures[entry_id], None, curation_policy
     )
+    exclusions.extend(records)
     if curated is None:
-        exclusions.append(exclusion)
         del structures[entry_id]
     else:
         structures[entry_id] = curated

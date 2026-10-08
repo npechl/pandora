@@ -76,7 +76,7 @@ differs; see [Annotation](../usage/annotation.md) for each one's `data` schema.
 
 | Function | Takes | Returns |
 |---|---|---|
-| `curate_structure()` | `Structure`, `MetadataRecord | None`, `DatasetCurationPolicy` | `(Structure | None, ExclusionRecord | None, CurationProvenance)` — `None` structure means excluded |
+| `curate_structure()` | `Structure`, `MetadataRecord | None`, `DatasetCurationPolicy` | `(Structure | None, list[ExclusionRecord], CurationProvenance)` — `None` structure means excluded; records also cover removed chains |
 | `deduplicate_structures()` | `list[Structure]`, `DeduplicationRules` | `(list[Structure], list[ExclusionRecord], DeduplicationProvenance)` |
 | `extract_chain_records()` | `Structure` | `list[ChainRecord]` |
 | `extract_residue_records()` | `Structure` | `list[ResidueRecord]` |

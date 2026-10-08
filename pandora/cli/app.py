@@ -249,11 +249,10 @@ def _cmd_curate(args: argparse.Namespace) -> None:
     exclusions: list[ExclusionRecord] = []
     for entry_id, structure in structures.items():
         metadata = collect_metadata(structure)
-        curated, exclusion, prov = curate_structure(structure, metadata, policy)
+        curated, records, prov = curate_structure(structure, metadata, policy)
         provenance[entry_id] = prov
-        if curated is None:
-            exclusions.append(exclusion)
-        else:
+        exclusions.extend(records)
+        if curated is not None:
             retained[entry_id] = curated
 
     _write_structures_dir(retained, output_dir)
@@ -261,8 +260,8 @@ def _cmd_curate(args: argparse.Namespace) -> None:
     if exclusions:
         write_records(exclusions, output_dir / "curation_exclusions.json")
     print(
-        f"curated: {len(retained)} retained, {len(exclusions)} excluded "
-        f"-> {output_dir}"
+        f"curated: {len(retained)} retained, "
+        f"{len(structures) - len(retained)} excluded -> {output_dir}"
     )
 
 

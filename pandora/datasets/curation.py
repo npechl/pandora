@@ -205,7 +205,7 @@ def curate_structure(
     structure: Structure,
     metadata: MetadataRecord | None,
     policy: DatasetCurationPolicy,
-) -> tuple[Structure | None, ExclusionRecord | None, CurationProvenance]:
+) -> tuple[Structure | None, list[ExclusionRecord], CurationProvenance]:
     """Apply quality, organism, and content rules to one structure.
 
     Args:
@@ -217,11 +217,13 @@ def curate_structure(
         policy: The curation policy governing every rule applied.
 
     Returns:
-        `(curated_structure, None, provenance)` if the structure
-        passes selection (with content rules applied), or
-        `(None, exclusion, provenance)` if it was excluded. Provenance
-        (which policy id/version ran, and when) is always populated,
-        regardless of outcome.
+        `(curated_structure, exclusions, provenance)`. When the entry
+        is kept, `curated_structure` has content rules applied and
+        failing chains removed, and `exclusions` holds one record per
+        removed chain. When the entry is excluded, `curated_structure`
+        is None and the last record in `exclusions` has
+        `chain_id=None`. Provenance (which policy id/version ran, and
+        when) is always populated.
     """
 
     provenance = CurationProvenance(
@@ -235,9 +237,9 @@ def curate_structure(
         structure, metadata, policy.quality_rules
     ) or _check_organism(structure, metadata, policy.organism_rules)
     if exclusion is not None:
-        return None, exclusion, provenance
+        return None, [exclusion], provenance
     return (
         _apply_content_rules(structure, policy.content_rules),
-        None,
+        [],
         provenance,
     )

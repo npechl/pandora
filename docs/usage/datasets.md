@@ -23,9 +23,11 @@ metadata = collect_metadata(canonical)
 ## Curate one structure
 
 `curate_structure()` applies quality, organism, and content rules and
-returns either `(curated_structure, None, provenance)` or
-`(None, exclusion, provenance)` — provenance is always populated,
-regardless of outcome.
+returns `(curated_structure, exclusions, provenance)`. A kept entry has
+`exclusions` empty, or one record per chain the chain rules removed; an
+excluded entry has `curated_structure=None` and ends with an entry-level
+record (`chain_id=None`). Provenance is always populated, regardless of
+outcome.
 
 === "`library`"
 
@@ -36,11 +38,11 @@ regardless of outcome.
     curation_policy = DatasetCurationPolicy(
         policy_id="c1", policy_name="Default", policy_version="1.0.0"
     )
-    curated, exclusion, provenance = curate_structure(
+    curated, exclusions, provenance = curate_structure(
         canonical, metadata, curation_policy
     )
-    print(curated is not None, exclusion)
-    # True None
+    print(curated is not None, exclusions)
+    # True []
     ```
 
     A structure that fails a rule comes back excluded, with a
@@ -53,8 +55,8 @@ regardless of outcome.
         policy_version="1.0.0",
         quality_rules=QualityRules(max_resolution=1.0),
     )
-    curated, exclusion, _ = curate_structure(canonical, metadata, strict_policy)
-    print(exclusion.reason_code, "-", exclusion.message)
+    curated, exclusions, _ = curate_structure(canonical, metadata, strict_policy)
+    print(exclusions[0].reason_code, "-", exclusions[0].message)
     # RESOLUTION_THRESHOLD - resolution 1.71 exceeds max_resolution 1.0
     ```
 
@@ -77,6 +79,13 @@ regardless of outcome.
     print(len(canonical.atoms), "->", len(curated.atoms))
     # 1450 -> 1217
     ```
+
+!!! note "Migrating from the single-exclusion return"
+    Before chain-level rules, `curate_structure` returned
+    `(structure, exclusion | None, provenance)`. It now returns a list.
+    Replace `if curated is None: excluded.append(exclusion)` with
+    `excluded.extend(exclusions)`, which also keeps the records of
+    chains removed from entries that were kept.
 
     `metadata` can be `None` — quality/organism checks that depend on
     missing data (e.g. null resolution) then apply their configured

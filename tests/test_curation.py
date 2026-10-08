@@ -33,11 +33,11 @@ def test_curate_structure_pass_and_fail():
     metadata = collect_metadata(structure)
     policy = _policy()
 
-    curated, exclusion, provenance = curate_structure(
+    curated, exclusions, provenance = curate_structure(
         structure, metadata, policy
     )
     assert curated is not None
-    assert exclusion is None
+    assert exclusions == []
     assert provenance.policy_id == "test"
     assert provenance.policy_version == "1.0.0"
 
@@ -46,11 +46,11 @@ def test_curate_structure_pass_and_fail():
             max_resolution=metadata.quality.resolution - 0.01
         )
     )
-    curated, exclusion, provenance = curate_structure(
+    curated, exclusions, provenance = curate_structure(
         structure, metadata, tight_policy
     )
     assert curated is None
-    assert exclusion.reason_code == "RESOLUTION_THRESHOLD"
+    assert [e.reason_code for e in exclusions] == ["RESOLUTION_THRESHOLD"]
     # provenance is populated on exclusion too, so callers always know
     # which policy made the call.
     assert provenance.policy_id == "test"
@@ -59,19 +59,19 @@ def test_curate_structure_pass_and_fail():
 def test_missing_metadata_treated_as_unknown_not_skipped():
     structure = _load("1ayi")
 
-    curated, exclusion, _ = curate_structure(structure, None, _policy())
+    curated, exclusions, _ = curate_structure(structure, None, _policy())
     assert curated is not None
-    assert exclusion is None
+    assert exclusions == []
 
     # No metadata means resolution is unknown, same as a null resolution —
     # excluded by default, retained only if null_resolution_behavior="include".
-    curated, exclusion, _ = curate_structure(
+    curated, exclusions, _ = curate_structure(
         structure, None, _policy(quality_rules=QualityRules(max_resolution=0.1))
     )
     assert curated is None
-    assert exclusion.reason_code == "NULL_RESOLUTION"
+    assert [e.reason_code for e in exclusions] == ["NULL_RESOLUTION"]
 
-    curated, exclusion, _ = curate_structure(
+    curated, exclusions, _ = curate_structure(
         structure,
         None,
         _policy(
@@ -81,21 +81,21 @@ def test_missing_metadata_treated_as_unknown_not_skipped():
         ),
     )
     assert curated is not None
-    assert exclusion is None
+    assert exclusions == []
 
 
 def test_min_polymer_chains_excludes_too_few_chains():
     structure = _load("1ayi")  # one polymer chain (A) + water (B)
 
     policy = _policy(quality_rules=QualityRules(min_polymer_chains=2))
-    curated, exclusion, _ = curate_structure(structure, None, policy)
+    curated, exclusions, _ = curate_structure(structure, None, policy)
     assert curated is None
-    assert exclusion.reason_code == "TOO_FEW_CHAINS"
+    assert [e.reason_code for e in exclusions] == ["TOO_FEW_CHAINS"]
 
     policy = _policy(quality_rules=QualityRules(min_polymer_chains=1))
-    curated, exclusion, _ = curate_structure(structure, None, policy)
+    curated, exclusions, _ = curate_structure(structure, None, policy)
     assert curated is not None
-    assert exclusion is None
+    assert exclusions == []
 
 
 def test_organism_filter_requires_taxonomy():
@@ -103,10 +103,13 @@ def test_organism_filter_requires_taxonomy():
     metadata = collect_metadata(structure)
     policy = _policy(organism_rules=OrganismRules(include_taxa=["9999999"]))
 
-    curated, exclusion, _ = curate_structure(structure, metadata, policy)
+    curated, exclusions, _ = curate_structure(structure, metadata, policy)
 
     assert curated is None
-    assert exclusion.reason_code in ("MISSING_TAXONOMY", "ORGANISM_EXCLUDED")
+    assert [e.reason_code for e in exclusions] in (
+        ["MISSING_TAXONOMY"],
+        ["ORGANISM_EXCLUDED"],
+    )
 
 
 def test_content_rules_strip_ligands():
@@ -120,9 +123,9 @@ def test_content_rules_strip_ligands():
         )
     )
 
-    curated, exclusion, _ = curate_structure(structure, None, policy)
+    curated, exclusions, _ = curate_structure(structure, None, policy)
 
-    assert exclusion is None
+    assert exclusions == []
     assert not any(a.group_PDB == "HETATM" for a in curated.atoms)
 
 
@@ -166,7 +169,19 @@ def test_experimental_method_filter_matches_mmcif_method_values():
         )
     )
 
-    curated, exclusion, _ = curate_structure(structure, metadata, policy)
+    curated, exclusions, _ = curate_structure(structure, metadata, policy)
 
-    assert exclusion is None
+    assert exclusions == []
     assert curated is not None
+
+
+def test_entry_exclusion_has_no_chain_id():
+    structure = _load("1ayi")
+    _, exclusions, _ = curate_structure(
+        structure,
+        None,
+        _policy(quality_rules=QualityRules(max_resolution=0.1)),
+    )
+    assert [(e.reason_code, e.chain_id) for e in exclusions] == [
+        ("NULL_RESOLUTION", None)
+    ]

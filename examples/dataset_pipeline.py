@@ -86,11 +86,11 @@ ENTRY_IDS = list(structures)
 # 1b. Curate + deduplicate ---------------------------------------------------
 exclusions = []
 for entry_id in list(ENTRY_IDS):
-    curated, exclusion, _ = curate_structure(
+    curated, records, _ = curate_structure(
         structures[entry_id], None, curation_policy
     )
+    exclusions.extend(records)
     if curated is None:
-        exclusions.append(exclusion)
         del structures[entry_id]
     else:
         structures[entry_id] = curated

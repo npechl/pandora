@@ -192,11 +192,11 @@ def reproduce_dataset(
     if manifest.curation_policy is not None:
         for entry_id in list(structures):
             metadata = collect_metadata(structures[entry_id])
-            curated, exclusion, _ = curate_structure(
+            curated, records, _ = curate_structure(
                 structures[entry_id], metadata, manifest.curation_policy
             )
+            excluded.extend(records)
             if curated is None:
-                excluded.append(exclusion)
                 del structures[entry_id]
             else:
                 structures[entry_id] = curated
