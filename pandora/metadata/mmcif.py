@@ -155,23 +155,27 @@ def extract_taxonomy(structure: Structure) -> TaxonomyRecord | None:
 def extract_quality(structure: Structure) -> QualityRecord | None:
     """Extract experimental quality metrics reported in mmCIF.
 
-    Reads the `_exptl`, `_refine`, and `_reflns` categories for the
-    experimental method, resolution, R-work/R-free, reflection counts,
-    and mean B-factor.
+    Reads the `_exptl`, `_refine`, `_reflns` and
+    `_em_3d_reconstruction` categories for the experimental method,
+    resolution, R-work/R-free, Rsym/Rmerge, reflection counts, and mean
+    B-factor. Resolution comes from `_refine`, falling back to
+    `_em_3d_reconstruction` (cryo-EM).
 
     Args:
         structure: The parsed structure to extract quality data from.
 
     Returns:
         A `QualityRecord`, or `None` if none of `_exptl`, `_refine`,
-        or `_reflns` are present in the structure.
+        `_reflns` or `_em_3d_reconstruction` are present in the
+        structure.
     """
 
     exptl_rows = raw_rows(structure, "_exptl")
     refine = first_row(structure, "_refine")
     reflns = first_row(structure, "_reflns")
+    em = first_row(structure, "_em_3d_reconstruction")
 
-    if not exptl_rows and not refine and not reflns:
+    if not exptl_rows and not refine and not reflns and not em:
         return None
 
     methods = [
@@ -180,15 +184,24 @@ def extract_quality(structure: Structure) -> QualityRecord | None:
         if method is not None
     ]
 
+    categories = "_exptl,_refine,_reflns"
+    resolution = as_float(refine.get("ls_d_res_high"))
+    if resolution is None:
+        resolution = as_float(em.get("resolution"))
+        if resolution is not None:
+            categories += ",_em_3d_reconstruction"
+
     return QualityRecord(
         experimental_method="; ".join(methods) if methods else None,
-        resolution=as_float(refine.get("ls_d_res_high")),
+        resolution=resolution,
         r_work=as_float(refine.get("ls_R_factor_R_work")),
         r_free=as_float(refine.get("ls_R_factor_R_free")),
+        r_sym=as_float(reflns.get("pdbx_Rsym_value")),
+        r_merge=as_float(reflns.get("pdbx_Rmerge_I_obs")),
         observed_reflections=as_int(reflns.get("number_obs")),
         percent_possible_observed=as_float(reflns.get("percent_possible_obs")),
         mean_b_factor=as_float(refine.get("B_iso_mean")),
-        provenance=provenance("_exptl,_refine,_reflns"),
+        provenance=provenance(categories),
     )
 
 

@@ -83,9 +83,14 @@ class QualityRecord(BaseModel):
     Attributes:
         experimental_method: The experimental method(s) used (e.g.
             "X-RAY DIFFRACTION").
-        resolution: The structure's resolution, in angstroms.
+        resolution: The structure's resolution, in angstroms, from
+            `_refine`, or `_em_3d_reconstruction` for cryo-EM entries.
         r_work: The working set R-factor.
         r_free: The free set R-factor.
+        r_sym: The merging R-factor as Rsym (`_reflns.pdbx_Rsym_value`).
+        r_merge: The merging R-factor as Rmerge
+            (`_reflns.pdbx_Rmerge_I_obs`); the same statistic as
+            `r_sym` under another name.
         observed_reflections: The number of observed reflections.
         percent_possible_observed: The percentage of possible
             reflections that were observed.
@@ -97,6 +102,8 @@ class QualityRecord(BaseModel):
     resolution: float | None = None
     r_work: float | None = None
     r_free: float | None = None
+    r_sym: float | None = None
+    r_merge: float | None = None
     observed_reflections: int | None = None
     percent_possible_observed: float | None = None
     mean_b_factor: float | None = None

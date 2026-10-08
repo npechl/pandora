@@ -28,3 +28,29 @@ def test_collect_metadata_from_fixture():
     assert [lig.comp_id for lig in metadata.ligands] == ["SO4", "HEM", "NBN"]
     assert {m.accession for m in metadata.uniprot_mappings} == {"P02185"}
     assert metadata.raw_categories == sorted(structure.raw)
+
+
+MMCIF_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
+
+
+def _quality(entry_id: str):
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / f"{entry_id}.cif"))
+    return collect_metadata(structure).quality
+
+
+def test_cryo_em_resolution_falls_back_to_em_3d_reconstruction():
+    quality = _quality("22jy")
+    assert quality.resolution == 2.2
+    assert "_em_3d_reconstruction" in quality.provenance.source_category
+
+
+def test_xray_resolution_comes_from_refine():
+    quality = _quality("1a08")
+    assert quality.resolution == 2.2
+    assert "_em_3d_reconstruction" not in quality.provenance.source_category
+
+
+def test_rmerge_extracted_when_rsym_missing():
+    quality = _quality("1a08")
+    assert quality.r_sym is None
+    assert quality.r_merge == 0.086
