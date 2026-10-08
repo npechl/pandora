@@ -551,6 +551,10 @@ class canonicalisationProvenance(BaseModel):
             "preserve".
         report: A summary of warning/error counts, if
             `provenance_rules.emit_canonicalisation_report` was True.
+        dropped_raw_categories: The verbatim mmCIF categories removed
+            from `Structure.raw` because they refer to chains or
+            residues by id and this run changed which chains or
+            residues exist.
     """
 
     canonicalised_at: str
@@ -559,3 +563,4 @@ class canonicalisationProvenance(BaseModel):
     policy_version: str
     transforms: list[str] = Field(default_factory=list)
     report: dict[str, Any] = Field(default_factory=dict)
+    dropped_raw_categories: list[str] = Field(default_factory=list)

@@ -12,7 +12,12 @@ from pandora.export import (
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.canonicalisation import (
     AssemblyRules,
+    ChainIdRules,
+    IdentifierRules,
     IncompleteChainRules,
+    LigandRules,
+    MissingAtomsRules,
+    ResidueNumberingRules,
     MissingDataRules,
     canonicalisationPolicy,
 )
@@ -120,11 +125,6 @@ def test_write_records_parquet(tmp_path):
     assert df.iloc[0]["chain_id"] == "A"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="raw categories such as _pdbx_sifts_xref_db keep references to "
-    "residues canonicalisation removed, so gemmi can't read the file back",
-)
 def test_truncated_structure_round_trips_through_mmcif(tmp_path):
     structure, _, _ = mmcif_to_structure(str(MMCIF_PATH.parent / "10mv.cif"))
     policy = canonicalisationPolicy(
@@ -144,11 +144,6 @@ def test_truncated_structure_round_trips_through_mmcif(tmp_path):
     assert reparsed is not None, status
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="raw categories such as _pdbx_sifts_xref_db keep references to "
-    "chains outside the expanded assembly, so gemmi can't read the file back",
-)
 def test_expanded_assembly_round_trips_through_mmcif(tmp_path):
     # 1a08: assembly 1 is chains A, B (+ ligands); C, D, G, H are dropped.
     structure, _, _ = mmcif_to_structure(str(MMCIF_PATH.parent / "1a08.cif"))
@@ -162,6 +157,66 @@ def test_expanded_assembly_round_trips_through_mmcif(tmp_path):
     )
     canonical, _, _ = canonicalise_structure(structure, policy)
     path = tmp_path / "1a08.cif"
+    structure_to_mmcif(canonical, str(path))
+    reparsed, _, status = mmcif_to_structure(str(path))
+    assert reparsed is not None, status
+
+
+@pytest.mark.parametrize(
+    "rules",
+    [
+        {
+            "identifier_rules": IdentifierRules(
+                chain_id=ChainIdRules(strategy="remap")
+            )
+        },
+        {
+            "identifier_rules": IdentifierRules(
+                chain_id=ChainIdRules(strategy="use_auth_chain_id")
+            )
+        },
+        {
+            "identifier_rules": IdentifierRules(
+                residue_numbering=ResidueNumberingRules(strategy="renumber")
+            )
+        },
+        {
+            "identifier_rules": IdentifierRules(
+                residue_numbering=ResidueNumberingRules(strategy="use_auth_seq")
+            )
+        },
+        {
+            "missing_data_rules": MissingDataRules(
+                missing_atoms=MissingAtomsRules(strategy="drop_partial_residue")
+            )
+        },
+        {
+            "ligand_rules": LigandRules(
+                strategy="filter", keep_waters=False, keep_ions=False
+            )
+        },
+    ],
+    ids=[
+        "remap",
+        "auth_chain",
+        "renumber",
+        "auth_seq",
+        "drop_partial",
+        "ligands",
+    ],
+)
+@pytest.mark.parametrize("entry_id", ["13dg", "1a08", "10mv", "1aui"])
+def test_canonical_structure_round_trips_through_mmcif(
+    entry_id, rules, tmp_path
+):
+    structure, _, _ = mmcif_to_structure(
+        str(MMCIF_PATH.parent / f"{entry_id}.cif")
+    )
+    policy = canonicalisationPolicy(
+        policy_id="p", policy_name="p", policy_version="1.0.0", **rules
+    )
+    canonical, _, _ = canonicalise_structure(structure, policy)
+    path = tmp_path / f"{entry_id}.cif"
     structure_to_mmcif(canonical, str(path))
     reparsed, _, status = mmcif_to_structure(str(path))
     assert reparsed is not None, status

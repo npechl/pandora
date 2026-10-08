@@ -1211,3 +1211,32 @@ def test_assembly_expansion_keeps_only_assembly_chains():
         u.id for u in canonical.asym_units
     }
     assert canonical.assemblies[0].oligomeric_count == 12
+
+
+def test_policy_that_keeps_residues_keeps_raw_categories():
+    # Altloc selection and MSE mapping change no chain or residue ids.
+    structure = _load("1b6w")
+    policy = _lenient_policy(
+        modified_residue_rules=ModifiedResidueRules(strategy="map_to_parent")
+    )
+    canonical, _, provenance = canonicalise_structure(structure, policy)
+    assert canonical.raw == structure.raw
+    assert provenance.dropped_raw_categories == []
+
+
+def test_renumbering_drops_raw_categories_indexed_by_residue():
+    structure = _load("10mv")
+    policy = _lenient_policy(
+        identifier_rules=IdentifierRules(
+            residue_numbering=ResidueNumberingRules(strategy="renumber")
+        )
+    )
+    canonical, _, provenance = canonicalise_structure(structure, policy)
+
+    dropped = set(provenance.dropped_raw_categories)
+    assert {"_pdbx_sifts_xref_db", "_pdbx_poly_seq_scheme"} <= dropped
+    assert dropped.isdisjoint(canonical.raw)
+    # SEQRES and entry-level data don't index chains or residues.
+    assert "_entity_poly_seq" in canonical.raw
+    assert "_exptl" in canonical.raw
+    assert "_pdbx_sifts_xref_db" in structure.raw  # input untouched

@@ -42,7 +42,9 @@ is the canonical flow.
   computes no content checksums.
 - **Unknown mmCIF data is kept.** The parser promotes known categories to
   typed records and keeps every other category verbatim in
-  `Structure.raw`.
+  `Structure.raw`. The one exception: when canonicalisation changes which
+  chains or residues exist, it drops the raw categories that index them
+  and lists them in its provenance (`canonicalisation/raw_categories.py`).
 - **Heavy or external tools stay optional.** Extra Python dependencies go
   behind an extra in `pyproject.toml` and are imported inside the function
   that needs them (see `export/records.py`). MMseqs2 and Foldseek are

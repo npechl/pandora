@@ -4,6 +4,8 @@
 
 `canonicalise_structure(structure, policy)` never guesses. Every normalization decision, how chains are named, how altlocs are resolved, whether ligands are kept, comes from a `canonicalisationPolicy` (`pandora.schemas.canonicalisation.canonicalisationPolicy`). Each rule group has its own default below — most fall back to "preserve as reported", but not all: `missing_atoms`/`missing_residues` default to `annotate` and `altloc` defaults to `select_best_occupancy`, so an *empty* policy still records transforms, not just provenance. See each rule group's default below.
 
+Canonicalisation keeps every verbatim category in `Structure.raw`, except one case: when a run changes which chains or residues exist or what they are called, categories with a column that refers to chains or residues by ID (any column name containing `asym_id`, `seq_id` or `strand_id`) are removed, because they would contradict the new atoms. They are listed in `canonicalisationProvenance.dropped_raw_categories`. See [Trace what changed](../usage/canonicalisation.md#trace-what-changed).
+
 ```python
 from pandora.schemas.canonicalisation import canonicalisationPolicy
 

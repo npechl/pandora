@@ -33,6 +33,7 @@ from pandora.canonicalisation.missing_data import (
 )
 from pandora.canonicalisation.ligands import filter_ligands
 from pandora.canonicalisation.modified_residues import _map_modified_residues
+from pandora.canonicalisation.raw_categories import _drop_stale_raw_categories
 from pandora.canonicalisation.validation import _validate
 
 
@@ -79,6 +80,8 @@ def canonicalise_structure(
     transforms: list[str] = []
     diagnostics = DiagnosticBundle()
 
+    original_atoms = structure.atoms
+    original_raw = structure.raw
     atoms: list[AtomSiteRecord] = list(structure.atoms)
     asym_units: list[AsymRecord] = list(structure.asym_units)
     entities: list[EntityRecord] = list(structure.entities)
@@ -201,8 +204,15 @@ def canonicalise_structure(
             f"{structure.entry_id!r}"
         )
 
+    # Verbatim categories that index chains or residues would contradict
+    # the new atoms, so they go (and are listed in the provenance).
+    raw, dropped_raw_categories = _drop_stale_raw_categories(
+        original_raw, original_atoms, atoms
+    )
+
     canonical = structure.model_copy(
         update={
+            "raw": raw,
             "atoms": atoms,
             "asym_units": asym_units,
             "entities": entities,
@@ -227,6 +237,7 @@ def canonicalise_structure(
         policy_name=policy.policy_name,
         policy_version=policy.policy_version,
         transforms=transforms,
+        dropped_raw_categories=dropped_raw_categories,
         report=(
             {
                 "warnings": len(diagnostics.warnings),

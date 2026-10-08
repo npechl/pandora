@@ -546,7 +546,7 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/1a08.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/1a08.cif datasets/dev/mmcif/10mv.cif raw/
     cat > drop.yaml <<'EOF'
     policy_id: p
     policy_name: p
@@ -555,25 +555,33 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
       missing_atoms:
         strategy: drop_partial_residue
     EOF
+    cat > truncate.yaml <<'EOF'
+    policy_id: p
+    policy_name: p
+    policy_version: 1.0.0
+    missing_data_rules:
+      incomplete_chains:
+        strategy: truncate_to_complete_regions
+    EOF
     pandora canonicalise --input-dir raw/ --policy drop.yaml --output-dir drop/
-    pandora export --input raw/1a08.cif --output before.json
-    pandora export --input drop/1a08.cif --output after.json
-    # residues in 1a08 chain B, before and after
-    jq '[.atoms[] | select(.label_asym_id == "B") | .label_seq_id] | unique | length' before.json after.json
+    pandora canonicalise --input-dir raw/ --policy truncate.yaml --output-dir truncate/
+    pandora export --input drop/1a08.cif --output 1a08.json
+    pandora export --input truncate/10mv.cif --output 10mv.json
+    # residues left in 1a08 chain B, then in 10mv chain A
+    jq '[.atoms[] | select(.label_asym_id == "B") | .label_seq_id] | unique | length' 1a08.json
+    jq '[.atoms[] | select(.label_asym_id == "A") | .label_seq_id] | unique | length' 10mv.json
     ```
 
     ```text
-    canonicalised 1 structures -> drop
-    exported -> before.json
-    exported -> after.json
-    4
+    canonicalised 2 structures -> drop
+    canonicalised 2 structures -> truncate
+    exported -> 1a08.json
+    exported -> 10mv.json
     2
+    118
     ```
 
     `pandora export` writes a structure as JSON, which is the easiest way to count what is left from the shell.
-
-!!! bug "Known issue: truncated structures can't be read back"
-    The CLI example leaves out `truncate_to_complete_regions`: the mmCIF that `pandora canonicalise` writes after truncating 10mv can't be parsed again, because raw categories such as `_pdbx_sifts_xref_db` still refer to the removed residues. The library result is correct; only writing it to mmCIF and reading it back fails. `test_truncated_structure_round_trips_through_mmcif` pins the bug.
 
 To measure how much of each chain is missing against SEQRES, without changing the structure, use [`chain_completeness()`](datasets.md#inspect-chain-completeness).
 
@@ -666,6 +674,8 @@ To measure how much of each chain is missing against SEQRES, without changing th
 
 `canonicalise_structure` returns three things. The structure is the result; `provenance.transforms` lists the rule groups that changed something, in the order they ran; and `mappings` holds one list per kind of change, so any canonical ID can be traced back to the deposited one. With `provenance_rules.emit_canonicalisation_report`, `provenance.report` also counts the warnings and errors the run raised.
 
+When a run changes which chains or residues exist or what they are called (renumbering, chain remapping, dropping residues or chains, expanding an assembly), the verbatim mmCIF categories in `Structure.raw` that refer to chains or residues by ID, such as `_pdbx_poly_seq_scheme` or `_pdbx_sifts_xref_db`, would no longer match the atoms. They are removed and listed in `provenance.dropped_raw_categories`; everything else in `raw`, including SEQRES (`_entity_poly_seq`), is kept, so the canonical structure always writes a consistent mmCIF file. One consequence: run `collect_metadata()` on the parsed structure, not the canonical one, if you need UniProt mappings, which come from such categories.
+
 === "`library`"
 
     ```python
@@ -705,6 +715,10 @@ To measure how much of each chain is missing against SEQRES, without changing th
     # One mapping list per kind of change, to trace any id back.
     for name, mapping in mappings:
         print(f"{name}: {len(mapping.items)} items")
+    # Verbatim mmCIF categories that referred to the old chain or residue
+    # ids, removed so the structure doesn't contradict itself.
+    print("dropped:", len(provenance.dropped_raw_categories), "raw categories")
+    print(" ", provenance.dropped_raw_categories[:4])
     ```
 
     ```text
@@ -716,6 +730,8 @@ To measure how much of each chain is missing against SEQRES, without changing th
     entity_mapping: 2 items
     altloc_selection_mapping: 1 items
     modified_residue_mapping: 2 items
+    dropped: 17 raw categories
+      ['_entity_poly', '_pdbx_modification_feature', '_pdbx_nonpoly_scheme', '_pdbx_poly_seq_scheme']
     ```
 
 === "`cli`"
@@ -738,6 +754,8 @@ To measure how much of each chain is missing against SEQRES, without changing th
     EOF
     pandora canonicalise --input-dir raw/ --policy policy.yaml --output-dir canonical/
     jq -c '.["1B6W"] | .transforms, .report' canonical/canonicalisation_provenance.json
+    jq -c '.["1B6W"].dropped_raw_categories | length, .[:4]' \
+      canonical/canonicalisation_provenance.json
     jq -r '.["1B6W"] | to_entries[] | "\(.key): \(.value.items | length) items"' \
       canonical/canonicalisation_mappings.json
     ```
@@ -746,6 +764,8 @@ To measure how much of each chain is missing against SEQRES, without changing th
     canonicalised 1 structures -> canonical
     ["modified_residues:map_to_parent","chain_id:use_auth_chain_id","missing_atoms:annotate","missing_residues:annotate","altloc:select_best_occupancy","residue_numbering:renumber"]
     {"warnings":0,"errors":0}
+    17
+    ["_entity_poly","_pdbx_modification_feature","_pdbx_nonpoly_scheme","_pdbx_poly_seq_scheme"]
     chain_id_mapping: 2 items
     residue_number_mapping: 82 items
     assembly_mapping: 1 items
