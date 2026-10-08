@@ -34,6 +34,8 @@ pandora canonicalise --input-dir raw/ --policy datasets/canonicalisation.yaml --
 # canonicalised 5 structures -> canonical/
 ```
 
+Besides the canonical mmCIF files, `canonical/` gets `canonicalisation_provenance.json` (which transforms ran) and `canonicalisation_mappings.json` (original-to-canonical chain, residue, assembly, entity, altloc and modified-residue mappings), both keyed by entry ID. [Canonicalisation](canonicalisation.md) shows how to read them with `jq`.
+
 ## curate
 
 Apply quality/organism/content rules from a `DatasetCurationPolicy`

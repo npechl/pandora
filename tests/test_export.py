@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from pandora.canonicalisation import canonicalise_structure
 from pandora.export import (
     export_chain_mmcif,
     structure_to_mmcif,
@@ -9,6 +10,11 @@ from pandora.export import (
     write_records,
 )
 from pandora.parsing import mmcif_to_structure
+from pandora.schemas.canonicalisation import (
+    IncompleteChainRules,
+    MissingDataRules,
+    canonicalisationPolicy,
+)
 from pandora.schemas.dataset import ChainRecord
 
 MMCIF_PATH = (
@@ -111,3 +117,27 @@ def test_write_records_parquet(tmp_path):
 
     df = pd.read_parquet(out_path)
     assert df.iloc[0]["chain_id"] == "A"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="raw categories such as _pdbx_sifts_xref_db keep references to "
+    "residues canonicalisation removed, so gemmi can't read the file back",
+)
+def test_truncated_structure_round_trips_through_mmcif(tmp_path):
+    structure, _, _ = mmcif_to_structure(str(MMCIF_PATH.parent / "10mv.cif"))
+    policy = canonicalisationPolicy(
+        policy_id="p",
+        policy_name="p",
+        policy_version="1.0.0",
+        missing_data_rules=MissingDataRules(
+            incomplete_chains=IncompleteChainRules(
+                strategy="truncate_to_complete_regions"
+            )
+        ),
+    )
+    canonical, _, _ = canonicalise_structure(structure, policy)
+    path = tmp_path / "10mv.cif"
+    structure_to_mmcif(canonical, str(path))
+    reparsed, _, status = mmcif_to_structure(str(path))
+    assert reparsed is not None, status

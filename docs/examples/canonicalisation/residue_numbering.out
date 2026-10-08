@@ -1,4 +1,0 @@
-preserve: first [22, 23, 24], last 257
-use_auth_seq: first [391, 392, 393], last 626
-renumber: first [1, 2, 3], last 231
-renumber mapping: chain A 22 (auth 391) -> 1

@@ -1,5 +1,0 @@
-preserve: 9 atoms in residue 35
-select_best_occupancy: 7 atoms in residue 35
-  35:MSE: kept A of ['A', 'B'] (best_occupancy)
-select_user_defined: 7 atoms in residue 35
-  35:MSE: kept B of ['A', 'B'] (user_defined)

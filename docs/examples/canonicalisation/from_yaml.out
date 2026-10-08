@@ -1,2 +1,0 @@
-overview-remap 1.0.0
-['chain_id:remap', 'missing_atoms:annotate', 'missing_residues:annotate', 'altloc:select_best_occupancy', 'residue_numbering:renumber', 'entity:merge_equivalent_entities', 'ligands:filter']
