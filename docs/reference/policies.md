@@ -115,7 +115,7 @@ Extra flags:
 | Value | Description |
 |---|---|
 | `preserve_as_reported` | Keep assemblies as reported (aside from ID renumbering under `identifier_rules.assembly_id`). |
-| `standardize_biological_assembly` | Select the assembly identified by `preferred_assembly_source`, then materialize it: for every symmetry operator in that assembly's generators, apply its rotation/translation to the referenced chains and add the result as a new chain (`<chain>_<operator id>`), skipping the identity operator (the asymmetric unit already covers it). The resulting `Structure.assemblies` is collapsed to a single record with empty generators/operators, since the assembly is now concrete atoms rather than an instruction to re-derive it. |
+| `standardize_biological_assembly` | Select the assembly identified by `preferred_assembly_source`, then materialize it in place of the asymmetric unit: every chain its generators list, under every operator they list. A chain under the identity operator keeps its ID; every other operator adds a transformed copy as a new chain (`<chain>_<operator id>`). Chains the assembly doesn't list are dropped, with their connections and secondary structure. The resulting `Structure.assemblies` is collapsed to a single record with empty generators/operators, since the assembly is now concrete atoms rather than an instruction to re-derive it; its deposited `oligomeric_count` is kept, as it already describes the whole assembly. |
 | `select_first_assembly` | Keep only the first listed assembly, discard the rest. |
 
 **`preferred_assembly_source`** (default `author`)

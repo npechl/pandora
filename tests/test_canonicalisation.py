@@ -652,15 +652,18 @@ def test_standardize_biological_assembly_expands_symmetry_copy():
         "test",
     )
 
-    assert {a.label_asym_id for a in new_atoms} == {"A", "A_2"}
+    # The generator lists A under operator 2 only, so the untransformed A
+    # isn't part of the assembly.
+    assert {a.label_asym_id for a in new_atoms} == {"A_2"}
     copy_atom = next(a for a in new_atoms if a.label_asym_id == "A_2")
     assert (copy_atom.Cartn_x, copy_atom.Cartn_y, copy_atom.Cartn_z) == (
         11.0,
         2.0,
         3.0,
     )
-    assert {a.id for a in new_asyms} == {"A", "A_2"}
-    assert result[0].oligomeric_count == 2
+    assert {a.id for a in new_asyms} == {"A_2"}
+    # The deposited count already describes the whole assembly.
+    assert result[0].oligomeric_count == 1
     assert mapping.items[0].chain_copies == [
         AssemblyChainCopy(
             canonical_chain_id="A_2", source_chain_id="A", operator_id="2"
@@ -668,13 +671,18 @@ def test_standardize_biological_assembly_expands_symmetry_copy():
     ]
 
 
-def _assembly_with_symmetry_copy(*, asym_id_list):
+def _assembly_with_identity_and_copy(*, identity_chains, copied_chains):
     from pandora.schemas.structure import (
         AssemblyGenRecord,
         AssemblyOperRecord,
         AssemblyRecord,
     )
 
+    identity_op = AssemblyOperRecord(
+        id="1",
+        matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        vector=[0.0, 0.0, 0.0],
+    )
     translate_op = AssemblyOperRecord(
         id="2",
         matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
@@ -687,17 +695,73 @@ def _assembly_with_symmetry_copy(*, asym_id_list):
             generators=[
                 AssemblyGenRecord(
                     assembly_id="1",
+                    oper_expression="1",
+                    asym_id_list=identity_chains,
+                ),
+                AssemblyGenRecord(
+                    assembly_id="1",
                     oper_expression="2",
-                    asym_id_list=asym_id_list,
-                )
+                    asym_id_list=copied_chains,
+                ),
             ],
-            operators=[translate_op],
+            operators=[identity_op, translate_op],
         )
     ]
 
 
+def test_standardize_biological_assembly_drops_chains_outside_assembly():
+    # B isn't in any generator: its atoms, asym unit, its connection to A
+    # and its secondary structure all go.
+    assemblies = _assembly_with_identity_and_copy(
+        identity_chains=["A"], copied_chains=[]
+    )
+    atoms = [
+        _atom(label_asym_id="A", x=1.0, y=2.0, z=3.0),
+        _atom(label_asym_id="B", id=2, x=4.0, y=5.0, z=6.0),
+    ]
+    asym_units = [
+        AsymRecord(id="A", entity_id="1"),
+        AsymRecord(id="B", entity_id="1"),
+    ]
+    conn = ConnRecord(
+        id="disulf1",
+        conn_type_id="disulf",
+        ptnr1=ConnPartner(label_asym_id="A", label_comp_id="CYS"),
+        ptnr2=ConnPartner(label_asym_id="B", label_comp_id="CYS"),
+    )
+    helix_b = ConfRecord(
+        id="HELX_P1",
+        conf_type_id="HELX_P",
+        beg_label_asym_id="B",
+        beg_label_seq_id=1,
+        end_label_asym_id="B",
+        end_label_seq_id=5,
+    )
+
+    _, new_atoms, new_asyms, new_conns, new_ss, _ = _normalize_assemblies(
+        assemblies,
+        atoms,
+        asym_units,
+        [conn],
+        SSRecord(conf_records=[helix_b]),
+        AssemblyRules(strategy="standardize_biological_assembly"),
+        "preserve",
+        True,
+        DiagnosticBundle(),
+        "test",
+    )
+
+    assert [a.label_asym_id for a in new_atoms] == ["A"]
+    assert [a.id for a in new_asyms] == ["A"]
+    assert new_conns == []
+    assert new_ss.conf_records == []
+    assert atoms[1].label_asym_id == "B"  # input untouched
+
+
 def test_standardize_biological_assembly_expands_intra_chain_connection():
-    assemblies = _assembly_with_symmetry_copy(asym_id_list=["A"])
+    assemblies = _assembly_with_identity_and_copy(
+        identity_chains=["A"], copied_chains=["A"]
+    )
     atoms = [_atom(label_asym_id="A", x=1.0, y=2.0, z=3.0)]
     asym_units = [AsymRecord(id="A", entity_id="1")]
     # a disulfide-style bond within chain A -- rigid-body copies of A
@@ -733,10 +797,12 @@ def test_standardize_biological_assembly_expands_intra_chain_connection():
 
 
 def test_standardize_biological_assembly_drops_inter_chain_connection_when_only_one_side_copied():
-    # only chain A is in the generator's asym_id_list, so B never gets a
-    # copy -- an A-B connection has no valid single-operator remap and
-    # must not be fabricated.
-    assemblies = _assembly_with_symmetry_copy(asym_id_list=["A"])
+    # A and B are in the assembly at identity, but only A also gets a copy
+    # under operator 2 -- an A_2-B connection has no valid single-operator
+    # remap and must not be fabricated.
+    assemblies = _assembly_with_identity_and_copy(
+        identity_chains=["A", "B"], copied_chains=["A"]
+    )
     atoms = [
         _atom(label_asym_id="A", x=1.0, y=2.0, z=3.0),
         _atom(label_asym_id="B", id=2, x=4.0, y=5.0, z=6.0),
@@ -773,7 +839,9 @@ def test_standardize_biological_assembly_drops_inter_chain_connection_when_only_
 def test_standardize_biological_assembly_expands_inter_chain_connection_when_both_sides_copied_together():
     # both A and B are copied under the same operator (listed together in
     # the same generator), so A-B's connection has a valid remap: A_2-B_2.
-    assemblies = _assembly_with_symmetry_copy(asym_id_list=["A", "B"])
+    assemblies = _assembly_with_identity_and_copy(
+        identity_chains=["A", "B"], copied_chains=["A", "B"]
+    )
     atoms = [
         _atom(label_asym_id="A", x=1.0, y=2.0, z=3.0),
         _atom(label_asym_id="B", id=2, x=4.0, y=5.0, z=6.0),
@@ -810,7 +878,9 @@ def test_standardize_biological_assembly_expands_inter_chain_connection_when_bot
 
 
 def test_standardize_biological_assembly_expands_secondary_structure():
-    assemblies = _assembly_with_symmetry_copy(asym_id_list=["A"])
+    assemblies = _assembly_with_identity_and_copy(
+        identity_chains=["A"], copied_chains=["A"]
+    )
     atoms = [_atom(label_asym_id="A", x=1.0, y=2.0, z=3.0)]
     asym_units = [AsymRecord(id="A", entity_id="1")]
     helix = ConfRecord(
@@ -1127,11 +1197,6 @@ def test_unmapped_modified_residue_gets_warning_not_guess():
     assert unmapped == {"ACE", "DIP"}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="standardize_biological_assembly keeps chains that are not "
-    "in the selected assembly",
-)
 def test_assembly_expansion_keeps_only_assembly_chains():
     # 13dg: assembly 1 is chains A-D under operators 1, 2, 3; E-H belong
     # to assembly 2.
@@ -1142,3 +1207,7 @@ def test_assembly_expansion_keeps_only_assembly_chains():
     source_chains = {u.id.split("_")[0] for u in canonical.asym_units}
     assert source_chains == {"A", "B", "C", "D"}
     assert len(canonical.asym_units) == 12
+    assert {a.label_asym_id for a in canonical.atoms} == {
+        u.id for u in canonical.asym_units
+    }
+    assert canonical.assemblies[0].oligomeric_count == 12

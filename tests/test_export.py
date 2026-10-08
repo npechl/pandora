@@ -11,6 +11,7 @@ from pandora.export import (
 )
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.canonicalisation import (
+    AssemblyRules,
     IncompleteChainRules,
     MissingDataRules,
     canonicalisationPolicy,
@@ -138,6 +139,29 @@ def test_truncated_structure_round_trips_through_mmcif(tmp_path):
     )
     canonical, _, _ = canonicalise_structure(structure, policy)
     path = tmp_path / "10mv.cif"
+    structure_to_mmcif(canonical, str(path))
+    reparsed, _, status = mmcif_to_structure(str(path))
+    assert reparsed is not None, status
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="raw categories such as _pdbx_sifts_xref_db keep references to "
+    "chains outside the expanded assembly, so gemmi can't read the file back",
+)
+def test_expanded_assembly_round_trips_through_mmcif(tmp_path):
+    # 1a08: assembly 1 is chains A, B (+ ligands); C, D, G, H are dropped.
+    structure, _, _ = mmcif_to_structure(str(MMCIF_PATH.parent / "1a08.cif"))
+    policy = canonicalisationPolicy(
+        policy_id="p",
+        policy_name="p",
+        policy_version="1.0.0",
+        assembly_rules=AssemblyRules(
+            strategy="standardize_biological_assembly"
+        ),
+    )
+    canonical, _, _ = canonicalise_structure(structure, policy)
+    path = tmp_path / "1a08.cif"
     structure_to_mmcif(canonical, str(path))
     reparsed, _, status = mmcif_to_structure(str(path))
     assert reparsed is not None, status

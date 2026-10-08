@@ -133,6 +133,18 @@ def _expand_span_records(
     return expanded
 
 
+def _spans_within(
+    records: list[_SpanRecordT], chains: set[str]
+) -> list[_SpanRecordT]:
+    """Spans whose start and end chains are both in chains."""
+
+    return [
+        r
+        for r in records
+        if r.beg_label_asym_id in chains and r.end_label_asym_id in chains
+    ]
+
+
 def _select_biological_assembly(
     assemblies: list[AssemblyRecord],
     preferred_assembly_source: str,
@@ -182,8 +194,10 @@ def _expand_biological_assembly(
     SSRecord,
     list[AssemblyChainCopy],
 ]:
-    """Materialize `selected`'s symmetry operators into concrete chains,
-    and propagate connections/secondary structure onto the new chains."""
+    """Replace the asymmetric unit with `selected`'s chains: each listed
+    chain under each listed operator, keeping the original chain only
+    under an identity operator. Connections and secondary structure follow
+    the chains that remain."""
 
     atoms_by_chain: dict[str, list[AtomSiteRecord]] = {}
     for atom in atoms:
@@ -208,8 +222,6 @@ def _expand_biological_assembly(
                 vector = op.vector if op else None
 
                 if _is_identity_transform(matrix, vector):
-                    if source_chain in seen_identity_chains:
-                        continue
                     seen_identity_chains.add(source_chain)
                     continue
 
@@ -251,34 +263,29 @@ def _expand_biological_assembly(
                     )
                 )
 
-    all_atoms = atoms + new_atoms
-    all_asym_units = asym_units + new_asym_units
-    new_oligomeric_count = (
-        selected.oligomeric_count + len(chain_copies)
-        if selected.oligomeric_count is not None
-        else None
-    )
+    # The deposited oligomeric_count already counts the whole assembly.
+    kept = seen_identity_chains
+    all_atoms = [a for a in atoms if a.label_asym_id in kept] + new_atoms
+    all_asym_units = [a for a in asym_units if a.id in kept] + new_asym_units
     materialized = selected.model_copy(
-        update={
-            "generators": [],
-            "operators": [],
-            "oligomeric_count": new_oligomeric_count,
-        }
+        update={"generators": [], "operators": []}
     )
 
     copy_by_source_and_op = {
         (copy.source_chain_id, copy.operator_id): copy.canonical_chain_id
         for copy in chain_copies
     }
-    all_connections = connections + _expand_connections(
-        connections, copy_by_source_and_op
-    )
+    all_connections = [
+        c
+        for c in connections
+        if c.ptnr1.label_asym_id in kept and c.ptnr2.label_asym_id in kept
+    ] + _expand_connections(connections, copy_by_source_and_op)
     all_secondary_structure = SSRecord(
-        conf_records=secondary_structure.conf_records
+        conf_records=_spans_within(secondary_structure.conf_records, kept)
         + _expand_span_records(
             secondary_structure.conf_records, copy_by_source_and_op
         ),
-        sheet_strands=secondary_structure.sheet_strands
+        sheet_strands=_spans_within(secondary_structure.sheet_strands, kept)
         + _expand_span_records(
             secondary_structure.sheet_strands, copy_by_source_and_op
         ),

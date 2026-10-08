@@ -309,7 +309,9 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
 
 ## Expand to the biological assembly
 
-`assembly_rules.strategy: standardize_biological_assembly` picks one assembly (see `preferred_assembly_source`) and applies its symmetry operators, adding each copy as a new chain named `<chain>_<operator>`. The assembly mapping records which chain each copy came from.
+`assembly_rules.strategy: standardize_biological_assembly` picks one assembly (see `preferred_assembly_source`) and replaces the asymmetric unit with it: every chain the assembly lists, under every operator it lists. A chain under the identity operator keeps its ID; each other copy becomes a new chain named `<chain>_<operator>`. Chains the assembly doesn't list are dropped, with their connections and secondary structure. The assembly mapping records which chain each copy came from.
+
+In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 is chains A–D, assembly 2 is E–H. Expanding assembly 1 gives A–D plus two copies of each, 12 chains, and drops E–H.
 
 === "`library`"
 
@@ -343,7 +345,7 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
 
     ```text
     asymmetric unit: ['A', 'E', 'B', 'F', 'C', 'G', 'D', 'H']
-    after expansion: ['A', 'E', 'B', 'F', 'C', 'G', 'D', 'H', 'A_2', 'A_3', 'B_2', 'B_3', 'C_2', 'C_3', 'D_2', 'D_3']
+    after expansion: ['A', 'B', 'C', 'D', 'A_2', 'A_3', 'B_2', 'B_3', 'C_2', 'C_3', 'D_2', 'D_3']
       A_2 = chain A under operator 2
       A_3 = chain A under operator 3
     ```
@@ -371,13 +373,10 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
     ```text
     canonicalised 1 structures -> canonical
     exported -> 13dg.json
-    ["A","E","A_2","A_3","B","F","B_2","B_3","C","G","C_2","C_3","D","H","D_2","D_3"]
+    ["A","A_2","A_3","B","B_2","B_3","C","C_2","C_3","D","D_2","D_3"]
     A_2 = chain A under operator 2
     A_3 = chain A under operator 3
     ```
-
-!!! bug "Known issue: chains outside the assembly are kept"
-    Chains E–H above belong to assembly 2, not assembly 1, but they stay in the expanded structure. Until this is fixed, remove them yourself before computing contacts. `test_assembly_expansion_keeps_only_assembly_chains` pins the bug.
 
 ## Map modified residues
 
