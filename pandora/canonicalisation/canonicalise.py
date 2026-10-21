@@ -24,7 +24,10 @@ from pandora.canonicalisation.chain_ids import (
     _normalize_chain_ids,
     _apply_chain_map,
 )
-from pandora.canonicalisation.entities import _normalize_entities
+from pandora.canonicalisation.entities import (
+    _normalize_entities,
+    _remap_raw_entity_ids,
+)
 from pandora.canonicalisation.residues import _normalize_residue_numbering
 from pandora.canonicalisation.missing_data import (
     _handle_missing_atoms,
@@ -32,7 +35,11 @@ from pandora.canonicalisation.missing_data import (
     _handle_incomplete_chains,
 )
 from pandora.canonicalisation.ligands import filter_ligands
-from pandora.canonicalisation.modified_residues import _map_modified_residues
+from pandora.canonicalisation.modified_residues import (
+    _map_connections,
+    _map_entity_poly_seq,
+    _map_modified_residues,
+)
 from pandora.canonicalisation.raw_categories import _drop_stale_raw_categories
 from pandora.canonicalisation.validation import _validate
 
@@ -98,6 +105,18 @@ def canonicalise_structure(
         mrr,
         diagnostics,
         structure.entry_id,
+    )
+    # Bonds and SEQRES name the same residues, so they follow. The bonds
+    # are read back from `structure` after the chain map below.
+    structure = structure.model_copy(
+        update={
+            "connections": _map_connections(
+                structure.connections, modified_residue_mapping
+            )
+        }
+    )
+    original_raw = _map_entity_poly_seq(
+        original_raw, modified_residue_mapping, asym_units
     )
     if mrr.strategy != "preserve":
         transforms.append(f"modified_residues:{mrr.strategy}")
@@ -183,8 +202,8 @@ def canonicalise_structure(
         transforms.append(f"residue_numbering:{ir.residue_numbering.strategy}")
 
     # normalize_entities ---------------------------------------
-    entities, asym_units, atoms, entity_mapping = _normalize_entities(
-        entities, asym_units, atoms, er, record
+    entities, asym_units, atoms, entity_mapping, entity_id_map = (
+        _normalize_entities(entities, asym_units, atoms, er, record)
     )
     if er.strategy != "preserve":
         transforms.append(f"entity:{er.strategy}")
@@ -209,6 +228,8 @@ def canonicalise_structure(
     raw, dropped_raw_categories = _drop_stale_raw_categories(
         original_raw, original_atoms, atoms
     )
+    # Verbatim `entity_id` columns follow the canonical entity ids.
+    raw = _remap_raw_entity_ids(raw, entity_id_map)
 
     canonical = structure.model_copy(
         update={

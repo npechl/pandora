@@ -20,10 +20,15 @@ def _normalize_entities(
     rules,
     record: bool,
 ) -> tuple[
-    list[EntityRecord], list[AsymRecord], list[AtomSiteRecord], EntityMapping
+    list[EntityRecord],
+    list[AsymRecord],
+    list[AtomSiteRecord],
+    EntityMapping,
+    dict[str, str],
 ]:
     """Apply the entity id/merge strategy to entities, propagating ids to
-    asym_units/atoms, per rules."""
+    asym_units/atoms, per rules. Also returns the original -> canonical id
+    map (empty when ids are kept)."""
 
     mapping = EntityMapping()
 
@@ -36,7 +41,7 @@ def _normalize_entities(
                         original_entity_ids=[ent.id],
                     )
                 )
-        return entities, asym_units, atoms, mapping
+        return entities, asym_units, atoms, mapping, {}
 
     entity_id_map: dict[str, str] = {}
 
@@ -88,7 +93,7 @@ def _normalize_entities(
                     )
                 )
     else:
-        return entities, asym_units, atoms, mapping
+        return entities, asym_units, atoms, mapping, {}
 
     new_asyms = [
         a.model_copy(
@@ -111,4 +116,32 @@ def _normalize_entities(
         )
         for a in atoms
     ]
-    return new_entities, new_asyms, new_atoms, mapping
+    return new_entities, new_asyms, new_atoms, mapping, entity_id_map
+
+
+def _remap_raw_entity_ids(
+    raw: dict[str, list[dict[str, str | None]]], entity_id_map: dict[str, str]
+) -> dict[str, list[dict[str, str | None]]]:
+    """Raw with every `entity_id` column in canonical ids. Rows of an entity
+    merged into an earlier one are dropped: they would repeat its rows."""
+
+    if not entity_id_map:
+        return raw
+    first_original = {}
+    for original, canonical in entity_id_map.items():
+        first_original.setdefault(canonical, original)
+    remapped = {}
+    for category, rows in raw.items():
+        if not rows or "entity_id" not in rows[0]:
+            remapped[category] = rows
+            continue
+        remapped[category] = [
+            {**row, "entity_id": entity_id_map[row["entity_id"]]}
+            if row["entity_id"] in entity_id_map
+            else row
+            for row in rows
+            if row["entity_id"] not in entity_id_map
+            or first_original[entity_id_map[row["entity_id"]]]
+            == row["entity_id"]
+        ]
+    return remapped

@@ -156,6 +156,9 @@ def _select_biological_assembly(
     if not assemblies:
         return None
 
+    if preferred_assembly_source == "first":
+        return assemblies[0]
+
     if preferred_assembly_source == "pdbe":
         diagnostics.warnings.append(
             Diagnostic(
