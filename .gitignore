@@ -221,6 +221,6 @@ __marimo__/
 # datasets/dev/mmcif/
 
 # Examples
-examples/ppi/
+examples/
 
 datasets/large/
