@@ -4,6 +4,7 @@ from pandora._util import now_iso
 from pandora.annotations.entry import polymer_asym_ids
 from pandora.canonicalisation import filter_ligands
 from pandora.canonicalisation.modified_residues import STANDARD_RESIDUES
+from pandora.canonicalisation.assemblies import _spans_within
 from pandora.datasets.completeness import chain_completeness
 from pandora.datasets.records import extract_chain_records
 from pandora.schemas.canonicalisation import LigandRules
@@ -245,8 +246,11 @@ def _chain_exclusions(
 
 
 def _drop_chains(structure: Structure, chain_ids: set[str]) -> Structure:
-    """Copy of structure without the atoms and asym units of chain_ids."""
+    """Copy of structure without chain_ids' atoms, asym units, connections
+    and secondary structure."""
 
+    kept = {u.id for u in structure.asym_units} - chain_ids
+    ss = structure.secondary_structure
     return structure.model_copy(
         update={
             "atoms": [
@@ -255,6 +259,18 @@ def _drop_chains(structure: Structure, chain_ids: set[str]) -> Structure:
             "asym_units": [
                 u for u in structure.asym_units if u.id not in chain_ids
             ],
+            "connections": [
+                c
+                for c in structure.connections
+                if c.ptnr1.label_asym_id in kept
+                and c.ptnr2.label_asym_id in kept
+            ],
+            "secondary_structure": ss.model_copy(
+                update={
+                    "conf_records": _spans_within(ss.conf_records, kept),
+                    "sheet_strands": _spans_within(ss.sheet_strands, kept),
+                }
+            ),
         }
     )
 
