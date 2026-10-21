@@ -63,7 +63,7 @@ is the canonical flow.
 | Similarity, clustering, leakage-safe splits | `pandora/similarity/` | `schemas/similarity.py` |
 | Provenance bundles, dataset manifests, rebuilds | `pandora/provenance/` | `schemas/provenance.py` |
 | mmCIF / JSON / JSONL / Parquet output | `pandora/export/` | — |
-| Command-line wrappers | `pandora/cli/app.py` (argparse; I/O convention in `pandora/cli/README.md`) | — |
+| Command-line wrappers | `pandora/cli/` (argparse; one module per area with its subcommands and a `register()`, `app.py` assembles them, shared file helpers in `_io.py`; I/O convention in `pandora/cli/README.md`) | — |
 
 Other places:
 
