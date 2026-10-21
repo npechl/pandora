@@ -194,7 +194,9 @@ retained, removed, dedup_prov = deduplicate_structures(
     list(structures.values()), DeduplicationRules(enabled=True)
 )
 exclusions.extend(removed)
-print(f"curation+dedup: {len(retained)} retained, {len(exclusions)} excluded")
+print(
+    f"curation+dedup: {len(retained)} retained, {sum(e.chain_id is None for e in exclusions)} excluded"
+)
 # curation+dedup: 100 retained, 0 excluded
 ```
 
