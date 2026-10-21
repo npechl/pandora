@@ -349,3 +349,23 @@ def test_similarity_records_absolute_hits_path(tmp_path, monkeypatch):
 
     record = json.loads((tmp_path / "hits.tsv.search.json").read_text())
     assert record["hits_path"] == str((tmp_path / "elsewhere.tsv").resolve())
+
+
+def test_similarity_rejects_search_options_with_precomputed_hits(tmp_path):
+    hits = tmp_path / "elsewhere.tsv"
+    hits.write_text("104M\t112M\t0.99\t100\t0.95\t0.95\n")
+
+    with pytest.raises(SystemExit, match="--max-seqs"):
+        main(
+            [
+                "similarity",
+                "--engine",
+                "mmseqs2",
+                "--precomputed-hits",
+                str(hits),
+                "--max-seqs",
+                "10",
+                "--output",
+                str(tmp_path / "hits.tsv"),
+            ]
+        )

@@ -560,3 +560,27 @@ def test_method_lists_match_multi_method_entries():
         ),
     )
     assert _codes(exclusions) == ["METHOD_EXCLUDED"]
+
+
+def test_dropped_chain_takes_its_connections_and_secondary_structure():
+    structure = _load("1aui")  # A: middle 95/473, B: none
+
+    def chains(s):
+        ss = s.secondary_structure
+        return (
+            {c.ptnr1.label_asym_id for c in s.connections}
+            | {c.ptnr2.label_asym_id for c in s.connections},
+            {r.beg_label_asym_id for r in ss.conf_records + ss.sheet_strands}
+            | {r.end_label_asym_id for r in ss.conf_records + ss.sheet_strands},
+        )
+
+    assert "A" in chains(structure)[1]  # precondition
+    curated, _, _ = curate_structure(
+        structure,
+        None,
+        _policy(quality_rules=QualityRules(max_missing_middle_fraction=0.1)),
+    )
+    conn_chains, ss_chains = chains(curated)
+    assert "A" not in conn_chains
+    assert "A" not in ss_chains
+    assert "B" in ss_chains

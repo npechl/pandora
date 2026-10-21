@@ -3,7 +3,10 @@ from pathlib import Path
 import pytest
 
 from pandora.canonicalisation.altlocs import _resolve_altlocs
-from pandora.canonicalisation.assemblies import _normalize_assemblies
+from pandora.canonicalisation.assemblies import (
+    _normalize_assemblies,
+    _select_biological_assembly,
+)
 from pandora.canonicalisation.canonicalise import canonicalise_structure
 from pandora.canonicalisation.chain_ids import (
     _apply_chain_map,
@@ -434,7 +437,7 @@ def test_merge_equivalent_entities_by_canonical_sequence():
     ]
     rules = EntityRules(strategy="merge_equivalent_entities")
 
-    new_entities, new_asyms, new_atoms, mapping = _normalize_entities(
+    new_entities, new_asyms, new_atoms, mapping, _ = _normalize_entities(
         entities, asym_units, atoms, rules, record=True
     )
 
@@ -955,6 +958,32 @@ def test_standardize_biological_assembly_pdbe_source_falls_back_with_warning():
     assert diagnostics.warnings[0].code == "ASSEMBLY_SOURCE_UNAVAILABLE"
 
 
+def test_first_assembly_source_ignores_author_flag():
+    from pandora.schemas.structure import AssemblyRecord
+
+    assemblies = [
+        AssemblyRecord(id="1", software_determined=True),
+        AssemblyRecord(id="2", author_determined=True),
+    ]
+    picked = _select_biological_assembly(
+        assemblies, "first", DiagnosticBundle(), "test"
+    )
+    assert picked.id == "1"
+
+
+def test_author_assembly_source_still_prefers_author_flag():
+    from pandora.schemas.structure import AssemblyRecord
+
+    assemblies = [
+        AssemblyRecord(id="1", software_determined=True),
+        AssemblyRecord(id="2", author_determined=True),
+    ]
+    picked = _select_biological_assembly(
+        assemblies, "author", DiagnosticBundle(), "test"
+    )
+    assert picked.id == "2"
+
+
 # canonicalise_structure (end to end) ------------------------------------
 
 
@@ -1215,12 +1244,17 @@ def test_assembly_expansion_keeps_only_assembly_chains():
 
 def test_policy_that_keeps_residues_keeps_raw_categories():
     # Altloc selection and MSE mapping change no chain or residue ids.
+    # (MSE mapping renames SEQRES mon_ids; see
+    # test_mse_mapping_updates_bonds_and_seqres.)
     structure = _load("1b6w")
     policy = _lenient_policy(
         modified_residue_rules=ModifiedResidueRules(strategy="map_to_parent")
     )
     canonical, _, provenance = canonicalise_structure(structure, policy)
-    assert canonical.raw == structure.raw
+    assert canonical.raw.keys() == structure.raw.keys()
+    for category, rows in structure.raw.items():
+        if category != "_entity_poly_seq":
+            assert canonical.raw[category] == rows
     assert provenance.dropped_raw_categories == []
 
 
@@ -1240,3 +1274,75 @@ def test_renumbering_drops_raw_categories_indexed_by_residue():
     assert "_entity_poly_seq" in canonical.raw
     assert "_exptl" in canonical.raw
     assert "_pdbx_sifts_xref_db" in structure.raw  # input untouched
+
+
+def test_entity_merge_rewrites_raw_entity_ids():
+    # 1a3n: polymer entities 1 (alpha) and 2 (beta). Give entity 2 the
+    # same canonical sequence so merge_equivalent_entities folds it into 1.
+    structure = _load("1a3n")
+    alpha = next(e for e in structure.entities if e.id == "1")
+    seq = alpha.poly.pdbx_seq_one_letter_code_can
+    entities = [
+        e.model_copy(
+            update={
+                "poly": e.poly.model_copy(
+                    update={"pdbx_seq_one_letter_code_can": seq}
+                )
+            }
+        )
+        if e.id == "2"
+        else e
+        for e in structure.entities
+    ]
+    structure = structure.model_copy(update={"entities": entities})
+    policy = _lenient_policy(
+        entity_rules=EntityRules(strategy="merge_equivalent_entities")
+    )
+
+    canonical, _, _ = canonicalise_structure(structure, policy)
+
+    entity_ids = {e.id for e in canonical.entities}
+    rows = canonical.raw["_entity_poly_seq"]
+    assert {r["entity_id"] for r in rows} <= entity_ids
+    assert rows == [
+        r for r in structure.raw["_entity_poly_seq"] if r["entity_id"] == "1"
+    ]
+
+
+def test_mse_mapping_updates_bonds_and_seqres():
+    structure = _load("1b6w")  # MSE at A1 and A35, entity 1
+    bond = ConnRecord(
+        id="test",
+        conn_type_id="covale",
+        ptnr1=ConnPartner(
+            label_asym_id="A",
+            label_comp_id="MSE",
+            label_seq_id=35,
+            label_atom_id="SE",
+        ),
+        ptnr2=ConnPartner(
+            label_asym_id="A",
+            label_comp_id="MSE",
+            label_seq_id=1,
+            label_atom_id="SE",
+        ),
+    )
+    structure = structure.model_copy(update={"connections": [bond]})
+    policy = _lenient_policy(
+        modified_residue_rules=ModifiedResidueRules(strategy="map_to_parent")
+    )
+
+    canonical, _, _ = canonicalise_structure(structure, policy)
+
+    [conn] = canonical.connections
+    for side in (conn.ptnr1, conn.ptnr2):
+        assert (side.label_comp_id, side.label_atom_id) == ("MET", "SD")
+    seqres = {
+        int(r["num"]): r["mon_id"]
+        for r in canonical.raw["_entity_poly_seq"]
+        if r["entity_id"] == "1"
+    }
+    assert seqres[1] == seqres[35] == "MET"
+    # input untouched
+    assert structure.connections[0].ptnr1.label_comp_id == "MSE"
+    assert any(r["mon_id"] == "MSE" for r in structure.raw["_entity_poly_seq"])

@@ -264,3 +264,27 @@ def test_load_similarity_search_rejects_unknown_engine(tmp_path):
 
     with pytest.raises(ValueError, match="engine"):
         load_similarity_search(path, "BLAST")
+
+
+@pytest.mark.parametrize(
+    ("field", "row_kwargs"),
+    [
+        ("min_score", {"alntm": "nan"}),
+        ("min_identity", {"fident": "nan"}),
+        ("min_coverage", {"qcov": "nan"}),
+    ],
+)
+def test_iter_edges_nan_fails_threshold(tmp_path, field, row_kwargs):
+    search = _search(tmp_path, [_foldseek_row("a", "b", **row_kwargs)])
+
+    assert list(iter_edges(search, HitFilter(**{field: 0.1}))) == []
+
+
+def test_iter_edges_rejects_search_missing_columns(tmp_path):
+    search = _search(tmp_path, [_foldseek_row("a", "b")])
+    search = search.model_copy(
+        update={"columns": [c for c in search.columns if c != "qcov"]}
+    )
+
+    with pytest.raises(ValueError, match="qcov"):
+        iter_edges(search, HitFilter())
