@@ -305,6 +305,19 @@ def _cmd_similarity(args: argparse.Namespace) -> None:
     output = Path(args.output)
 
     if args.precomputed_hits:
+        ignored = [
+            flag
+            for flag, value in (
+                ("--max-seqs", args.max_seqs),
+                ("--sensitivity", args.sensitivity),
+            )
+            if value is not None
+        ]
+        if ignored:
+            raise SystemExit(
+                f"similarity: {', '.join(ignored)} has no effect with "
+                "--precomputed-hits (no search is run)"
+            )
         search = load_similarity_search(
             args.precomputed_hits, _CLI_ENGINES[args.engine]
         )
