@@ -117,11 +117,20 @@ def iter_edges(
             (`tm_normalisation` other than "alignment", or
             `interface_residues`, on an MMseqs2 search;
             `min_interface_coverage` without `interface_residues`).
+            `search.columns` lacks a column the engine's hit files have.
             Raised immediately, before any row is read. While iterating:
             a row has the wrong column count or a non-numeric value
             (the message names `<path>:<line>`).
+        FileNotFoundError: The hit file doesn't exist (while
+            iterating).
     """
 
+    missing = [c for c in HIT_COLUMNS[search.engine] if c not in search.columns]
+    if missing:
+        raise ValueError(
+            f"{search.engine} search is missing columns {missing}; "
+            f"expected {HIT_COLUMNS[search.engine]}"
+        )
     if search.engine == "MMseqs2" and hit_filter.tm_normalisation != (
         "alignment"
     ):
@@ -239,16 +248,18 @@ def _passes(
     coverage: float,
     interface_coverage: float | None,
 ) -> bool:
-    """Whether one row's values meet every threshold set in hit_filter."""
+    """Whether one row's values meet every threshold set in hit_filter
+    (a NaN value fails)."""
 
-    if hit_filter.min_score is not None and score < hit_filter.min_score:
+    # `not x >= limit` rather than `x < limit`, so NaN fails.
+    if hit_filter.min_score is not None and not score >= hit_filter.min_score:
         return False
-    if hit_filter.min_identity is not None and (
-        identity < hit_filter.min_identity
+    if hit_filter.min_identity is not None and not (
+        identity >= hit_filter.min_identity
     ):
         return False
-    if hit_filter.min_coverage is not None and (
-        coverage < hit_filter.min_coverage
+    if hit_filter.min_coverage is not None and not (
+        coverage >= hit_filter.min_coverage
     ):
         return False
     if hit_filter.min_interface_coverage is not None and (
