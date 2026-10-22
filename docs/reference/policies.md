@@ -35,6 +35,8 @@ policy = canonicalisationPolicy(
 | `use_auth_seq` | Use the numeric part of `auth_seq_id` as the canonical `seq_id`. |
 | `renumber` | Renumber residues sequentially from 1 per chain, in order of first appearance, ignoring gaps in the original numbering. |
 
+Only polymer residues are numbered. Ligands and waters keep no `label_seq_id` under every strategy, as mmCIF requires, and get no entry in `residue_number_mapping`.
+
 `residue_numbering.preserve_insertion_codes` (default `True`) only applies
 when `strategy` is `preserve` or `use_auth_seq`: `True` keeps insertion
 codes, `False` strips them. It has **no effect under `renumber`** —

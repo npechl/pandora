@@ -31,10 +31,18 @@ def _normalize_residue_numbering(
         return result, mapping
 
     seen: set[tuple] = set()
+    # Atoms already carry canonical chain ids (the chain map ran first).
+    original_chain = {new: old for old, new in chain_map.items()}
 
+    # Only polymer residues (label_seq_id set) are numbered; ligands and
+    # waters keep label_seq_id None, as mmCIF requires.
     if strategy == "use_auth_seq":
         result = []
         for a in atoms:
+            ins = a.pdbx_PDB_ins_code if preserve_insertion_codes else None
+            if a.label_seq_id is None:
+                result.append(a.model_copy(update={"pdbx_PDB_ins_code": ins}))
+                continue
             raw = a.auth_seq_id or ""
             digits = "".join(c for c in raw if c.isdigit() or c == "-")
             try:
@@ -42,18 +50,16 @@ def _normalize_residue_numbering(
             except ValueError:
                 new_seq = a.label_seq_id
 
-            ins = a.pdbx_PDB_ins_code if preserve_insertion_codes else None
-
             key = (a.label_asym_id, a.label_seq_id, a.auth_seq_id)
             if record and key not in seen:
                 seen.add(key)
                 mapping.items.append(
                     ResidueNumberMappingItem(
-                        canonical_chain_id=chain_map.get(
+                        canonical_chain_id=a.label_asym_id,
+                        canonical_seq_id=new_seq or 0,
+                        original_chain_id=original_chain.get(
                             a.label_asym_id, a.label_asym_id
                         ),
-                        canonical_seq_id=new_seq or 0,
-                        original_chain_id=a.label_asym_id,
                         original_seq_id=a.label_seq_id,
                         original_auth_seq_id=a.auth_seq_id or "",
                         original_insertion_code=a.pdbx_PDB_ins_code,
@@ -70,6 +76,8 @@ def _normalize_residue_numbering(
     chain_res_order: dict[str, list[tuple]] = defaultdict(list)
     chain_res_seen: dict[str, set] = defaultdict(set)
     for a in atoms:
+        if a.label_seq_id is None:
+            continue
         rk = (
             a.label_seq_id,
             a.auth_seq_id,
@@ -87,6 +95,9 @@ def _normalize_residue_numbering(
 
     result = []
     for a in atoms:
+        if a.label_seq_id is None:
+            result.append(a.model_copy(update={"pdbx_PDB_ins_code": None}))
+            continue
         rk = (
             a.label_seq_id,
             a.auth_seq_id,
@@ -100,11 +111,11 @@ def _normalize_residue_numbering(
             seen.add(key)
             mapping.items.append(
                 ResidueNumberMappingItem(
-                    canonical_chain_id=chain_map.get(
+                    canonical_chain_id=a.label_asym_id,
+                    canonical_seq_id=new_seq or 0,
+                    original_chain_id=original_chain.get(
                         a.label_asym_id, a.label_asym_id
                     ),
-                    canonical_seq_id=new_seq or 0,
-                    original_chain_id=a.label_asym_id,
                     original_seq_id=a.label_seq_id,
                     original_auth_seq_id=a.auth_seq_id or "",
                     original_insertion_code=a.pdbx_PDB_ins_code,

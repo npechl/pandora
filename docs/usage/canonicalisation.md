@@ -725,7 +725,7 @@ When a run changes which chains or residues exist or what they are called (renum
     transforms: ['modified_residues:map_to_parent', 'chain_id:use_auth_chain_id', 'missing_atoms:annotate', 'missing_residues:annotate', 'altloc:select_best_occupancy', 'residue_numbering:renumber']
     report: {'warnings': 0, 'errors': 0}
     chain_id_mapping: 2 items
-    residue_number_mapping: 82 items
+    residue_number_mapping: 68 items
     assembly_mapping: 1 items
     entity_mapping: 2 items
     altloc_selection_mapping: 1 items
@@ -767,7 +767,7 @@ When a run changes which chains or residues exist or what they are called (renum
     17
     ["_entity_poly","_pdbx_modification_feature","_pdbx_nonpoly_scheme","_pdbx_poly_seq_scheme"]
     chain_id_mapping: 2 items
-    residue_number_mapping: 82 items
+    residue_number_mapping: 68 items
     assembly_mapping: 1 items
     entity_mapping: 2 items
     altloc_selection_mapping: 1 items
