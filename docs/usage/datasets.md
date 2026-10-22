@@ -589,7 +589,7 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
 
 ## Keep only the polymer
 
-`content_rules` never excludes anything. It strips ligands, waters or ions from structures that pass, the same way [`filter_ligands()`](canonicalisation.md#filter-ligands-directly) does.
+`content_rules` never excludes anything. It strips ligands, waters or ions from structures that pass, the same way [`filter_ligands()`](canonicalisation.md#filter-ligands-directly) does. Removing chains this way, or with chain rules, also removes the verbatim `raw` categories that refer to them; the returned provenance lists them in `dropped_raw_categories`.
 
 === "`library`"
 

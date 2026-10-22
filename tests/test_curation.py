@@ -584,3 +584,46 @@ def test_dropped_chain_takes_its_connections_and_secondary_structure():
     assert "A" not in conn_chains
     assert "A" not in ss_chains
     assert "B" in ss_chains
+
+
+def test_curated_structure_exports_to_valid_mmcif(tmp_path):
+    from pandora.export.mmcif import structure_to_mmcif
+
+    structure = _load("10tm")  # A, C: 282 residues; B, D: 5
+    curated, exclusions, _ = curate_structure(
+        structure,
+        None,
+        _policy(
+            quality_rules=QualityRules(max_chain_length=100),
+            content_rules=ContentRules(keep_waters=False),
+        ),
+    )
+    assert exclusions
+    dropped = {e.chain_id for e in exclusions}
+    assert not any(
+        dropped & set(gen.asym_id_list)
+        for asm in curated.assemblies
+        for gen in asm.generators
+    )
+    reparsed, _, status = mmcif_to_structure(
+        str(structure_to_mmcif(curated, tmp_path / "curated.cif"))
+    )
+    assert status != "failed"
+    assert {u.id for u in reparsed.asym_units} == {
+        u.id for u in curated.asym_units
+    }
+
+
+def test_curation_provenance_lists_dropped_raw_categories():
+    structure = _load("10tm")
+    curated, _, provenance = curate_structure(
+        structure,
+        None,
+        _policy(quality_rules=QualityRules(max_chain_length=100)),
+    )
+    assert "_pdbx_poly_seq_scheme" in provenance.dropped_raw_categories
+    assert provenance.dropped_raw_categories == sorted(
+        set(structure.raw) - set(curated.raw)
+    )
+    _, _, untouched = curate_structure(structure, None, _policy())
+    assert untouched.dropped_raw_categories == []

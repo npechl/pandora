@@ -279,6 +279,8 @@ warning above.)
 
 Order: entry rules (resolution, method, R-factors, organism, non-standard residues, `max_atoms`), then chain rules, then `min_chain_length` and `min_polymer_chains` on what is left, then content rules.
 
+When chain rules or content rules remove chains, the `Structure.raw` categories that refer to chains or residues by ID are removed too, as in canonicalisation, so the curated structure still writes a valid mmCIF file. They are listed in `CurationProvenance.dropped_raw_categories`.
+
 ### `quality_rules`
 
 | Field | Default | Level | Description |

@@ -4,6 +4,7 @@ from pandora._util import now_iso
 from pandora.annotations.entry import polymer_asym_ids
 from pandora.canonicalisation import filter_ligands
 from pandora.canonicalisation.modified_residues import STANDARD_RESIDUES
+from pandora.canonicalisation.raw_categories import _drop_stale_raw_categories
 from pandora.canonicalisation.assemblies import _spans_within
 from pandora.datasets.completeness import chain_completeness
 from pandora.datasets.records import extract_chain_records
@@ -251,7 +252,7 @@ def _drop_chains(structure: Structure, chain_ids: set[str]) -> Structure:
 
     kept = {u.id for u in structure.asym_units} - chain_ids
     ss = structure.secondary_structure
-    return structure.model_copy(
+    dropped = structure.model_copy(
         update={
             "atoms": [
                 a for a in structure.atoms if a.label_asym_id not in chain_ids
@@ -273,6 +274,38 @@ def _drop_chains(structure: Structure, chain_ids: set[str]) -> Structure:
             ),
         }
     )
+    return _drop_stale_references(structure, dropped)
+
+
+def _drop_stale_references(
+    original: Structure, filtered: Structure
+) -> Structure:
+    """filtered without raw categories or assembly chain lists that refer
+    to chains or residues original had and filtered lost (else its mmCIF
+    export won't re-parse)."""
+
+    raw, _ = _drop_stale_raw_categories(
+        filtered.raw, original.atoms, filtered.atoms
+    )
+    kept = {u.id for u in filtered.asym_units}
+    assemblies = [
+        asm.model_copy(
+            update={
+                "generators": [
+                    gen.model_copy(
+                        update={
+                            "asym_id_list": [
+                                c for c in gen.asym_id_list if c in kept
+                            ]
+                        }
+                    )
+                    for gen in asm.generators
+                ]
+            }
+        )
+        for asm in filtered.assemblies
+    ]
+    return filtered.model_copy(update={"raw": raw, "assemblies": assemblies})
 
 
 def _check_chain_counts(
@@ -367,8 +400,9 @@ def _apply_content_rules(
         DiagnosticBundle(),
         structure.entry_id,
     )
-    return structure.model_copy(
-        update={"atoms": atoms, "asym_units": asym_units}
+    return _drop_stale_references(
+        structure,
+        structure.model_copy(update={"atoms": atoms, "asym_units": asym_units}),
     )
 
 
@@ -442,7 +476,10 @@ def curate_structure(
         removed chain. When the entry is excluded, `curated_structure`
         is None and the last record in `exclusions` has
         `chain_id=None`. Provenance (which policy id/version ran, and
-        when) is always populated.
+        when) is always populated. Removing chains or ligands also
+        removes the `Structure.raw` categories that refer to chains or
+        residues by id; they are listed in
+        `provenance.dropped_raw_categories`.
     """
 
     provenance = CurationProvenance(
@@ -461,6 +498,7 @@ def curate_structure(
     if exclusion is not None:
         return None, [exclusion], provenance
 
+    original_raw = structure.raw
     records = _chain_exclusions(structure, rules)
     if records:
         structure = _drop_chains(structure, {r.chain_id for r in records})
@@ -468,8 +506,10 @@ def curate_structure(
     if exclusion is not None:
         return None, [*records, exclusion], provenance
 
+    curated = _apply_content_rules(structure, policy.content_rules)
+    dropped = sorted(set(original_raw) - set(curated.raw))
     return (
-        _apply_content_rules(structure, policy.content_rules),
+        curated,
         records,
-        provenance,
+        provenance.model_copy(update={"dropped_raw_categories": dropped}),
     )

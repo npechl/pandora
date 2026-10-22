@@ -305,12 +305,16 @@ class CurationProvenance(BaseModel):
         policy_id: The id of the policy that ran.
         policy_name: The name of the policy that ran.
         policy_version: The version of the policy that ran.
+        dropped_raw_categories: The verbatim mmCIF categories removed
+            from `Structure.raw` because they refer to chains or
+            residues by id and curation removed some chains or ligands.
     """
 
     curated_at: str
     policy_id: str
     policy_name: str
     policy_version: str
+    dropped_raw_categories: list[str] = Field(default_factory=list)
 
 
 class DeduplicationProvenance(BaseModel):
