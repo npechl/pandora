@@ -9,6 +9,30 @@ Before diving in, [Architecture](architecture.md) maps every public
 function to the data model it takes and returns — the fastest way to see
 where a new piece belongs.
 
+## Where to start
+
+You do not need structural-biology experience for every contribution.
+Choose an area that matches your background:
+
+| Background | Starting points | Examples to follow |
+|---|---|---|
+| Python, no mmCIF knowledge needed | [Similarity and splits](../usage/similarity.md): clustering prepared edges and partitioning clusters | [Clustering tests](https://github.com/npechl/pandora/blob/main/tests/test_clustering.py), [partition tests](https://github.com/npechl/pandora/blob/main/tests/test_partition.py) |
+| Python, no mmCIF knowledge needed | [Export](../usage/export.md): formatting typed records as JSON, JSONL or Parquet | [Export tests](https://github.com/npechl/pandora/blob/main/tests/test_export.py) |
+| Command-line tools, no mmCIF knowledge needed | [CLI](../usage/cli.md): argument handling and file I/O around existing functions | [CLI conventions](https://github.com/npechl/pandora/blob/main/pandora/cli/README.md), [CLI tests](https://github.com/npechl/pandora/blob/main/tests/test_cli.py) |
+| Comfortable with Pandora's typed models and policies | [Curation rules](../usage/datasets.md) and [annotation layers](../usage/annotation.md); follow an existing rule or `annotate_*()` function | [Curation tests](https://github.com/npechl/pandora/blob/main/tests/test_curation.py), [annotation tests](https://github.com/npechl/pandora/blob/main/tests/test_annotations.py) |
+| Familiar with mmCIF and structure identifiers | [Parsing and canonicalisation](../usage/canonicalisation.md); read the [glossary](../getting-started/glossary.md) and [architecture](architecture.md) first | Local fixtures in `datasets/dev/mmcif/` and the matching tests |
+
+Clustering and partition tests can work with prepared edges and typed
+records; they do not require running MMseqs2 or Foldseek. Parquet export
+needs the optional `export` dependencies. The full test suite uses local
+fixtures and fakes external similarity tools rather than requiring live
+services or those binaries.
+
+Browse [open good first issues](https://github.com/npechl/pandora/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+for scoped tasks, and check the discussion and linked PRs before starting
+so you do not duplicate work already in progress. Use the workflow below
+once you have chosen a task.
+
 ## Ways to contribute
 
 | I want to... | Go to |
