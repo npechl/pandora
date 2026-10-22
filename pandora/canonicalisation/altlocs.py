@@ -7,6 +7,62 @@ from pandora.schemas.canonicalisation import (
     AltlocSelectionMappingItem,
 )
 
+_SELECTION_REASON = {
+    "select_first": "first_alphabetical",
+    "select_user_defined": "user_defined",
+    "select_best_occupancy": "best_occupancy",
+}
+
+
+def _has_altloc(a: AtomSiteRecord) -> bool:
+    """Whether a carries a real altloc code."""
+
+    return bool(a.label_alt_id) and a.label_alt_id not in (".", "?")
+
+
+def _site(a: AtomSiteRecord) -> tuple:
+    """Physical site of a: chain plus residue numbers."""
+
+    return (a.label_asym_id, a.auth_seq_id, a.label_seq_id)
+
+
+def _mean(atoms: list[AtomSiteRecord], field: str) -> float:
+    """Mean of field over atoms."""
+
+    return sum(getattr(a, field) for a in atoms) / len(atoms)
+
+
+def _select_altloc(alt_groups: dict[str, list[AtomSiteRecord]], rules) -> str:
+    """The altloc to keep at one site, per the altloc rules."""
+
+    altlocs = sorted(alt_groups)
+    if len(altlocs) == 1 or rules.strategy == "select_first":
+        return altlocs[0]
+    if rules.strategy == "select_user_defined":
+        udl = rules.user_defined_altloc
+        return udl if udl in altlocs else altlocs[0]
+
+    # select_best_occupancy
+    occ = {alt: _mean(alt_groups[alt], "occupancy") for alt in altlocs}
+    max_occ = max(occ.values())
+    tied = [alt for alt, o in occ.items() if o == max_occ]
+    if len(tied) == 1:
+        return tied[0]
+
+    def _mean_b(alt: str) -> float:
+        """Mean B-factor of alt's atoms."""
+
+        return _mean(alt_groups[alt], "B_iso_or_equiv")
+
+    tb = rules.tie_breaker
+    if tb == "alphabetical_last":
+        return max(tied)
+    if tb == "lowest_b_factor":
+        return min(tied, key=_mean_b)
+    if tb == "highest_b_factor":
+        return max(tied, key=_mean_b)
+    return min(tied)  # alphabetical_first
+
 
 def _resolve_altlocs(
     atoms: list[AtomSiteRecord],
@@ -16,9 +72,8 @@ def _resolve_altlocs(
     per the altloc rules."""
 
     mapping = AltlocSelectionMapping()
-    strategy = rules.strategy
 
-    if strategy == "preserve":
+    if rules.strategy == "preserve":
         return atoms, mapping
 
     # Keyed by physical site (chain + residue number), not residue
@@ -30,96 +85,38 @@ def _resolve_altlocs(
     # produce a residue-number collision downstream (validation.py) that
     # was never actually ambiguous — the file already resolved it via
     # label_alt_id, we just weren't reading it that way.
-    by_residue: dict[tuple, dict[str, list[AtomSiteRecord]]] = defaultdict(
+    by_site: dict[tuple, dict[str, list[AtomSiteRecord]]] = defaultdict(
         lambda: defaultdict(list)
     )
-
     for a in atoms:
-        alt = a.label_alt_id
-        if alt and alt not in (".", "?"):
-            key = (a.label_asym_id, a.auth_seq_id, a.label_seq_id)
-            by_residue[key][alt].append(a)
+        if _has_altloc(a):
+            by_site[_site(a)][a.label_alt_id].append(a)
 
     selected_altloc: dict[tuple, str] = {}
+    for site, alt_groups in by_site.items():
+        selected = _select_altloc(alt_groups, rules)
+        selected_altloc[site] = selected
 
-    for (asym_id, _auth_seq_id, seq_id), alt_groups in by_residue.items():
-        altlocs = sorted(alt_groups.keys())
-
-        if len(altlocs) == 1:
-            selected = altlocs[0]
-        elif strategy == "select_first":
-            selected = altlocs[0]
-        elif strategy == "select_user_defined":
-            udl = rules.user_defined_altloc
-            selected = udl if udl in altlocs else altlocs[0]
-        else:  # select_best_occupancy
-
-            def _mean_occ(alt: str) -> float:
-                """Mean occupancy of alt's atoms."""
-
-                grp = alt_groups[alt]
-                return sum(a.occupancy for a in grp) / len(grp)
-
-            occ = {alt: _mean_occ(alt) for alt in altlocs}
-            max_occ = max(occ.values())
-            tied = [alt for alt, o in occ.items() if o == max_occ]
-
-            if len(tied) == 1:
-                selected = tied[0]
-            else:
-                tb = rules.tie_breaker
-                if tb == "alphabetical_last":
-                    selected = max(tied)
-                elif tb == "lowest_b_factor":
-
-                    def _mean_b(alt: str) -> float:
-                        """Mean B-factor of alt's atoms."""
-
-                        grp = alt_groups[alt]
-                        return sum(a.B_iso_or_equiv for a in grp) / len(grp)
-
-                    selected = min(tied, key=_mean_b)
-                elif tb == "highest_b_factor":
-
-                    def _mean_b(alt: str) -> float:
-                        """Mean B-factor of alt's atoms."""
-
-                        grp = alt_groups[alt]
-                        return sum(a.B_iso_or_equiv for a in grp) / len(grp)
-
-                    selected = max(tied, key=_mean_b)
-                else:  # alphabetical_first
-                    selected = min(tied)
-
-        selected_altloc[(asym_id, _auth_seq_id, seq_id)] = selected
-
-        if rules.record_selection and len(altlocs) > 1:
-            reason_map = {
-                "select_first": "first_alphabetical",
-                "select_user_defined": "user_defined",
-                "select_best_occupancy": "best_occupancy",
-            }
+        if rules.record_selection and len(alt_groups) > 1:
+            asym_id, _auth_seq_id, seq_id = site
             selected_comp_id = alt_groups[selected][0].label_comp_id
             mapping.items.append(
                 AltlocSelectionMappingItem(
                     canonical_chain_id=asym_id,
                     residue_id=f"{seq_id}:{selected_comp_id}",
                     selected_altloc=selected,
-                    available_altlocs=altlocs,
-                    selection_reason=reason_map.get(
-                        strategy, "first_alphabetical"
+                    available_altlocs=sorted(alt_groups),
+                    selection_reason=_SELECTION_REASON.get(
+                        rules.strategy, "first_alphabetical"
                     ),
                 )
             )
 
     result: list[AtomSiteRecord] = []
     for a in atoms:
-        alt = a.label_alt_id
-        if not alt or alt in (".", "?"):
+        if not _has_altloc(a):
             result.append(a)
-            continue
-        key = (a.label_asym_id, a.auth_seq_id, a.label_seq_id)
-        if alt == selected_altloc.get(key):
+        elif a.label_alt_id == selected_altloc.get(_site(a)):
             result.append(a.model_copy(update={"label_alt_id": None}))
 
     return result, mapping

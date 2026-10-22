@@ -22,10 +22,18 @@ from pandora.provenance.manifest import (
 )
 from pandora.schemas.annotation import AnnotationLayer
 from pandora.schemas.canonicalisation import canonicalisationProvenance
-from pandora.schemas.dataset import DeduplicationRules, ExclusionRecord
+from pandora.schemas.dataset import (
+    DatasetCurationPolicy,
+    DeduplicationRules,
+    ExclusionRecord,
+)
 from pandora.schemas.ingestion import FetchOptions, IngestionProvenance
 from pandora.schemas.provenance import DatasetManifest
-from pandora.schemas.similarity import SimilaritySearch
+from pandora.schemas.similarity import (
+    ClusteringProvenance,
+    PartitionProvenance,
+    SimilaritySearch,
+)
 from pandora.schemas.structure import Structure
 from pandora.similarity.clustering import cluster_similar_items
 from pandora.similarity.partition import partition_dataset
@@ -156,6 +164,67 @@ def reproduce_dataset(
     """
 
     output_dir = Path(output_dir)
+    structures, ingestion_provenance, canonicalisation_provenance = (
+        _reproduce_structures(manifest, output_dir, fetch_options)
+    )
+
+    excluded: list[ExclusionRecord] = []
+    if manifest.curation_policy is not None:
+        structures, excluded = _reproduce_curation(
+            structures, manifest.curation_policy
+        )
+
+    dedup_prov = None
+    if manifest.deduplication is not None and manifest.deduplication.enabled:
+        retained, removed, dedup_prov = deduplicate_structures(
+            list(structures.values()), DeduplicationRules(enabled=True)
+        )
+        excluded.extend(removed)
+        structures = {s.entry_id: s for s in retained}
+
+    cluster_prov, partition_prov, splits = _reproduce_clustering(
+        manifest, structures, output_dir
+    )
+
+    annotation_layers = _reproduce_annotations(manifest, structures)
+    new_structures = {
+        entry_id: build_provenance_bundle(
+            structures[entry_id],
+            ingestion=ingestion_provenance.get(entry_id),
+            canonicalisation=canonicalisation_provenance.get(entry_id),
+            annotations=annotation_layers.get(entry_id, []),
+        )
+        for entry_id in structures
+    }
+
+    new_manifest = build_dataset_manifest(
+        dataset_id=manifest.dataset_id,
+        dataset_name=manifest.dataset_name,
+        dataset_version=manifest.dataset_version,
+        curation_policy=manifest.curation_policy,
+        canonicalisation_policy=manifest.canonicalisation_policy,
+        excluded=excluded,
+        deduplication=dedup_prov,
+        clustering=cluster_prov,
+        partition=partition_prov,
+        splits=splits,
+        structures=list(new_structures.values()),
+    )
+    return structures, new_manifest
+
+
+def _reproduce_structures(
+    manifest: DatasetManifest,
+    output_dir: Path,
+    fetch_options: FetchOptions | None,
+) -> tuple[
+    dict[str, Structure],
+    dict[str, IngestionProvenance],
+    dict[str, canonicalisationProvenance],
+]:
+    """Re-fetch, parse and (if the manifest has a policy) canonicalise
+    every structure; each result is keyed by entry_id."""
+
     structures: dict[str, Structure] = {}
     ingestion_provenance: dict[str, IngestionProvenance] = {}
     canonicalisation_provenance: dict[str, canonicalisationProvenance] = {}
@@ -188,79 +257,64 @@ def reproduce_dataset(
         ingestion_provenance[structure.entry_id] = ingestion_prov
         structures[structure.entry_id] = structure
 
+    return structures, ingestion_provenance, canonicalisation_provenance
+
+
+def _reproduce_curation(
+    structures: dict[str, Structure], policy: DatasetCurationPolicy
+) -> tuple[dict[str, Structure], list[ExclusionRecord]]:
+    """Structures that pass the curation policy (curated), and the
+    exclusion records of the rest."""
+
+    kept: dict[str, Structure] = {}
     excluded: list[ExclusionRecord] = []
-    if manifest.curation_policy is not None:
-        for entry_id in list(structures):
-            metadata = collect_metadata(structures[entry_id])
-            curated, records, _ = curate_structure(
-                structures[entry_id], metadata, manifest.curation_policy
-            )
-            excluded.extend(records)
-            if curated is None:
-                del structures[entry_id]
-            else:
-                structures[entry_id] = curated
+    for entry_id, structure in structures.items():
+        metadata = collect_metadata(structure)
+        curated, records, _ = curate_structure(structure, metadata, policy)
+        excluded.extend(records)
+        if curated is not None:
+            kept[entry_id] = curated
+    return kept, excluded
 
-    dedup_prov = None
-    if manifest.deduplication is not None and manifest.deduplication.enabled:
-        retained, removed, dedup_prov = deduplicate_structures(
-            list(structures.values()), DeduplicationRules(enabled=True)
+
+def _reproduce_clustering(
+    manifest: DatasetManifest,
+    structures: dict[str, Structure],
+    output_dir: Path,
+) -> tuple[
+    ClusteringProvenance | None,
+    PartitionProvenance | None,
+    dict[str, list[str]],
+]:
+    """Re-run the manifest's similarity search, clustering and partition,
+    if it recorded them."""
+
+    if manifest.clustering is None:
+        return None, None, {}
+    recorded = manifest.clustering
+    if recorded.search is None or recorded.hit_filter is None:
+        raise ValueError(
+            "cannot reproduce clustering: the original manifest did "
+            "not record which similarity search and hit filter "
+            "produced the clusters"
         )
-        excluded.extend(removed)
-        structures = {s.entry_id: s for s in retained}
-
-    cluster_prov = None
-    partition_prov = None
-    splits: dict[str, list[str]] = {}
-    if manifest.clustering is not None:
-        recorded = manifest.clustering
-        if recorded.search is None or recorded.hit_filter is None:
-            raise ValueError(
-                "cannot reproduce clustering: the original manifest did "
-                "not record which similarity search and hit filter "
-                "produced the clusters"
-            )
-        if recorded.hit_filter.min_interface_coverage is not None:
-            raise ValueError(
-                "cannot reproduce clustering: its hit filter uses "
-                "min_interface_coverage, and the interface residues it "
-                "was computed with are not recorded in the manifest"
-            )
-        search = _reproduce_similarity(recorded.search, structures, output_dir)
-        clusters, cluster_prov = cluster_similar_items(
-            list(structures), search, recorded.hit_filter
+    if recorded.hit_filter.min_interface_coverage is not None:
+        raise ValueError(
+            "cannot reproduce clustering: its hit filter uses "
+            "min_interface_coverage, and the interface residues it "
+            "was computed with are not recorded in the manifest"
         )
-        if manifest.partition is not None:
-            splits, partition_prov = partition_dataset(
-                clusters,
-                manifest.partition.pct_train,
-                manifest.partition.pct_val,
-                manifest.partition.pct_test,
-                keep_similar_items=manifest.partition.keep_similar_items,
-            )
-
-    annotation_layers = _reproduce_annotations(manifest, structures)
-    new_structures = {
-        entry_id: build_provenance_bundle(
-            structures[entry_id],
-            ingestion=ingestion_provenance.get(entry_id),
-            canonicalisation=canonicalisation_provenance.get(entry_id),
-            annotations=annotation_layers.get(entry_id, []),
-        )
-        for entry_id in structures
-    }
-
-    new_manifest = build_dataset_manifest(
-        dataset_id=manifest.dataset_id,
-        dataset_name=manifest.dataset_name,
-        dataset_version=manifest.dataset_version,
-        curation_policy=manifest.curation_policy,
-        canonicalisation_policy=manifest.canonicalisation_policy,
-        excluded=excluded,
-        deduplication=dedup_prov,
-        clustering=cluster_prov,
-        partition=partition_prov,
-        splits=splits,
-        structures=list(new_structures.values()),
+    search = _reproduce_similarity(recorded.search, structures, output_dir)
+    clusters, cluster_prov = cluster_similar_items(
+        list(structures), search, recorded.hit_filter
     )
-    return structures, new_manifest
+    if manifest.partition is None:
+        return cluster_prov, None, {}
+    splits, partition_prov = partition_dataset(
+        clusters,
+        manifest.partition.pct_train,
+        manifest.partition.pct_val,
+        manifest.partition.pct_test,
+        keep_similar_items=manifest.partition.keep_similar_items,
+    )
+    return cluster_prov, partition_prov, splits
