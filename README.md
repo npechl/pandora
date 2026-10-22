@@ -1,10 +1,6 @@
 # Pandora
 
-Pandora is a Python toolkit for building ML-ready datasets from structural
-biology data. It gives you typed data models and plain functions to parse
-PDB/PDBe mmCIF files, normalise them with explicit policies, attach metadata
-and annotations, curate and split datasets without leakage, and record
-enough provenance to rebuild the result.
+Pandora is a Python toolkit for building ML-ready datasets from structural biology data. It gives you typed data models and plain functions to parse mmCIF files, normalise them with explicit policies, attach metadata and annotations, curate and split datasets without leakage, and record enough provenance to rebuild the result.
 
 > [!WARNING]
 > Pandora is under active development. The API can change between
