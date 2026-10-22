@@ -156,6 +156,18 @@ def test_use_auth_seq_parses_digits_from_auth_seq_id():
     assert result[0].pdbx_PDB_ins_code is None
 
 
+def test_renumbering_leaves_ligands_without_seq_id():
+    structure = _load("10tm")  # CLR ligands have no label_seq_id
+    ligand_ids = {a.id for a in structure.atoms if a.label_seq_id is None}
+    assert ligand_ids
+    for strategy in ("renumber", "use_auth_seq"):
+        result, mapping = _normalize_residue_numbering(
+            structure.atoms, {}, strategy, True, record=True
+        )
+        assert {a.id for a in result if a.label_seq_id is None} == ligand_ids
+        assert all(i.original_seq_id is not None for i in mapping.items)
+
+
 def test_preserve_drops_insertion_codes_when_not_requested():
     atoms = [_atom(ins_code="A")]
     result, _ = _normalize_residue_numbering(
@@ -1346,3 +1358,34 @@ def test_mse_mapping_updates_bonds_and_seqres():
     # input untouched
     assert structure.connections[0].ptnr1.label_comp_id == "MSE"
     assert any(r["mon_id"] == "MSE" for r in structure.raw["_entity_poly_seq"])
+
+
+def test_residue_mapping_records_chain_ids_before_and_after_remap():
+    # 10tm's asym order is A, C, B, D, so remap swaps B and C.
+    structure = _load("10tm")
+    policy = _lenient_policy(
+        identifier_rules=IdentifierRules(
+            chain_id=ChainIdRules(strategy="remap"),
+            residue_numbering=ResidueNumberingRules(strategy="renumber"),
+        )
+    )
+    _, mappings, _ = canonicalise_structure(structure, policy)
+
+    chain_pairs = {
+        (i.original_chain_id, i.canonical_chain_id)
+        for i in mappings.chain_id_mapping.items
+    }
+    assert ("C", "B") in chain_pairs
+    # Each entry must name a residue that exists under its original chain
+    # (C has 282 residues, B only 5, so a swapped chain id can't pass).
+    original_residues = {
+        (a.label_asym_id, a.label_seq_id, a.auth_seq_id)
+        for a in structure.atoms
+    }
+    for item in mappings.residue_number_mapping.items:
+        assert (item.original_chain_id, item.canonical_chain_id) in chain_pairs
+        assert (
+            item.original_chain_id,
+            item.original_seq_id,
+            item.original_auth_seq_id,
+        ) in original_residues
