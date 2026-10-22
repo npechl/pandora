@@ -63,12 +63,18 @@ def partition_dataset(
             )
             splits[split].extend(cluster.components)
     else:
+        # Each item goes to the split furthest below its share of the items
+        # seen so far; rounding per cluster sent every singleton to train.
+        fractions = {"train": pct_train, "val": pct_val, "test": pct_test}
+        seen = 0
         for cluster in ordered:
-            n_train = round(cluster.n_components * pct_train)
-            n_val = round(cluster.n_components * pct_val)
-            splits["train"].extend(cluster.components[:n_train])
-            splits["val"].extend(cluster.components[n_train : n_train + n_val])
-            splits["test"].extend(cluster.components[n_train + n_val :])
+            for item_id in cluster.components:
+                seen += 1
+                split = max(
+                    splits,
+                    key=lambda name: fractions[name] * seen - len(splits[name]),
+                )
+                splits[split].append(item_id)
 
     provenance = PartitionProvenance(
         partitioned_at=now_iso(),

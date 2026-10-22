@@ -42,6 +42,25 @@ def test_no_keep_similar_items_splits_proportionally_and_flat() -> None:
     )
 
 
+def test_no_keep_similar_items_hits_targets_with_small_clusters() -> None:
+    for size in (1, 2):
+        clusters = [
+            SimilarityCluster(
+                components=[f"i{i}_{j}" for j in range(size)],
+                n_components=size,
+            )
+            for i in range(100 // size)
+        ]
+        result, _ = partition_dataset(
+            clusters, 0.6, 0.2, 0.2, keep_similar_items=False
+        )
+        assert [len(result[k]) for k in ("train", "val", "test")] == [
+            60,
+            20,
+            20,
+        ]
+
+
 def test_bad_fractions_raise() -> None:
     try:
         partition_dataset(CLUSTERS, 0.6, 0.2, 0.3)
