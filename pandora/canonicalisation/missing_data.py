@@ -168,19 +168,16 @@ def _handle_incomplete_chains(
     if strategy == "preserve":
         return atoms, asym_units
 
-    chain_seq_ids: dict[str, list[int]] = defaultdict(list)
-    chain_seen: dict[str, set] = defaultdict(set)
+    chain_seq_ids: dict[str, set[int]] = defaultdict(set)
     for a in atoms:
         if a.group_PDB == "ATOM" and a.label_seq_id is not None:
-            if a.label_seq_id not in chain_seen[a.label_asym_id]:
-                chain_seen[a.label_asym_id].add(a.label_seq_id)
-                chain_seq_ids[a.label_asym_id].append(a.label_seq_id)
+            chain_seq_ids[a.label_asym_id].add(a.label_seq_id)
 
-    incomplete: set[str] = set()
-    for chain, seq_ids in chain_seq_ids.items():
-        s = sorted(seq_ids)
-        if s[-1] - s[0] + 1 > len(s):
-            incomplete.add(chain)
+    incomplete = {
+        chain
+        for chain, seq_ids in chain_seq_ids.items()
+        if max(seq_ids) - min(seq_ids) + 1 > len(seq_ids)
+    }
 
     if strategy == "exclude":
         keep = {a.id for a in asym_units} - incomplete
@@ -191,28 +188,29 @@ def _handle_incomplete_chains(
 
     # truncate_to_complete_regions: keep longest contiguous run per
     # incomplete chain
-    keep_ids: dict[str, set[int]] = {}
-    for chain in incomplete:
-        s = sorted(chain_seq_ids[chain])
-        best: list[int] = []
-        run: list[int] = [s[0]]
-        for i in range(1, len(s)):
-            if s[i] == s[i - 1] + 1:
-                run.append(s[i])
-            else:
-                if len(run) > len(best):
-                    best = run
-                run = [s[i]]
-        if len(run) > len(best):
-            best = run
-        keep_ids[chain] = set(best)
+    keep_ids = {
+        chain: _longest_run(chain_seq_ids[chain]) for chain in incomplete
+    }
+    return [
+        a
+        for a in atoms
+        if a.label_asym_id not in incomplete
+        or a.label_seq_id in keep_ids[a.label_asym_id]
+    ], asym_units
 
-    result = []
-    for a in atoms:
-        if a.label_asym_id in incomplete:
-            if a.label_seq_id in keep_ids.get(a.label_asym_id, set()):
-                result.append(a)
+
+def _longest_run(seq_ids: set[int]) -> set[int]:
+    """Longest run of consecutive numbers in seq_ids (the first one on a
+    tie)."""
+
+    s = sorted(seq_ids)
+    best: list[int] = []
+    run: list[int] = [s[0]]
+    for prev, cur in zip(s, s[1:]):
+        if cur == prev + 1:
+            run.append(cur)
         else:
-            result.append(a)
-
-    return result, asym_units
+            if len(run) > len(best):
+                best = run
+            run = [cur]
+    return set(run if len(run) > len(best) else best)

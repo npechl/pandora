@@ -57,6 +57,75 @@ def _pdbe_revision_date(entry_id: str) -> str | None:
         return None
 
 
+def _resolve_url(entry_id: str, provider: str, source_uri: str | None) -> str:
+    """source_uri, else the provider's download URL for entry_id."""
+
+    if source_uri:
+        return source_uri
+    if provider in _PROVIDER_URLS:
+        fmt_id = entry_id.lower() if provider == "pdbe" else entry_id.upper()
+        return _PROVIDER_URLS[provider].format(id=fmt_id)
+    raise ValueError(
+        f"provider={provider!r} requires an explicit source_uri "
+        f"or one of 'pdbe' or 'pdb'"
+    )
+
+
+def _download(url: str) -> bytes:
+    """Body of a GET to url; RuntimeError on any HTTP or network error."""
+
+    httpx = require("httpx", "ingestion")
+    try:
+        resp = httpx.get(url, follow_redirects=True, timeout=60.0)
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise RuntimeError(
+            f"HTTP {exc.response.status_code} fetching {url}"
+        ) from exc
+    except httpx.RequestError as exc:
+        raise RuntimeError(f"Network error fetching {url}: {exc}") from exc
+    return resp.content
+
+
+def _write_mmcif(
+    raw_bytes: bytes,
+    url: str,
+    entry_id: str,
+    output_dir: Path,
+    decompress: bool,
+) -> Path:
+    """Write the downloaded file into output_dir as <id>.cif, or as
+    <id>.cif.gz if it is gzipped and decompress is off; return its path."""
+
+    is_gzipped = url.endswith(".gz") or raw_bytes[:2] == b"\x1f\x8b"
+
+    if is_gzipped and decompress:
+        try:
+            raw_bytes = gzip.decompress(raw_bytes)
+        except gzip.BadGzipFile as exc:
+            raise RuntimeError(
+                f"Failed to decompress response from {url}"
+            ) from exc
+        is_gzipped = False
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if is_gzipped:
+        out_path = output_dir / f"{entry_id.lower()}.cif.gz"
+        out_path.write_bytes(raw_bytes)
+        return out_path
+    try:
+        content = raw_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        decompressed = "decompressed " if decompress else ""
+        raise RuntimeError(
+            f"Failed to decode {decompressed}response from {url} as UTF-8"
+        ) from exc
+    out_path = output_dir / f"{entry_id.lower()}.cif"
+    out_path.write_text(content, encoding="utf-8")
+    return out_path
+
+
 def fetch_mmcif(
     entry_id: str,
     provider: str,
@@ -97,16 +166,7 @@ def fetch_mmcif(
 
     fetch_options = fetch_options or FetchOptions()
 
-    if source_uri:
-        url = source_uri
-    elif provider in _PROVIDER_URLS:
-        fmt_id = entry_id.lower() if provider == "pdbe" else entry_id.upper()
-        url = _PROVIDER_URLS[provider].format(id=fmt_id)
-    else:
-        raise ValueError(
-            f"provider={provider!r} requires an explicit source_uri "
-            f"or one of 'pdbe' or 'pdb'"
-        )
+    url = _resolve_url(entry_id, provider, source_uri)
 
     if fetch_options.use_cache:
         cached = resolve_cache_hit(
@@ -128,44 +188,9 @@ def fetch_mmcif(
                 ),
             )
 
-    httpx = require("httpx", "ingestion")
-    try:
-        resp = httpx.get(url, follow_redirects=True, timeout=60.0)
-        resp.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        raise RuntimeError(
-            f"HTTP {exc.response.status_code} fetching {url}"
-        ) from exc
-    except httpx.RequestError as exc:
-        raise RuntimeError(f"Network error fetching {url}: {exc}") from exc
-
-    raw_bytes = resp.content
-    is_gzipped = url.endswith(".gz") or raw_bytes[:2] == b"\x1f\x8b"
-
-    if is_gzipped and fetch_options.decompress:
-        try:
-            raw_bytes = gzip.decompress(raw_bytes)
-        except gzip.BadGzipFile as exc:
-            raise RuntimeError(
-                f"Failed to decompress response from {url}"
-            ) from exc
-        is_gzipped = False
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    if is_gzipped:
-        out_path = output_dir / f"{entry_id.lower()}.cif.gz"
-        out_path.write_bytes(raw_bytes)
-    else:
-        try:
-            content = raw_bytes.decode("utf-8")
-        except UnicodeDecodeError as exc:
-            decompressed = "decompressed " if fetch_options.decompress else ""
-            raise RuntimeError(
-                f"Failed to decode {decompressed}response from {url} as UTF-8"
-            ) from exc
-        out_path = output_dir / f"{entry_id.lower()}.cif"
-        out_path.write_text(content, encoding="utf-8")
+    out_path = _write_mmcif(
+        _download(url), url, entry_id, output_dir, fetch_options.decompress
+    )
 
     if provider == "pdb":
         revision_date = _revision_date_from_cif_file(out_path)

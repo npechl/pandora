@@ -12,6 +12,24 @@ from pandora.schemas.canonicalisation import LigandRules
 from pandora.schemas.common import Diagnostic, DiagnosticBundle
 
 
+def _keep(entity_type: str, description: str, rules: LigandRules) -> bool:
+    """Whether an asym unit of this entity type and (upper-cased)
+    description is kept under the ligand rules."""
+
+    if entity_type == "polymer":
+        return True
+    if rules.strategy == "annotate_only":
+        return False
+    if entity_type == "water":
+        return rules.keep_waters
+    # PDB names ions "<ELEMENT/ANION> ION" (ZINC ION, SULFATE ION).
+    # Whole-word match only: "PHOSPHATE" alone would also catch
+    # GMP/ATP/NADP, and "ION" as a substring catches glutathione.
+    if "ION" in re.findall(r"[A-Z0-9]+", description):
+        return rules.keep_ions
+    return rules.keep_nonpolymer_ligands
+
+
 def filter_ligands(
     atoms: list[AtomSiteRecord],
     asym_units: list[AsymRecord],
@@ -58,28 +76,16 @@ def filter_ligands(
     }
     asym_entity: dict[str, str] = {a.id: a.entity_id for a in asym_units}
 
-    def _keep(asym_id: str) -> bool:
-        """Whether the asym unit at asym_id should be kept under the
-        ligand rules."""
-
-        eid = asym_entity.get(asym_id)
-        if eid is None:
-            return True
-        etype = entity_type.get(eid, "polymer")
-        if etype == "polymer":
-            return True
-        if rules.strategy == "annotate_only":
-            return False
-        if etype == "water":
-            return rules.keep_waters
-        # PDB names ions "<ELEMENT/ANION> ION" (ZINC ION, SULFATE ION).
-        # Whole-word match only: "PHOSPHATE" alone would also catch
-        # GMP/ATP/NADP, and "ION" as a substring catches glutathione.
-        if "ION" in re.findall(r"[A-Z0-9]+", entity_desc.get(eid, "")):
-            return rules.keep_ions
-        return rules.keep_nonpolymer_ligands
-
-    keep = {a.id for a in asym_units if _keep(a.id)}
+    keep = {
+        a.id
+        for a in asym_units
+        if asym_entity.get(a.id) is None
+        or _keep(
+            entity_type.get(asym_entity[a.id], "polymer"),
+            entity_desc.get(asym_entity[a.id], ""),
+            rules,
+        )
+    }
 
     if rules.strategy == "annotate_only":
         for a in asym_units:

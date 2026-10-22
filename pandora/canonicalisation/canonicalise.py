@@ -44,6 +44,38 @@ from pandora.canonicalisation.raw_categories import _drop_stale_raw_categories
 from pandora.canonicalisation.validation import _validate
 
 
+def _transforms(policy: canonicalisationPolicy) -> list[str]:
+    """Labels of the steps whose strategy changes the structure, in the
+    order canonicalise_structure runs them."""
+
+    ir = policy.identifier_rules
+    mdr = policy.missing_data_rules
+    asm = policy.assembly_rules.strategy
+    asm_id = ir.assembly_id.strategy
+    assembly = (
+        "preserve"
+        if (asm, asm_id) == ("preserve_as_reported", "preserve")
+        else f"{asm}/id:{asm_id}"
+    )
+    steps = [
+        ("modified_residues", policy.modified_residue_rules.strategy),
+        ("chain_id", ir.chain_id.strategy),
+        ("assembly", assembly),
+        ("missing_atoms", mdr.missing_atoms.strategy),
+        ("missing_residues", mdr.missing_residues.strategy),
+        ("incomplete_chains", mdr.incomplete_chains.strategy),
+        ("altloc", policy.altloc_rules.strategy),
+        ("residue_numbering", ir.residue_numbering.strategy),
+        ("entity", policy.entity_rules.strategy),
+        ("ligands", policy.ligand_rules.strategy),
+    ]
+    return [
+        f"{step}:{strategy}"
+        for step, strategy in steps
+        if strategy != "preserve"
+    ]
+
+
 def canonicalise_structure(
     structure: Structure,
     policy: canonicalisationPolicy,
@@ -84,7 +116,6 @@ def canonicalise_structure(
     pr = policy.provenance_rules
 
     record = pr.record_original_mappings
-    transforms: list[str] = []
     diagnostics = DiagnosticBundle()
 
     original_atoms = structure.atoms
@@ -118,8 +149,6 @@ def canonicalise_structure(
     original_raw = _map_entity_poly_seq(
         original_raw, modified_residue_mapping, asym_units
     )
-    if mrr.strategy != "preserve":
-        transforms.append(f"modified_residues:{mrr.strategy}")
 
     # normalize_chain_ids --------------------------------
     chain_map, chain_id_mapping = _normalize_chain_ids(
@@ -131,8 +160,6 @@ def canonicalise_structure(
     assemblies = list(structure.assemblies)
     connections = list(structure.connections)
     secondary_structure = structure.secondary_structure
-    if ir.chain_id.strategy != "preserve":
-        transforms.append(f"chain_id:{ir.chain_id.strategy}")
 
     # normalize_assemblies --------------------------------
     (
@@ -154,39 +181,24 @@ def canonicalise_structure(
         diagnostics,
         structure.entry_id,
     )
-    if (
-        ir.assembly_id.strategy != "preserve"
-        or asmr.strategy != "preserve_as_reported"
-    ):
-        transforms.append(
-            f"assembly:{asmr.strategy}/id:{ir.assembly_id.strategy}"
-        )
 
     # handle_missing_atoms ---------------------------------------
     atoms = _handle_missing_atoms(
         atoms, mdr.missing_atoms, diagnostics, structure.entry_id, entities
     )
-    if mdr.missing_atoms.strategy not in ("preserve",):
-        transforms.append(f"missing_atoms:{mdr.missing_atoms.strategy}")
 
     # handle_missing_residues ---------------------------------------
     atoms = _handle_missing_residues(
         atoms, mdr.missing_residues, diagnostics, structure.entry_id
     )
-    if mdr.missing_residues.strategy not in ("preserve",):
-        transforms.append(f"missing_residues:{mdr.missing_residues.strategy}")
 
     # handle_incomplete_chains -------------------------------------
     atoms, asym_units = _handle_incomplete_chains(
         atoms, asym_units, mdr.incomplete_chains
     )
-    if mdr.incomplete_chains.strategy != "preserve":
-        transforms.append(f"incomplete_chains:{mdr.incomplete_chains.strategy}")
 
     # resolve_altlocs ------------------------------
     atoms, altloc_selection_mapping = _resolve_altlocs(atoms, ar)
-    if ar.strategy != "preserve":
-        transforms.append(f"altloc:{ar.strategy}")
 
     # normalize_residue_numbering ---------------------------------
     # After the gap checks (renumbering makes every chain contiguous)
@@ -198,22 +210,16 @@ def canonicalise_structure(
         ir.residue_numbering.preserve_insertion_codes,
         record,
     )
-    if ir.residue_numbering.strategy != "preserve":
-        transforms.append(f"residue_numbering:{ir.residue_numbering.strategy}")
 
     # normalize_entities ---------------------------------------
     entities, asym_units, atoms, entity_mapping, entity_id_map = (
         _normalize_entities(entities, asym_units, atoms, er, record)
     )
-    if er.strategy != "preserve":
-        transforms.append(f"entity:{er.strategy}")
 
     # filter_ligands ---------------------------------------
     atoms, asym_units = filter_ligands(
         atoms, asym_units, entities, lr, diagnostics, structure.entry_id
     )
-    if lr.strategy != "preserve":
-        transforms.append(f"ligands:{lr.strategy}")
 
     # validate_canonical_structure ---------------------------------------
     status = _validate(atoms, asym_units, vr, diagnostics, structure.entry_id)
@@ -257,7 +263,7 @@ def canonicalise_structure(
         policy_id=policy.policy_id,
         policy_name=policy.policy_name,
         policy_version=policy.policy_version,
-        transforms=transforms,
+        transforms=_transforms(policy),
         dropped_raw_categories=dropped_raw_categories,
         report=(
             {

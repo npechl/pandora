@@ -30,6 +30,33 @@ def _validate(
             )
         )
 
+    _check_residue_collisions(atoms, diagnostics, entry_id)
+
+    if rules.strictness == "strict":
+        for w in list(diagnostics.warnings):
+            diagnostics.errors.append(
+                w.model_copy(update={"severity": "error"})
+            )
+
+    has_errors = bool(diagnostics.errors)
+    has_warnings = bool(diagnostics.warnings)
+
+    if has_errors and rules.fail_on_unresolved_issues:
+        return "failed"
+    if rules.warnings_as_errors and has_warnings:
+        return "failed"
+    if has_errors or has_warnings:
+        return "warning"
+    return "success"
+
+
+def _check_residue_collisions(
+    atoms: list[AtomSiteRecord],
+    diagnostics: DiagnosticBundle,
+    entry_id: str,
+) -> None:
+    """Add an error to diagnostics for each residue-number collision."""
+
     # A collision is two *different* residues (distinct comp_id) sharing
     # a (seq_id, ins_code) slot in the same chain — not merely a residue
     # having more than one atom, which is the normal case.
@@ -60,20 +87,3 @@ def _validate(
                         entry_id=entry_id,
                     )
                 )
-
-    if rules.strictness == "strict":
-        for w in list(diagnostics.warnings):
-            diagnostics.errors.append(
-                w.model_copy(update={"severity": "error"})
-            )
-
-    has_errors = bool(diagnostics.errors)
-    has_warnings = bool(diagnostics.warnings)
-
-    if has_errors and rules.fail_on_unresolved_issues:
-        return "failed"
-    if rules.warnings_as_errors and has_warnings:
-        return "failed"
-    if has_errors or has_warnings:
-        return "warning"
-    return "success"
