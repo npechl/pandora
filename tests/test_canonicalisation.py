@@ -113,6 +113,17 @@ def test_normalize_chain_ids_remap_assigns_sequential_letters():
     assert [item.canonical_chain_id for item in mapping.items] == ["A", "B"]
 
 
+def test_normalize_chain_ids_remap_continues_past_two_letters():
+    asym_units = [
+        AsymRecord(id=f"X{i}", entity_id="1") for i in range(26 + 26**2 + 2)
+    ]
+    chain_map, _ = _normalize_chain_ids(asym_units, "remap", record=False)
+
+    ids = list(chain_map.values())
+    assert len(set(ids)) == len(ids)
+    assert ids[26 + 26**2 - 1 :] == ["ZZ", "AAA", "AAB"]
+
+
 def test_apply_chain_map_updates_atoms_and_asyms():
     atoms = [_atom(label_asym_id="C")]
     asym_units = [AsymRecord(id="C", entity_id="1", auth_id="C")]

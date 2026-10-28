@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import string
 
 from typing import Iterator
@@ -19,12 +20,9 @@ from pandora.schemas.canonicalisation import (
 def _sequential_chain_ids() -> Iterator[str]:
     """Infinite generator of sequential chain ids: A, B, ..., Z, AA, AB, ..."""
 
-    letters = string.ascii_uppercase
-    for c in letters:
-        yield c
-    for c1 in letters:
-        for c2 in letters:
-            yield c1 + c2
+    for length in itertools.count(1):
+        for letters in itertools.product(string.ascii_uppercase, repeat=length):
+            yield "".join(letters)
 
 
 def _normalize_chain_ids(
