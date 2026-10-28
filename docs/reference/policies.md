@@ -184,6 +184,8 @@ This step runs first, before chain ids are normalised, so the ids still match `_
 
 ### `validation_rules`
 
+Different residue identities at the same chain, sequence number and insertion code are allowed when they have distinct explicit altloc labels, including under `altloc_rules.strategy: preserve`. Conflicting identities with the same altloc still produce `RESIDUE_NUMBER_COLLISION`. Missing altloc labels (including CIF `.` and `?`) do not establish distinct variants, so validation conservatively retains collision errors when different identities involve an unlabelled atom.
+
 **`strictness`** (default `moderate`)
 
 | Value | Description |

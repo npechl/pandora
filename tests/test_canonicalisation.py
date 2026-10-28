@@ -1,3 +1,4 @@
+from itertools import permutations, product
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,7 @@ from pandora.canonicalisation.missing_data import (
 from pandora.canonicalisation.modified_residues import _map_modified_residues
 from pandora.canonicalisation.residues import _normalize_residue_numbering
 from pandora.canonicalisation.validation import _validate
+from pandora.export import structure_to_mmcif
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.canonicalisation import (
     AltlocRules,
@@ -40,6 +42,7 @@ from pandora.schemas.canonicalisation import (
     ResidueNumberingRules,
     ValidationRules,
     canonicalisationPolicy,
+    canonicalisationProvenanceRules,
 )
 from pandora.schemas.common import Diagnostic, DiagnosticBundle
 from pandora.schemas.structure import (
@@ -52,6 +55,7 @@ from pandora.schemas.structure import (
     EntityRecord,
     SheetStrandRecord,
     SSRecord,
+    Structure,
 )
 
 MMCIF_PATH = (
@@ -454,6 +458,257 @@ def test_canonicalise_structure_drops_asyms_and_entities_without_atoms(
 
 
 # validation --------------------------------------------------------------
+
+
+@pytest.fixture
+def compositional_disorder(tmp_path: Path) -> Structure:
+    """Parse a synthetic position with two explicitly labelled residues."""
+
+    path = tmp_path / "alternates.cif"
+    path.write_text(
+        """data_synthetic_alternates
+_entry.id synthetic_alternates
+loop_
+_entity.id
+_entity.type
+_entity.pdbx_description
+_entity.formula_weight
+_entity.src_method
+1 polymer 'Synthetic format fixture' ? syn
+loop_
+_entity_poly.entity_id
+_entity_poly.type
+_entity_poly.pdbx_seq_one_letter_code
+_entity_poly.pdbx_seq_one_letter_code_can
+_entity_poly.pdbx_strand_id
+1 'polypeptide(L)' A A A
+loop_
+_entity_poly_seq.entity_id
+_entity_poly_seq.num
+_entity_poly_seq.mon_id
+_entity_poly_seq.hetero
+1 1 ALA y
+1 1 GLY y
+loop_
+_struct_asym.id
+_struct_asym.entity_id
+A 1
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_alt_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_entity_id
+_atom_site.label_seq_id
+_atom_site.pdbx_PDB_ins_code
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.occupancy
+_atom_site.B_iso_or_equiv
+_atom_site.auth_seq_id
+_atom_site.auth_comp_id
+_atom_site.auth_asym_id
+_atom_site.auth_atom_id
+_atom_site.pdbx_PDB_model_num
+ATOM 1 N N  A ALA A 1 1 ? 0 0 0 0.25 20 1 ALA A N  1
+ATOM 2 C CA A ALA A 1 1 ? 1 0 0 0.25 20 1 ALA A CA 1
+ATOM 3 C C  A ALA A 1 1 ? 2 0 0 0.25 20 1 ALA A C  1
+ATOM 4 O O  A ALA A 1 1 ? 3 0 0 0.25 20 1 ALA A O  1
+ATOM 5 N N  B GLY A 1 1 ? 0 1 0 0.75 20 1 GLY A N  1
+ATOM 6 C CA B GLY A 1 1 ? 1 1 0 0.75 20 1 GLY A CA 1
+ATOM 7 C C  B GLY A 1 1 ? 2 1 0 0.75 20 1 GLY A C  1
+ATOM 8 O O  B GLY A 1 1 ? 3 1 0 0.75 20 1 GLY A O  1
+"""
+    )
+    structure, diagnostics, status = mmcif_to_structure(str(path))
+    assert status == "success"
+    assert not diagnostics.errors
+    assert structure is not None
+    assert len(structure.atoms) == 8
+    assert {a.group_PDB for a in structure.atoms} == {"ATOM"}
+    assert {
+        (a.label_seq_id, a.label_comp_id, a.label_alt_id)
+        for a in structure.atoms
+    } == {(1, "ALA", "A"), (1, "GLY", "B")}
+    return structure
+
+
+def test_preserve_compositional_disorder_roundtrip(
+    compositional_disorder: Structure, tmp_path: Path
+) -> None:
+    original = compositional_disorder.model_dump()
+    policy = canonicalisationPolicy(
+        policy_id="preserve-alternates",
+        policy_name="Preserve alternates",
+        policy_version="1",
+        altloc_rules=AltlocRules(strategy="preserve"),
+        provenance_rules=canonicalisationProvenanceRules(
+            emit_canonicalisation_report=True
+        ),
+    )
+    canonical, mappings, provenance = canonicalise_structure(
+        compositional_disorder, policy
+    )
+    assert canonical is not compositional_disorder
+    assert canonical.atoms == compositional_disorder.atoms
+    assert mappings.altloc_selection_mapping.items == []
+    assert provenance.report == {"warnings": 0, "errors": 0}
+
+    path = structure_to_mmcif(canonical, tmp_path / "canonical.cif")
+    reparsed, diagnostics, status = mmcif_to_structure(str(path))
+    assert status == "success"
+    assert not diagnostics.errors
+    assert reparsed is not None
+    assert reparsed.atoms == canonical.atoms
+    recanonical, _, _ = canonicalise_structure(reparsed, policy)
+    assert recanonical.atoms == canonical.atoms
+    assert compositional_disorder.model_dump() == original
+
+
+def test_default_selection_of_compositional_disorder_is_unchanged(
+    compositional_disorder: Structure,
+) -> None:
+    original = compositional_disorder.model_dump()
+    policy = canonicalisationPolicy(
+        policy_id="default", policy_name="Default", policy_version="1"
+    )
+    assert policy.altloc_rules.strategy == "select_best_occupancy"
+    canonical, mappings, _ = canonicalise_structure(
+        compositional_disorder, policy
+    )
+    assert [a.id for a in canonical.atoms] == [5, 6, 7, 8]
+    assert {(a.label_comp_id, a.label_alt_id) for a in canonical.atoms} == {
+        ("GLY", None)
+    }
+    [selection] = mappings.altloc_selection_mapping.items
+    assert selection.selected_altloc == "B"
+    assert selection.available_altlocs == ["A", "B"]
+    assert selection.selection_reason == "best_occupancy"
+    assert compositional_disorder.model_dump() == original
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize(
+    "altlocs", [("A", "A"), *product((None, "", ".", "?"), (None, "A"))]
+)
+def test_preserve_still_rejects_conflicting_residues(
+    compositional_disorder: Structure,
+    altlocs: tuple[str | None, str | None],
+    reverse: bool,
+) -> None:
+    atoms = [
+        atom.model_copy(update={"label_alt_id": altlocs[i // 4]})
+        for i, atom in enumerate(compositional_disorder.atoms)
+    ]
+    structure = compositional_disorder.model_copy(
+        update={"atoms": atoms[::-1] if reverse else atoms}
+    )
+    original = structure.model_dump()
+    policy = canonicalisationPolicy(
+        policy_id="preserve",
+        policy_name="Preserve",
+        policy_version="1",
+        altloc_rules=AltlocRules(strategy="preserve"),
+    )
+    with pytest.raises(ValueError, match="Validation of canonicalised"):
+        canonicalise_structure(structure, policy)
+    assert structure.model_dump() == original
+
+
+@pytest.mark.parametrize(
+    ("residues", "collision"),
+    [
+        ([("ALA", "A"), ("GLY", "B"), ("SER", "C")], False),
+        ([("ALA", "A"), ("GLY", "B"), ("SER", "B")], True),
+        ([("ALA", "A"), ("ALA", "B"), ("GLY", "B")], True),
+        ([("ALA", None), ("ALA", "A"), ("ALA", "B")], False),
+        ([("ALA", None), ("ALA", "A"), ("GLY", "B")], True),
+        *[
+            ([("ALA", left), ("GLY", right)], True)
+            for left, right in product((None, "", ".", "?"), repeat=2)
+        ],
+    ],
+)
+def test_validate_alternate_residue_collisions_in_every_order(
+    residues: list[tuple[str, str | None]], collision: bool
+) -> None:
+    for order in permutations(residues):
+        # Repeated atoms of the same residue must not add more errors.
+        atoms = [
+            _atom(
+                id=i * 2 + j + 1,
+                label_comp_id=comp,
+                label_alt_id=alt,
+                atom_id=name,
+            )
+            for i, (comp, alt) in enumerate(order)
+            for j, name in enumerate(("N", "CA"))
+        ]
+        original = [a.model_dump() for a in atoms]
+        diagnostics = DiagnosticBundle()
+        status = _validate(atoms, [], ValidationRules(), diagnostics, "test")
+        assert status == ("failed" if collision else "success"), order
+        assert [e.code for e in diagnostics.errors] == (
+            ["RESIDUE_NUMBER_COLLISION"] if collision else []
+        ), order
+        assert [a.model_dump() for a in atoms] == original
+
+
+@pytest.mark.parametrize(
+    "other_slot",
+    [{"label_asym_id": "B"}, {"label_seq_id": 2}, {"pdbx_PDB_ins_code": "A"}],
+)
+def test_validate_keeps_chain_sequence_and_insertion_slots_separate(
+    other_slot: dict[str, str | int],
+) -> None:
+    atoms = [
+        _atom(label_comp_id="ALA", label_alt_id="A"),
+        _atom(id=2, label_comp_id="GLY", label_alt_id="A").model_copy(
+            update=other_slot
+        ),
+    ]
+    for order in (atoms, atoms[::-1]):
+        diagnostics = DiagnosticBundle()
+        assert (
+            _validate(order, [], ValidationRules(), diagnostics, "test")
+            == "success"
+        )
+        assert not diagnostics.errors
+
+
+@pytest.mark.parametrize("count", [128, 256])
+def test_validate_many_named_alternates_uses_linear_label_comparisons(
+    count: int,
+) -> None:
+    class CountedAltloc(str):
+        comparisons = 0
+
+        def __eq__(self, other: object) -> bool:
+            type(self).comparisons += 1
+            return super().__eq__(other)
+
+        __hash__ = str.__hash__
+
+    # model_copy retains the counting str subclass used by this control.
+    atoms = [
+        _atom(id=i + 1, label_comp_id=f"RES{i}").model_copy(
+            update={"label_alt_id": CountedAltloc(f"alt{i}")}
+        )
+        for i in range(count)
+    ]
+    diagnostics = DiagnosticBundle()
+
+    status = _validate(atoms, [], ValidationRules(), diagnostics, "test")
+
+    assert status == "success"
+    assert not diagnostics.errors
+    # This deterministic bound catches scans of all earlier labels without
+    # relying on machine speed or a fragile wall-clock threshold.
+    assert CountedAltloc.comparisons <= 8 * count
 
 
 def test_validate_does_not_flag_a_normal_multi_atom_residue():
