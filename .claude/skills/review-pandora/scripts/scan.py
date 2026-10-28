@@ -27,7 +27,7 @@ from pandora.schemas.dataset import DatasetCurationPolicy
 from pandora.schemas.similarity import HitFilter
 
 ROOT = Path.cwd()
-FIXTURES = sorted((ROOT / "datasets/dev/mmcif").glob("*.cif"))
+FIXTURES = sorted((ROOT / "datasets/dev/mmcif").glob("*/*.cif"))
 POLICIES = [canonicalisationPolicy, DatasetCurationPolicy, HitFilter]
 POLICY_YAMLS = {
     "canonicalisation.yaml": canonicalisationPolicy,

@@ -101,7 +101,7 @@ from pandora.parsing import mmcif_to_structure
 from pandora.schemas.canonicalisation import canonicalisationPolicy
 
 structure, diagnostics, status = mmcif_to_structure(
-    "datasets/dev/mmcif/104m.cif"
+    "datasets/dev/mmcif/04/104m.cif"
 )
 
 policy = canonicalisationPolicy(

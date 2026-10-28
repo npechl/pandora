@@ -75,7 +75,8 @@ Other places:
 - `docs/contributing/architecture.md` maps functions to the models they
   take and return.
 - `datasets/dev/mmcif/` holds offline mmCIF fixtures for tests and
-  examples.
+  examples, in the PDB mirror layout: `1abc.cif` lives in `bc/` (the
+  2nd and 3rd characters of the entry ID).
 
 ## Preferred libraries
 
