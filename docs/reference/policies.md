@@ -54,6 +54,8 @@ renumbering always drops insertion codes.
 
 ### `missing_data_rules`
 
+When a missing-data or ligand rule removes every atom of an asym unit, the asym unit is removed too (with a `CHAIN_EMPTIED` diagnostic), and so is any entity left with no atoms.
+
 **`missing_atoms.strategy`** (default `annotate`) — a residue is "missing atoms" if any backbone atom is absent: `N`/`CA`/`C`/`O` for protein, `O5'`/`C5'`/`C4'`/`C3'`/`O3'` for DNA/RNA (`P` is not required, since the 5'-terminal nucleotide normally lacks it).
 
 | Value | Description |
@@ -201,12 +203,6 @@ This step runs first, before chain ids are normalised, so the ids still match `_
 | `record_transforms` | Intended to gate whether applied transforms are logged. *Currently unused — transforms are always recorded.* | `True` |
 | `record_policy_application` | Intended to embed the full applied policy in the result. *Currently unused — the policy is never embedded.* | `True` |
 | `emit_canonicalisation_report` | When `True`, include a warning/error count summary in `canonicalisationProvenance.report`. | `False` |
-
-!!! warning "Naming drift from the design spec"
-    The design spec in `docs/policies/canonicalisation.yaml` names the report
-    flag `emit_canonicalization_report` (American spelling); the
-    implemented schema field is `emit_canonicalisation_report` (British,
-    matching the rest of the codebase). Use the schema's spelling.
 
 ### Example: three policies, one structure
 

@@ -176,6 +176,6 @@ CanonicalisationPolicy:
     record_policy_application: bool
     # If true, the full applied policy is embedded in the result.
 
-    emit_canonicalization_report: bool
+    emit_canonicalisation_report: bool
     # If true, a summary of all applied transformations is included
     # in the diagnostics context.
