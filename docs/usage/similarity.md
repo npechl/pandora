@@ -13,7 +13,9 @@ policy = canonicalisationPolicy(
 entry_ids = ["104m", "112m", "118l", "138l", "1ayi"]
 structures = {}
 for entry_id in entry_ids:
-    structure, _, _ = mmcif_to_structure(f"datasets/dev/mmcif/{entry_id}.cif")
+    structure, _, _ = mmcif_to_structure(
+        f"datasets/dev/mmcif/{entry_id[1:3]}/{entry_id}.cif"
+    )
     canonical, _, _ = canonicalise_structure(structure, policy)
     structures[canonical.entry_id] = canonical
 ```

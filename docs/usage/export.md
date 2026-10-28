@@ -20,7 +20,7 @@ call it internally.
 from pandora.parsing import mmcif_to_structure
 
 structure, diagnostics, status = mmcif_to_structure(
-    "datasets/dev/mmcif/104m.cif"
+    "datasets/dev/mmcif/04/104m.cif"
 )
 print(
     status,

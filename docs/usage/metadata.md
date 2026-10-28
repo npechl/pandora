@@ -20,7 +20,7 @@ function below and bundles the results into one `MetadataRecord`.
 from pandora.parsing import mmcif_to_structure
 from pandora.metadata import collect_metadata
 
-structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
+structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/04/104m.cif")
 metadata = collect_metadata(structure)
 
 print(metadata.entry.title)

@@ -82,7 +82,9 @@ Both versions map MSE to MET during canonicalisation, then curate the same eight
     entries = ["104m", "1a08", "1aui", "1b6w", "10mv", "10tm", "22jy", "1p58"]
     structures = {}
     for entry_id in entries:
-        structure, _, _ = mmcif_to_structure(f"datasets/dev/mmcif/{entry_id}.cif")
+        structure, _, _ = mmcif_to_structure(
+            f"datasets/dev/mmcif/{entry_id[1:3]}/{entry_id}.cif"
+        )
         canonical, _, _ = canonicalise_structure(structure, mse_policy)
         structures[entry_id] = (canonical, collect_metadata(canonical))
 
@@ -129,7 +131,7 @@ Both versions map MSE to MET during canonicalisation, then curate the same eight
     ```bash
     mkdir -p raw
     for entry in 104m 1a08 1aui 1b6w 10mv 10tm 22jy 1p58; do
-      cp "datasets/dev/mmcif/$entry.cif" raw/
+      cp "datasets/dev/mmcif/${entry:1:2}/$entry.cif" raw/
     done
     cat > mse.yaml <<'EOF'
     policy_id: mse

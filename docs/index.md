@@ -26,7 +26,9 @@ from pandora.annotations import annotate_ligand_contacts
 from pandora.schemas.canonicalisation import canonicalisationPolicy
 
 mmcif_dir = Path("datasets/dev/mmcif")
-structure, diagnostics, status = mmcif_to_structure(str(mmcif_dir / "104m.cif"))
+structure, diagnostics, status = mmcif_to_structure(
+    str(mmcif_dir / "04" / "104m.cif")
+)
 
 policy = canonicalisationPolicy(
     policy_id="quickstart", policy_name="Default", policy_version="1.0.0"

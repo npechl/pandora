@@ -17,7 +17,7 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
     from pandora.parsing import mmcif_to_structure
     from pandora.schemas.canonicalisation import canonicalisationPolicy
 
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/04/104m.cif")
 
     policy = canonicalisationPolicy(
         policy_id="p1", policy_name="Default", policy_version="1.0.0"
@@ -34,7 +34,7 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/104m.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/04/104m.cif raw/
     cat > policy.yaml <<'EOF'
     policy_id: p1
     policy_name: Default
@@ -83,11 +83,11 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
 
 
     # 13dg lists its chains as A, E, B, F, ...; remap relabels them in order.
-    print("remap:", chain_map("datasets/dev/mmcif/13dg.cif", "remap"))
+    print("remap:", chain_map("datasets/dev/mmcif/3d/13dg.cif", "remap"))
     # 1a08: label chain C is author chain B, and ligands share author ids.
     print(
         "use_auth_chain_id:",
-        chain_map("datasets/dev/mmcif/1a08.cif", "use_auth_chain_id"),
+        chain_map("datasets/dev/mmcif/a0/1a08.cif", "use_auth_chain_id"),
     )
     ```
 
@@ -99,7 +99,7 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/13dg.cif datasets/dev/mmcif/1a08.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/3d/13dg.cif datasets/dev/mmcif/a0/1a08.cif raw/
     cat > remap.yaml <<'EOF'
     policy_id: p
     policy_name: p
@@ -149,7 +149,7 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
     )
 
     # 10mv: chain A starts at SEQRES position 22 and has a gap in the middle.
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/10mv.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/0m/10mv.cif")
 
     for strategy in ["preserve", "use_auth_seq", "renumber"]:
         policy = canonicalisationPolicy(
@@ -184,7 +184,7 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/10mv.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/0m/10mv.cif raw/
     cat > auth.yaml <<'EOF'
     policy_id: p
     policy_name: p
@@ -236,7 +236,7 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
     )
 
     # 1b6w: residue 35 has two conformers, A and B, at occupancy 0.5 each.
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/1b6w.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/b6/1b6w.cif")
 
     rules = [
         AltlocRules(strategy="preserve"),
@@ -273,7 +273,7 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/1b6w.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/b6/1b6w.cif raw/
     cat > best.yaml <<'EOF'
     policy_id: p
     policy_name: p
@@ -324,7 +324,7 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
     )
 
     # 13dg: assembly 1 is chains A-D under operators 1, 2 and 3.
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/13dg.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/3d/13dg.cif")
     print("asymmetric unit:", [u.id for u in structure.asym_units])
 
     policy = canonicalisationPolicy(
@@ -353,7 +353,7 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/13dg.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/3d/13dg.cif raw/
     cat > policy.yaml <<'EOF'
     policy_id: p
     policy_name: p
@@ -412,12 +412,12 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
 
     # Selenomethionine, mapped by default once the strategy is on.
     mapped(
-        "datasets/dev/mmcif/1b6w.cif",
+        "datasets/dev/mmcif/b6/1b6w.cif",
         ModifiedResidueRules(strategy="map_to_parent"),
     )
     # Any residue named in comp_ids whose parent the file lists.
     mapped(
-        "datasets/dev/mmcif/1a08.cif",
+        "datasets/dev/mmcif/a0/1a08.cif",
         ModifiedResidueRules(strategy="map_to_parent", comp_ids=["FTY"]),
     )
     ```
@@ -434,7 +434,7 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/1b6w.cif datasets/dev/mmcif/1a08.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/b6/1b6w.cif datasets/dev/mmcif/a0/1a08.cif raw/
     cat > mse.yaml <<'EOF'
     policy_id: p
     policy_name: p
@@ -504,7 +504,7 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
 
 
     # 1a08 chain B: two residues lack part of their backbone.
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/1a08.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/a0/1a08.cif")
     dropped = canonicalise(
         structure,
         MissingDataRules(
@@ -520,7 +520,7 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
     )
 
     # 10mv chain A has a gap; keep only its longest unbroken stretch.
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/10mv.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/0m/10mv.cif")
     truncated = canonicalise(
         structure,
         MissingDataRules(
@@ -546,7 +546,7 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/1a08.cif datasets/dev/mmcif/10mv.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/a0/1a08.cif datasets/dev/mmcif/0m/10mv.cif raw/
     cat > drop.yaml <<'EOF'
     policy_id: p
     policy_name: p
@@ -605,7 +605,7 @@ To measure how much of each chain is missing against SEQRES, without changing th
     from pandora.schemas.common import DiagnosticBundle
 
     # 104m: myoglobin, a sulfate ion, a heme, n-butyl isocyanide and waters.
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/04/104m.cif")
     names = {e.id: e.pdbx_description for e in structure.entities}
 
     policy = canonicalisationPolicy(
@@ -642,7 +642,7 @@ To measure how much of each chain is missing against SEQRES, without changing th
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/104m.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/04/104m.cif raw/
     cat > policy.yaml <<'EOF'
     policy_id: p
     policy_name: p
@@ -690,7 +690,7 @@ When a run changes which chains or residues exist or what they are called (renum
         canonicalisationProvenanceRules,
     )
 
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/1b6w.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/b6/1b6w.cif")
 
     policy = canonicalisationPolicy(
         policy_id="p",
@@ -737,7 +737,7 @@ When a run changes which chains or residues exist or what they are called (renum
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/1b6w.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/b6/1b6w.cif raw/
     cat > policy.yaml <<'EOF'
     policy_id: p
     policy_name: p
@@ -815,7 +815,7 @@ ligand_rules:
     from pandora.parsing import mmcif_to_structure
 
     policy = load_policy("datasets/canonicalisation.yaml")
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/04/104m.cif")
     canonical, mappings, provenance = canonicalise_structure(structure, policy)
 
     print(policy.policy_id, policy.policy_version)
@@ -830,7 +830,7 @@ ligand_rules:
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/104m.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/04/104m.cif raw/
     pandora canonicalise --input-dir raw/ --policy datasets/canonicalisation.yaml --output-dir canonical/
     jq -c '.["104M"] | [.policy_id, .policy_version], .transforms' \
       canonical/canonicalisation_provenance.json

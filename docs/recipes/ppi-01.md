@@ -56,7 +56,7 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
     #    raises ValueError on a failed validation status).
     structures: dict[str, Structure] = {}
     canonicalisation_provenance = {}
-    for path in sorted(MMCIF_DIR.glob("*.cif")):
+    for path in sorted(MMCIF_DIR.glob("*/*.cif")):
         structure, _, status = mmcif_to_structure(str(path))
         try:
             canonical, _, canon_prov = canonicalise_structure(structure, policy)
@@ -189,7 +189,7 @@ wrote 147 interfaces + manifest -> datasets/output/ppi
 ```python linenums="1"
 structures: dict[str, Structure] = {}
 canonicalisation_provenance = {}
-for path in sorted(MMCIF_DIR.glob("*.cif")):
+for path in sorted(MMCIF_DIR.glob("*/*.cif")):
     structure, _, status = mmcif_to_structure(str(path))
     try:
         canonical, _, canon_prov = canonicalise_structure(structure, policy)

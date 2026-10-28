@@ -15,7 +15,7 @@ from pandora.schemas.canonicalisation import canonicalisationPolicy
 policy = canonicalisationPolicy(
     policy_id="p", policy_name="p", policy_version="1.0.0"
 )
-structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
+structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/04/104m.cif")
 canonical, _, _ = canonicalise_structure(structure, policy)
 metadata = collect_metadata(canonical)
 ```
@@ -32,7 +32,7 @@ metadata = collect_metadata(canonical)
     from pandora.parsing import mmcif_to_structure
     from pandora.schemas.dataset import DatasetCurationPolicy, QualityRules
 
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/04/104m.cif")
     metadata = collect_metadata(structure)
 
     policy = DatasetCurationPolicy(
@@ -59,7 +59,7 @@ metadata = collect_metadata(canonical)
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/104m.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/04/104m.cif raw/
     cat > default.yaml <<'EOF'
     policy_id: c1
     policy_name: Default
@@ -103,7 +103,7 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
     from pandora.schemas.dataset import DatasetCurationPolicy, QualityRules
 
     # 22jy: a cryo-EM structure at 2.2 A.
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/22jy.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/2j/22jy.cif")
     metadata = collect_metadata(structure)
     print(metadata.quality.experimental_method, metadata.quality.resolution)
 
@@ -137,7 +137,7 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/22jy.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/2j/22jy.cif raw/
     cat > one_limit.yaml <<'EOF'
     policy_id: c
     policy_name: c
@@ -179,7 +179,9 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
 
 
     def check(entry_id: str, quality_rules: QualityRules) -> str:
-        structure, _, _ = mmcif_to_structure(f"datasets/dev/mmcif/{entry_id}.cif")
+        structure, _, _ = mmcif_to_structure(
+            f"datasets/dev/mmcif/{entry_id[1:3]}/{entry_id}.cif"
+        )
         policy = DatasetCurationPolicy(
             policy_id="c",
             policy_name="c",
@@ -195,7 +197,7 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
 
 
     # 1a08 is X-ray. It reports Rmerge but neither Rsym nor Rfree.
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/1a08.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/a0/1a08.cif")
     quality = collect_metadata(structure).quality
     print(
         f"1a08: r_free={quality.r_free} r_work={quality.r_work} "
@@ -235,7 +237,7 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/1a08.cif datasets/dev/mmcif/22jy.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/a0/1a08.cif datasets/dev/mmcif/2j/22jy.cif raw/
     cat > rsym.yaml <<'EOF'
     policy_id: c
     policy_name: c
@@ -295,7 +297,7 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
     reject = QualityRules(exclude_nonstandard_residues=True)
 
     # 1a08 contains ACE and DIP caps and FTY, a modified tyrosine.
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/1a08.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/a0/1a08.cif")
     print("1a08:", curate(structure, reject))
     allow = reject.model_copy(
         update={"allowed_nonstandard_residues": ["ACE", "DIP", "FTY"]}
@@ -304,7 +306,7 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
 
     # 1b6w contains MSE. Mapping it to MET in canonicalisation makes it
     # standard by the time curation runs.
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/1b6w.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/b6/1b6w.cif")
     print("1b6w as deposited:", curate(structure, reject))
     canonical, _, _ = canonicalise_structure(
         structure,
@@ -328,7 +330,7 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/1a08.cif datasets/dev/mmcif/1b6w.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/a0/1a08.cif datasets/dev/mmcif/b6/1b6w.cif raw/
     cat > mse.yaml <<'EOF'
     policy_id: p
     policy_name: Map MSE
@@ -385,7 +387,7 @@ Removing a chain keeps the rest of the entry. `min_polymer_chains` and `min_chai
     from pandora.schemas.dataset import DatasetCurationPolicy, QualityRules
 
     # 1aui chain A misses 95 residues in its middle; chain B is nearly whole.
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/1aui.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/au/1aui.cif")
 
 
     def curate(quality_rules: QualityRules) -> None:
@@ -431,7 +433,7 @@ Removing a chain keeps the rest of the entry. `min_polymer_chains` and `min_chai
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/1aui.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/au/1aui.cif raw/
     cat > chains.yaml <<'EOF'
     policy_id: c
     policy_name: c
@@ -478,7 +480,9 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
 
 
     def curate(entry_id: str, quality_rules: QualityRules) -> None:
-        structure, _, _ = mmcif_to_structure(f"datasets/dev/mmcif/{entry_id}.cif")
+        structure, _, _ = mmcif_to_structure(
+            f"datasets/dev/mmcif/{entry_id[1:3]}/{entry_id}.cif"
+        )
         policy = DatasetCurationPolicy(
             policy_id="c",
             policy_name="c",
@@ -507,7 +511,7 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/1aui.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/au/1aui.cif raw/
     cat > atoms.yaml <<'EOF'
     policy_id: c
     policy_name: c
@@ -554,7 +558,9 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
         organism_rules=OrganismRules(include_taxa=["9606"]),
     )
     for entry_id in ["1aui", "1ayi"]:
-        structure, _, _ = mmcif_to_structure(f"datasets/dev/mmcif/{entry_id}.cif")
+        structure, _, _ = mmcif_to_structure(
+            f"datasets/dev/mmcif/{entry_id[1:3]}/{entry_id}.cif"
+        )
         metadata = collect_metadata(structure)
         curated, exclusions, _ = curate_structure(structure, metadata, policy)
         organisms = sorted({t.organism_scientific for t in metadata.taxonomies})
@@ -570,7 +576,7 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/1aui.cif datasets/dev/mmcif/1ayi.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/au/1aui.cif datasets/dev/mmcif/ay/1ayi.cif raw/
     cat > human.yaml <<'EOF'
     policy_id: c
     policy_name: Human only
@@ -598,7 +604,7 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
     from pandora.parsing import mmcif_to_structure
     from pandora.schemas.dataset import ContentRules, DatasetCurationPolicy
 
-    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/04/104m.cif")
 
     policy = DatasetCurationPolicy(
         policy_id="c",
@@ -619,7 +625,7 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/104m.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/04/104m.cif raw/
     cat > protein.yaml <<'EOF'
     policy_id: c
     policy_name: Protein only
@@ -668,7 +674,9 @@ Curating many entries, extend one list with every call's records. It then holds 
     kept = {}
     exclusions = []
     for entry_id in ["104m", "1aui", "1a08", "1p58"]:
-        structure, _, _ = mmcif_to_structure(f"datasets/dev/mmcif/{entry_id}.cif")
+        structure, _, _ = mmcif_to_structure(
+            f"datasets/dev/mmcif/{entry_id[1:3]}/{entry_id}.cif"
+        )
         curated, records, _ = curate_structure(
             structure, collect_metadata(structure), policy
         )
@@ -695,7 +703,7 @@ Curating many entries, extend one list with every call's records. It then holds 
 === "`cli`"
 
     ```bash
-    mkdir -p raw && cp datasets/dev/mmcif/104m.cif datasets/dev/mmcif/1aui.cif datasets/dev/mmcif/1a08.cif datasets/dev/mmcif/1p58.cif raw/
+    mkdir -p raw && cp datasets/dev/mmcif/04/104m.cif datasets/dev/mmcif/au/1aui.cif datasets/dev/mmcif/a0/1a08.cif datasets/dev/mmcif/p5/1p58.cif raw/
     cat > policy.yaml <<'EOF'
     policy_id: c
     policy_name: Sharp, complete chains
@@ -728,7 +736,7 @@ For whole benchmark policies built from these rules, see the [benchmark quality 
 from pandora.datasets import chain_completeness
 from pandora.parsing import mmcif_to_structure
 
-structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/1aui.cif")
+structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/au/1aui.cif")
 records, diagnostics = chain_completeness(structure)
 for r in records:
     print(
@@ -738,7 +746,7 @@ for r in records:
     )
 
 # 1p58 is a CA-only trace: every residue lacks most of its backbone.
-structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/1p58.cif")
+structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/p5/1p58.cif")
 for definition in ["unobserved", "incomplete_backbone"]:
     records, _ = chain_completeness(structure, definition)
     a = records[0]
@@ -769,7 +777,7 @@ given `entry_id`:
     from pandora.datasets import deduplicate_structures
     from pandora.schemas.dataset import DeduplicationRules
 
-    duplicate, _, _ = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
+    duplicate, _, _ = mmcif_to_structure("datasets/dev/mmcif/04/104m.cif")
     duplicate_canonical, _, _ = canonicalise_structure(duplicate, policy)
 
     retained, removed, provenance = deduplicate_structures(
@@ -827,7 +835,7 @@ residues = extract_residue_records(canonical)
 print(len(residues), residues[0].chain_id, residues[0].comp_id)
 # 153 A VAL
 
-structure2, _, _ = mmcif_to_structure("datasets/dev/mmcif/1a3n.cif")
+structure2, _, _ = mmcif_to_structure("datasets/dev/mmcif/a3/1a3n.cif")
 canonical2, _, _ = canonicalise_structure(structure2, policy)
 interfaces = extract_interface_records(canonical2, distance_cutoff=4.0)
 print(

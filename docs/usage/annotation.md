@@ -28,7 +28,7 @@ policy = canonicalisationPolicy(
     entity_rules=EntityRules(strategy="merge_equivalent_entities"),
     ligand_rules=LigandRules(strategy="filter", keep_waters=False),
 )
-structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/1a3n.cif")
+structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/a3/1a3n.cif")
 canonical, _, _ = canonicalise_structure(structure, policy)
 ```
 
@@ -168,7 +168,7 @@ on a shifted reading frame), and reports the best-scoring pair.
     ```python
     from pandora.annotations import annotate_pairwise_sequence_identity
 
-    s2, _, _ = mmcif_to_structure("datasets/dev/mmcif/104m.cif")
+    s2, _, _ = mmcif_to_structure("datasets/dev/mmcif/04/104m.cif")
     c2, _, _ = canonicalise_structure(s2, policy)
 
     identity = annotate_pairwise_sequence_identity(canonical, c2)
