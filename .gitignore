@@ -224,3 +224,5 @@ __marimo__/
 examples/
 
 datasets/large/
+
+.vscode/
