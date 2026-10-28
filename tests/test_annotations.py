@@ -73,7 +73,9 @@ def _structure(atoms, entities, asym_units) -> Structure:
 
 
 def _load(entry_id: str) -> Structure:
-    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / f"{entry_id}.cif"))
+    structure, _, _ = mmcif_to_structure(
+        str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif")
+    )
     return structure
 
 

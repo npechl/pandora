@@ -23,9 +23,8 @@ from pandora.schemas.canonicalisation import (
 )
 from pandora.schemas.dataset import ChainRecord
 
-MMCIF_PATH = (
-    Path(__file__).parent.parent / "datasets" / "dev" / "mmcif" / "1ayi.cif"
-)
+MMCIF_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
+MMCIF_PATH = MMCIF_DIR / "ay" / "1ayi.cif"
 
 
 def test_structure_to_mmcif_round_trips_core_fields(tmp_path):
@@ -44,7 +43,7 @@ def test_structure_to_mmcif_round_trips_core_fields(tmp_path):
 
 
 def test_structure_to_mmcif_keeps_real_struct_conn(tmp_path):
-    path = MMCIF_PATH.with_name("104m.cif")
+    path = MMCIF_DIR / "04" / "104m.cif"
     structure, _, _ = mmcif_to_structure(str(path))
 
     out_path = structure_to_mmcif(structure, tmp_path / "104m.out.cif")
@@ -137,7 +136,7 @@ def test_write_records_parquet(tmp_path):
 
 
 def test_truncated_structure_round_trips_through_mmcif(tmp_path):
-    structure, _, _ = mmcif_to_structure(str(MMCIF_PATH.parent / "10mv.cif"))
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / "0m" / "10mv.cif"))
     policy = canonicalisationPolicy(
         policy_id="p",
         policy_name="p",
@@ -157,7 +156,7 @@ def test_truncated_structure_round_trips_through_mmcif(tmp_path):
 
 def test_expanded_assembly_round_trips_through_mmcif(tmp_path):
     # 1a08: assembly 1 is chains A, B (+ ligands); C, D, G, H are dropped.
-    structure, _, _ = mmcif_to_structure(str(MMCIF_PATH.parent / "1a08.cif"))
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / "a0" / "1a08.cif"))
     policy = canonicalisationPolicy(
         policy_id="p",
         policy_name="p",
@@ -221,7 +220,7 @@ def test_canonical_structure_round_trips_through_mmcif(
     entry_id, rules, tmp_path
 ):
     structure, _, _ = mmcif_to_structure(
-        str(MMCIF_PATH.parent / f"{entry_id}.cif")
+        str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif")
     )
     policy = canonicalisationPolicy(
         policy_id="p", policy_name="p", policy_version="1.0.0", **rules

@@ -4,7 +4,12 @@ from pandora.metadata import collect_metadata
 from pandora.parsing import mmcif_to_structure
 
 MMCIF_PATH = (
-    Path(__file__).parent.parent / "datasets" / "dev" / "mmcif" / "104m.cif"
+    Path(__file__).parent.parent
+    / "datasets"
+    / "dev"
+    / "mmcif"
+    / "04"
+    / "104m.cif"
 )
 
 
@@ -34,7 +39,9 @@ MMCIF_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
 
 
 def _quality(entry_id: str):
-    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / f"{entry_id}.cif"))
+    structure, _, _ = mmcif_to_structure(
+        str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif")
+    )
     return collect_metadata(structure).quality
 
 

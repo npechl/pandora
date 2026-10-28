@@ -22,7 +22,9 @@ MMCIF_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
 
 
 def _load(entry_id: str):
-    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / f"{entry_id}.cif"))
+    structure, _, _ = mmcif_to_structure(
+        str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif")
+    )
     return structure
 
 

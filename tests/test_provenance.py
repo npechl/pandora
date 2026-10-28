@@ -28,7 +28,7 @@ from pandora.schemas.similarity import (
 from pandora.similarity.hits import HIT_COLUMNS
 
 MMCIF_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
-MMCIF_PATH = MMCIF_DIR / "104m.cif"
+MMCIF_PATH = MMCIF_DIR / "04" / "104m.cif"
 
 
 def test_build_provenance_bundle():

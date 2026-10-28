@@ -40,7 +40,7 @@ def test_ingest_local_directory(tmp_path):
     mirror_dir = tmp_path / "mirror"
     mirror_dir.mkdir()
     (mirror_dir / "104m.cif").write_text(
-        (FIXTURES_DIR / "104m.cif").read_text()
+        (FIXTURES_DIR / "04" / "104m.cif").read_text()
     )
 
     output_dir = tmp_path / "raw"
@@ -64,7 +64,9 @@ def test_ingest_local_directory(tmp_path):
 def test_canonicalise_curate_dedup_export_chain(tmp_path):
     raw_dir = tmp_path / "raw"
     raw_dir.mkdir()
-    (raw_dir / "104m.cif").write_text((FIXTURES_DIR / "104m.cif").read_text())
+    (raw_dir / "104m.cif").write_text(
+        (FIXTURES_DIR / "04" / "104m.cif").read_text()
+    )
 
     canonical_dir = tmp_path / "canonical"
     main(
@@ -251,7 +253,9 @@ def test_similarity_writes_hits_and_search_record(tmp_path):
     input_dir = tmp_path / "in"
     input_dir.mkdir()
     for name in ("104m", "112m"):
-        shutil.copy(FIXTURES_DIR / f"{name}.cif", input_dir / f"{name}.cif")
+        shutil.copy(
+            FIXTURES_DIR / name[1:3] / f"{name}.cif", input_dir / f"{name}.cif"
+        )
     output = tmp_path / "hits.tsv"
 
     main(

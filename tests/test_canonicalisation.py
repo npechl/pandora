@@ -55,7 +55,12 @@ from pandora.schemas.structure import (
 )
 
 MMCIF_PATH = (
-    Path(__file__).parent.parent / "datasets" / "dev" / "mmcif" / "1ayi.cif"
+    Path(__file__).parent.parent
+    / "datasets"
+    / "dev"
+    / "mmcif"
+    / "ay"
+    / "1ayi.cif"
 )
 
 
@@ -427,7 +432,9 @@ def test_drop_emptied_records_reports_emptied_chains():
 def test_canonicalise_structure_drops_asyms_and_entities_without_atoms(
     entry_id, policy_update
 ):
-    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / f"{entry_id}.cif"))
+    structure, _, _ = mmcif_to_structure(
+        str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif")
+    )
     policy = canonicalisationPolicy(
         policy_id="test",
         policy_name="test",
@@ -1146,7 +1153,9 @@ MMCIF_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
 
 
 def _load(entry_id: str):
-    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / f"{entry_id}.cif"))
+    structure, _, _ = mmcif_to_structure(
+        str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif")
+    )
     return structure
 
 
