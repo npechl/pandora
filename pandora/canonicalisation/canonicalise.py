@@ -30,6 +30,7 @@ from pandora.canonicalisation.entities import (
 )
 from pandora.canonicalisation.residues import _normalize_residue_numbering
 from pandora.canonicalisation.missing_data import (
+    _drop_emptied_records,
     _handle_missing_atoms,
     _handle_missing_residues,
     _handle_incomplete_chains,
@@ -219,6 +220,12 @@ def canonicalise_structure(
     # filter_ligands ---------------------------------------
     atoms, asym_units = filter_ligands(
         atoms, asym_units, entities, lr, diagnostics, structure.entry_id
+    )
+
+    # drop_emptied_records ---------------------------------------
+    # Last, so it sees every step that removes atoms.
+    asym_units, entities = _drop_emptied_records(
+        atoms, asym_units, entities, diagnostics, structure.entry_id
     )
 
     # validate_canonical_structure ---------------------------------------

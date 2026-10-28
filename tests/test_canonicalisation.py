@@ -16,6 +16,7 @@ from pandora.canonicalisation.entities import _normalize_entities
 from pandora.canonicalisation.ligands import filter_ligands
 from pandora.canonicalisation.modified_residues import _map_modified_residues
 from pandora.canonicalisation.missing_data import (
+    _drop_emptied_records,
     _handle_incomplete_chains,
     _handle_missing_atoms,
     _handle_missing_residues,
@@ -372,6 +373,77 @@ def test_incomplete_chains_truncate_keeps_longest_contiguous_run():
     result, _ = _handle_incomplete_chains(atoms, asym_units, rules)
 
     assert {a.label_seq_id for a in result} == {5, 6, 7}
+
+
+def test_drop_emptied_records_reports_emptied_chains():
+    atoms = [_atom(label_asym_id="A", entity_id="1")]
+    asym_units = [
+        AsymRecord(id="A", entity_id="1"),
+        AsymRecord(id="B", entity_id="2"),
+    ]
+    entities = [
+        EntityRecord(id="1", type="polymer"),
+        EntityRecord(id="2", type="polymer"),
+    ]
+    diagnostics = DiagnosticBundle()
+
+    kept_asyms, kept_entities = _drop_emptied_records(
+        atoms, asym_units, entities, diagnostics, "TEST"
+    )
+
+    assert [u.id for u in kept_asyms] == ["A"]
+    assert [e.id for e in kept_entities] == ["1"]
+    [warning] = diagnostics.warnings
+    assert warning.code == "CHAIN_EMPTIED"
+    assert warning.context["asym_id"] == "B"
+
+
+@pytest.mark.parametrize(
+    ("entry_id", "policy_update"),
+    [
+        (
+            "1p58",
+            {
+                "missing_data_rules": MissingDataRules(
+                    missing_atoms=MissingAtomsRules(
+                        strategy="drop_partial_residue"
+                    )
+                )
+            },
+        ),
+        (
+            "1ayi",
+            {
+                "ligand_rules": LigandRules(
+                    strategy="filter",
+                    keep_waters=False,
+                    keep_ions=False,
+                    keep_nonpolymer_ligands=False,
+                )
+            },
+        ),
+    ],
+)
+def test_canonicalise_structure_drops_asyms_and_entities_without_atoms(
+    entry_id, policy_update
+):
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / f"{entry_id}.cif"))
+    policy = canonicalisationPolicy(
+        policy_id="test",
+        policy_name="test",
+        policy_version="1.0.0",
+        **policy_update,
+    )
+
+    canonical, _, _ = canonicalise_structure(structure, policy)
+
+    assert len(canonical.entities) < len(structure.entities)
+    assert {u.id for u in canonical.asym_units} == {
+        a.label_asym_id for a in canonical.atoms
+    }
+    assert {e.id for e in canonical.entities} == {
+        a.label_entity_id for a in canonical.atoms
+    }
 
 
 # validation --------------------------------------------------------------

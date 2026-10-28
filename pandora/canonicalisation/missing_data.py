@@ -199,6 +199,40 @@ def _handle_incomplete_chains(
     ], asym_units
 
 
+def _drop_emptied_records(
+    atoms: list[AtomSiteRecord],
+    asym_units: list[AsymRecord],
+    entities: list[EntityRecord],
+    diagnostics: DiagnosticBundle,
+    entry_id: str,
+) -> tuple[list[AsymRecord], list[EntityRecord]]:
+    """asym_units and entities without the ones no atom refers to any more,
+    with a CHAIN_EMPTIED warning per dropped asym unit."""
+
+    asym_ids = {a.label_asym_id for a in atoms}
+    entity_ids = {a.label_entity_id for a in atoms}
+    entity_type = {e.id: e.type for e in entities}
+    for u in asym_units:
+        if u.id not in asym_ids:
+            diagnostics.warnings.append(
+                Diagnostic(
+                    code="CHAIN_EMPTIED",
+                    severity="warning",
+                    message=f"Every atom of asym {u.id} was removed",
+                    entry_id=entry_id,
+                    context={
+                        "asym_id": u.id,
+                        "entity_id": u.entity_id,
+                        "entity_type": entity_type.get(u.entity_id),
+                    },
+                )
+            )
+    return (
+        [u for u in asym_units if u.id in asym_ids],
+        [e for e in entities if e.id in entity_ids],
+    )
+
+
 def _longest_run(seq_ids: set[int]) -> set[int]:
     """Longest run of consecutive numbers in seq_ids (the first one on a
     tie)."""
