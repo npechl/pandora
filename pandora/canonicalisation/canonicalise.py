@@ -1,48 +1,46 @@
 from __future__ import annotations
 
 from pandora._util import now_iso
-from pandora.schemas.structure import (
-    AsymRecord,
-    AssemblyRecord,
-    AtomSiteRecord,
-    ConnRecord,
-    EntityRecord,
-    SSRecord,
-    Structure,
-)
-from pandora.schemas.canonicalisation import (
-    canonicalisationPolicy,
-    CanonicalMappings,
-    canonicalisationProvenance,
-)
-
-from pandora.schemas.common import DiagnosticBundle
-
 from pandora.canonicalisation.altlocs import _resolve_altlocs
 from pandora.canonicalisation.assemblies import _normalize_assemblies
 from pandora.canonicalisation.chain_ids import (
-    _normalize_chain_ids,
     _apply_chain_map,
+    _normalize_chain_ids,
 )
 from pandora.canonicalisation.entities import (
     _normalize_entities,
     _remap_raw_entity_ids,
 )
-from pandora.canonicalisation.residues import _normalize_residue_numbering
+from pandora.canonicalisation.ligands import filter_ligands
 from pandora.canonicalisation.missing_data import (
     _drop_emptied_records,
+    _handle_incomplete_chains,
     _handle_missing_atoms,
     _handle_missing_residues,
-    _handle_incomplete_chains,
 )
-from pandora.canonicalisation.ligands import filter_ligands
 from pandora.canonicalisation.modified_residues import (
     _map_connections,
     _map_entity_poly_seq,
     _map_modified_residues,
 )
 from pandora.canonicalisation.raw_categories import _drop_stale_raw_categories
+from pandora.canonicalisation.residues import _normalize_residue_numbering
 from pandora.canonicalisation.validation import _validate
+from pandora.schemas.canonicalisation import (
+    CanonicalMappings,
+    canonicalisationPolicy,
+    canonicalisationProvenance,
+)
+from pandora.schemas.common import DiagnosticBundle
+from pandora.schemas.structure import (
+    AssemblyRecord,
+    AsymRecord,
+    AtomSiteRecord,
+    ConnRecord,
+    EntityRecord,
+    SSRecord,
+    Structure,
+)
 
 
 def _transforms(policy: canonicalisationPolicy) -> list[str]:

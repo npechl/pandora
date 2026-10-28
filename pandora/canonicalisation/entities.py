@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from pandora.schemas.canonicalisation import (
+    EntityMapping,
+    EntityMappingItem,
+)
 from pandora.schemas.structure import (
     AsymRecord,
     AtomSiteRecord,
     EntityRecord,
-)
-from pandora.schemas.canonicalisation import (
-    EntityMapping,
-    EntityMappingItem,
 )
 
 

@@ -20,7 +20,6 @@ from pandora.schemas.provenance import (
     AnnotationProvenanceRecord,
     ProvenanceBundle,
 )
-
 from pandora.schemas.similarity import (
     ClusteringProvenance,
     HitFilter,

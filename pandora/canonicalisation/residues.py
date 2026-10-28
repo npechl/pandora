@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 from collections import defaultdict
 from collections.abc import Callable
-from pandora.schemas.structure import AtomSiteRecord
+
 from pandora.schemas.canonicalisation import (
     ResidueNumberMapping,
     ResidueNumberMappingItem,
 )
+from pandora.schemas.structure import AtomSiteRecord
 
 
 def _residue_key(a: AtomSiteRecord) -> tuple:

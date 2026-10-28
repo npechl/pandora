@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from pandora.schemas.common import Diagnostic, DiagnosticBundle
 from pandora.schemas.structure import (
     AsymRecord,
     AtomSiteRecord,
     EntityRecord,
 )
-
-from pandora.schemas.common import Diagnostic, DiagnosticBundle
 
 _PROTEIN_BACKBONE = frozenset({"N", "CA", "C", "O"})
 # Sugar-phosphate backbone without P, which the 5'-terminal residue

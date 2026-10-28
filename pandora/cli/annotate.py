@@ -18,7 +18,6 @@ from pandora.cli._io import (
 )
 from pandora.schemas.annotation import AnnotationLayer
 
-
 _ENTRY_ANNOTATORS = {
     "structure_counts": annotate_structure_counts,
     "ligand_contacts": annotate_ligand_contacts,

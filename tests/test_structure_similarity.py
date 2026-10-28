@@ -6,8 +6,8 @@ from pandora.schemas.annotation import AnnotationLayer
 from pandora.schemas.structure import AtomSiteRecord, EntryRecord, Structure
 from pandora.similarity.hits import HIT_COLUMNS, _interface_coverage
 from pandora.similarity.structure import (
-    compute_structure_similarity,
     chain_item_id,
+    compute_structure_similarity,
     interface_residues_from_annotation,
     residue_positions,
 )

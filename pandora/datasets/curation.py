@@ -3,9 +3,9 @@ from __future__ import annotations
 from pandora._util import now_iso
 from pandora.annotations.entry import polymer_asym_ids
 from pandora.canonicalisation import filter_ligands
+from pandora.canonicalisation.assemblies import _spans_within
 from pandora.canonicalisation.modified_residues import STANDARD_RESIDUES
 from pandora.canonicalisation.raw_categories import _drop_stale_raw_categories
-from pandora.canonicalisation.assemblies import _spans_within
 from pandora.datasets.completeness import chain_completeness
 from pandora.datasets.records import extract_chain_records
 from pandora.schemas.canonicalisation import LigandRules

@@ -15,11 +15,11 @@ Usage:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from pathlib import Path
 import json
 import random
 import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
 
 from pandora.ingestion import fetch_list_mmcif
 from pandora.schemas.ingestion import FetchOptions

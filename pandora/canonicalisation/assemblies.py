@@ -1,5 +1,11 @@
 from typing import TypeVar
 
+from pandora.schemas.canonicalisation import (
+    AssemblyChainCopy,
+    AssemblyMapping,
+    AssemblyMappingItem,
+)
+from pandora.schemas.common import Diagnostic, DiagnosticBundle
 from pandora.schemas.structure import (
     AssemblyRecord,
     AsymRecord,
@@ -9,12 +15,6 @@ from pandora.schemas.structure import (
     SheetStrandRecord,
     SSRecord,
 )
-from pandora.schemas.canonicalisation import (
-    AssemblyChainCopy,
-    AssemblyMapping,
-    AssemblyMappingItem,
-)
-from pandora.schemas.common import Diagnostic, DiagnosticBundle
 
 _SpanRecordT = TypeVar("_SpanRecordT", ConfRecord, SheetStrandRecord)
 

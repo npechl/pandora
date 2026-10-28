@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from pandora.schemas.common import Diagnostic, DiagnosticBundle
 from pandora.schemas.structure import (
     AsymRecord,
     AtomSiteRecord,
 )
-from pandora.schemas.common import Diagnostic, DiagnosticBundle
 
 
 def _validate(

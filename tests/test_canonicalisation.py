@@ -14,13 +14,13 @@ from pandora.canonicalisation.chain_ids import (
 )
 from pandora.canonicalisation.entities import _normalize_entities
 from pandora.canonicalisation.ligands import filter_ligands
-from pandora.canonicalisation.modified_residues import _map_modified_residues
 from pandora.canonicalisation.missing_data import (
     _drop_emptied_records,
     _handle_incomplete_chains,
     _handle_missing_atoms,
     _handle_missing_residues,
 )
+from pandora.canonicalisation.modified_residues import _map_modified_residues
 from pandora.canonicalisation.residues import _normalize_residue_numbering
 from pandora.canonicalisation.validation import _validate
 from pandora.parsing import mmcif_to_structure
@@ -28,8 +28,10 @@ from pandora.schemas.canonicalisation import (
     AltlocRules,
     AssemblyChainCopy,
     AssemblyRules,
+    ChainIdRules,
     EntityRules,
     IdentifierRules,
+    IncompleteChainRules,
     LigandRules,
     MissingAtomsRules,
     MissingDataRules,
@@ -38,8 +40,6 @@ from pandora.schemas.canonicalisation import (
     ResidueNumberingRules,
     ValidationRules,
     canonicalisationPolicy,
-    ChainIdRules,
-    IncompleteChainRules,
 )
 from pandora.schemas.common import Diagnostic, DiagnosticBundle
 from pandora.schemas.structure import (

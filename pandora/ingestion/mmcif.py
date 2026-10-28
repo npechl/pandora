@@ -1,6 +1,5 @@
-from pathlib import Path
-
 import gzip
+from pathlib import Path
 
 import gemmi
 

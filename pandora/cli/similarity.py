@@ -32,7 +32,6 @@ from pandora.similarity import (
     partition_dataset,
 )
 
-
 _CLI_ENGINES = {"mmseqs2": "MMseqs2", "foldseek": "Foldseek"}
 
 

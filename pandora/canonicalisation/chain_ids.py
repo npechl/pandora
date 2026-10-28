@@ -2,17 +2,16 @@ from __future__ import annotations
 
 import itertools
 import string
-
 from typing import Iterator
 
+from pandora.schemas.canonicalisation import (
+    ChainIdMapping,
+    ChainIdMappingItem,
+)
 from pandora.schemas.structure import (
     AsymRecord,
     AtomSiteRecord,
     Structure,
-)
-from pandora.schemas.canonicalisation import (
-    ChainIdMapping,
-    ChainIdMappingItem,
 )
 
 

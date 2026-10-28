@@ -1,11 +1,10 @@
 from collections import defaultdict
 
-from pandora.schemas.structure import AtomSiteRecord
-
 from pandora.schemas.canonicalisation import (
     AltlocSelectionMapping,
     AltlocSelectionMappingItem,
 )
+from pandora.schemas.structure import AtomSiteRecord
 
 _SELECTION_REASON = {
     "select_first": "first_alphabetical",

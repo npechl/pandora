@@ -5,8 +5,8 @@ from collections.abc import Iterable
 from typing import Any
 
 from pandora.metadata.utils import (
-    RawRow,
     WATER_COMP_IDS,
+    RawRow,
     as_float,
     as_int,
     clean,

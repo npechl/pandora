@@ -17,8 +17,8 @@ from pandora.schemas.canonicalisation import (
     IncompleteChainRules,
     LigandRules,
     MissingAtomsRules,
-    ResidueNumberingRules,
     MissingDataRules,
+    ResidueNumberingRules,
     canonicalisationPolicy,
 )
 from pandora.schemas.dataset import ChainRecord

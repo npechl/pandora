@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import re
 
+from pandora.schemas.canonicalisation import LigandRules
+from pandora.schemas.common import Diagnostic, DiagnosticBundle
 from pandora.schemas.structure import (
     AsymRecord,
     AtomSiteRecord,
     EntityRecord,
 )
-
-from pandora.schemas.canonicalisation import LigandRules
-from pandora.schemas.common import Diagnostic, DiagnosticBundle
 
 
 def _keep(entity_type: str, description: str, rules: LigandRules) -> bool:
