@@ -177,7 +177,7 @@ def canonicalise_structure(
         secondary_structure,
         asmr,
         ir.assembly_id.strategy,
-        record,
+        record and asmr.record_original_assembly_mapping,
         diagnostics,
         structure.entry_id,
     )

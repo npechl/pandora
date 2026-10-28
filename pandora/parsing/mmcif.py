@@ -329,24 +329,35 @@ def _asym_units(
 
 
 # Connections ---------------------------------------------------------
-_PARTNER_TAGS = [
-    "label_asym_id",
-    "label_comp_id",
-    "label_seq_id",
-    "label_atom_id",
-    "auth_asym_id",
-    "auth_seq_id",
-    "PDB_ins_code",
-    "symmetry",
-]
+def _partner_tags(n: int) -> list[str]:
+    """_struct_conn tags of bond partner n; "?" marks optional ones."""
+
+    return [
+        f"ptnr{n}_label_asym_id",
+        f"ptnr{n}_label_comp_id",
+        f"?ptnr{n}_label_seq_id",
+        f"?ptnr{n}_label_atom_id",
+        f"?ptnr{n}_auth_asym_id",
+        f"?ptnr{n}_auth_seq_id",
+        f"?pdbx_ptnr{n}_PDB_ins_code",
+        f"?ptnr{n}_symmetry",
+    ]
+
+
 _CONN_TAGS = [
     "id",
-    "conn_type_id",
-    *(f"ptnr1_{t}" for t in _PARTNER_TAGS),
-    *(f"ptnr2_{t}" for t in _PARTNER_TAGS),
-    "pdbx_dist_value",
-    "details",
+    "?conn_type_id",
+    *_partner_tags(1),
+    *_partner_tags(2),
+    "?pdbx_dist_value",
+    "?details",
 ]
+
+
+def _opt(row: gemmi.cif.Table.Row, i: int) -> str:
+    """row[i], or the null token if the optional column is absent."""
+
+    return row[i] if row.has(i) else "?"
 
 
 def _conn_partner(row: gemmi.cif.Table.Row, i: int) -> ConnPartner:
@@ -355,12 +366,12 @@ def _conn_partner(row: gemmi.cif.Table.Row, i: int) -> ConnPartner:
     return ConnPartner(
         label_asym_id=_cs(row[i]) or "",
         label_comp_id=_cs(row[i + 1]) or "",
-        label_seq_id=_ci(row[i + 2]),
-        label_atom_id=_cs(row[i + 3]),
-        auth_asym_id=_cs(row[i + 4]),
-        auth_seq_id=_cs(row[i + 5]),
-        pdbx_PDB_ins_code=_cs(row[i + 6]),
-        symmetry=_cs(row[i + 7]),
+        label_seq_id=_ci(_opt(row, i + 2)),
+        label_atom_id=_cs(_opt(row, i + 3)),
+        auth_asym_id=_cs(_opt(row, i + 4)),
+        auth_seq_id=_cs(_opt(row, i + 5)),
+        pdbx_PDB_ins_code=_cs(_opt(row, i + 6)),
+        symmetry=_cs(_opt(row, i + 7)),
     )
 
 
@@ -369,11 +380,11 @@ def _conn_row(row: gemmi.cif.Table.Row) -> ConnRecord:
 
     return ConnRecord(
         id=_cs(row[0]) or "",
-        conn_type_id=_cs(row[1]) or "covale",
+        conn_type_id=_cs(_opt(row, 1)) or "covale",
         ptnr1=_conn_partner(row, 2),
         ptnr2=_conn_partner(row, 10),
-        pdbx_dist_value=_cf(row[18]),
-        details=_cs(row[19]),
+        pdbx_dist_value=_cf(_opt(row, 18)),
+        details=_cs(_opt(row, 19)),
     )
 
 

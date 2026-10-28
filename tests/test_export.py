@@ -43,6 +43,17 @@ def test_structure_to_mmcif_round_trips_core_fields(tmp_path):
     assert len(reparsed.assemblies) == len(structure.assemblies)
 
 
+def test_structure_to_mmcif_keeps_real_struct_conn(tmp_path):
+    path = MMCIF_PATH.with_name("104m.cif")
+    structure, _, _ = mmcif_to_structure(str(path))
+
+    out_path = structure_to_mmcif(structure, tmp_path / "104m.out.cif")
+    reparsed, _, _ = mmcif_to_structure(str(out_path))
+
+    assert structure.connections
+    assert reparsed.connections == structure.connections
+
+
 def test_export_chain_mmcif_keeps_only_that_chain(tmp_path):
     structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
     all_chain_ids = {a.label_asym_id for a in structure.atoms}

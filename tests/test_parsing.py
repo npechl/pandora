@@ -28,6 +28,16 @@ def test_parses_core_fields_against_gemmi():
     ]
 
 
+def test_parses_struct_conn_from_real_entry():
+    structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
+
+    block = gemmi.cif.read(str(MMCIF_PATH)).sole_block()
+    expected = len(block.find_values("_struct_conn.id"))
+    assert expected > 0
+    assert len(structure.connections) == expected
+    assert all(c.ptnr1.label_atom_id for c in structure.connections)
+
+
 def test_raw_keeps_untyped_categories_but_not_atom_site():
     structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
 

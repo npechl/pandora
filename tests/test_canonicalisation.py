@@ -1031,6 +1031,23 @@ def test_canonicalise_structure_records_transforms_for_non_preserve_rules():
     assert mappings.chain_id_mapping.items
 
 
+@pytest.mark.parametrize("record", [True, False])
+def test_canonicalise_structure_honours_record_original_assembly_mapping(
+    record,
+):
+    structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
+    policy = canonicalisationPolicy(
+        policy_id="test",
+        policy_name="test",
+        policy_version="1.0.0",
+        assembly_rules=AssemblyRules(record_original_assembly_mapping=record),
+    )
+
+    _, mappings, _ = canonicalise_structure(structure, policy)
+
+    assert bool(mappings.assembly_mapping.items) is record
+
+
 def test_canonicalise_structure_raises_on_unresolved_validation_failure():
     structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
     # Force a residue-number collision: renumber every atom to seq_id 1
