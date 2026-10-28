@@ -30,8 +30,9 @@ is the canonical flow.
 - **Behaviour is driven by policies.** Choices a user might want to vary
   (canonicalisation rules, curation filters, split settings) live in
   pydantic policy models, loadable from YAML via `load_policy()` (see
-  `datasets/canonicalisation.yaml`; `docs/policies/*.yaml` only document
-  each policy's field types).
+  `datasets/canonicalisation.yaml`; `docs/policies/*.yaml` list the field
+  types of the implemented policies, `canonicalisationPolicy` and
+  `DatasetCurationPolicy`, and must match their models).
   Do not hard-code them.
 - **Report problems, don't swallow them.** Use `Diagnostic` /
   `DiagnosticBundle` (`schemas/common.py`) for recoverable issues. Catch
