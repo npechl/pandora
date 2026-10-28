@@ -7,7 +7,12 @@ from pandora.datasets import extract_chain_records
 from pandora.parsing import mmcif_to_structure
 
 MMCIF_PATH = (
-    Path(__file__).parent.parent / "datasets" / "dev" / "mmcif" / "104m.cif"
+    Path(__file__).parent.parent
+    / "datasets"
+    / "dev"
+    / "mmcif"
+    / "04"
+    / "104m.cif"
 )
 
 
