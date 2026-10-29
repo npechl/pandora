@@ -56,7 +56,7 @@ extend-exclude = ["archive"]
 # not enable). E4/E7/E9/F match the pre-0.16 default; BLE001 and S110
 # are added deliberately to catch blind `except Exception` and silent
 # `try/except/pass`. I sorts imports.
-select = ["BLE001", "C901", "E4", "E7", "E9", "F", "I", "PLR0915", "S110"]
+select = ["BLE001", "C901", "E4", "E7", "E9", "F", "I", "PLR0915", "S102", "S110"]
 # Add the `line-too-long` rule to the enforced rule set. By default, Ruff omits rules that
 # overlap with the use of a formatter, like Black, but we can override this behavior by
 # explicitly adding the rule.
