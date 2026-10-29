@@ -246,6 +246,31 @@ def _chain_exclusions(
     return [failed[c] for c in sorted(failed)]
 
 
+def _polymer_type_exclusions(
+    structure: Structure, keep: list[str] | None
+) -> list[ExclusionRecord]:
+    """One ExclusionRecord per polymer chain whose type is not in keep."""
+
+    if keep is None:
+        return []
+    poly_type = {
+        e.id: e.poly.type if e.poly is not None else None
+        for e in structure.entities
+    }
+    polymer_ids = polymer_asym_ids(structure)
+    return [
+        ExclusionRecord(
+            entry_id=structure.entry_id,
+            chain_id=asym.id,
+            reason_code="POLYMER_TYPE_EXCLUDED",
+            message=f"polymer type {poly_type.get(asym.entity_id)} not in "
+            f"keep_polymer_types={keep}",
+        )
+        for asym in sorted(structure.asym_units, key=lambda u: u.id)
+        if asym.id in polymer_ids and poly_type.get(asym.entity_id) not in keep
+    ]
+
+
 def _drop_chains(structure: Structure, chain_ids: set[str]) -> Structure:
     """Copy of structure without chain_ids' atoms, asym units, connections
     and secondary structure."""
@@ -490,18 +515,27 @@ def curate_structure(
     )
 
     rules = policy.quality_rules
-    exclusion = (
-        _check_quality(structure, metadata, rules)
-        or _check_organism(structure, metadata, policy.organism_rules)
-        or _check_composition(structure, rules)
+    exclusion = _check_quality(structure, metadata, rules) or _check_organism(
+        structure, metadata, policy.organism_rules
     )
     if exclusion is not None:
         return None, [exclusion], provenance
 
     original_raw = structure.raw
-    records = _chain_exclusions(structure, rules)
+    # Polymer types go first so composition is checked on kept chains only.
+    records = _polymer_type_exclusions(
+        structure, policy.content_rules.keep_polymer_types
+    )
     if records:
         structure = _drop_chains(structure, {r.chain_id for r in records})
+    exclusion = _check_composition(structure, rules)
+    if exclusion is not None:
+        return None, [*records, exclusion], provenance
+
+    chain_records = _chain_exclusions(structure, rules)
+    if chain_records:
+        structure = _drop_chains(structure, {r.chain_id for r in chain_records})
+    records += chain_records
     exclusion = _check_chain_counts(structure, rules, bool(records))
     if exclusion is not None:
         return None, [*records, exclusion], provenance

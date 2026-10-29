@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 
 from pandora._util import now_iso
+from pandora.export.fasta import write_fasta
 from pandora.schemas.dataset import ChainRecord
 from pandora.schemas.similarity import SimilaritySearch
 from pandora.similarity.hits import HIT_COLUMNS
@@ -20,14 +21,6 @@ def _mmseqs_version(mmseqs_bin: str) -> str | None:
         [mmseqs_bin, "version"], capture_output=True, text=True, check=False
     )
     return result.stdout.strip() or None
-
-
-def _write_fasta(sequences: dict[str, str], path: Path) -> None:
-    """Write sequences as a FASTA file at path."""
-
-    with path.open("w") as handle:
-        for seq_id, sequence in sequences.items():
-            handle.write(f">{seq_id}\n{sequence}\n")
 
 
 def _concat_fasta_dir(directory: Path, path: Path) -> None:
@@ -111,7 +104,7 @@ def compute_sequence_similarity(
         work = Path(work_dir)
         fasta_path = work / "sequences.fasta"
         if isinstance(sequences, dict):
-            _write_fasta(sequences, fasta_path)
+            write_fasta(sequences, fasta_path)
         else:
             _concat_fasta_dir(Path(sequences), fasta_path)
 
