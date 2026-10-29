@@ -58,10 +58,9 @@ Both versions map MSE to MET during canonicalisation, then curate the same eight
 === "`library`"
 
     ```python
-    import yaml
-
     from pandora.canonicalisation import canonicalise_structure
     from pandora.datasets import curate_structure
+    from pandora.ingestion import load_policy
     from pandora.metadata import collect_metadata
     from pandora.parsing import mmcif_to_structure
     from pandora.schemas.canonicalisation import (
@@ -92,8 +91,7 @@ Both versions map MSE to MET during canonicalisation, then curate the same eight
         "datasets/policies/atom3d-pip-quality.yaml",
         "datasets/policies/ppi-v2.1-quality.yaml",
     ]:
-        with open(path) as handle:
-            policy = DatasetCurationPolicy.model_validate(yaml.safe_load(handle))
+        policy = load_policy(path, DatasetCurationPolicy)
         print(policy.policy_name)
         for entry_id, (structure, metadata) in structures.items():
             curated, exclusions, _ = curate_structure(structure, metadata, policy)

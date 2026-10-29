@@ -275,9 +275,9 @@ warning above.)
 
 `curate_structure(structure, metadata, policy)` applies a `DatasetCurationPolicy`. Entry rules exclude the whole entry; chain rules remove failing chains and keep the rest. An entry left with no polymer chain is excluded as `NO_CHAINS_LEFT`.
 
-Order: entry rules (resolution, method, R-factors, organism, non-standard residues, `max_atoms`), then chain rules, then `min_chain_length` and `min_polymer_chains` on what is left, then content rules.
+Order: entry rules (resolution, method, R-factors, organism), then `keep_polymer_types`, then the remaining entry rules (non-standard residues, `max_atoms`) on the chains kept, then chain rules, then `min_chain_length` and `min_polymer_chains` on what is left, then the other content rules.
 
-When chain rules or content rules remove chains, the `Structure.raw` categories that refer to chains or residues by ID are removed too, as in canonicalisation, so the curated structure still writes a valid mmCIF file. They are listed in `CurationProvenance.dropped_raw_categories`.
+When `keep_polymer_types`, chain rules or content rules remove chains, the `Structure.raw` categories that refer to chains or residues by ID are removed too, as in canonicalisation, so the curated structure still writes a valid mmCIF file. They are listed in `CurationProvenance.dropped_raw_categories`.
 
 ### `quality_rules`
 
@@ -303,6 +303,13 @@ When chain rules or content rules remove chains, the `Structure.raw` categories 
 | `min_polymer_chains` | `null` | entry | Exclude the entry if fewer polymer chains remain. |
 
 When a missing-fraction rule is set, a chain whose completeness can't be measured (no `_entity_poly_seq`, or residues that don't line up with it, for example after renumbering) is removed as `NO_SEQRES`. Use `chain_completeness()` to inspect the numbers directly.
+
+### `content_rules`
+
+| Field | Default | Level | Description |
+|---|---|---|---|
+| `keep_ligands` / `keep_waters` / `keep_ions` | `true` | content | Whether non-polymer ligands, waters and ions stay in the curated structure. Uses the same ion heuristic as `ligand_rules`. |
+| `keep_polymer_types` | `null` | chain | Keep only polymer chains whose entity type (`_entity_poly.type`, e.g. `polypeptide(L)`, `polydeoxyribonucleotide`) is listed. Other polymer chains are removed as `POLYMER_TYPE_EXCLUDED`. Runs before the non-standard-residue rule, so residues in removed chains don't exclude the entry. `null` keeps every type. |
 
 ## Similarity hit filter
 

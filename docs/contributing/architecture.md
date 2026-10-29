@@ -34,7 +34,8 @@ reading/writing the same types as files instead of in-memory objects — see
 | `fetch_mmcif()` | `entry_id`, `provider`, `output_dir` | `IngestionProvenance` — writes the mmCIF file as a side effect |
 | `fetch_list_mmcif()` | a list of `entry_id`s | `list[IngestionProvenance]` — calls `fetch_mmcif()` once per id |
 | `ingest_local_mmcif()` | `path` to a file already on disk | `IngestionProvenance` — describes it without fetching/copying |
-| `load_policy()` | `path` to a policy YAML | `canonicalisationPolicy` |
+| `load_policy()` | `path` to a policy YAML, optional policy `model` | `canonicalisationPolicy`, or an instance of `model` |
+| `read_entry_paths()` | `path` to a text file of mmCIF paths | `list[Path]` |
 
 ### Parsing
 
@@ -110,6 +111,7 @@ differs; see [Annotation](../usage/annotation.md) for each one's `data` schema.
 |---|---|---|
 | `structure_to_mmcif()` | `Structure` | an mmCIF file |
 | `export_chain_mmcif()` | `Structure`, `chain_id` | an mmCIF file with only that chain's atoms/connections |
+| `write_fasta()` | `dict[str, str]` of id to sequence | a FASTA file |
 | `write_json()` | any pydantic `BaseModel` (e.g. a `DatasetManifest`) | a JSON file |
 | `write_records()` | a `Sequence[BaseModel]` (e.g. `list[ChainRecord]`) | a JSON or Parquet file |
 

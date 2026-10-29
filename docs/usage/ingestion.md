@@ -136,6 +136,26 @@ already have on disk, without fetching or copying anything.
     it the same way regardless of which one produced it. `--source-uri`
     applies one label to every file in `--input-dir`.
 
+## Read a list of local files
+
+`read_entry_paths()` reads a text file with one mmCIF path per line, for a batch already on disk. Blank lines and `#` comments are skipped, and relative paths are resolved against the list file's folder:
+
+```text
+# entries.txt
+mmcif/04/104m.cif
+/data/pdb/a0/1a02.cif.gz
+```
+
+```python
+from pandora.ingestion import read_entry_paths
+from pandora.parsing import mmcif_to_structure
+
+for path in read_entry_paths("entries.txt"):
+    structure, _, _ = mmcif_to_structure(str(path))
+```
+
+Paths are not checked for existence; a missing file fails when it is parsed.
+
 ## Fetch a batch, tolerating failures
 
 === "`library`"
@@ -182,7 +202,7 @@ already have on disk, without fetching or copying anything.
 happens when a cached file is older than that. `use_cache=False` skips
 the cache entirely and always re-downloads.
 
-## Load a canonicalisation policy
+## Load a policy
 
 `load_policy()` reads a policy YAML file into a validated
 `canonicalisationPolicy` — the same object the `pandora canonicalise`
@@ -197,6 +217,14 @@ from pandora.ingestion import load_policy
 policy = load_policy("datasets/canonicalisation.yaml")
 print(policy.policy_id, policy.ligand_rules.strategy)
 # overview-remap filter
+```
+
+Pass a model to load another kind of policy, such as a curation policy for [`curate_structure()`](datasets.md):
+
+```python
+from pandora.schemas.dataset import DatasetCurationPolicy
+
+curation = load_policy("policy.yaml", DatasetCurationPolicy)
 ```
 
 See [Policies](../reference/policies.md) for every field a policy YAML can set.

@@ -132,3 +132,21 @@ around when you don't know if the extra is installed. An empty list
 always raises `ValueError("no records to write")` rather than writing
 an empty file — a batch that curated down to nothing is a case to
 handle explicitly, not silently produce an empty artifact.
+
+## Write sequences to FASTA
+
+`write_fasta()` writes a dict of record id to sequence, for example as MMseqs2 input. Whitespace inside a sequence is removed, since mmCIF wraps long one-letter codes:
+
+```python
+from pandora.datasets import extract_chain_records
+from pandora.export import write_fasta
+
+write_fasta(
+    {
+        f"{r.entry_id}_{r.chain_id}": r.sequence
+        for r in extract_chain_records(canonical)
+        if r.sequence
+    },
+    output_dir / "chains.fasta",
+)
+```

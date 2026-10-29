@@ -32,6 +32,7 @@ DatasetCurationPolicy:
     keep_ligands: bool
     keep_waters: bool
     keep_ions: bool
+    keep_polymer_types: list[string] | null
 
   organism_rules:
     include_taxa: list[string]

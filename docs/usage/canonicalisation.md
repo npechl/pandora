@@ -776,7 +776,7 @@ When a run changes which chains or residues exist or what they are called (renum
 
 ## Load a policy from YAML
 
-Policies are plain data, so you can keep them in YAML next to your dataset. The library loads them with [`load_policy()`](ingestion.md#load-a-canonicalisation-policy); the CLI's `--policy` takes the same file. `datasets/canonicalisation.yaml` remaps chain IDs, renumbers residues, merges equivalent entities and drops waters and ions:
+Policies are plain data, so you can keep them in YAML next to your dataset. The library loads them with [`load_policy()`](ingestion.md#load-a-policy); the CLI's `--policy` takes the same file. `datasets/canonicalisation.yaml` remaps chain IDs, renumbers residues, merges equivalent entities and drops waters and ions:
 
 ```yaml
 # datasets/canonicalisation.yaml
