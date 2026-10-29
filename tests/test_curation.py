@@ -629,3 +629,42 @@ def test_curation_provenance_lists_dropped_raw_categories():
     )
     _, _, untouched = curate_structure(structure, None, _policy())
     assert untouched.dropped_raw_categories == []
+
+
+def test_keep_polymer_types_drops_other_polymer_chains():
+    structure = _load("1a02")
+    curated, exclusions, provenance = curate_structure(
+        structure,
+        None,
+        _policy(
+            content_rules=ContentRules(keep_polymer_types=["polypeptide(L)"]),
+            quality_rules=QualityRules(max_missing_tail_fraction=1.0),
+        ),
+    )
+    assert _chain_codes(exclusions) == [
+        ("A", "POLYMER_TYPE_EXCLUDED"),
+        ("B", "POLYMER_TYPE_EXCLUDED"),
+    ]
+    assert {u.id for u in curated.asym_units} >= {"C", "D", "E"}
+    assert not {"A", "B"} & {u.id for u in curated.asym_units}
+    assert not {"A", "B"} & {a.label_asym_id for a in curated.atoms}
+    # SEQRES survives, so completeness rules still run on kept chains.
+    assert "_entity_poly_seq" in curated.raw
+    assert "_entity_poly_seq" not in provenance.dropped_raw_categories
+
+
+def test_keep_polymer_types_excludes_entry_with_none_left():
+    structure = _load("1ac9")
+    curated, exclusions, _ = curate_structure(
+        structure,
+        None,
+        _policy(
+            content_rules=ContentRules(keep_polymer_types=["polypeptide(L)"])
+        ),
+    )
+    assert curated is None
+    assert _chain_codes(exclusions) == [
+        ("A", "POLYMER_TYPE_EXCLUDED"),
+        ("B", "POLYMER_TYPE_EXCLUDED"),
+        (None, "NO_CHAINS_LEFT"),
+    ]

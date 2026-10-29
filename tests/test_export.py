@@ -6,6 +6,7 @@ from pandora.canonicalisation import canonicalise_structure
 from pandora.export import (
     export_chain_mmcif,
     structure_to_mmcif,
+    write_fasta,
     write_json,
     write_records,
 )
@@ -230,3 +231,11 @@ def test_canonical_structure_round_trips_through_mmcif(
     structure_to_mmcif(canonical, str(path))
     reparsed, _, status = mmcif_to_structure(str(path))
     assert reparsed is not None, status
+
+
+def test_write_fasta_strips_whitespace(tmp_path):
+    path = write_fasta(
+        {"1abc_A": "MKT\nAYI ", "1abc_B": "GG"}, tmp_path / "out" / "s.fasta"
+    )
+
+    assert path.read_text() == ">1abc_A\nMKTAYI\n>1abc_B\nGG\n"

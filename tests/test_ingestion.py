@@ -3,6 +3,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from pandora.ingestion import read_entry_paths
 from pandora.ingestion.mmcif import (
     _pdbe_revision_date,
     _revision_date_from_cif_file,
@@ -10,6 +11,7 @@ from pandora.ingestion.mmcif import (
 )
 from pandora.ingestion.policy import load_policy
 from pandora.ingestion.search import search_pdbe, search_rcsb
+from pandora.schemas.dataset import DatasetCurationPolicy
 
 POLICY_PATH = (
     Path(__file__).parent.parent / "datasets" / "canonicalisation.yaml"
@@ -23,6 +25,29 @@ def test_load_policy():
     assert policy.identifier_rules.chain_id.strategy == "remap"
     assert policy.altloc_rules.strategy == "select_best_occupancy"
     assert policy.ligand_rules.keep_waters is False
+
+
+def test_load_policy_with_model(tmp_path):
+    path = tmp_path / "curation.yaml"
+    path.write_text(
+        "policy_id: p\npolicy_name: p\npolicy_version: '1'\n"
+        "content_rules:\n  keep_polymer_types: [polypeptide(L)]\n"
+    )
+    policy = load_policy(path, DatasetCurationPolicy)
+
+    assert isinstance(policy, DatasetCurationPolicy)
+    assert policy.content_rules.keep_polymer_types == ["polypeptide(L)"]
+
+
+def test_read_entry_paths(tmp_path):
+    listing = tmp_path / "lists" / "entries.txt"
+    listing.parent.mkdir()
+    listing.write_text("# PPI set\n\nmmcif/1abc.cif\n  /data/2xyz.cif.gz  \n")
+
+    assert read_entry_paths(listing) == [
+        tmp_path / "lists" / "mmcif" / "1abc.cif",
+        Path("/data/2xyz.cif.gz"),
+    ]
 
 
 def test_revision_date_from_cif_file_takes_latest_row(tmp_path):
