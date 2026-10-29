@@ -141,6 +141,7 @@ ExclusionReason = Literal[
     "CHAIN_TOO_LONG",
     "NO_SEQRES",
     "NO_CHAINS_LEFT",
+    "POLYMER_TYPE_EXCLUDED",
 ]
 
 
@@ -247,7 +248,8 @@ class OrganismRules(BaseModel):
 
 
 class ContentRules(BaseModel):
-    """Curation policy for which ligand/water/ion content is kept.
+    """Curation policy for which ligand/water/ion and polymer content is
+    kept.
 
     Attributes:
         keep_ligands: Whether non-polymer ligands are kept in curated
@@ -255,11 +257,15 @@ class ContentRules(BaseModel):
         keep_waters: Whether water molecules are kept in curated
             structures.
         keep_ions: Whether ions are kept in curated structures.
+        keep_polymer_types: If set, only polymer chains whose entity
+            polymer type (e.g. "polypeptide(L)") is listed are kept;
+            other polymer chains are removed. None keeps every type.
     """
 
     keep_ligands: bool = True
     keep_waters: bool = True
     keep_ions: bool = True
+    keep_polymer_types: list[str] | None = None
 
 
 class DeduplicationRules(BaseModel):
