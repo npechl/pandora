@@ -668,3 +668,60 @@ def test_keep_polymer_types_excludes_entry_with_none_left():
         ("B", "POLYMER_TYPE_EXCLUDED"),
         (None, "NO_CHAINS_LEFT"),
     ]
+
+
+def _stale_chain_refs(structure) -> list[str]:
+    """Chain ids bonds, SS spans or assemblies name but asym_units lacks,
+    plus entity ids no asym unit uses."""
+
+    kept = {u.id for u in structure.asym_units}
+    ss = structure.secondary_structure
+    refs = [
+        *(
+            c
+            for a in structure.assemblies
+            for g in a.generators
+            for c in g.asym_id_list
+        ),
+        *(
+            c
+            for b in structure.connections
+            for c in (b.ptnr1.label_asym_id, b.ptnr2.label_asym_id)
+        ),
+        *(
+            c
+            for s in [*ss.conf_records, *ss.sheet_strands]
+            for c in (s.beg_label_asym_id, s.end_label_asym_id)
+        ),
+    ]
+    used = {u.entity_id for u in structure.asym_units}
+    return [c for c in refs if c not in kept] + [
+        f"entity {e.id}" for e in structure.entities if e.id not in used
+    ]
+
+
+def test_content_rules_leave_no_stale_references():
+    # 104m: heme bonds to the protein and has its own entity.
+    policy = _policy(
+        content_rules=ContentRules(
+            keep_ligands=False, keep_waters=False, keep_ions=False
+        )
+    )
+
+    curated, _, _ = curate_structure(_load("104m"), None, policy)
+
+    assert _stale_chain_refs(curated) == []
+
+
+def test_content_rules_that_remove_every_atom_exclude_entry():
+    # 22ag has no polymer chain, only ligands.
+    policy = _policy(
+        content_rules=ContentRules(
+            keep_ligands=False, keep_waters=False, keep_ions=False
+        )
+    )
+
+    curated, exclusions, _ = curate_structure(_load("22ag"), None, policy)
+
+    assert curated is None
+    assert _codes(exclusions) == ["NO_CHAINS_LEFT"]

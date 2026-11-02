@@ -30,6 +30,16 @@ def _validate(
             )
         )
 
+    if not atoms:
+        diagnostics.errors.append(
+            Diagnostic(
+                code="NO_ATOMS_LEFT",
+                severity="error",
+                message="Canonicalisation removed every atom",
+                entry_id=entry_id,
+            )
+        )
+
     _check_residue_collisions(atoms, diagnostics, entry_id)
 
     if rules.strictness == "strict":

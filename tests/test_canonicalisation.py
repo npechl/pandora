@@ -435,12 +435,8 @@ def test_canonicalise_structure_drops_asyms_and_entities_without_atoms(
     structure, _, _ = mmcif_to_structure(
         str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif")
     )
-    policy = canonicalisationPolicy(
-        policy_id="test",
-        policy_name="test",
-        policy_version="1.0.0",
-        **policy_update,
-    )
+    # Lenient: 1p58 loses every atom, which fails validation (#124).
+    policy = _lenient_policy(**policy_update)
 
     canonical, _, _ = canonicalise_structure(structure, policy)
 
@@ -1498,3 +1494,102 @@ def test_residue_mapping_records_chain_ids_before_and_after_remap():
             item.original_seq_id,
             item.original_auth_seq_id,
         ) in original_residues
+
+
+def _stale_chain_refs(structure) -> list[str]:
+    """Chain ids that assemblies, bonds or SS spans name but asym_units
+    lacks, plus entity ids no asym unit uses."""
+
+    kept = {u.id for u in structure.asym_units}
+    ss = structure.secondary_structure
+    refs = [
+        *(
+            c
+            for a in structure.assemblies
+            for g in a.generators
+            for c in g.asym_id_list
+        ),
+        *(
+            c
+            for b in structure.connections
+            for c in (b.ptnr1.label_asym_id, b.ptnr2.label_asym_id)
+        ),
+        *(
+            c
+            for s in [*ss.conf_records, *ss.sheet_strands]
+            for c in (s.beg_label_asym_id, s.end_label_asym_id)
+        ),
+    ]
+    used = {u.entity_id for u in structure.asym_units}
+    return [c for c in refs if c not in kept] + [
+        f"entity {e.id}" for e in structure.entities if e.id not in used
+    ]
+
+
+@pytest.mark.parametrize(
+    ("entry_id", "rules"),
+    [
+        (
+            "1ayi",
+            {
+                "ligand_rules": LigandRules(
+                    strategy="filter",
+                    keep_waters=False,
+                    keep_ions=False,
+                    keep_nonpolymer_ligands=False,
+                )
+            },
+        ),
+        (
+            "1ayi",
+            {"ligand_rules": LigandRules(strategy="annotate_only")},
+        ),
+        (
+            "104m",
+            {
+                "ligand_rules": LigandRules(
+                    strategy="filter",
+                    keep_waters=False,
+                    keep_ions=False,
+                    keep_nonpolymer_ligands=False,
+                )
+            },
+        ),
+    ],
+)
+def test_removed_chains_leave_no_stale_references(entry_id, rules):
+    structure = _load(entry_id)
+    before = {u.id for u in structure.asym_units}
+
+    canonical, _, _ = canonicalise_structure(
+        structure, _lenient_policy(**rules)
+    )
+
+    assert {u.id for u in canonical.asym_units} < before
+    assert _stale_chain_refs(canonical) == []
+
+
+def test_no_atoms_left_fails_validation():
+    # 1p58 is CA-only, so drop_partial_residue removes every atom.
+    structure = _load("1p58")
+    rules = MissingDataRules(
+        missing_atoms=MissingAtomsRules(strategy="drop_partial_residue")
+    )
+    policy = canonicalisationPolicy(
+        policy_id="test",
+        policy_name="test",
+        policy_version="1.0.0",
+        missing_data_rules=rules,
+    )
+
+    with pytest.raises(ValueError, match="1P58|1p58"):
+        canonicalise_structure(structure, policy)
+
+
+def test_validate_reports_no_atoms_left():
+    diagnostics = DiagnosticBundle()
+
+    status = _validate([], [], ValidationRules(), diagnostics, "X")
+
+    assert status == "failed"
+    assert [d.code for d in diagnostics.errors] == ["NO_ATOMS_LEFT"]

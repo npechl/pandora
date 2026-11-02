@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pandora._util import now_iso
 from pandora.canonicalisation.altlocs import _resolve_altlocs
-from pandora.canonicalisation.assemblies import _normalize_assemblies
+from pandora.canonicalisation.assemblies import (
+    _drop_stale_chain_references,
+    _normalize_assemblies,
+)
 from pandora.canonicalisation.chain_ids import (
     _apply_chain_map,
     _normalize_chain_ids,
@@ -242,16 +245,19 @@ def canonicalise_structure(
     # Verbatim `entity_id` columns follow the canonical entity ids.
     raw = _remap_raw_entity_ids(raw, entity_id_map)
 
-    canonical = structure.model_copy(
-        update={
-            "raw": raw,
-            "atoms": atoms,
-            "asym_units": asym_units,
-            "entities": entities,
-            "assemblies": assemblies,
-            "connections": connections,
-            "secondary_structure": secondary_structure,
-        }
+    # Bonds, SS spans and assemblies can still name removed asym units.
+    canonical = _drop_stale_chain_references(
+        structure.model_copy(
+            update={
+                "raw": raw,
+                "atoms": atoms,
+                "asym_units": asym_units,
+                "entities": entities,
+                "assemblies": assemblies,
+                "connections": connections,
+                "secondary_structure": secondary_structure,
+            }
+        )
     )
 
     mappings = CanonicalMappings(

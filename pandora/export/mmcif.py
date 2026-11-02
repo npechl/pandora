@@ -88,7 +88,16 @@ def structure_to_mmcif(structure: Structure, path: str | Path) -> Path:
 
     Returns:
         The resolved `Path` the mmCIF file was written to.
+
+    Raises:
+        ValueError: If `structure` has no atoms; the file would not
+            parse back (`NO_MODEL`).
     """
+
+    if not structure.atoms:
+        raise ValueError(
+            f"Structure {structure.entry_id!r} has no atoms to write"
+        )
 
     doc = gemmi.cif.Document()
     block = doc.add_new_block(structure.entry_id)

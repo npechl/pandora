@@ -239,3 +239,13 @@ def test_write_fasta_strips_whitespace(tmp_path):
     )
 
     assert path.read_text() == ">1abc_A\nMKTAYI\n>1abc_B\nGG\n"
+
+
+def test_structure_to_mmcif_refuses_structure_without_atoms(tmp_path):
+    structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
+    empty = structure.model_copy(update={"atoms": []})
+
+    with pytest.raises(ValueError, match="no atoms"):
+        structure_to_mmcif(empty, tmp_path / "empty.cif")
+
+    assert not (tmp_path / "empty.cif").exists()

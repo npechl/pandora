@@ -14,6 +14,7 @@ from pandora.schemas.structure import (
     ConnRecord,
     SheetStrandRecord,
     SSRecord,
+    Structure,
 )
 
 _SpanRecordT = TypeVar("_SpanRecordT", ConfRecord, SheetStrandRecord)
@@ -143,6 +144,43 @@ def _spans_within(
         for r in records
         if r.beg_label_asym_id in chains and r.end_label_asym_id in chains
     ]
+
+
+def _drop_stale_chain_references(structure: Structure) -> Structure:
+    """Copy of structure without bonds, SS spans, assembly chain list
+    entries and entities that refer to asym units it no longer has."""
+
+    kept = {u.id for u in structure.asym_units}
+    entity_ids = {u.entity_id for u in structure.asym_units}
+    ss = structure.secondary_structure
+    assemblies = []
+    for asm in structure.assemblies:
+        generators = []
+        for gen in asm.generators:
+            chains = [c for c in gen.asym_id_list if c in kept]
+            if chains:
+                generators.append(
+                    gen.model_copy(update={"asym_id_list": chains})
+                )
+        assemblies.append(asm.model_copy(update={"generators": generators}))
+    return structure.model_copy(
+        update={
+            "entities": [e for e in structure.entities if e.id in entity_ids],
+            "assemblies": assemblies,
+            "connections": [
+                c
+                for c in structure.connections
+                if c.ptnr1.label_asym_id in kept
+                and c.ptnr2.label_asym_id in kept
+            ],
+            "secondary_structure": ss.model_copy(
+                update={
+                    "conf_records": _spans_within(ss.conf_records, kept),
+                    "sheet_strands": _spans_within(ss.sheet_strands, kept),
+                }
+            ),
+        }
+    )
 
 
 def _select_biological_assembly(

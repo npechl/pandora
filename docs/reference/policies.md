@@ -54,7 +54,7 @@ renumbering always drops insertion codes.
 
 ### `missing_data_rules`
 
-When a missing-data or ligand rule removes every atom of an asym unit, the asym unit is removed too (with a `CHAIN_EMPTIED` diagnostic), and so is any entity left with no atoms.
+When a missing-data or ligand rule removes every atom of an asym unit, the asym unit is removed too (with a `CHAIN_EMPTIED` diagnostic), and so is any entity left with no atoms. Bonds, secondary-structure spans and assembly chain lists that name a removed asym unit are removed with it (an assembly generator left with no chains is dropped). If every atom of the entry is removed, validation records a `NO_ATOMS_LEFT` error, so with the default `fail_on_unresolved_issues=True` canonicalisation raises.
 
 **`missing_atoms.strategy`** (default `annotate`) — a residue is "missing atoms" if any backbone atom is absent: `N`/`CA`/`C`/`O` for protein, `O5'`/`C5'`/`C4'`/`C3'`/`O3'` for DNA/RNA (`P` is not required, since the 5'-terminal nucleotide normally lacks it).
 
@@ -273,11 +273,11 @@ warning above.)
 
 ## Curation
 
-`curate_structure(structure, metadata, policy)` applies a `DatasetCurationPolicy`. Entry rules exclude the whole entry; chain rules remove failing chains and keep the rest. An entry left with no polymer chain is excluded as `NO_CHAINS_LEFT`.
+`curate_structure(structure, metadata, policy)` applies a `DatasetCurationPolicy`. Entry rules exclude the whole entry; chain rules remove failing chains and keep the rest. An entry left with no polymer chain, or with no atoms after the content rules, is excluded as `NO_CHAINS_LEFT`.
 
 Order: entry rules (resolution, method, R-factors, organism), then `keep_polymer_types`, then the remaining entry rules (non-standard residues, `max_atoms`) on the chains kept, then chain rules, then `min_chain_length` and `min_polymer_chains` on what is left, then the other content rules.
 
-When `keep_polymer_types`, chain rules or content rules remove chains, the `Structure.raw` categories that refer to chains or residues by ID are removed too, as in canonicalisation, so the curated structure still writes a valid mmCIF file. They are listed in `CurationProvenance.dropped_raw_categories`.
+When `keep_polymer_types`, chain rules or content rules remove chains, the bonds, secondary-structure spans, assembly chain lists and entities that refer to them are removed too, and so are the `Structure.raw` categories that refer to chains or residues by ID, as in canonicalisation, so the curated structure still writes a valid mmCIF file. They are listed in `CurationProvenance.dropped_raw_categories`.
 
 ### `quality_rules`
 

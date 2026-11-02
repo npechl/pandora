@@ -3,7 +3,7 @@ from __future__ import annotations
 from pandora._util import now_iso
 from pandora.annotations.entry import polymer_asym_ids
 from pandora.canonicalisation import filter_ligands
-from pandora.canonicalisation.assemblies import _spans_within
+from pandora.canonicalisation.assemblies import _drop_stale_chain_references
 from pandora.canonicalisation.modified_residues import STANDARD_RESIDUES
 from pandora.canonicalisation.raw_categories import _drop_stale_raw_categories
 from pandora.datasets.completeness import chain_completeness
@@ -272,11 +272,9 @@ def _polymer_type_exclusions(
 
 
 def _drop_chains(structure: Structure, chain_ids: set[str]) -> Structure:
-    """Copy of structure without chain_ids' atoms, asym units, connections
-    and secondary structure."""
+    """Copy of structure without chain_ids' atoms, asym units and the
+    references to them."""
 
-    kept = {u.id for u in structure.asym_units} - chain_ids
-    ss = structure.secondary_structure
     dropped = structure.model_copy(
         update={
             "atoms": [
@@ -285,18 +283,6 @@ def _drop_chains(structure: Structure, chain_ids: set[str]) -> Structure:
             "asym_units": [
                 u for u in structure.asym_units if u.id not in chain_ids
             ],
-            "connections": [
-                c
-                for c in structure.connections
-                if c.ptnr1.label_asym_id in kept
-                and c.ptnr2.label_asym_id in kept
-            ],
-            "secondary_structure": ss.model_copy(
-                update={
-                    "conf_records": _spans_within(ss.conf_records, kept),
-                    "sheet_strands": _spans_within(ss.sheet_strands, kept),
-                }
-            ),
         }
     )
     return _drop_stale_references(structure, dropped)
@@ -305,32 +291,16 @@ def _drop_chains(structure: Structure, chain_ids: set[str]) -> Structure:
 def _drop_stale_references(
     original: Structure, filtered: Structure
 ) -> Structure:
-    """filtered without raw categories or assembly chain lists that refer
-    to chains or residues original had and filtered lost (else its mmCIF
-    export won't re-parse)."""
+    """filtered without raw categories, bonds, SS spans, assembly chain
+    lists and entities that refer to chains or residues original had and
+    filtered lost (else its mmCIF export won't re-parse)."""
 
     raw, _ = _drop_stale_raw_categories(
         filtered.raw, original.atoms, filtered.atoms
     )
-    kept = {u.id for u in filtered.asym_units}
-    assemblies = [
-        asm.model_copy(
-            update={
-                "generators": [
-                    gen.model_copy(
-                        update={
-                            "asym_id_list": [
-                                c for c in gen.asym_id_list if c in kept
-                            ]
-                        }
-                    )
-                    for gen in asm.generators
-                ]
-            }
-        )
-        for asm in filtered.assemblies
-    ]
-    return filtered.model_copy(update={"raw": raw, "assemblies": assemblies})
+    return _drop_stale_chain_references(
+        filtered.model_copy(update={"raw": raw})
+    )
 
 
 def _check_chain_counts(
@@ -541,6 +511,19 @@ def curate_structure(
         return None, [*records, exclusion], provenance
 
     curated = _apply_content_rules(structure, policy.content_rules)
+    if not curated.atoms:
+        return (
+            None,
+            [
+                *records,
+                ExclusionRecord(
+                    entry_id=structure.entry_id,
+                    reason_code="NO_CHAINS_LEFT",
+                    message="every atom was removed by the content rules",
+                ),
+            ],
+            provenance,
+        )
     dropped = sorted(set(original_raw) - set(curated.raw))
     return (
         curated,
