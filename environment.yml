@@ -1,0 +1,16 @@
+# Conda environment for Pandora. From the repo root:
+#   conda env create -f environment.yml
+#   conda activate pandora
+name: pandora
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.12
+  - pip
+  - gemmi   # from conda-forge: prebuilt, no compiler needed
+  # Optional: binaries for pandora.similarity.
+  # - mmseqs2
+  # - foldseek
+  - pip:
+      - -e .[ingestion,export]

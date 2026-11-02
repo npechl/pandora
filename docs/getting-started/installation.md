@@ -1,13 +1,37 @@
 # Installation
 
-Not yet on PyPI — install from a checkout of the repo:
+Not yet on PyPI, so install from a checkout of the repo. You need
+Python 3.11 or newer.
+
+## With conda
+
+`environment.yml` creates a `pandora` env with Python and Pandora (plus
+the `ingestion` and `export` extras) in one step:
+
+```sh
+git clone https://github.com/npechl/pandora.git
+cd pandora
+conda env create -f environment.yml
+conda activate pandora
+pandora --help
+```
+
+To add MMseqs2 and Foldseek for similarity, uncomment them in
+`environment.yml` before creating the env, or see
+[External binaries](#external-binaries).
+
+## With pip
+
+Inside an activated virtual environment or conda env. Use
+`python -m pip`, not `pip`, so the package goes into the active
+environment's Python:
 
 ```sh
 git clone https://github.com/npechl/pandora.git
 cd pandora
 
 # base install
-pip install -e .
+python -m pip install -e .
 
 # install full toolkit
 pip install -e ".[full]"
@@ -20,6 +44,19 @@ pip install -e ".[dev]"
 ```
 
 The base install includes `pydantic`, `pyyaml`, and `gemmi` — enough to **parse mmCIF files you already have, canonicalise them, collect metadata, and run annotations**. Everything else below is an add-on for one specific capability.
+
+## Check the install
+
+```sh
+python -m pandora --help    # always uses the active environment
+which pandora               # should point inside your environment
+```
+
+If `pandora --help` fails with `ModuleNotFoundError: No module named
+'pandora'` (or `'pydantic'`) but `python -m pandora --help` works, your
+shell is running a `pandora` script left over from another Python
+install. Run `rehash` (zsh) or `hash -r` (bash), or delete the stale
+script that `which pandora` shows.
 
 ## Components
 

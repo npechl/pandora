@@ -1,6 +1,8 @@
 import json
 import shutil
 import stat
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -373,3 +375,13 @@ def test_similarity_rejects_search_options_with_precomputed_hits(tmp_path):
                 str(tmp_path / "hits.tsv"),
             ]
         )
+
+
+def test_python_m_pandora_runs_cli():
+    result = subprocess.run(
+        [sys.executable, "-m", "pandora", "--help"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "canonicalise" in result.stdout

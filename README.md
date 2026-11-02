@@ -46,14 +46,43 @@ Most components are also available as `pandora` CLI subcommands (see
 
 ## Install
 
-Pandora is not on PyPI yet. Install it from source (Python 3.11 or newer):
+Pandora is not on PyPI yet. Install it from source (Python 3.11 or newer).
+
+### With conda
 
 ```bash
 git clone https://github.com/npechl/pandora.git
 cd pandora
-pip install -e .            # base install
-pip install -e ".[full]"    # everything
+conda env create -f environment.yml   # Python + Pandora with ingestion, export
+conda activate pandora
+pandora --help
 ```
+
+### With pip
+
+Inside an activated virtual environment or conda env:
+
+```bash
+git clone https://github.com/npechl/pandora.git
+cd pandora
+python -m pip install -e .            # base install
+python -m pip install -e ".[full]"    # everything
+```
+
+Use `python -m pip`, not `pip`, so the package goes into the active
+environment's Python.
+
+### Check the install
+
+```bash
+python -m pandora --help    # always uses the active environment
+which pandora               # should point inside your environment
+```
+
+If `pandora --help` fails with `No module named 'pandora'` or
+`'pydantic'` while `python -m pandora --help` works, your shell is
+running a `pandora` script from another Python. Run `rehash` (zsh) or
+`hash -r` (bash), or delete the stale script that `which pandora` shows.
 
 The base install (`pydantic`, `pyyaml`, `gemmi`) covers parsing,
 canonicalisation, metadata, annotations, dataset records, curation, and
