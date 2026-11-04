@@ -5,6 +5,7 @@ import pytest
 from pandora.canonicalisation import canonicalise_structure
 from pandora.export import (
     export_chain_mmcif,
+    read_records,
     structure_to_mmcif,
     write_fasta,
     write_json,
@@ -13,6 +14,7 @@ from pandora.export import (
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.canonicalisation import (
     AssemblyRules,
+    ChainCopyRecord,
     ChainIdRules,
     IdentifierRules,
     IncompleteChainRules,
@@ -22,7 +24,8 @@ from pandora.schemas.canonicalisation import (
     ResidueNumberingRules,
     canonicalisationPolicy,
 )
-from pandora.schemas.dataset import ChainRecord
+from pandora.schemas.dataset import ChainRecord, DatasetChainRecord
+from pandora.schemas.provenance import CanonicalisationEntryRecord
 
 MMCIF_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
 MMCIF_PATH = MMCIF_DIR / "ay" / "1ayi.cif"
@@ -249,3 +252,50 @@ def test_structure_to_mmcif_refuses_structure_without_atoms(tmp_path):
         structure_to_mmcif(empty, tmp_path / "empty.cif")
 
     assert not (tmp_path / "empty.cif").exists()
+
+
+@pytest.mark.parametrize("suffix", [".jsonl", ".json", ".parquet"])
+def test_read_records_round_trips_with_nulls(tmp_path, suffix):
+    rows = [
+        DatasetChainRecord(
+            entry_id="1ABC",
+            chain_id="A",
+            entity_id="1",
+            residue_count=1,
+            atom_count=1,
+        ),
+        DatasetChainRecord(
+            entry_id="1ABC",
+            chain_id="A_2",
+            entity_id="1",
+            residue_count=1,
+            atom_count=1,
+            copy_of="A",
+            resolution=2.0,
+        ),
+    ]
+    path = write_records(rows, tmp_path / f"t{suffix}")
+    assert read_records(path, DatasetChainRecord) == rows
+
+
+def test_read_records_list_columns_parquet(tmp_path):
+    copy = ChainCopyRecord(
+        entry_id="1", chain_id="A_2", source_chain_id="A", operator_id="2"
+    )
+    entry = CanonicalisationEntryRecord(
+        entry_id="1",
+        policy_id="p",
+        policy_name="n",
+        policy_version="1",
+        canonicalised_at="t",
+        transforms=["a:b"],
+    )
+    for record in (copy, entry):
+        model = type(record)
+        path = write_records([record], tmp_path / f"{model.__name__}.parquet")
+        assert read_records(path, model) == [record]
+
+
+def test_read_records_rejects_bad_suffix(tmp_path):
+    with pytest.raises(ValueError):
+        read_records(tmp_path / "x.csv", ChainCopyRecord)

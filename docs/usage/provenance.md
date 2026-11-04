@@ -131,7 +131,8 @@ into one `DatasetManifest`.
       --canonicalisation-policy datasets/canonicalisation.yaml \
       --curation-policy curation.yaml \
       --ingestion-provenance raw/ingestion_provenance.json \
-      --canonicalisation-provenance canonical/canonicalisation_provenance.json \
+      --canonicalisation-dir canonical/ \
+      --curation-dir curated/ \
       --output manifest.json
     # manifest for 5 structures -> manifest.json
     ```

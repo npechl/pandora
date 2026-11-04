@@ -70,7 +70,7 @@ result reparses cleanly:
 === "`cli`"
 
     ```bash
-    pandora export --input canonical/104m.cif --output 104m.export.cif
+    pandora export --input canonical/structures/04/104m.cif --output 104m.export.cif
     # exported -> 104m.export.cif
     ```
 
@@ -96,7 +96,7 @@ as pretty-printed JSON.
 === "`cli`"
 
     ```bash
-    pandora export --input canonical/104m.cif --output 104m.json
+    pandora export --input canonical/structures/04/104m.cif --output 104m.json
     # exported -> 104m.json
     ```
 

@@ -138,12 +138,12 @@ Both versions map MSE to MET during canonicalisation, then curate the same eight
     modified_residue_rules:
       strategy: map_to_parent
     EOF
-    pandora canonicalise --input-dir raw/ --policy mse.yaml --output-dir mapped/
+    pandora canonicalise --input-dir raw/ --policy mse.yaml --output-dir mapped/ --table-format jsonl
     for name in atom3d-pip-quality ppi-v2.1-quality; do
       pandora curate --input-dir mapped/ \
-        --policy "datasets/policies/$name.yaml" --output-dir "$name/"
-      jq -r '.[] | "  \(.entry_id) \(.chain_id // "entry") \(.reason_code)"' \
-        "$name/curation_exclusions.json"
+        --policy "datasets/policies/$name.yaml" --output-dir "$name/" --table-format jsonl
+      jq -r '"  \(.entry_id) \(.chain_id // "entry") \(.reason_code)"' \
+        "$name/exclusions.jsonl"
     done
     ```
 
@@ -154,14 +154,14 @@ Both versions map MSE to MET during canonicalisation, then curate the same eight
     curated: 2 retained, 6 excluded -> ppi-v2.1-quality
       104M entry RFREE_GAP_THRESHOLD
       10TM entry RESOLUTION_THRESHOLD
+      22JY entry RESOLUTION_THRESHOLD
       1A08 entry NONSTANDARD_RESIDUE
       1AUI A MISSING_MIDDLE
       1B6W entry RSYM_THRESHOLD
       1P58 entry RESOLUTION_THRESHOLD
-      22JY entry RESOLUTION_THRESHOLD
     ```
 
-    Each run writes the structures that pass to its output directory, and its exclusion records to `curation_exclusions.json`.
+    Each run writes the structures that pass to `structures/` in its output directory, and its exclusion records to `exclusions.jsonl`. Entries are read in PDB-folder order (`2j/22jy.cif` before `a0/1a08.cif`).
 
 22jy shows the difference between the two: a 2.2 Å cryo-EM structure passes ATOM3D's 3.5 Å limit but not PPI v2.1's 2.0 Å cryo-EM limit. 1aui passes PPI v2.1 as an entry, but loses chain A, which is missing 20% of its middle.
 

@@ -17,7 +17,9 @@ from pandora.provenance import (
     build_provenance_bundle,
     build_step_summary,
     canonicalisation_entry_record,
+    canonicalisation_provenance_from_record,
     curation_entry_record,
+    curation_provenance_from_record,
     reproduce_dataset,
 )
 from pandora.schemas.canonicalisation import canonicalisationPolicy
@@ -396,3 +398,34 @@ def test_provenance_bundle_carries_curation():
     )
     bundle = build_provenance_bundle(structure, curation=kprov)
     assert bundle.curation == kprov
+
+
+def test_provenance_from_record_round_trips():
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / "ay" / "1ayi.cif"))
+    canon, _, cprov = canonicalise_structure(
+        structure,
+        canonicalisationPolicy(
+            policy_id="c", policy_name="n", policy_version="1"
+        ),
+    )
+    metadata = collect_metadata(canon)
+    curated, _, kprov = curate_structure(canon, metadata, _curation_policy())
+    assert (
+        canonicalisation_provenance_from_record(
+            canonicalisation_entry_record(canon, cprov)
+        )
+        == cprov
+    )
+    assert (
+        curation_provenance_from_record(
+            curation_entry_record(curated, metadata, kprov)
+        )
+        == kprov
+    )
+    reported = cprov.model_copy(update={"report": {"warnings": 2, "errors": 0}})
+    assert (
+        canonicalisation_provenance_from_record(
+            canonicalisation_entry_record(canon, reported)
+        )
+        == reported
+    )
