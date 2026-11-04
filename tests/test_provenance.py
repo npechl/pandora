@@ -2,15 +2,25 @@ import shutil
 import stat
 from pathlib import Path
 
+import gemmi
 import pytest
 
+import pandora
 from pandora.annotations.entry import annotate_structure_counts
+from pandora.canonicalisation import canonicalise_structure
+from pandora.datasets import curate_structure, extract_chain_records
+from pandora.export import write_json, write_records
+from pandora.metadata import collect_metadata
 from pandora.parsing import mmcif_to_structure
 from pandora.provenance import (
     build_dataset_manifest,
     build_provenance_bundle,
+    build_step_summary,
+    canonicalisation_entry_record,
+    curation_entry_record,
     reproduce_dataset,
 )
+from pandora.schemas.canonicalisation import canonicalisationPolicy
 from pandora.schemas.dataset import (
     DatasetCurationPolicy,
     DeduplicationProvenance,
@@ -19,6 +29,7 @@ from pandora.schemas.ingestion import IngestionProvenance
 from pandora.schemas.provenance import (
     AnnotationProvenanceRecord,
     ProvenanceBundle,
+    StepSummary,
 )
 from pandora.schemas.similarity import (
     ClusteringProvenance,
@@ -317,3 +328,71 @@ def test_reproduce_interface_filter_raises(tmp_path, monkeypatch):
         reproduce_dataset(
             _manifest_with_clustering(clustering), tmp_path / "out"
         )
+
+
+def test_build_step_summary_embeds_policy_and_versions(tmp_path):
+    policy = DatasetCurationPolicy(
+        policy_id="p", policy_name="n", policy_version="1"
+    )
+    summary = build_step_summary(
+        "curation",
+        policy,
+        input=tmp_path / "in",
+        output=tmp_path / "out",
+        started_at="2026-11-04T00:00:00Z",
+        counts={"entries_in": 2},
+        previous_summary=tmp_path / "canonicalisation.json",
+    )
+    assert summary.step == "curation"
+    assert summary.policy["policy_id"] == "p"
+    assert summary.pandora_version == pandora.__version__
+    assert summary.gemmi_version == gemmi.__version__
+    assert summary.input == str(tmp_path / "in")
+    assert summary.output == str(tmp_path / "out")
+    assert summary.previous_summary == str(tmp_path / "canonicalisation.json")
+    assert summary.counts == {"entries_in": 2}
+    path = write_json(summary, tmp_path / "curation.json")
+    assert StepSummary.model_validate_json(path.read_text()) == summary
+
+
+def _curation_policy() -> DatasetCurationPolicy:
+    return DatasetCurationPolicy(
+        policy_id="p", policy_name="n", policy_version="1"
+    )
+
+
+def test_entry_records_write_to_parquet(tmp_path):
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / "ay" / "1ayi.cif"))
+    canon, _, cprov = canonicalise_structure(
+        structure,
+        canonicalisationPolicy(
+            policy_id="c", policy_name="n", policy_version="1"
+        ),
+    )
+    metadata = collect_metadata(canon)
+    curated, _, kprov = curate_structure(canon, metadata, _curation_policy())
+    assert curated is not None
+    c_row = canonicalisation_entry_record(
+        canon, cprov, tmp_path / "ay" / "1ayi.cif"
+    )
+    k_row = curation_entry_record(curated, metadata, kprov)
+    assert c_row.entry_id == canon.entry_id
+    assert c_row.structure_path == str(tmp_path / "ay" / "1ayi.cif")
+    assert c_row.policy_id == cprov.policy_id
+    assert c_row.transforms == cprov.transforms
+    assert k_row.structure_path is None
+    assert k_row.chain_count == len(extract_chain_records(curated))
+    assert k_row.resolution == metadata.quality.resolution
+    assert k_row.policy_id == "p"
+    # cprov.report may be {}; the flat row must still write to Parquet.
+    write_records([c_row], tmp_path / "c.parquet")
+    write_records([k_row], tmp_path / "k.parquet")
+
+
+def test_provenance_bundle_carries_curation():
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / "ay" / "1ayi.cif"))
+    _, _, kprov = curate_structure(
+        structure, collect_metadata(structure), _curation_policy()
+    )
+    bundle = build_provenance_bundle(structure, curation=kprov)
+    assert bundle.curation == kprov

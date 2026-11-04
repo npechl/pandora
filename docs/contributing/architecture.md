@@ -36,6 +36,8 @@ reading/writing the same types as files instead of in-memory objects — see
 | `ingest_local_mmcif()` | `path` to a file already on disk | `IngestionProvenance` — describes it without fetching/copying |
 | `load_policy()` | `path` to a policy YAML, optional policy `model` | `canonicalisationPolicy`, or an instance of `model` |
 | `read_entry_paths()` | `path` to a text file of mmCIF paths | `list[Path]` |
+| `mirror_path()` | mirror `root`, a file stem (entry id as spelled, e.g. `10kz` or `10kz_A`), `suffix` | `Path` `root/<mid>/<stem><suffix>` |
+| `list_mirror_files()` | mirror `root`, `suffix` | `list[Path]`, sorted |
 
 ### Parsing
 
@@ -48,6 +50,7 @@ reading/writing the same types as files instead of in-memory objects — see
 | Function | Takes | Returns |
 |---|---|---|
 | `canonicalise_structure()` | `Structure`, [`canonicalisationPolicy`](#canonicalisation-policy) | `(Structure, CanonicalMappings, canonicalisationProvenance)` |
+| `chain_copy_records()` | canonical `Structure`, `CanonicalMappings` | `list[ChainCopyRecord]`, one per symmetry-copy chain still in the structure (mmCIF has no field for it) |
 | `filter_ligands()` | `atoms`, `asym_units`, `entities`, `LigandRules` | `(atoms, asym_units)` filtered — one of `canonicalise_structure()`'s nine internal rule steps, also callable on its own |
 
 ### Metadata
@@ -81,6 +84,7 @@ differs; see [Annotation](../usage/annotation.md) for each one's `data` schema.
 | `chain_completeness()` | `Structure`, `MissingResidueDefinition` | `(list[ChainCompleteness], DiagnosticBundle)` |
 | `deduplicate_structures()` | `list[Structure]`, `DeduplicationRules` | `(list[Structure], list[ExclusionRecord], DeduplicationProvenance)` |
 | `extract_chain_records()` | `Structure` | `list[ChainRecord]` |
+| `dataset_chain_records()` | `Structure`, `MetadataRecord \| None`, `MissingResidueDefinition`, `copy_of`, `structure_path` | `list[DatasetChainRecord]`: `ChainRecord` + completeness + method/resolution + path + `copy_of` |
 | `extract_residue_records()` | `Structure` | `list[ResidueRecord]` |
 | `extract_interface_records()` | `Structure` | `list[InterfaceRecord]` — reshapes `annotate_chain_interfaces()`'s output |
 | `entry_sequences()` | `dict[str, Structure]` | `dict[str, str]` — one representative sequence per entry, feeds `compute_sequence_similarity()` |
@@ -101,8 +105,11 @@ differs; see [Annotation](../usage/annotation.md) for each one's `data` schema.
 
 | Function | Takes | Returns |
 |---|---|---|
-| `build_provenance_bundle()` | one `Structure` + whatever ingestion/canonicalisation/metadata/annotation provenance you already have | `ProvenanceBundle` |
+| `build_provenance_bundle()` | one `Structure` + whatever ingestion/canonicalisation/curation/metadata/annotation provenance you already have | `ProvenanceBundle` |
 | `build_dataset_manifest()` | policies + every stage's provenance record above, plus a `ProvenanceBundle` per retained structure | `DatasetManifest` |
+| `build_step_summary()` | step name, the policy it ran with, `input`, `output`, `started_at`, `counts`, `previous_summary` | `StepSummary` (the step's recipe; write with `write_json()`) |
+| `canonicalisation_entry_record()` | canonical `Structure`, `canonicalisationProvenance`, `structure_path` | `CanonicalisationEntryRecord` (flat row for `write_records()`) |
+| `curation_entry_record()` | curated `Structure`, `MetadataRecord \| None`, `CurationProvenance`, `structure_path` | `CurationEntryRecord` (flat row for `write_records()`) |
 | `reproduce_dataset()` | a `DatasetManifest` | `(dict[str, Structure], DatasetManifest)` — replays every recorded step from just the manifest |
 
 ### Export

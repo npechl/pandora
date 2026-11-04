@@ -59,6 +59,22 @@ class AssemblyChainCopy(BaseModel):
     operator_id: str
 
 
+class ChainCopyRecord(BaseModel):
+    """One symmetry-copy chain of a canonical entry, as a flat table row.
+
+    Attributes:
+        entry_id: The structure's entry id.
+        chain_id: The copy's chain id in the canonical structure.
+        source_chain_id: The asymmetric-unit chain it was copied from.
+        operator_id: The symmetry operator that produced it.
+    """
+
+    entry_id: str
+    chain_id: str
+    source_chain_id: str
+    operator_id: str
+
+
 class AssemblyMappingItem(BaseModel):
     """Original-to-canonical id mapping for one assembly.
 

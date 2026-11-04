@@ -31,6 +31,36 @@ class ChainRecord(BaseModel):
     atom_count: int
 
 
+class DatasetChainRecord(ChainRecord):
+    """One kept polymer chain as a dataset table row: its `ChainRecord`
+    joined with its completeness, its entry's quality, where its
+    structure was written, and whether it is a symmetry copy.
+
+    Attributes:
+        seqres_length: The chain entity's SEQRES length, if measured.
+        missing_n_term: Missing SEQRES positions before the first
+            present residue, if measured.
+        missing_c_term: Missing SEQRES positions after the last present
+            residue, if measured.
+        missing_middle: Missing SEQRES positions between them, if
+            measured.
+        experimental_method: The entry's experimental method, if known.
+        resolution: The entry's resolution in angstroms, if known.
+        structure_path: The file holding the chain's structure, if
+            written.
+        copy_of: The chain it is a symmetry copy of, or None.
+    """
+
+    seqres_length: int | None = None
+    missing_n_term: int | None = None
+    missing_c_term: int | None = None
+    missing_middle: int | None = None
+    experimental_method: str | None = None
+    resolution: float | None = None
+    structure_path: str | None = None
+    copy_of: str | None = None
+
+
 class ResidueRecord(BaseModel):
     """One polymer residue and its atoms, reshaped from a canonical
     `Structure` for dataset export.

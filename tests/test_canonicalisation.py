@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from pandora.canonicalisation import chain_copy_records
 from pandora.canonicalisation.altlocs import _resolve_altlocs
 from pandora.canonicalisation.assemblies import (
     _normalize_assemblies,
@@ -1593,3 +1594,54 @@ def test_validate_reports_no_atoms_left():
 
     assert status == "failed"
     assert [d.code for d in diagnostics.errors] == ["NO_ATOMS_LEFT"]
+
+
+def _ppi_canon_policy(**overrides) -> canonicalisationPolicy:
+    return canonicalisationPolicy(
+        policy_id="c", policy_name="n", policy_version="1", **overrides
+    )
+
+
+def test_chain_copy_records_from_expanded_assembly():
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / "ay" / "1ayi.cif"))
+    policy = _ppi_canon_policy(
+        assembly_rules={
+            "strategy": "standardize_biological_assembly",
+            "preferred_assembly_source": "first",
+        }
+    )
+    canon, mappings, _ = canonicalise_structure(structure, policy)
+    rows = chain_copy_records(canon, mappings)
+    assert [(r.chain_id, r.source_chain_id) for r in rows] == [
+        ("A_2", "A"),
+        ("B_2", "B"),
+    ]
+    assert all(r.entry_id == canon.entry_id and r.operator_id for r in rows)
+    assert {r.chain_id for r in rows} <= {u.id for u in canon.asym_units}
+
+
+def test_chain_copy_records_empty_without_copies():
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / "ay" / "1ayi.cif"))
+    canon, mappings, _ = canonicalise_structure(structure, _ppi_canon_policy())
+    assert chain_copy_records(canon, mappings) == []
+
+
+def test_chain_copy_records_skip_copies_removed_later():
+    # Assembly expansion copies ligand B too; the ligand filter then
+    # drops B_2, so it must not be listed.
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / "ay" / "1ayi.cif"))
+    policy = _ppi_canon_policy(
+        assembly_rules={
+            "strategy": "standardize_biological_assembly",
+            "preferred_assembly_source": "first",
+        },
+        ligand_rules={
+            "strategy": "filter",
+            "keep_waters": False,
+            "keep_ions": False,
+            "keep_nonpolymer_ligands": False,
+        },
+    )
+    canon, mappings, _ = canonicalise_structure(structure, policy)
+    rows = chain_copy_records(canon, mappings)
+    assert [(r.chain_id, r.source_chain_id) for r in rows] == [("A_2", "A")]

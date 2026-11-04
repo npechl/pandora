@@ -1,7 +1,13 @@
 from pathlib import Path
 
 from pandora.canonicalisation import canonicalise_structure
-from pandora.datasets import curate_structure, deduplicate_structures
+from pandora.datasets import (
+    curate_structure,
+    dataset_chain_records,
+    deduplicate_structures,
+    extract_chain_records,
+)
+from pandora.export import structure_to_mmcif
 from pandora.metadata import collect_metadata
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.canonicalisation import (
@@ -725,3 +731,75 @@ def test_content_rules_that_remove_every_atom_exclude_entry():
 
     assert curated is None
     assert _codes(exclusions) == ["NO_CHAINS_LEFT"]
+
+
+def _expand_assembly(structure):
+    canon, _, _ = canonicalise_structure(
+        structure,
+        canonicalisationPolicy(
+            policy_id="c",
+            policy_name="n",
+            policy_version="1",
+            assembly_rules={
+                "strategy": "standardize_biological_assembly",
+                "preferred_assembly_source": "first",
+            },
+        ),
+    )
+    return canon
+
+
+def test_dataset_chain_records_join_completeness_quality_copies(tmp_path):
+    s = _expand_assembly(_load("1ayi"))
+    metadata = collect_metadata(s)
+    rows = dataset_chain_records(
+        s, metadata, copy_of={"A_2": "A"}, structure_path=tmp_path / "x.cif"
+    )
+    by_id = {r.chain_id: r for r in rows}
+    assert [r.chain_id for r in rows] == [
+        r.chain_id for r in extract_chain_records(s)
+    ]
+    assert by_id["A"].seqres_length is not None
+    assert by_id["A"].missing_middle is not None
+    assert by_id["A"].copy_of is None
+    assert by_id["A_2"].copy_of == "A"
+    assert by_id["A"].structure_path == str(tmp_path / "x.cif")
+    assert by_id["A"].resolution == metadata.quality.resolution
+    assert by_id["A"].experimental_method == (
+        metadata.quality.experimental_method
+    )
+
+
+def test_dataset_chain_records_without_seqres_or_quality():
+    s = _load("1ayi")
+    no_seqres = s.model_copy(
+        update={
+            "raw": {k: v for k, v in s.raw.items() if k != "_entity_poly_seq"}
+        }
+    )
+    rows = dataset_chain_records(no_seqres, None)
+    assert rows
+    assert all(
+        r.seqres_length is None
+        and r.missing_middle is None
+        and r.resolution is None
+        and r.experimental_method is None
+        for r in rows
+    )
+
+
+def test_curating_reread_canonical_mmcif_matches_in_memory(tmp_path):
+    canon = _expand_assembly(_load("1ayi"))
+    reread, _, _ = mmcif_to_structure(
+        str(structure_to_mmcif(canon, tmp_path / "1ayi.cif"))
+    )
+    policy = _policy()
+    a = curate_structure(canon, collect_metadata(canon), policy)
+    b = curate_structure(reread, collect_metadata(reread), policy)
+    assert a[0] is not None and b[0] is not None
+    assert [(e.chain_id, e.reason_code) for e in a[1]] == [
+        (e.chain_id, e.reason_code) for e in b[1]
+    ]
+    assert dataset_chain_records(
+        a[0], collect_metadata(canon)
+    ) == dataset_chain_records(b[0], collect_metadata(reread))

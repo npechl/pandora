@@ -9,6 +9,7 @@ from pandora.schemas.canonicalisation import (
     canonicalisationProvenance,
 )
 from pandora.schemas.dataset import (
+    CurationProvenance,
     DatasetCurationPolicy,
     DeduplicationProvenance,
     ExclusionRecord,
@@ -55,6 +56,7 @@ class ProvenanceBundle(BaseModel):
         ingestion: How the structure's raw file was fetched, if known.
         canonicalisation: How the structure was canonicalised, if
             known.
+        curation: How the structure was curated, if known.
         metadata_sources: Which sources the structure's metadata came
             from.
         annotations: Every annotation layer computed for this
@@ -66,6 +68,7 @@ class ProvenanceBundle(BaseModel):
     generated_at: str
     ingestion: IngestionProvenance | None = None
     canonicalisation: canonicalisationProvenance | None = None
+    curation: CurationProvenance | None = None
     metadata_sources: list[MetadataProvenance] = Field(default_factory=list)
     annotations: list[AnnotationProvenanceRecord] = Field(default_factory=list)
 
@@ -109,3 +112,96 @@ class DatasetManifest(BaseModel):
     partition: PartitionProvenance | None = None
     splits: dict[str, list[str]] = Field(default_factory=dict)
     structures: list[ProvenanceBundle] = Field(default_factory=list)
+
+
+class StepSummary(BaseModel):
+    """The recipe of one dataset-building step run (e.g. canonicalisation
+    or curation over a list of entries): what it ran with, what it read,
+    what it wrote, and how many entries went where.
+
+    Attributes:
+        step: The step's name, e.g. "canonicalisation".
+        pandora_version: The Pandora version that ran the step.
+        gemmi_version: The gemmi version that ran the step.
+        policy: The full policy the step ran with, as plain data.
+        input: What the step read: a path list file or a folder.
+        previous_summary: The summary file of the step whose output this
+            step read, if any.
+        output: The folder the step wrote to.
+        started_at: When the step started, as an ISO 8601 timestamp.
+        finished_at: When the step finished, as an ISO 8601 timestamp.
+        counts: Named counts, e.g. entries in, kept, failed, and
+            excluded per reason code.
+    """
+
+    step: str
+    pandora_version: str
+    gemmi_version: str
+    policy: dict[str, Any]
+    input: str
+    previous_summary: str | None = None
+    output: str
+    started_at: str
+    finished_at: str
+    counts: dict[str, int] = Field(default_factory=dict)
+
+
+class CanonicalisationEntryRecord(BaseModel):
+    """One canonicalised entry as a flat table row: where its structure
+    was written and how it was canonicalised.
+
+    Attributes:
+        entry_id: The structure's entry id.
+        structure_path: Where the canonical structure was written, if it
+            was.
+        policy_id: The id of the canonicalisation policy that ran.
+        policy_name: The name of that policy.
+        policy_version: The version of that policy.
+        canonicalised_at: When canonicalisation ran, as an ISO 8601
+            timestamp.
+        transforms: The transform labels applied.
+        dropped_raw_categories: The verbatim mmCIF categories removed.
+        warnings: The number of warnings, if a report was recorded.
+        errors: The number of errors, if a report was recorded.
+    """
+
+    entry_id: str
+    structure_path: str | None = None
+    policy_id: str
+    policy_name: str
+    policy_version: str
+    canonicalised_at: str
+    transforms: list[str] = Field(default_factory=list)
+    dropped_raw_categories: list[str] = Field(default_factory=list)
+    warnings: int | None = None
+    errors: int | None = None
+
+
+class CurationEntryRecord(BaseModel):
+    """One curated (kept) entry as a flat table row: where its structure
+    was written, its quality, and how it was curated.
+
+    Attributes:
+        entry_id: The structure's entry id.
+        structure_path: Where the curated structure was written, if it
+            was.
+        experimental_method: The entry's experimental method, if known.
+        resolution: The entry's resolution in angstroms, if known.
+        chain_count: The number of polymer chains kept.
+        policy_id: The id of the curation policy that ran.
+        policy_name: The name of that policy.
+        policy_version: The version of that policy.
+        curated_at: When curation ran, as an ISO 8601 timestamp.
+        dropped_raw_categories: The verbatim mmCIF categories removed.
+    """
+
+    entry_id: str
+    structure_path: str | None = None
+    experimental_method: str | None = None
+    resolution: float | None = None
+    chain_count: int
+    policy_id: str
+    policy_name: str
+    policy_version: str
+    curated_at: str
+    dropped_raw_categories: list[str] = Field(default_factory=list)

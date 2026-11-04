@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+
+import gemmi
+from pydantic import BaseModel
 
 from pandora import __version__
 from pandora._util import now_iso
@@ -10,6 +14,7 @@ from pandora.schemas.canonicalisation import (
     canonicalisationProvenance,
 )
 from pandora.schemas.dataset import (
+    CurationProvenance,
     DatasetCurationPolicy,
     DeduplicationProvenance,
     ExclusionRecord,
@@ -20,6 +25,7 @@ from pandora.schemas.provenance import (
     AnnotationProvenanceRecord,
     DatasetManifest,
     ProvenanceBundle,
+    StepSummary,
 )
 from pandora.schemas.similarity import ClusteringProvenance, PartitionProvenance
 from pandora.schemas.structure import Structure
@@ -51,6 +57,7 @@ def build_provenance_bundle(
     *,
     ingestion: IngestionProvenance | None = None,
     canonicalisation: canonicalisationProvenance | None = None,
+    curation: CurationProvenance | None = None,
     metadata: MetadataRecord | None = None,
     annotations: Sequence[AnnotationLayer] = (),
 ) -> ProvenanceBundle:
@@ -66,6 +73,7 @@ def build_provenance_bundle(
         structure: The structure to attribute the bundle to.
         ingestion: Provenance from `pandora.ingestion.fetch_mmcif`, if run.
         canonicalisation: Provenance from `canonicalise_structure`, if run.
+        curation: Provenance from `curate_structure`, if run.
         metadata: The record from `collect_metadata`, if run.
         annotations: Any `AnnotationLayer`s produced by `annotate_*`
             functions.
@@ -80,6 +88,7 @@ def build_provenance_bundle(
         generated_at=now_iso(),
         ingestion=ingestion,
         canonicalisation=canonicalisation,
+        curation=curation,
         metadata_sources=(
             collect_metadata_provenance(metadata) if metadata else []
         ),
@@ -156,4 +165,50 @@ def build_dataset_manifest(
         partition=partition,
         splits=splits or {},
         structures=list(structures),
+    )
+
+
+def build_step_summary(
+    step: str,
+    policy: BaseModel,
+    *,
+    input: str | Path,
+    output: str | Path,
+    started_at: str,
+    counts: Mapping[str, int] | None = None,
+    previous_summary: str | Path | None = None,
+) -> StepSummary:
+    """Build the summary of one step run, stamped with tool versions.
+
+    Call it when the step has finished; `finished_at` is set to now.
+    Write it with `pandora.export.write_json`.
+
+    Args:
+        step: The step's name, e.g. "canonicalisation".
+        policy: The policy the step ran with; embedded in full.
+        input: What the step read: a path list file or a folder.
+        output: The folder the step wrote to.
+        started_at: When the step started, as an ISO 8601 timestamp
+            (e.g. from `pandora._util.now_iso()` at the start).
+        counts: Named counts to record, e.g. `{"entries_in": 100}`.
+        previous_summary: The summary file of the step whose output
+            this step read, if any.
+
+    Returns:
+        The `StepSummary`.
+    """
+
+    return StepSummary(
+        step=step,
+        pandora_version=__version__,
+        gemmi_version=gemmi.__version__,
+        policy=policy.model_dump(mode="json"),
+        input=str(input),
+        previous_summary=(
+            None if previous_summary is None else str(previous_summary)
+        ),
+        output=str(output),
+        started_at=started_at,
+        finished_at=now_iso(),
+        counts=dict(counts or {}),
     )

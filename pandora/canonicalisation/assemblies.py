@@ -4,6 +4,8 @@ from pandora.schemas.canonicalisation import (
     AssemblyChainCopy,
     AssemblyMapping,
     AssemblyMappingItem,
+    CanonicalMappings,
+    ChainCopyRecord,
 )
 from pandora.schemas.common import Diagnostic, DiagnosticBundle
 from pandora.schemas.structure import (
@@ -292,7 +294,7 @@ def _expand_biological_assembly(
                     AsymRecord(
                         id=new_id,
                         entity_id=source_asym.entity_id if source_asym else "",
-                        auth_id=None,
+                        auth_id=new_id,
                     )
                 )
 
@@ -441,3 +443,38 @@ def _normalize_assemblies(
         secondary_structure,
         mapping,
     )
+
+
+def chain_copy_records(
+    structure: Structure, mappings: CanonicalMappings
+) -> list[ChainCopyRecord]:
+    """List the symmetry-copy chains of a canonical structure.
+
+    Standard mmCIF has no field for "this chain is a copy of that one",
+    so a canonical structure written as mmCIF loses it; write these rows
+    next to it instead. Copies that later canonicalisation steps removed
+    (e.g. copies of ligands the ligand filter dropped) are left out.
+
+    Args:
+        structure: The canonical structure `canonicalise_structure`
+            returned.
+        mappings: The `CanonicalMappings` it returned with it.
+
+    Returns:
+        One `ChainCopyRecord` per copy still in `structure`, in mapping
+        order; empty when the assembly was not expanded or has no
+        copies.
+    """
+
+    present = {asym.id for asym in structure.asym_units}
+    return [
+        ChainCopyRecord(
+            entry_id=structure.entry_id,
+            chain_id=copy.canonical_chain_id,
+            source_chain_id=copy.source_chain_id,
+            operator_id=copy.operator_id,
+        )
+        for item in mappings.assembly_mapping.items
+        for copy in item.chain_copies
+        if copy.canonical_chain_id in present
+    ]

@@ -3,7 +3,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from pandora.ingestion import read_entry_paths
+from pandora.ingestion import list_mirror_files, mirror_path, read_entry_paths
 from pandora.ingestion.mmcif import (
     _pdbe_revision_date,
     _revision_date_from_cif_file,
@@ -208,3 +208,22 @@ def test_search_pdbe_bad_request_raises(monkeypatch):
     )
     with pytest.raises(RuntimeError, match="solr error"):
         search_pdbe("bad query")
+
+
+def test_mirror_path_keeps_case(tmp_path):
+    assert mirror_path(tmp_path, "10kz") == tmp_path / "0k" / "10kz.cif"
+    assert mirror_path(tmp_path, "10KZ") == tmp_path / "0K" / "10KZ.cif"
+    assert mirror_path(tmp_path, "1ayi_A_2") == (
+        tmp_path / "ay" / "1ayi_A_2.cif"
+    )
+
+
+def test_list_mirror_files_sorted_and_missing_root(tmp_path):
+    for stem in ("1ayi", "10kz"):
+        p = mirror_path(tmp_path, stem)
+        p.parent.mkdir(parents=True)
+        p.write_text("")
+    assert list_mirror_files(tmp_path) == sorted(
+        [tmp_path / "0k" / "10kz.cif", tmp_path / "ay" / "1ayi.cif"]
+    )
+    assert list_mirror_files(tmp_path / "nope") == []

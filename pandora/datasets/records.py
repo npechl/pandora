@@ -1,14 +1,24 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Mapping
+from pathlib import Path
 
 from pandora.annotations.entry import (
     annotate_chain_interfaces,
     atoms_by_asym_id,
     polymer_asym_ids,
 )
+from pandora.datasets.completeness import chain_completeness
 from pandora.schemas.annotation import ContactAtomSet
-from pandora.schemas.dataset import ChainRecord, InterfaceRecord, ResidueRecord
+from pandora.schemas.dataset import (
+    ChainRecord,
+    DatasetChainRecord,
+    InterfaceRecord,
+    MissingResidueDefinition,
+    ResidueRecord,
+)
+from pandora.schemas.metadata import MetadataRecord
 from pandora.schemas.structure import AtomSiteRecord, Structure
 
 DEFAULT_INTERFACE_CUTOFF = 4.0
@@ -186,3 +196,60 @@ def extract_interface_records(
         )
         for interface in layer.data["interfaces"]
     ]
+
+
+def dataset_chain_records(
+    structure: Structure,
+    metadata: MetadataRecord | None,
+    definition: MissingResidueDefinition = "incomplete_backbone",
+    copy_of: Mapping[str, str] | None = None,
+    structure_path: str | Path | None = None,
+) -> list[DatasetChainRecord]:
+    """Build one dataset table row per polymer chain of `structure`.
+
+    Joins `extract_chain_records` with `chain_completeness` and the
+    entry's quality metadata. A chain whose completeness can't be
+    measured (no SEQRES, or residues that don't line up with it) gets
+    None in the completeness fields.
+
+    Args:
+        structure: The (curated) structure.
+        metadata: The entry's metadata, for method and resolution.
+        definition: What counts as a missing residue; pass the curation
+            policy's `quality_rules.missing_residue_definition`.
+        copy_of: Symmetry-copy chain id to its source chain id, e.g.
+            from `chain_copy_records`. Chains not in it get None.
+        structure_path: The file the structure was written to, stored
+            on every row.
+
+    Returns:
+        One `DatasetChainRecord` per row of
+        `extract_chain_records(structure)`, in the same order.
+    """
+
+    completeness = {
+        c.chain_id: c for c in chain_completeness(structure, definition)[0]
+    }
+    quality = metadata.quality if metadata else None
+    copies = copy_of or {}
+    rows = []
+    for record in extract_chain_records(structure):
+        c = completeness.get(record.chain_id)
+        rows.append(
+            DatasetChainRecord(
+                **record.model_dump(),
+                seqres_length=c.seqres_length if c else None,
+                missing_n_term=c.missing_n_term if c else None,
+                missing_c_term=c.missing_c_term if c else None,
+                missing_middle=c.missing_middle if c else None,
+                experimental_method=(
+                    quality.experimental_method if quality else None
+                ),
+                resolution=quality.resolution if quality else None,
+                structure_path=(
+                    None if structure_path is None else str(structure_path)
+                ),
+                copy_of=copies.get(record.chain_id),
+            )
+        )
+    return rows
