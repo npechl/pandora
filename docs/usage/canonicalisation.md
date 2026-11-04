@@ -4,7 +4,7 @@
 
 Each section changes one rule group on fixtures from `datasets/dev/mmcif/`. The `library` tab is the Python code and what it prints; the `cli` tab does the same with `pandora canonicalise`, writing the policy as YAML and reading the results with [`jq`](https://jqlang.org/). Run the CLI examples from the repository root. The test suite runs every example on this page and checks it still prints what is shown.
 
-The CLI writes three things to `--output-dir`: the canonical mmCIF files, `canonicalisation_provenance.json` (what the library returns as `provenance`) and `canonicalisation_mappings.json` (what it returns as `mappings`), each keyed by entry ID.
+The CLI writes a step folder to `--output-dir`: the canonical mmCIF files under `structures/`, `entries.jsonl` (what the library returns as `provenance`, one row per entry), `mappings.jsonl` (what it returns as `mappings`, one line per entry), `chain_copies.jsonl` (symmetry copies), `failures.jsonl` and the step summary `canonicalisation.json`. The examples pass `--table-format jsonl` so `jq` can read the tables; the default is Parquet. Select an entry with `select(.entry_id=="104M")`.
 
 ## Canonicalise with the default policy
 
@@ -40,8 +40,8 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
     policy_name: Default
     policy_version: 1.0.0
     EOF
-    pandora canonicalise --input-dir raw/ --policy policy.yaml --output-dir canonical/
-    jq -c '.["104M"].transforms' canonical/canonicalisation_provenance.json
+    pandora canonicalise --input-dir raw/ --policy policy.yaml --output-dir canonical/ --table-format jsonl
+    jq -c 'select(.entry_id=="104M") | .transforms' canonical/entries.jsonl
     ```
 
     ```text
@@ -116,14 +116,14 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
       chain_id:
         strategy: use_auth_chain_id
     EOF
-    pandora canonicalise --input-dir raw/ --policy remap.yaml --output-dir remap/
-    pandora canonicalise --input-dir raw/ --policy auth.yaml --output-dir auth/
-    jq -r '.["13DG"].chain_id_mapping.items[]
+    pandora canonicalise --input-dir raw/ --policy remap.yaml --output-dir remap/ --table-format jsonl
+    pandora canonicalise --input-dir raw/ --policy auth.yaml --output-dir auth/ --table-format jsonl
+    jq -r 'select(.entry_id=="13DG") | .chain_id_mapping.items[]
       | "\(.original_chain_id)->\(.canonical_chain_id)"' \
-      remap/canonicalisation_mappings.json | paste -sd, -
-    jq -r '.["1A08"].chain_id_mapping.items[]
+      remap/mappings.jsonl | paste -sd, -
+    jq -r 'select(.entry_id=="1A08") | .chain_id_mapping.items[]
       | "\(.original_chain_id)->\(.canonical_chain_id)"' \
-      auth/canonicalisation_mappings.json | paste -sd, -
+      auth/mappings.jsonl | paste -sd, -
     ```
 
     ```text
@@ -201,13 +201,13 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
       residue_numbering:
         strategy: renumber
     EOF
-    pandora canonicalise --input-dir raw/ --policy auth.yaml --output-dir auth/
-    pandora canonicalise --input-dir raw/ --policy renumber.yaml --output-dir renumber/
+    pandora canonicalise --input-dir raw/ --policy auth.yaml --output-dir auth/ --table-format jsonl
+    pandora canonicalise --input-dir raw/ --policy renumber.yaml --output-dir renumber/ --table-format jsonl
     for run in auth renumber; do
-      jq -r --arg run "$run" '.["10MV"].residue_number_mapping.items[0]
+      jq -r --arg run "$run" 'select(.entry_id=="10MV") | .residue_number_mapping.items[0]
         | "\($run): chain \(.original_chain_id) \(.original_seq_id)"
           + " (auth \(.original_auth_seq_id)) -> \(.canonical_seq_id)"' \
-        "$run/canonicalisation_mappings.json"
+        "$run/mappings.jsonl"
     done
     ```
 
@@ -290,13 +290,13 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
       strategy: select_user_defined
       user_defined_altloc: B
     EOF
-    pandora canonicalise --input-dir raw/ --policy best.yaml --output-dir best/
-    pandora canonicalise --input-dir raw/ --policy pick_b.yaml --output-dir pick_b/
+    pandora canonicalise --input-dir raw/ --policy best.yaml --output-dir best/ --table-format jsonl
+    pandora canonicalise --input-dir raw/ --policy pick_b.yaml --output-dir pick_b/ --table-format jsonl
     for run in best pick_b; do
-      jq -r --arg run "$run" '.["1B6W"].altloc_selection_mapping.items[]
+      jq -r --arg run "$run" 'select(.entry_id=="1B6W") | .altloc_selection_mapping.items[]
         | "\($run): \(.residue_id) kept \(.selected_altloc)"
           + " of \(.available_altlocs) (\(.selection_reason))"' \
-        "$run/canonicalisation_mappings.json"
+        "$run/mappings.jsonl"
     done
     ```
 
@@ -361,13 +361,13 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
     assembly_rules:
       strategy: standardize_biological_assembly
     EOF
-    pandora canonicalise --input-dir raw/ --policy policy.yaml --output-dir canonical/
-    pandora export --input canonical/13dg.cif --output 13dg.json
+    pandora canonicalise --input-dir raw/ --policy policy.yaml --output-dir canonical/ --table-format jsonl
+    pandora export --input canonical/structures/3d/13dg.cif --output 13dg.json
     jq -c '[.asym_units[].id]' 13dg.json
-    jq -r '.["13DG"].assembly_mapping.items[].chain_copies[:2][]
+    jq -r 'select(.entry_id=="13DG") | .assembly_mapping.items[].chain_copies[:2][]
       | "\(.canonical_chain_id) = chain \(.source_chain_id)"
         + " under operator \(.operator_id)"' \
-      canonical/canonicalisation_mappings.json
+      canonical/mappings.jsonl
     ```
 
     ```text
@@ -450,14 +450,14 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
       strategy: map_to_parent
       comp_ids: [FTY]
     EOF
-    pandora canonicalise --input-dir raw/ --policy mse.yaml --output-dir mse/
-    pandora canonicalise --input-dir raw/ --policy fty.yaml --output-dir fty/
-    jq -r '.["1B6W"].modified_residue_mapping.items[]
+    pandora canonicalise --input-dir raw/ --policy mse.yaml --output-dir mse/ --table-format jsonl
+    pandora canonicalise --input-dir raw/ --policy fty.yaml --output-dir fty/ --table-format jsonl
+    jq -r 'select(.entry_id=="1B6W") | .modified_residue_mapping.items[]
       | "1B6W chain \(.chain_id) \(.seq_id): \(.original_comp_id) -> \(.parent_comp_id)"' \
-      mse/canonicalisation_mappings.json
-    jq -r '.["1A08"].modified_residue_mapping.items[]
+      mse/mappings.jsonl
+    jq -r 'select(.entry_id=="1A08") | .modified_residue_mapping.items[]
       | "1A08 chain \(.chain_id) \(.seq_id): \(.original_comp_id) -> \(.parent_comp_id)"' \
-      fty/canonicalisation_mappings.json
+      fty/mappings.jsonl
     ```
 
     ```text
@@ -563,10 +563,10 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
       incomplete_chains:
         strategy: truncate_to_complete_regions
     EOF
-    pandora canonicalise --input-dir raw/ --policy drop.yaml --output-dir drop/
-    pandora canonicalise --input-dir raw/ --policy truncate.yaml --output-dir truncate/
-    pandora export --input drop/1a08.cif --output 1a08.json
-    pandora export --input truncate/10mv.cif --output 10mv.json
+    pandora canonicalise --input-dir raw/ --policy drop.yaml --output-dir drop/ --table-format jsonl
+    pandora canonicalise --input-dir raw/ --policy truncate.yaml --output-dir truncate/ --table-format jsonl
+    pandora export --input drop/structures/a0/1a08.cif --output 1a08.json
+    pandora export --input truncate/structures/0m/10mv.cif --output 10mv.json
     # residues left in 1a08 chain B, then in 10mv chain A
     jq '[.atoms[] | select(.label_asym_id == "B") | .label_seq_id] | unique | length' 1a08.json
     jq '[.atoms[] | select(.label_asym_id == "A") | .label_seq_id] | unique | length' 10mv.json
@@ -652,9 +652,9 @@ To measure how much of each chain is missing against SEQRES, without changing th
       keep_waters: false
       keep_ions: false
     EOF
-    pandora canonicalise --input-dir raw/ --policy policy.yaml --output-dir canonical/
+    pandora canonicalise --input-dir raw/ --policy policy.yaml --output-dir canonical/ --table-format jsonl
     pandora export --input raw/104m.cif --output before.json
-    pandora export --input canonical/104m.cif --output after.json
+    pandora export --input canonical/structures/04/104m.cif --output after.json
     jq '.atoms | length' before.json after.json
     ```
 
@@ -752,12 +752,12 @@ When a run changes which chains or residues exist or what they are called (renum
     provenance_rules:
       emit_canonicalisation_report: true
     EOF
-    pandora canonicalise --input-dir raw/ --policy policy.yaml --output-dir canonical/
-    jq -c '.["1B6W"] | .transforms, .report' canonical/canonicalisation_provenance.json
-    jq -c '.["1B6W"].dropped_raw_categories | length, .[:4]' \
-      canonical/canonicalisation_provenance.json
-    jq -r '.["1B6W"] | to_entries[] | "\(.key): \(.value.items | length) items"' \
-      canonical/canonicalisation_mappings.json
+    pandora canonicalise --input-dir raw/ --policy policy.yaml --output-dir canonical/ --table-format jsonl
+    jq -c 'select(.entry_id=="1B6W") | .transforms, {warnings, errors}' canonical/entries.jsonl
+    jq -c 'select(.entry_id=="1B6W") | .dropped_raw_categories | length, .[:4]' \
+      canonical/entries.jsonl
+    jq -r 'select(.entry_id=="1B6W") | del(.entry_id) | to_entries[] | "\(.key): \(.value.items | length) items"' \
+      canonical/mappings.jsonl
     ```
 
     ```text
@@ -831,9 +831,9 @@ ligand_rules:
 
     ```bash
     mkdir -p raw && cp datasets/dev/mmcif/04/104m.cif raw/
-    pandora canonicalise --input-dir raw/ --policy datasets/canonicalisation.yaml --output-dir canonical/
-    jq -c '.["104M"] | [.policy_id, .policy_version], .transforms' \
-      canonical/canonicalisation_provenance.json
+    pandora canonicalise --input-dir raw/ --policy datasets/canonicalisation.yaml --output-dir canonical/ --table-format jsonl
+    jq -c 'select(.entry_id=="104M") | [.policy_id, .policy_version], .transforms' \
+      canonical/entries.jsonl
     ```
 
     ```text

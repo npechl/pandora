@@ -7,7 +7,11 @@ from pathlib import Path
 
 import pytest
 
+from pandora.cli._io import read_structures_dir, write_structures_dir
 from pandora.cli.app import _build_parser, main
+from pandora.export import read_records
+from pandora.parsing import mmcif_to_structure
+from pandora.schemas.provenance import CanonicalisationEntryRecord
 from pandora.schemas.similarity import SimilaritySearch
 from pandora.similarity.hits import HIT_COLUMNS
 
@@ -63,40 +67,29 @@ def test_ingest_local_directory(tmp_path):
     assert prov["104M"]["source_uri"] == "dev-fixture-snapshot"
 
 
-def test_canonicalise_curate_dedup_export_chain(tmp_path):
-    raw_dir = tmp_path / "raw"
-    raw_dir.mkdir()
-    (raw_dir / "104m.cif").write_text(
-        (FIXTURES_DIR / "04" / "104m.cif").read_text()
-    )
-
-    canonical_dir = tmp_path / "canonical"
-    main(
-        [
-            "canonicalise",
-            "--input-dir",
-            str(raw_dir),
-            "--policy",
-            str(CANON_POLICY),
-            "--output-dir",
-            str(canonical_dir),
-        ]
-    )
-    assert (canonical_dir / "104m.cif").exists()
-    canon_prov = json.loads(
-        (canonical_dir / "canonicalisation_provenance.json").read_text()
-    )
-    assert "104M" in canon_prov
-    canon_mappings = json.loads(
-        (canonical_dir / "canonicalisation_mappings.json").read_text()
-    )
-    assert canon_mappings["104M"]["chain_id_mapping"]["items"]
-
+def _canonicalise_and_curate(tmp_path, fixture="04/104m.cif", canon=None):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    shutil.copy(FIXTURES_DIR / fixture, raw / Path(fixture).name)
     curation_policy = tmp_path / "curation.yaml"
     curation_policy.write_text(
         "policy_id: test\npolicy_name: Test\npolicy_version: 1.0.0\n"
     )
+    canonical_dir = tmp_path / "canonical"
     curated_dir = tmp_path / "curated"
+    main(
+        [
+            "canonicalise",
+            "--input-dir",
+            str(raw),
+            "--policy",
+            str(canon or CANON_POLICY),
+            "--output-dir",
+            str(canonical_dir),
+            "--table-format",
+            "jsonl",
+        ]
+    )
     main(
         [
             "curate",
@@ -106,9 +99,25 @@ def test_canonicalise_curate_dedup_export_chain(tmp_path):
             str(curation_policy),
             "--output-dir",
             str(curated_dir),
+            "--table-format",
+            "jsonl",
         ]
     )
-    assert (curated_dir / "104m.cif").exists()
+    return canonical_dir, curated_dir
+
+
+def test_canonicalise_curate_dedup_export_chain(tmp_path):
+    canonical_dir, curated_dir = _canonicalise_and_curate(tmp_path)
+    assert (curated_dir / "structures" / "04" / "104m.cif").exists()
+    chains = _jsonl(curated_dir / "chains.jsonl")
+    assert chains and all(c["entry_id"] == "104M" for c in chains)
+    assert all("copy_of" in c for c in chains)
+    summary = json.loads((curated_dir / "curation.json").read_text())
+    assert summary["previous_summary"] == str(
+        canonical_dir / "canonicalisation.json"
+    )
+    assert not (curated_dir / "curation_provenance.json").exists()
+    assert not (curated_dir / "curation_exclusions.json").exists()
 
     deduped_dir = tmp_path / "deduped"
     main(
@@ -120,14 +129,14 @@ def test_canonicalise_curate_dedup_export_chain(tmp_path):
             str(deduped_dir),
         ]
     )
-    assert (deduped_dir / "104m.cif").exists()
+    assert (deduped_dir / "04" / "104m.cif").exists()
 
     exported = tmp_path / "104m.json"
     main(
         [
             "export",
             "--input",
-            str(deduped_dir / "104m.cif"),
+            str(deduped_dir / "04" / "104m.cif"),
             "--output",
             str(exported),
         ]
@@ -385,3 +394,287 @@ def test_python_m_pandora_runs_cli():
         check=True,
     )
     assert "canonicalise" in result.stdout
+
+
+def test_read_structures_dir_reads_flat_mirror_and_step_folders(tmp_path):
+    src = FIXTURES_DIR / "04" / "104m.cif"
+    flat = tmp_path / "flat"
+    flat.mkdir()
+    shutil.copy(src, flat / "104m.cif")
+    mirror = tmp_path / "mirror"
+    (mirror / "04").mkdir(parents=True)
+    shutil.copy(src, mirror / "04" / "104m.cif")
+    step = tmp_path / "step"
+    (step / "structures" / "04").mkdir(parents=True)
+    shutil.copy(src, step / "structures" / "04" / "104m.cif")
+    for folder in (flat, mirror, step):
+        assert list(read_structures_dir(folder)) == ["104M"]
+
+
+def test_write_structures_dir_uses_mirror_layout(tmp_path):
+    structure, _, _ = mmcif_to_structure(str(FIXTURES_DIR / "04" / "104m.cif"))
+    write_structures_dir({"104M": structure}, tmp_path)
+    assert (tmp_path / "04" / "104m.cif").exists()
+
+
+def _jsonl(path):
+    return [json.loads(line) for line in path.read_text().splitlines()]
+
+
+def test_canonicalise_writes_step_folder(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    shutil.copy(FIXTURES_DIR / "04" / "104m.cif", raw / "104m.cif")
+    (raw / "bad.cif").write_text("garbage\n")
+    out = tmp_path / "canon"
+    main(
+        [
+            "canonicalise",
+            "--input-dir",
+            str(raw),
+            "--policy",
+            str(CANON_POLICY),
+            "--output-dir",
+            str(out),
+            "--table-format",
+            "jsonl",
+        ]
+    )
+    assert (out / "structures" / "04" / "104m.cif").exists()
+    entries = _jsonl(out / "entries.jsonl")
+    assert [e["entry_id"] for e in entries] == ["104M"]
+    assert entries[0]["structure_path"] == "structures/04/104m.cif"
+    mappings = _jsonl(out / "mappings.jsonl")
+    assert mappings[0]["entry_id"] == "104M"
+    assert mappings[0]["chain_id_mapping"]["items"]
+    failures = _jsonl(out / "failures.jsonl")
+    assert [Path(f["path"]).name for f in failures] == ["bad.cif"]
+    summary = json.loads((out / "canonicalisation.json").read_text())
+    assert summary["counts"] == {
+        "entries_failed": 1,
+        "entries_in": 2,
+        "entries_kept": 1,
+    }
+    assert not (out / "canonicalisation_provenance.json").exists()
+    assert not (out / "canonicalisation_mappings.json").exists()
+
+
+def test_canonicalise_reads_entries_file_and_writes_parquet(tmp_path):
+    entries = tmp_path / "entries.txt"
+    entries.write_text(str(FIXTURES_DIR / "04" / "104m.cif") + "\n")
+    out = tmp_path / "canon"
+    main(
+        [
+            "canonicalise",
+            "--entries",
+            str(entries),
+            "--policy",
+            str(CANON_POLICY),
+            "--output-dir",
+            str(out),
+        ]
+    )
+    rows = read_records(out / "entries.parquet", CanonicalisationEntryRecord)
+    assert [r.entry_id for r in rows] == ["104M"]
+    summary = json.loads((out / "canonicalisation.json").read_text())
+    assert summary["input"] == str(entries)
+
+
+def test_curate_flat_folder_and_everything_excluded(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    shutil.copy(FIXTURES_DIR / "04" / "104m.cif", raw / "104m.cif")
+    strict = tmp_path / "strict.yaml"
+    strict.write_text(
+        "policy_id: s\npolicy_name: s\npolicy_version: '1'\n"
+        "quality_rules:\n  max_resolution: 1.0\n"
+    )
+    out = tmp_path / "strict"
+    main(
+        [
+            "curate",
+            "--input-dir",
+            str(raw),
+            "--policy",
+            str(strict),
+            "--output-dir",
+            str(out),
+            "--table-format",
+            "jsonl",
+        ]
+    )
+    assert not (out / "entries.jsonl").exists()
+    assert not (out / "chains.jsonl").exists()
+    exclusions = _jsonl(out / "exclusions.jsonl")
+    assert exclusions[0]["reason_code"] == "RESOLUTION_THRESHOLD"
+    summary = json.loads((out / "curation.json").read_text())
+    assert summary["counts"]["entries_kept"] == 0
+    assert summary["previous_summary"] is None
+
+
+def test_curate_fills_copy_of_from_canonicalise_folder(tmp_path):
+    # 1ayi's assembly 1 has a symmetry copy A_2 of chain A.
+    canon = tmp_path / "canon.yaml"
+    canon.write_text(
+        "policy_id: c\npolicy_name: c\npolicy_version: '1'\n"
+        "assembly_rules:\n  strategy: standardize_biological_assembly\n"
+        "  preferred_assembly_source: first\n"
+    )
+    _, curated_dir = _canonicalise_and_curate(
+        tmp_path, "ay/1ayi.cif", canon=canon
+    )
+    rows = {r["chain_id"]: r for r in _jsonl(curated_dir / "chains.jsonl")}
+    assert rows["A_2"]["copy_of"] == "A"
+    assert rows["A"]["copy_of"] is None
+
+
+def test_manifest_reads_step_folders(tmp_path):
+    canonical_dir, curated_dir = _canonicalise_and_curate(tmp_path)
+    strict = tmp_path / "strict.yaml"
+    strict.write_text(
+        "policy_id: s\npolicy_name: s\npolicy_version: '1'\n"
+        "quality_rules:\n  max_resolution: 1.0\n"
+    )
+    excluded_dir = tmp_path / "excluded"
+    main(
+        [
+            "curate",
+            "--input-dir",
+            str(canonical_dir),
+            "--policy",
+            str(strict),
+            "--output-dir",
+            str(excluded_dir),
+            "--table-format",
+            "jsonl",
+        ]
+    )
+    manifest = tmp_path / "manifest.json"
+    main(
+        [
+            "manifest",
+            "--dataset-id",
+            "d",
+            "--dataset-name",
+            "d",
+            "--dataset-version",
+            "1",
+            "--structures-dir",
+            str(curated_dir),
+            "--canonicalisation-dir",
+            str(canonical_dir),
+            "--curation-dir",
+            str(curated_dir),
+            "--exclusions",
+            str(excluded_dir / "exclusions.jsonl"),
+            "--output",
+            str(manifest),
+        ]
+    )
+    m = json.loads(manifest.read_text())
+    bundle = m["structures"][0]
+    assert bundle["entry_id"] == "104M"
+    assert bundle["canonicalisation"]["policy_id"] == "overview-remap"
+    assert bundle["curation"]["policy_id"] == "test"
+    assert [e["reason_code"] for e in m["excluded"]] == ["RESOLUTION_THRESHOLD"]
+
+
+def test_steps_accept_relative_output_dirs(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    canonical_dir, curated_dir = _canonicalise_and_curate(Path("."))
+    assert _jsonl(canonical_dir / "entries.jsonl")[0]["structure_path"] == (
+        "structures/04/104m.cif"
+    )
+    assert _jsonl(curated_dir / "entries.jsonl")[0]["structure_path"] == (
+        "structures/04/104m.cif"
+    )
+
+
+def _canonicalise(raw, out, *extra):
+    main(
+        [
+            "canonicalise",
+            "--input-dir",
+            str(raw),
+            "--policy",
+            str(CANON_POLICY),
+            "--output-dir",
+            str(out),
+            "--table-format",
+            "jsonl",
+            *extra,
+        ]
+    )
+
+
+def test_step_refuses_non_empty_output_dir_unless_overwrite(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    shutil.copy(FIXTURES_DIR / "04" / "104m.cif", raw / "104m.cif")
+    out = tmp_path / "canon"
+    _canonicalise(raw, out)
+    (raw / "104m.cif").unlink()
+    shutil.copy(FIXTURES_DIR / "0k" / "10kz.cif", raw / "10kz.cif")
+    with pytest.raises(SystemExit):
+        _canonicalise(raw, out)
+    (out / "notes.txt").write_text("mine")
+    _canonicalise(raw, out, "--overwrite")
+    assert not (out / "structures" / "04" / "104m.cif").exists()
+    assert [e["entry_id"] for e in _jsonl(out / "entries.jsonl")] == ["10KZ"]
+    assert (out / "notes.txt").read_text() == "mine"
+
+
+def test_step_checks_parquet_support_before_running(tmp_path, monkeypatch):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    shutil.copy(FIXTURES_DIR / "04" / "104m.cif", raw / "104m.cif")
+    monkeypatch.setitem(sys.modules, "pandas", None)
+    out = tmp_path / "canon"
+    with pytest.raises(SystemExit) as exc:
+        main(
+            [
+                "canonicalise",
+                "--input-dir",
+                str(raw),
+                "--policy",
+                str(CANON_POLICY),
+                "--output-dir",
+                str(out),
+            ]
+        )
+    assert "--table-format jsonl" in str(exc.value)
+    assert not (out / "structures").exists()
+
+
+def test_step_skips_duplicate_stems(tmp_path):
+    raw = tmp_path / "raw"
+    (raw / "04").mkdir(parents=True)
+    shutil.copy(FIXTURES_DIR / "04" / "104m.cif", raw / "104m.cif")
+    shutil.copy(FIXTURES_DIR / "04" / "104m.cif", raw / "04" / "104m.cif")
+    out = tmp_path / "canon"
+    _canonicalise(raw, out)
+    assert [e["entry_id"] for e in _jsonl(out / "entries.jsonl")] == ["104M"]
+    failures = _jsonl(out / "failures.jsonl")
+    assert [f["error_type"] for f in failures] == ["DuplicateStem"]
+
+
+def test_manifest_rejects_folder_that_is_not_a_step_folder(tmp_path):
+    canonical_dir, curated_dir = _canonicalise_and_curate(tmp_path)
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "manifest",
+                "--dataset-id",
+                "d",
+                "--dataset-name",
+                "d",
+                "--dataset-version",
+                "1",
+                "--structures-dir",
+                str(curated_dir),
+                "--canonicalisation-dir",
+                str(tmp_path / "typo"),
+                "--output",
+                str(tmp_path / "m.json"),
+            ]
+        )

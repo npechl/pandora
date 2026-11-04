@@ -5,24 +5,28 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import TypeVar
+
+from pydantic import BaseModel
 
 from pandora.cli._io import (
+    find_table,
     load_annotations,
     load_json_dict,
-    load_json_list,
     load_json_model,
     load_yaml_model,
     read_structures_dir,
     write_structures_dir,
 )
-from pandora.export import write_json
+from pandora.export import read_records, write_json
 from pandora.ingestion.policy import load_policy
 from pandora.provenance.manifest import (
     build_dataset_manifest,
     build_provenance_bundle,
 )
-from pandora.schemas.canonicalisation import (
-    canonicalisationProvenance,
+from pandora.provenance.records import (
+    canonicalisation_provenance_from_record,
+    curation_provenance_from_record,
 )
 from pandora.schemas.dataset import (
     DatasetCurationPolicy,
@@ -30,11 +34,31 @@ from pandora.schemas.dataset import (
     ExclusionRecord,
 )
 from pandora.schemas.ingestion import FetchOptions, IngestionProvenance
-from pandora.schemas.provenance import DatasetManifest
+from pandora.schemas.provenance import (
+    CanonicalisationEntryRecord,
+    CurationEntryRecord,
+    DatasetManifest,
+)
 from pandora.schemas.similarity import (
     ClusteringProvenance,
     PartitionProvenance,
 )
+
+M = TypeVar("M", bound=BaseModel)
+
+
+def _step_entries(folder: str | None, summary: str, model: type[M]) -> list[M]:
+    """The rows of a step folder's `entries` table (none if the step kept
+    nothing). Exits if `folder` has no step summary `summary`."""
+
+    if folder is None:
+        return []
+    if not (Path(folder) / summary).exists():
+        raise SystemExit(
+            f"manifest: {folder} is not a step folder (no {summary})"
+        )
+    table = find_table(Path(folder), "entries")
+    return read_records(table, model) if table else []
 
 
 def _cmd_manifest(args: argparse.Namespace) -> None:
@@ -58,19 +82,26 @@ def _cmd_manifest(args: argparse.Namespace) -> None:
         if args.ingestion_provenance
         else {}
     )
-    canon_prov = (
-        load_json_dict(
-            canonicalisationProvenance, Path(args.canonicalisation_provenance)
+    canon_prov = {
+        row.entry_id: canonicalisation_provenance_from_record(row)
+        for row in _step_entries(
+            args.canonicalisation_dir,
+            "canonicalisation.json",
+            CanonicalisationEntryRecord,
         )
-        if args.canonicalisation_provenance
-        else {}
-    )
+    }
+    curation_prov = {
+        row.entry_id: curation_provenance_from_record(row)
+        for row in _step_entries(
+            args.curation_dir, "curation.json", CurationEntryRecord
+        )
+    }
     annotations = (
         load_annotations(Path(args.annotations)) if args.annotations else {}
     )
     exclusions: list[ExclusionRecord] = []
     for path in args.exclusions or []:
-        exclusions.extend(load_json_list(ExclusionRecord, Path(path)))
+        exclusions.extend(read_records(path, ExclusionRecord))
 
     dedup_prov = (
         load_json_model(DeduplicationProvenance, Path(args.dedup_provenance))
@@ -94,6 +125,7 @@ def _cmd_manifest(args: argparse.Namespace) -> None:
             structure,
             ingestion=ingestion_prov.get(entry_id),
             canonicalisation=canon_prov.get(entry_id),
+            curation=curation_prov.get(entry_id),
             annotations=annotations.get(entry_id, []),
         )
         for entry_id, structure in structures.items()
@@ -150,7 +182,8 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--canonicalisation-policy")
     p.add_argument("--curation-policy")
     p.add_argument("--ingestion-provenance")
-    p.add_argument("--canonicalisation-provenance")
+    p.add_argument("--canonicalisation-dir", help="a canonicalise step folder")
+    p.add_argument("--curation-dir", help="a curate step folder")
     p.add_argument("--exclusions", nargs="+")
     p.add_argument("--dedup-provenance")
     p.add_argument("--cluster-provenance")

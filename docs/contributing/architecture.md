@@ -110,6 +110,8 @@ differs; see [Annotation](../usage/annotation.md) for each one's `data` schema.
 | `build_step_summary()` | step name, the policy it ran with, `input`, `output`, `started_at`, `counts`, `previous_summary` | `StepSummary` (the step's recipe; write with `write_json()`) |
 | `canonicalisation_entry_record()` | canonical `Structure`, `canonicalisationProvenance`, `structure_path` | `CanonicalisationEntryRecord` (flat row for `write_records()`) |
 | `curation_entry_record()` | curated `Structure`, `MetadataRecord \| None`, `CurationProvenance`, `structure_path` | `CurationEntryRecord` (flat row for `write_records()`) |
+| `canonicalisation_provenance_from_record()` | `CanonicalisationEntryRecord` | `canonicalisationProvenance` (inverse of `canonicalisation_entry_record()`) |
+| `curation_provenance_from_record()` | `CurationEntryRecord` | `CurationProvenance` (inverse of `curation_entry_record()`) |
 | `reproduce_dataset()` | a `DatasetManifest` | `(dict[str, Structure], DatasetManifest)` — replays every recorded step from just the manifest |
 
 ### Export
@@ -121,6 +123,7 @@ differs; see [Annotation](../usage/annotation.md) for each one's `data` schema.
 | `write_fasta()` | `dict[str, str]` of id to sequence | a FASTA file |
 | `write_json()` | any pydantic `BaseModel` (e.g. a `DatasetManifest`) | a JSON file |
 | `write_records()` | a `Sequence[BaseModel]` (e.g. `list[ChainRecord]`) | a JSON or Parquet file |
+| `read_records()` | a `.jsonl`/`.json`/`.parquet` file + the record model | `list[model]` (Parquet nulls as `None`) |
 
 ## The parsed molecule
 

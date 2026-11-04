@@ -88,3 +88,59 @@ def curation_entry_record(
         curated_at=provenance.curated_at,
         dropped_raw_categories=provenance.dropped_raw_categories,
     )
+
+
+def canonicalisation_provenance_from_record(
+    record: CanonicalisationEntryRecord,
+) -> canonicalisationProvenance:
+    """Rebuild an entry's canonicalisation provenance from its table row.
+
+    The inverse of `canonicalisation_entry_record`, for tools that read
+    a canonicalisation step's `entries` table back (e.g. to build a
+    `ProvenanceBundle`).
+
+    Args:
+        record: The entry's `CanonicalisationEntryRecord`.
+
+    Returns:
+        The `canonicalisationProvenance`; its `report` holds the
+        warning/error counts when the row has them, else is empty.
+    """
+
+    report = (
+        {"warnings": record.warnings, "errors": record.errors}
+        if record.warnings is not None and record.errors is not None
+        else {}
+    )
+    return canonicalisationProvenance(
+        canonicalised_at=record.canonicalised_at,
+        policy_id=record.policy_id,
+        policy_name=record.policy_name,
+        policy_version=record.policy_version,
+        transforms=record.transforms,
+        report=report,
+        dropped_raw_categories=record.dropped_raw_categories,
+    )
+
+
+def curation_provenance_from_record(
+    record: CurationEntryRecord,
+) -> CurationProvenance:
+    """Rebuild a kept entry's curation provenance from its table row.
+
+    The inverse of `curation_entry_record`.
+
+    Args:
+        record: The entry's `CurationEntryRecord`.
+
+    Returns:
+        The entry's `CurationProvenance`.
+    """
+
+    return CurationProvenance(
+        curated_at=record.curated_at,
+        policy_id=record.policy_id,
+        policy_name=record.policy_name,
+        policy_version=record.policy_version,
+        dropped_raw_categories=record.dropped_raw_categories,
+    )

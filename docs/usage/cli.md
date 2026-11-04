@@ -6,11 +6,7 @@ handful of small fixture entries; run `pandora <subcommand> -h` for the
 full argument list, or see `pandora/cli/README.md` for the directory/
 JSON conventions between stages.
 
-Structure-transforming stages (`canonicalise`, `curate`, `dedup`) read
-and write directories of mmCIF files, one per entry. Provenance-
-producing stages write one JSON file per stage into their
-`--output`/`--output-dir`, which downstream stages — `manifest` in
-particular — read back in.
+Structure-transforming stages (`canonicalise`, `curate`, `dedup`) write mmCIF files in the PDB archive layout (`04/104m.cif`). Every stage that reads structures accepts a flat folder, that layout, or a step folder. `canonicalise` and `curate` write a step folder: the structures in `structures/<mid>/<entry>.cif` (the PDB archive layout), one row per entry in `entries.<fmt>`, `failures.jsonl` for inputs that raised (the run carries on), and a step summary (`canonicalisation.json` / `curation.json`) recording the policy, Pandora and gemmi versions, input and counts. Tables are Parquet by default; `--table-format jsonl` writes JSON Lines instead (no `export` extra needed, readable with `jq`). A table with no rows is not written. Both refuse an `--output-dir` that already holds step outputs; `--overwrite` replaces them (other files in the folder are left alone). A second input with the same file name is skipped and recorded in `failures.jsonl` as `DuplicateStem`. Other provenance-producing stages write one JSON file per stage into their `--output`/`--output-dir`, which `manifest` reads back in.
 
 ## fetch
 
@@ -26,25 +22,25 @@ it, `manifest` needs it later if you want `reproduce` to work.
 
 ## canonicalise
 
-Parse and canonicalise every `*.cif` in a directory against a policy
-YAML (see [Policies](../reference/policies.md)):
+Parse and canonicalise every mmCIF file in a folder (`--input-dir`, flat or PDB layout) or listed in a text file (`--entries`, one path per line) against a policy YAML (see [Policies](../reference/policies.md)):
 
 ```sh
-pandora canonicalise --input-dir raw/ --policy datasets/canonicalisation.yaml --output-dir canonical/
+pandora canonicalise --input-dir raw/ --policy datasets/canonicalisation.yaml --output-dir canonical/ --table-format jsonl
 # canonicalised 5 structures -> canonical/
 ```
 
-Besides the canonical mmCIF files, `canonical/` gets `canonicalisation_provenance.json` (which transforms ran) and `canonicalisation_mappings.json` (original-to-canonical chain, residue, assembly, entity, altloc and modified-residue mappings), both keyed by entry ID. [Canonicalisation](canonicalisation.md) shows how to read them with `jq`.
+`canonical/` then holds `structures/`, `entries.jsonl` (per entry: structure path, policy, which transforms ran), `chain_copies.jsonl` (symmetry-copy chains and their source, which mmCIF has no field for), `mappings.jsonl` (one line per entry: original-to-canonical chain, residue, assembly, entity, altloc and modified-residue mappings), `failures.jsonl` and `canonicalisation.json`. [Canonicalisation](canonicalisation.md) shows how to read them with `jq`.
 
 ## curate
 
-Apply quality/organism/content rules from a `DatasetCurationPolicy`
-YAML:
+Apply quality/organism/content rules from a `DatasetCurationPolicy` YAML to a `canonicalise` step folder (or any folder of mmCIF files):
 
 ```sh
-pandora curate --input-dir canonical/ --policy curation.yaml --output-dir curated/
+pandora curate --input-dir canonical/ --policy curation.yaml --output-dir curated/ --table-format jsonl
 # curated: 5 retained, 0 excluded -> curated/
 ```
+
+`curated/` then holds `structures/` (kept entries), `entries.jsonl` (per kept entry: structure path, method, resolution, chain count, policy), `chains.jsonl` (per kept chain: sequence, completeness, method, resolution, `copy_of` for symmetry copies), `exclusions.jsonl` (per dropped entry or chain, with its reason), `failures.jsonl` and `curation.json`, whose `previous_summary` points to `canonical/canonicalisation.json`.
 
 where `curation.yaml` is a minimal policy:
 
@@ -125,7 +121,8 @@ pandora manifest \
   --canonicalisation-policy datasets/canonicalisation.yaml \
   --curation-policy curation.yaml \
   --ingestion-provenance raw/ingestion_provenance.json \
-  --canonicalisation-provenance canonical/canonicalisation_provenance.json \
+  --canonicalisation-dir canonical/ \
+  --curation-dir curated/ \
   --cluster-provenance cluster_provenance.json \
   --partition-provenance partition_provenance.json \
   --splits splits.json \
@@ -134,8 +131,7 @@ pandora manifest \
 # manifest for 5 structures -> manifest.json
 ```
 
-Every `--*-provenance`/`--*-policy` flag is optional — only pass what
-the earlier stages actually produced. `--ingestion-provenance` is the
+Every `--*-provenance`/`--*-policy`/`--*-dir` flag is optional — only pass what the earlier stages actually produced. `--canonicalisation-dir` and `--curation-dir` take step folders and fill each structure's canonicalisation and curation provenance from their `entries` tables; `--exclusions` takes `exclusions` tables (`.jsonl`, `.json` or `.parquet`). `--ingestion-provenance` is the
 one flag worth not skipping: without it, `reproduce` (below) can't
 re-fetch that structure later.
 
@@ -144,7 +140,7 @@ re-fetch that structure later.
 Convert one mmCIF file to mmCIF or JSON:
 
 ```sh
-pandora export --input deduped/104m.cif --output 104m.json
+pandora export --input deduped/04/104m.cif --output 104m.json
 # exported -> 104m.json
 ```
 

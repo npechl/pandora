@@ -2,7 +2,7 @@
 
 `pandora.datasets` filters structures for inclusion (`curate_structure`, `deduplicate_structures`), measures chain completeness (`chain_completeness`), and reshapes a canonical `Structure` into flat, ML-friendlier records (`extract_*_records`, `entry_sequences`). See [Functions](../reference/functions.md#pandora.datasets) for full signatures.
 
-Each curation section applies one kind of rule to fixtures from `datasets/dev/mmcif/`. The `library` tab is the Python code and what it prints; the `cli` tab does the same with `pandora curate`, writing the policy as YAML and reading `curation_exclusions.json` with [`jq`](https://jqlang.org/). Run the CLI examples from the repository root. The test suite runs every example on this page and checks it still prints what is shown. The [curation policy reference](../reference/policies.md#curation) lists every field.
+Each curation section applies one kind of rule to fixtures from `datasets/dev/mmcif/`. The `library` tab is the Python code and what it prints; the `cli` tab does the same with `pandora curate`, writing the policy as YAML and reading `exclusions.jsonl` with [`jq`](https://jqlang.org/). Run the CLI examples from the repository root. The test suite runs every example on this page and checks it still prints what is shown. The [curation policy reference](../reference/policies.md#curation) lists every field.
 
 The sections after curation use this setup:
 
@@ -72,9 +72,9 @@ metadata = collect_metadata(canonical)
     quality_rules:
       max_resolution: 1.0
     EOF
-    pandora curate --input-dir raw/ --policy default.yaml --output-dir default/
-    pandora curate --input-dir raw/ --policy strict.yaml --output-dir strict/
-    jq -r '.[] | "\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' strict/curation_exclusions.json
+    pandora curate --input-dir raw/ --policy default.yaml --output-dir default/ --table-format jsonl
+    pandora curate --input-dir raw/ --policy strict.yaml --output-dir strict/ --table-format jsonl
+    jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' strict/exclusions.jsonl
     ```
 
     ```text
@@ -83,7 +83,7 @@ metadata = collect_metadata(canonical)
     104M entry: RESOLUTION_THRESHOLD - resolution 1.71 exceeds limit 1.0
     ```
 
-    The CLI always runs `collect_metadata()` on each structure, and writes `curation_exclusions.json` only when something was excluded or removed.
+    The CLI always runs `collect_metadata()` on each structure, and writes `exclusions.jsonl` only when something was excluded or removed.
 
 !!! note "Migrating from the single-exclusion return"
     Before chain-level rules, `curate_structure` returned `(structure, exclusion | None, provenance)`. It now returns a list. Replace `if curated is None: excluded.append(exclusion)` with `excluded.extend(exclusions)`, which also keeps the records of chains removed from entries that were kept.
@@ -154,9 +154,9 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
         X-RAY DIFFRACTION: 2.5
         ELECTRON MICROSCOPY: 2.0
     EOF
-    pandora curate --input-dir raw/ --policy one_limit.yaml --output-dir one_limit/
-    pandora curate --input-dir raw/ --policy by_method.yaml --output-dir by_method/
-    jq -r '.[] | "\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' by_method/curation_exclusions.json
+    pandora curate --input-dir raw/ --policy one_limit.yaml --output-dir one_limit/ --table-format jsonl
+    pandora curate --input-dir raw/ --policy by_method.yaml --output-dir by_method/ --table-format jsonl
+    jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' by_method/exclusions.jsonl
     ```
 
     ```text
@@ -253,10 +253,10 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
       max_r_free: 0.25
       null_rfactor_behavior: exclude
     EOF
-    pandora curate --input-dir raw/ --policy rsym.yaml --output-dir rsym/
-    jq -r '.[] | "\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' rsym/curation_exclusions.json
-    pandora curate --input-dir raw/ --policy rfree.yaml --output-dir rfree/
-    jq -r '.[] | "\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' rfree/curation_exclusions.json
+    pandora curate --input-dir raw/ --policy rsym.yaml --output-dir rsym/ --table-format jsonl
+    jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' rsym/exclusions.jsonl
+    pandora curate --input-dir raw/ --policy rfree.yaml --output-dir rfree/ --table-format jsonl
+    jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' rfree/exclusions.jsonl
     ```
 
     ```text
@@ -353,13 +353,13 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
       exclude_nonstandard_residues: true
       allowed_nonstandard_residues: [ACE, DIP, FTY]
     EOF
-    pandora canonicalise --input-dir raw/ --policy mse.yaml --output-dir mapped/
-    pandora curate --input-dir raw/ --policy reject.yaml --output-dir reject/
-    jq -r '.[] | "\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' reject/curation_exclusions.json
-    pandora curate --input-dir raw/ --policy allow.yaml --output-dir allow/
-    jq -r '.[] | "\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' allow/curation_exclusions.json
-    pandora curate --input-dir mapped/ --policy reject.yaml --output-dir mapped_reject/
-    jq -r '.[] | "\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' mapped_reject/curation_exclusions.json
+    pandora canonicalise --input-dir raw/ --policy mse.yaml --output-dir mapped/ --table-format jsonl
+    pandora curate --input-dir raw/ --policy reject.yaml --output-dir reject/ --table-format jsonl
+    jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' reject/exclusions.jsonl
+    pandora curate --input-dir raw/ --policy allow.yaml --output-dir allow/ --table-format jsonl
+    jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' allow/exclusions.jsonl
+    pandora curate --input-dir mapped/ --policy reject.yaml --output-dir mapped_reject/ --table-format jsonl
+    jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' mapped_reject/exclusions.jsonl
     ```
 
     ```text
@@ -451,10 +451,10 @@ Removing a chain keeps the rest of the entry. `min_polymer_chains` and `min_chai
       max_missing_middle_fraction: 0.1
       min_polymer_chains: 2
     EOF
-    pandora curate --input-dir raw/ --policy chains.yaml --output-dir chains/
-    jq -r '.[] | "\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' chains/curation_exclusions.json
-    pandora curate --input-dir raw/ --policy two_chains.yaml --output-dir two_chains/
-    jq -r '.[] | "\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' two_chains/curation_exclusions.json
+    pandora curate --input-dir raw/ --policy chains.yaml --output-dir chains/ --table-format jsonl
+    jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' chains/exclusions.jsonl
+    pandora curate --input-dir raw/ --policy two_chains.yaml --output-dir two_chains/ --table-format jsonl
+    jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' two_chains/exclusions.jsonl
     ```
 
     ```text
@@ -526,10 +526,10 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
     quality_rules:
       max_chain_length: 300
     EOF
-    pandora curate --input-dir raw/ --policy atoms.yaml --output-dir atoms/
-    jq -r '.[] | "\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' atoms/curation_exclusions.json
-    pandora curate --input-dir raw/ --policy length.yaml --output-dir length/
-    jq -r '.[] | "\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' length/curation_exclusions.json
+    pandora curate --input-dir raw/ --policy atoms.yaml --output-dir atoms/ --table-format jsonl
+    jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' atoms/exclusions.jsonl
+    pandora curate --input-dir raw/ --policy length.yaml --output-dir length/ --table-format jsonl
+    jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' length/exclusions.jsonl
     ```
 
     ```text
@@ -584,8 +584,8 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
     organism_rules:
       include_taxa: ["9606"]
     EOF
-    pandora curate --input-dir raw/ --policy human.yaml --output-dir human/
-    jq -r '.[] | "\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' human/curation_exclusions.json
+    pandora curate --input-dir raw/ --policy human.yaml --output-dir human/ --table-format jsonl
+    jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' human/exclusions.jsonl
     ```
 
     ```text
@@ -635,9 +635,9 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
       keep_waters: false
       keep_ions: false
     EOF
-    pandora curate --input-dir raw/ --policy protein.yaml --output-dir protein/
+    pandora curate --input-dir raw/ --policy protein.yaml --output-dir protein/ --table-format jsonl
     pandora export --input raw/104m.cif --output before.json
-    pandora export --input protein/104m.cif --output after.json
+    pandora export --input protein/structures/04/104m.cif --output after.json
     jq '.atoms | length' before.json after.json
     ```
 
@@ -651,7 +651,7 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
 
 ## Collect exclusions across a batch
 
-Curating many entries, extend one list with every call's records. It then holds entry records (`chain_id` is `None`) for entries left out, and chain records for chains removed from entries that were kept. Write it out with `write_records()` or pass it to [`build_dataset_manifest()`](provenance.md#assemble-a-dataset-manifest) as `excluded`. The CLI writes the same list to `curation_exclusions.json`.
+Curating many entries, extend one list with every call's records. It then holds entry records (`chain_id` is `None`) for entries left out, and chain records for chains removed from entries that were kept. Write it out with `write_records()` or pass it to [`build_dataset_manifest()`](provenance.md#assemble-a-dataset-manifest) as `excluded`. The CLI writes the same list to `exclusions.jsonl`.
 
 === "`library`"
 
@@ -712,12 +712,12 @@ Curating many entries, extend one list with every call's records. It then holds 
       max_resolution: 2.5
       max_missing_middle_fraction: 0.1
     EOF
-    pandora curate --input-dir raw/ --policy policy.yaml --output-dir curated/
-    jq -r '.[] | select(.chain_id == null)
-      | "entry excluded: \(.entry_id) \(.reason_code)"' curated/curation_exclusions.json
-    jq -r '.[] | select(.chain_id != null)
+    pandora curate --input-dir raw/ --policy policy.yaml --output-dir curated/ --table-format jsonl
+    jq -r 'select(.chain_id == null)
+      | "entry excluded: \(.entry_id) \(.reason_code)"' curated/exclusions.jsonl
+    jq -r 'select(.chain_id != null)
       | "chain removed: \(.entry_id) \(.chain_id) \(.reason_code)"' \
-      curated/curation_exclusions.json
+      curated/exclusions.jsonl
     ```
 
     ```text
