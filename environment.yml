@@ -13,4 +13,4 @@ dependencies:
   # - mmseqs2
   # - foldseek
   - pip:
-      - -e .[ingestion,export]
+      - -e .[full]
