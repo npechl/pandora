@@ -36,6 +36,8 @@ reading/writing the same types as files instead of in-memory objects — see
 | `ingest_local_mmcif()` | `path` to a file already on disk | `IngestionProvenance` — describes it without fetching/copying |
 | `load_policy()` | `path` to a policy YAML, optional policy `model` | `canonicalisationPolicy`, or an instance of `model` |
 | `read_entry_paths()` | `path` to a text file of mmCIF paths | `list[Path]` |
+| `write_entry_paths()` | `paths`, `path` of the text file to write | `None` |
+| `template_entry_paths()` | archive `root`, path `template` with `{id}`/`{mid}`, optional `ids` | `list[Path]`, sorted |
 | `mirror_path()` | mirror `root`, a file stem (entry id as spelled, e.g. `10kz` or `10kz_A`), `suffix` | `Path` `root/<mid>/<stem><suffix>` |
 | `list_mirror_files()` | mirror `root`, `suffix` | `list[Path]`, sorted |
 
@@ -182,3 +184,6 @@ referenced by — any other schema:
 - **`FetchOptions`** (`pandora.schemas.ingestion`) configures one
   `fetch_mmcif()` call and isn't retained afterward — only its result,
   `IngestionProvenance`, is.
+- **`IngestionDiscovery`** (`pandora.schemas.ingestion`) records how
+  `pandora ingest` found an archive's files; it is stored only as the
+  `policy` of the `ingestion.json` step summary.

@@ -1,3 +1,4 @@
+import gzip
 import json
 import shutil
 import stat
@@ -10,6 +11,7 @@ import pytest
 from pandora.cli._io import read_structures_dir, write_structures_dir
 from pandora.cli.app import _build_parser, main
 from pandora.export import read_records
+from pandora.ingestion import read_entry_paths
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.provenance import CanonicalisationEntryRecord
 from pandora.schemas.similarity import SimilaritySearch
@@ -42,29 +44,157 @@ def test_parser_registers_all_subcommands():
         assert name in help_text
 
 
-def test_ingest_local_directory(tmp_path):
-    mirror_dir = tmp_path / "mirror"
-    mirror_dir.mkdir()
-    (mirror_dir / "104m.cif").write_text(
-        (FIXTURES_DIR / "04" / "104m.cif").read_text()
-    )
+PDBE_TEMPLATE = "{mid}/{id}/clean_mmcif/{id}_updated.cif.gz"
 
-    output_dir = tmp_path / "raw"
+
+def _pdbe_tree(root):
+    """A PDBe-release-like tree with two gzipped entries and strays."""
+
+    for mid, entry in [("04", "104m"), ("0k", "10kz")]:
+        folder = root / mid / entry / "clean_mmcif"
+        folder.mkdir(parents=True)
+        data = (FIXTURES_DIR / mid / f"{entry}.cif").read_bytes()
+        (folder / f"{entry}_updated.cif.gz").write_bytes(gzip.compress(data))
+        (folder.parent / "other.cif").write_bytes(data)
+    (root / "README").write_text("")
+
+
+def _ingest(*args):
+    main(["ingest", *args])
+
+
+def test_ingest_path_template_feeds_canonicalise(tmp_path, monkeypatch):
+    _pdbe_tree(tmp_path / "entry")
+    monkeypatch.chdir(tmp_path)
+    _ingest(
+        "--input-dir",
+        "entry",
+        "--path-template",
+        PDBE_TEMPLATE,
+        "--source-label",
+        "lbl",
+        "--output-dir",
+        "ing",
+    )
+    paths = read_entry_paths(tmp_path / "ing" / "entries.txt")
+    assert len(paths) == 2 and all(p.is_absolute() for p in paths)
+    summary = json.loads((tmp_path / "ing" / "ingestion.json").read_text())
+    assert summary["step"] == "ingestion"
+    assert summary["counts"] == {"entries_found": 2}
+    assert summary["policy"]["path_template"] == PDBE_TEMPLATE
+    assert summary["policy"]["source_label"] == "lbl"
+
     main(
         [
-            "ingest",
-            "--input-dir",
-            str(mirror_dir),
+            "canonicalise",
+            "--entries",
+            "ing/entries.txt",
+            "--policy",
+            str(CANON_POLICY),
             "--output-dir",
-            str(output_dir),
-            "--source-uri",
-            "dev-fixture-snapshot",
+            "canon",
+            "--table-format",
+            "jsonl",
         ]
     )
+    assert (tmp_path / "canon" / "structures" / "04" / "104m.cif").exists()
+    canon = json.loads(
+        (tmp_path / "canon" / "canonicalisation.json").read_text()
+    )
+    assert canon["previous_summary"].endswith("ing/ingestion.json")
 
-    prov = json.loads((output_dir / "ingestion_provenance.json").read_text())
-    assert prov["104M"]["provider"] == "local"
-    assert prov["104M"]["source_uri"] == "dev-fixture-snapshot"
+
+def test_ingest_glob(tmp_path):
+    _ingest(
+        "--input-dir",
+        str(FIXTURES_DIR),
+        "--glob",
+        "*/*.cif",
+        "--output-dir",
+        str(tmp_path / "ing"),
+    )
+    paths = read_entry_paths(tmp_path / "ing" / "entries.txt")
+    assert paths == sorted(FIXTURES_DIR.resolve().glob("*/*.cif"))
+
+
+def test_ingest_ids_file(tmp_path):
+    ids = tmp_path / "ids.txt"
+    ids.write_text("# c\n\n104M\n")
+    (tmp_path / "entry").mkdir()
+    _ingest(
+        "--input-dir",
+        str(tmp_path / "entry"),
+        "--path-template",
+        PDBE_TEMPLATE,
+        "--ids",
+        str(ids),
+        "--output-dir",
+        str(tmp_path / "ing"),
+    )
+    paths = read_entry_paths(tmp_path / "ing" / "entries.txt")
+    assert [str(p) for p in paths] == [
+        str(tmp_path / "entry/04/104m/clean_mmcif/104m_updated.cif.gz")
+    ]
+
+
+def test_ingest_nothing_found(tmp_path):
+    (tmp_path / "entry").mkdir()
+    _ingest(
+        "--input-dir",
+        str(tmp_path / "entry"),
+        "--path-template",
+        PDBE_TEMPLATE,
+        "--output-dir",
+        str(tmp_path / "ing"),
+    )
+    assert (tmp_path / "ing" / "entries.txt").read_text() == ""
+    summary = json.loads((tmp_path / "ing" / "ingestion.json").read_text())
+    assert summary["counts"] == {"entries_found": 0}
+
+
+def test_ingest_rejects_ids_without_template(tmp_path):
+    ids = tmp_path / "ids.txt"
+    ids.write_text("104m\n")
+    with pytest.raises(SystemExit):
+        _ingest(
+            "--input-dir",
+            str(tmp_path),
+            "--glob",
+            "*.cif",
+            "--ids",
+            str(ids),
+            "--output-dir",
+            str(tmp_path / "ing"),
+        )
+
+
+def test_canonicalise_overwrite_keeps_entries_txt(tmp_path):
+    _pdbe_tree(tmp_path / "entry")
+    out = tmp_path / "work"
+    _ingest(
+        "--input-dir",
+        str(tmp_path / "entry"),
+        "--path-template",
+        PDBE_TEMPLATE,
+        "--output-dir",
+        str(out),
+    )
+    for extra in ([], ["--overwrite"]):
+        main(
+            [
+                "canonicalise",
+                "--entries",
+                str(out / "entries.txt"),
+                "--policy",
+                str(CANON_POLICY),
+                "--output-dir",
+                str(out),
+                "--table-format",
+                "jsonl",
+                *extra,
+            ]
+        )
+    assert len(read_entry_paths(out / "entries.txt")) == 2
 
 
 def _canonicalise_and_curate(tmp_path, fixture="04/104m.cif", canon=None):
@@ -646,7 +776,7 @@ def test_step_checks_parquet_support_before_running(tmp_path, monkeypatch):
     assert not (out / "structures").exists()
 
 
-def test_step_skips_duplicate_stems(tmp_path):
+def test_step_skips_duplicate_entries(tmp_path):
     raw = tmp_path / "raw"
     (raw / "04").mkdir(parents=True)
     shutil.copy(FIXTURES_DIR / "04" / "104m.cif", raw / "104m.cif")
@@ -655,7 +785,31 @@ def test_step_skips_duplicate_stems(tmp_path):
     _canonicalise(raw, out)
     assert [e["entry_id"] for e in _jsonl(out / "entries.jsonl")] == ["104M"]
     failures = _jsonl(out / "failures.jsonl")
-    assert [f["error_type"] for f in failures] == ["DuplicateStem"]
+    assert [f["error_type"] for f in failures] == ["DuplicateEntry"]
+
+
+def test_step_names_outputs_by_entry_id(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    data = (FIXTURES_DIR / "04" / "104m.cif").read_bytes()
+    (raw / "104m_updated.cif.gz").write_bytes(gzip.compress(data))
+    (raw / "entries.txt").write_text("104m_updated.cif.gz\n")
+    canon = tmp_path / "canon"
+    main(
+        [
+            "canonicalise",
+            "--entries",
+            str(raw / "entries.txt"),
+            "--policy",
+            str(CANON_POLICY),
+            "--output-dir",
+            str(canon),
+            "--table-format",
+            "jsonl",
+        ]
+    )
+    assert (canon / "structures" / "04" / "104m.cif").exists()
+    assert [e["entry_id"] for e in _jsonl(canon / "entries.jsonl")] == ["104M"]
 
 
 def test_manifest_rejects_folder_that_is_not_a_step_folder(tmp_path):
@@ -678,3 +832,45 @@ def test_manifest_rejects_folder_that_is_not_a_step_folder(tmp_path):
                 str(tmp_path / "m.json"),
             ]
         )
+
+
+def test_fetch_writes_entries_txt(tmp_path, monkeypatch):
+    data = (FIXTURES_DIR / "04" / "104m.cif").read_bytes()
+    monkeypatch.setattr("pandora.ingestion.mmcif._download", lambda url: data)
+    raw = tmp_path / "raw"
+    main(
+        ["fetch", "104m", "--provider", "pdb", "--no-cache"]
+        + ["--output-dir", str(raw)]
+    )
+    assert read_entry_paths(raw / "entries.txt") == [
+        (raw / "104m.cif").resolve()
+    ]
+
+
+def test_ingest_rejects_missing_input_dir(tmp_path):
+    for find in (["--glob", "*.cif"], ["--path-template", "{id}.cif"]):
+        with pytest.raises(SystemExit, match="not a folder"):
+            _ingest(
+                "--input-dir",
+                str(tmp_path / "missing"),
+                *find,
+                "--output-dir",
+                str(tmp_path / "ing"),
+            )
+
+
+def test_curate_duplicate_check_ignores_case(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    text = (FIXTURES_DIR / "04" / "104m.cif").read_text()
+    (raw / "a.cif").write_text(text)
+    (raw / "b.cif").write_text(text.replace("data_104M", "data_104m", 1))
+    policy = tmp_path / "curate.yaml"
+    policy.write_text("policy_id: c\npolicy_name: c\npolicy_version: '1'\n")
+    out = tmp_path / "curated"
+    main(
+        ["curate", "--input-dir", str(raw), "--policy", str(policy)]
+        + ["--output-dir", str(out), "--table-format", "jsonl"]
+    )
+    failures = _jsonl(out / "failures.jsonl")
+    assert [f["error_type"] for f in failures] == ["DuplicateEntry"]

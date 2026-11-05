@@ -34,6 +34,15 @@ def failure_line(path: Path, error_type: str, message: str) -> str:
     return json.dumps(failure) + "\n"
 
 
+def duplicate_line(path: Path, entry_id: str) -> str:
+    """`failures.jsonl` line for an input whose entry an earlier input
+    already had."""
+
+    return failure_line(
+        path, "DuplicateEntry", f"another input is also entry {entry_id}"
+    )
+
+
 def prepare_step_dir(out: Path, summary: str, overwrite: bool) -> None:
     """Create a step's output folder. Refuse one that already holds step
     outputs unless `overwrite`; then delete only those outputs."""

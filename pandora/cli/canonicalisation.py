@@ -14,6 +14,7 @@ from pandora.cli._io import (
     ENTRY_ERRORS,
     TABLE_FORMATS,
     check_table_format,
+    duplicate_line,
     failure_line,
     prepare_step_dir,
     structure_files,
@@ -32,9 +33,12 @@ def _cmd_canonicalise(args: argparse.Namespace) -> None:
     started_at = now_iso()
     out = Path(args.output_dir)
     policy = load_policy(args.policy)
+    previous = None
     if args.entries:
         source = Path(args.entries)
         paths = read_entry_paths(source)
+        if (source.parent / "ingestion.json").exists():
+            previous = source.parent / "ingestion.json"
     else:
         source = Path(args.input_dir)
         paths = structure_files(source)
@@ -50,23 +54,18 @@ def _cmd_canonicalise(args: argparse.Namespace) -> None:
     ):
         for path in paths:
             counts["entries_in"] += 1
-            if path.stem in seen:
-                counts["entries_failed"] += 1
-                failures.write(
-                    failure_line(
-                        path,
-                        "DuplicateStem",
-                        f"another input is also named {path.stem}",
-                    )
-                )
-                continue
-            seen.add(path.stem)
             try:
                 parsed, _, _ = mmcif_to_structure(str(path))
                 if parsed is None:
                     raise ValueError(f"could not parse {path}")
+                stem = parsed.entry_id.lower()
+                if stem in seen:
+                    counts["entries_failed"] += 1
+                    failures.write(duplicate_line(path, parsed.entry_id))
+                    continue
+                seen.add(stem)
                 canon, mappings, prov = canonicalise_structure(parsed, policy)
-                written = mirror_path(Path("structures"), path.stem)
+                written = mirror_path(Path("structures"), stem)
                 structure_to_mmcif(canon, out / written)
             except ENTRY_ERRORS as exc:
                 counts["entries_failed"] += 1
@@ -89,6 +88,7 @@ def _cmd_canonicalise(args: argparse.Namespace) -> None:
             output=out,
             started_at=started_at,
             counts=dict(sorted(counts.items())),
+            previous_summary=previous,
         ),
         out / "canonicalisation.json",
     )

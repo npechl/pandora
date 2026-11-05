@@ -43,6 +43,8 @@ signatures.
     # fetched 5/5 entries -> raw/
     ```
 
+    `raw/entries.txt` lists the saved files, ready for
+    `pandora canonicalise --entries raw/entries.txt`.
     `raw/ingestion_provenance.json` is written alongside the files — keep
     it, `manifest` needs it later if you want `reproduce` to work.
 
@@ -105,36 +107,65 @@ sanity-check the returned count against what you expect.
 ## Ingest already-downloaded files
 
 Pandora has no bulk-download step of its own — for a full PDB snapshot,
-use an existing mirror (e.g. `rsync.rcsb.org`) rather than fetching entries
-one at a time. `ingest_local_mmcif()` records provenance for files you
-already have on disk, without fetching or copying anything.
+use an existing mirror (e.g. `rsync.rcsb.org`) or an archive on a shared
+file system. `template_entry_paths()` lists such an archive's files from
+a path template, and `write_entry_paths()` saves them as the list that
+`pandora canonicalise --entries` reads. Nothing is fetched, copied or
+opened.
+
+The template is a path relative to the archive's root, with `{id}` (the
+entry ID) and `{mid}` (`id[1:3]`, the PDB mirror folder). Only the
+folders above the first `{id}` are listed; the IDs come from the names
+found there, and each path is built from its ID. Pass `ids` to build the
+paths without listing anything.
 
 === "`library`"
 
     ```python
-    from pandora.ingestion import ingest_local_mmcif
-    from pathlib import Path
+    from pandora.ingestion import template_entry_paths, write_entry_paths
 
-    provenance = ingest_local_mmcif(
-        Path("./mirror/pdb_snapshot_2024-01-29/1crn.cif")
-    )
-    print(provenance.provider)
-    # local
+    paths = template_entry_paths("datasets/dev/mmcif", "{mid}/{id}.cif")
+    print(len(paths), paths[0])
+    # 100 datasets/dev/mmcif/04/104m.cif
+    write_entry_paths(paths, "ingest/entries.txt")
     ```
-
-    Pass `source_uri` to record a more meaningful label than the raw path,
-    e.g. `"pdb_snapshot_2024-01-29"`.
 
 === "`cli`"
 
     ```bash
-    pandora ingest --input-dir mirror/pdb_snapshot_2024-01-29/ --output-dir raw/
-    # ingested 5/5 entries -> raw/
+    pandora ingest --input-dir datasets/dev/mmcif --path-template '{mid}/{id}.cif' \
+      --source-label dev-fixtures --output-dir ingest/
+    # ingested 100 entries -> ingest
+    jq .counts ingest/ingestion.json
+    # {
+    #   "entries_found": 100
+    # }
+    pandora canonicalise --entries ingest/entries.txt --policy datasets/canonicalisation.yaml \
+      --output-dir canonical/
     ```
 
-    Same `ingestion_provenance.json` shape as `fetch`, so `manifest` reads
-    it the same way regardless of which one produced it. `--source-uri`
-    applies one label to every file in `--input-dir`.
+    `ingest/entries.txt` holds one absolute path per line.
+    `ingest/ingestion.json` is the step summary: the input root, the
+    template or glob, `--source-label` and `--release-date` as given, and
+    the count. `canonicalise --entries` links to it as its
+    `previous_summary`. `--glob '*/*.cif'` lists files by pattern
+    instead, for layouts a template can't describe. `--ids ids.txt`
+    builds the paths from a list of entry IDs without listing anything.
+
+On a large archive on a network file system, use a template rather than
+a glob: a glob opens every folder it passes through, and the template
+stops above the ID. For the PDBe release tree (about 230k entries) that
+is about 1,300 folder reads instead of several hundred thousand:
+
+```bash
+pandora ingest --input-dir /nfs/production/gerard/pdbe/release/data/entry \
+  --path-template '{mid}/{id}/clean_mmcif/{id}_updated.cif.gz' \
+  --source-label pdbe_release --output-dir ingest/
+```
+
+Paths are not checked: a missing or broken file shows up later in
+`canonicalise`'s `failures.jsonl`. `ingest_local_mmcif()` still records
+per-file provenance for a single file if you need it.
 
 ## Read a list of local files
 

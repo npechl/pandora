@@ -3,7 +3,13 @@ from pathlib import Path
 import httpx
 import pytest
 
-from pandora.ingestion import list_mirror_files, mirror_path, read_entry_paths
+from pandora.ingestion import (
+    list_mirror_files,
+    mirror_path,
+    read_entry_paths,
+    template_entry_paths,
+    write_entry_paths,
+)
 from pandora.ingestion.mmcif import (
     _pdbe_revision_date,
     _revision_date_from_cif_file,
@@ -13,6 +19,7 @@ from pandora.ingestion.policy import load_policy
 from pandora.ingestion.search import search_pdbe, search_rcsb
 from pandora.schemas.dataset import DatasetCurationPolicy
 
+FIXTURES_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
 POLICY_PATH = (
     Path(__file__).parent.parent / "datasets" / "canonicalisation.yaml"
 )
@@ -227,3 +234,77 @@ def test_list_mirror_files_sorted_and_missing_root(tmp_path):
         [tmp_path / "0k" / "10kz.cif", tmp_path / "ay" / "1ayi.cif"]
     )
     assert list_mirror_files(tmp_path / "nope") == []
+
+
+PDBE_TEMPLATE = "{mid}/{id}/clean_mmcif/{id}_updated.cif.gz"
+
+
+def _touch(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("")
+
+
+def test_template_entry_paths_lists_only_down_to_the_id(tmp_path):
+    root = tmp_path / "entry"
+    wanted = [
+        root / "04/104m/clean_mmcif/104m_updated.cif.gz",
+        root / "0k/10kz/clean_mmcif/10kz_updated.cif.gz",
+    ]
+    for path in [
+        *wanted,
+        root / "04/104m/other.cif",
+        root / "04/104m/clean_mmcif/104m.cif",
+        root / "README",
+    ]:
+        _touch(path)
+    assert template_entry_paths(root, PDBE_TEMPLATE) == wanted
+
+
+def test_template_entry_paths_without_listing_when_ids_given(tmp_path):
+    root = tmp_path / "missing"
+    paths = template_entry_paths(root, "{mid}/{id}/x/{id}.cif.gz", ["100D"])
+    assert paths == [root / "00/100d/x/100d.cif.gz"]
+
+
+def test_template_entry_paths_on_plain_mirror():
+    paths = template_entry_paths(FIXTURES_DIR, "{mid}/{id}.cif")
+    assert paths == sorted(FIXTURES_DIR.glob("*/*.cif"))
+
+
+def test_template_entry_paths_keeps_listed_case(tmp_path):
+    (tmp_path / "AB" / "1ABC").mkdir(parents=True)
+    assert template_entry_paths(tmp_path, "{mid}/{id}") == [
+        tmp_path / "AB" / "1ABC"
+    ]
+
+
+@pytest.mark.parametrize("template", ["{mid}/x.cif", "{mid}{id}.cif"])
+def test_template_entry_paths_rejects_bad_templates(tmp_path, template):
+    with pytest.raises(ValueError):
+        template_entry_paths(tmp_path, template)
+
+
+def test_write_entry_paths_round_trips(tmp_path):
+    paths = [tmp_path / "a" / "1abc.cif", tmp_path / "b" / "2xyz.cif.gz"]
+    list_file = tmp_path / "sub" / "entries.txt"
+    write_entry_paths(paths, list_file)
+    assert read_entry_paths(list_file) == paths
+
+
+def test_template_entry_paths_skips_dot_names_and_files(tmp_path):
+    root = tmp_path / "entry"
+    wanted = root / "04/104m/clean_mmcif/104m_updated.cif.gz"
+    for path in [
+        wanted,
+        root / "04/.DS_Store",
+        root / "04/notes.txt",
+        root / ".snapshot/04/1abc/clean_mmcif/1abc_updated.cif.gz",
+    ]:
+        _touch(path)
+    assert template_entry_paths(root, PDBE_TEMPLATE) == [wanted]
+
+
+def test_template_entry_paths_keeps_the_folder_found(tmp_path):
+    misfiled = tmp_path / "zz" / "1abc"
+    misfiled.mkdir(parents=True)
+    assert template_entry_paths(tmp_path, "{mid}/{id}") == [misfiled]

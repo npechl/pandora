@@ -11,6 +11,7 @@ from pandora.cli._io import (
     ENTRY_ERRORS,
     TABLE_FORMATS,
     check_table_format,
+    duplicate_line,
     failure_line,
     find_table,
     load_yaml_model,
@@ -43,6 +44,7 @@ from pandora.schemas.dataset import (
     ExclusionRecord,
 )
 from pandora.schemas.provenance import CurationEntryRecord
+from pandora.schemas.structure import Structure
 
 
 def _read_copies(folder: Path) -> dict[str, dict[str, str]]:
@@ -57,24 +59,21 @@ def _read_copies(folder: Path) -> dict[str, dict[str, str]]:
 
 
 def _curate_one(
-    path: Path,
+    structure: Structure,
     policy: DatasetCurationPolicy,
     copies: dict[str, dict[str, str]],
     out: Path,
 ) -> tuple[
     list[ExclusionRecord], list[DatasetChainRecord], CurationEntryRecord | None
 ]:
-    """Curate one structure file; write it under `out` if kept. Returns
-    its exclusions, chain rows and entry row (None if not kept)."""
+    """Curate one structure; write it under `out` if kept. Returns its
+    exclusions, chain rows and entry row (None if not kept)."""
 
-    structure, _, _ = mmcif_to_structure(str(path))
-    if structure is None:
-        raise ValueError(f"could not parse {path}")
     metadata = collect_metadata(structure)
     curated, dropped, prov = curate_structure(structure, metadata, policy)
     if curated is None:
         return dropped, [], None
-    written = mirror_path(Path("structures"), path.stem)
+    written = mirror_path(Path("structures"), curated.entry_id.lower())
     structure_to_mmcif(curated, out / written)
     rows = dataset_chain_records(
         curated,
@@ -110,19 +109,19 @@ def _cmd_curate(args: argparse.Namespace) -> None:
     with (out / "failures.jsonl").open("w") as failures:
         for path in structure_files(in_dir):
             counts["entries_in"] += 1
-            if path.stem in seen:
-                counts["entries_failed"] += 1
-                failures.write(
-                    failure_line(
-                        path,
-                        "DuplicateStem",
-                        f"another input is also named {path.stem}",
-                    )
-                )
-                continue
-            seen.add(path.stem)
             try:
-                dropped, rows, entry = _curate_one(path, policy, copies, out)
+                structure, _, _ = mmcif_to_structure(str(path))
+                if structure is None:
+                    raise ValueError(f"could not parse {path}")
+                key = structure.entry_id.lower()
+                if key in seen:
+                    counts["entries_failed"] += 1
+                    failures.write(duplicate_line(path, structure.entry_id))
+                    continue
+                seen.add(key)
+                dropped, rows, entry = _curate_one(
+                    structure, policy, copies, out
+                )
             except ENTRY_ERRORS as exc:
                 counts["entries_failed"] += 1
                 failures.write(failure_line(path, type(exc).__name__, str(exc)))

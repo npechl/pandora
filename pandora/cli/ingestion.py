@@ -6,10 +6,16 @@ import argparse
 import sys
 from pathlib import Path
 
-from pandora.cli._io import (
-    write_json_dict,
+from pandora._util import now_iso
+from pandora.cli._io import write_json_dict
+from pandora.export import write_json
+from pandora.ingestion import template_entry_paths, write_entry_paths
+from pandora.provenance import build_step_summary
+from pandora.schemas.ingestion import (
+    FetchOptions,
+    IngestionDiscovery,
+    IngestionProvenance,
 )
-from pandora.schemas.ingestion import FetchOptions, IngestionProvenance
 
 
 def _cmd_fetch(args: argparse.Namespace) -> None:
@@ -35,35 +41,73 @@ def _cmd_fetch(args: argparse.Namespace) -> None:
             )
 
     write_json_dict(provenance, output_dir / "ingestion_provenance.json")
+    root = output_dir.resolve()
+    paths = []
+    for entry_id in provenance:
+        gz = root / f"{entry_id.lower()}.cif.gz"
+        paths.append(gz if gz.exists() else root / f"{entry_id.lower()}.cif")
+    write_entry_paths(sorted(paths), output_dir / "entries.txt")
     print(
         f"fetched {len(provenance)}/{len(args.entry_ids)} entries -> {output_dir}"
     )
 
 
 def _cmd_ingest(args: argparse.Namespace) -> None:
-    """Handle the `ingest` subcommand: record ingestion provenance for a
-    directory of already-downloaded mmCIF files (e.g. a local bulk
-    mirror/snapshot), without fetching or copying anything."""
+    """Handle the `ingest` subcommand: list an archive's mmCIF files into
+    `entries.txt` and write the `ingestion.json` step summary."""
 
-    from pandora.ingestion.mmcif import ingest_local_mmcif
+    started_at = now_iso()
+    if args.ids and not args.path_template:
+        raise SystemExit("--ids needs --path-template")
+    root = Path(args.input_dir).resolve()
+    if not root.is_dir():
+        raise SystemExit(f"{root} is not a folder")
+    out = Path(args.output_dir)
+    written = [out / "entries.txt", out / "ingestion.json"]
+    existing = [p for p in written if p.exists()]
+    if existing and not args.overwrite:
+        raise SystemExit(
+            f"{out} already holds {existing[0].name}; "
+            "pass --overwrite to replace it"
+        )
 
-    input_dir = Path(args.input_dir)
-    output_dir = Path(args.output_dir)
-
-    provenance: dict[str, IngestionProvenance] = {}
-    paths = sorted(input_dir.glob("*.cif"))
-    for path in paths:
+    if args.glob:
+        paths = sorted(root.glob(args.glob))
+    else:
+        ids = None
+        if args.ids:
+            lines = Path(args.ids).read_text().splitlines()
+            ids = [
+                line.strip()
+                for line in lines
+                if line.strip() and not line.strip().startswith("#")
+            ]
         try:
-            provenance[path.stem.upper()] = ingest_local_mmcif(
-                path, args.source_uri
-            )
+            paths = template_entry_paths(root, args.path_template, ids)
         except ValueError as exc:
-            if not args.allow_partial:
-                raise
-            print(f"warning: failed to ingest {path}: {exc}", file=sys.stderr)
+            raise SystemExit(str(exc)) from exc
 
-    write_json_dict(provenance, output_dir / "ingestion_provenance.json")
-    print(f"ingested {len(provenance)}/{len(paths)} entries -> {output_dir}")
+    write_entry_paths(paths, out / "entries.txt")
+    discovery = IngestionDiscovery(
+        input_dir=str(root),
+        glob=args.glob,
+        path_template=args.path_template,
+        ids_file=args.ids,
+        source_label=args.source_label,
+        release_date=args.release_date,
+    )
+    write_json(
+        build_step_summary(
+            "ingestion",
+            discovery,
+            input=root,
+            output=out,
+            started_at=started_at,
+            counts={"entries_found": len(paths)},
+        ),
+        out / "ingestion.json",
+    )
+    print(f"ingested {len(paths)} entries -> {out}")
 
 
 def register(subparsers: argparse._SubParsersAction) -> None:
@@ -79,16 +123,31 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
     p = subparsers.add_parser(
         "ingest",
-        help="Record ingestion provenance for an already-downloaded "
-        "directory of mmCIF files (e.g. a local bulk mirror/snapshot).",
+        help="List an archive's mmCIF files into entries.txt, without "
+        "opening them.",
     )
-    p.add_argument("--input-dir", required=True)
+    p.add_argument("--input-dir", required=True, help="the archive's root")
+    find = p.add_mutually_exclusive_group(required=True)
+    find.add_argument(
+        "--glob", help="glob pattern relative to --input-dir, e.g. '*/*.cif'"
+    )
+    find.add_argument(
+        "--path-template",
+        help="path relative to --input-dir with {id} and {mid}, e.g. "
+        "'{mid}/{id}/clean_mmcif/{id}_updated.cif.gz'; lists only the "
+        "folders above {id}",
+    )
+    p.add_argument(
+        "--ids",
+        help="file of entry IDs, one per line, to fill --path-template "
+        "with instead of listing",
+    )
+    p.add_argument("--source-label", help="free-text label for the source")
+    p.add_argument("--release-date", help="the source's release date")
     p.add_argument("--output-dir", required=True)
     p.add_argument(
-        "--source-uri",
-        help="Label for where these files came from (e.g. "
-        "'pdb_snapshot_2024-01-29'), applied to every entry. Defaults to "
-        "each file's own path.",
+        "--overwrite",
+        action="store_true",
+        help="replace entries.txt/ingestion.json in --output-dir",
     )
-    p.add_argument("--allow-partial", action="store_true")
     p.set_defaults(func=_cmd_ingest)

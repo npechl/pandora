@@ -53,3 +53,27 @@ class IngestionProvenance(BaseModel):
     retrieved_at: str | None = None
     from_cache: bool = False
     revision_date: str | None = None
+
+
+class IngestionDiscovery(BaseModel):
+    """How `pandora ingest` found an archive's files, recorded as the
+    `policy` of its step summary.
+
+    Attributes:
+        input_dir: The archive's root folder.
+        glob: The glob pattern used, relative to `input_dir`, if any.
+        path_template: The path template used (see
+            `template_entry_paths`), if any.
+        ids_file: The file of entry IDs the template was filled from,
+            if any.
+        source_label: A free-text label for the source, e.g.
+            "pdbe_release_2026-11-05".
+        release_date: The source's release date, as given.
+    """
+
+    input_dir: str
+    glob: str | None = None
+    path_template: str | None = None
+    ids_file: str | None = None
+    source_label: str | None = None
+    release_date: str | None = None
