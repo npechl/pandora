@@ -116,6 +116,24 @@ To work on Pandora itself, clone the repo and install from the lockfile:
 uv sync --all-extras
 ```
 
+### Update
+
+```bash
+# conda or pip install from a clone (editable)
+git pull
+conda env update -f environment.yml --prune   # conda
+python -m pip install -e ".[full]"            # pip: same extras as before
+
+# uv
+uv lock --upgrade-package pandora && uv sync  # uv add
+uv tool upgrade pandora                       # uv tool install
+git pull && uv sync --all-extras              # working on Pandora itself
+```
+
+`git pull` alone updates the code of an editable install; re-running the
+install picks up new or changed dependencies. `python -m pip show
+pandora` prints the installed version.
+
 ## Example
 
 This runs offline against a structure bundled in the repo (sperm whale
