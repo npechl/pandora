@@ -1583,7 +1583,7 @@ def test_no_atoms_left_fails_validation():
         missing_data_rules=rules,
     )
 
-    with pytest.raises(ValueError, match="1P58|1p58"):
+    with pytest.raises(ValueError, match="1P58.*NO_ATOMS_LEFT"):
         canonicalise_structure(structure, policy)
 
 

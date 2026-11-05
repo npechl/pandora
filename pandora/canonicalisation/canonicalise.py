@@ -232,9 +232,12 @@ def canonicalise_structure(
     # validate_canonical_structure ---------------------------------------
     status = _validate(atoms, asym_units, vr, diagnostics, structure.entry_id)
     if status == "failed":
+        # Errors if any, else the warnings that warnings_as_errors failed on.
+        reasons = diagnostics.errors or diagnostics.warnings
+        codes = ", ".join(dict.fromkeys(d.code for d in reasons))
         raise ValueError(
             f"Validation of canonicalised structure failed for entry "
-            f"{structure.entry_id!r}"
+            f"{structure.entry_id!r}: {codes}"
         )
 
     # Verbatim categories that index chains or residues would contradict

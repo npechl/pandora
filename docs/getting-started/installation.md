@@ -58,6 +58,27 @@ shell is running a `pandora` script left over from another Python
 install. Run `rehash` (zsh) or `hash -r` (bash), or delete the stale
 script that `which pandora` shows.
 
+## Update
+
+Both installs above are editable (`-e`), so the environment runs the code in your checkout. To move to a newer Pandora, update the checkout and refresh the dependencies:
+
+```sh
+cd pandora
+git pull
+
+# conda env: also picks up dependency changes in environment.yml
+conda env update -f environment.yml --prune
+
+# pip: re-run the install with the extras you used before
+python -m pip install -e ".[full]"
+```
+
+`git pull` alone updates the code. The second step is needed when a release adds or changes a dependency or a command. Check the installed version with:
+
+```sh
+python -m pip show pandora
+```
+
 ## Components
 
 `pandora/` is one package per component (see the [Overview](../index.md) diagram), but most stages need nothing beyond the base install — only `ingestion`, `export`, and `similarity` pull in extra dependencies. Rows below with no `pip install` command aren't real `pyproject.toml` extras; running `pip install -e ".[parsing]"` (for example) would just error with "extra not found".
