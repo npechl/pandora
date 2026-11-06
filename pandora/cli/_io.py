@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 import yaml
@@ -43,18 +44,13 @@ def duplicate_line(path: Path, entry_id: str) -> str:
     )
 
 
-def prepare_step_dir(out: Path, summary: str, overwrite: bool) -> None:
-    """Create a step's output folder. Refuse one that already holds step
-    outputs unless `overwrite`; then delete only those outputs."""
+def prepare_output_dir(
+    out: Path, outputs: Sequence[str], overwrite: bool
+) -> None:
+    """Create `out`. Refuse if any of `outputs` (names of files or
+    folders in `out`) exists unless `overwrite`; then delete only those."""
 
-    old = [out / "structures", out / summary]
-    old += [out / name for name in _STEP_FILES]
-    old += [
-        out / f"{table}.{fmt}"
-        for table in _STEP_TABLES
-        for fmt in TABLE_FORMATS
-    ]
-    existing = [p for p in old if p.exists()]
+    existing = [out / name for name in outputs if (out / name).exists()]
     if existing and not overwrite:
         raise SystemExit(
             f"{out} already holds step outputs ({existing[0].name}, ...); "
@@ -66,6 +62,17 @@ def prepare_step_dir(out: Path, summary: str, overwrite: bool) -> None:
         else:
             path.unlink()
     out.mkdir(parents=True, exist_ok=True)
+
+
+def prepare_step_dir(out: Path, summary: str, overwrite: bool) -> None:
+    """Create a step's output folder. Refuse one that already holds step
+    outputs unless `overwrite`; then delete only those outputs."""
+
+    outputs = ["structures", summary, *_STEP_FILES]
+    outputs += [
+        f"{table}.{fmt}" for table in _STEP_TABLES for fmt in TABLE_FORMATS
+    ]
+    prepare_output_dir(out, outputs, overwrite)
 
 
 def check_table_format(table_format: str) -> None:

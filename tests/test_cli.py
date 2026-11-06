@@ -13,6 +13,7 @@ from pandora.cli.app import _build_parser, main
 from pandora.export import read_records
 from pandora.ingestion import read_entry_paths
 from pandora.parsing import mmcif_to_structure
+from pandora.schemas.annotation import LayerRow
 from pandora.schemas.provenance import CanonicalisationEntryRecord
 from pandora.schemas.similarity import SimilaritySearch
 from pandora.similarity.hits import HIT_COLUMNS
@@ -907,3 +908,96 @@ def test_annotate_old_flat_form_is_gone(tmp_path):
                 str(tmp_path),
             ]
         )
+
+
+_LAYER_ROWS = [
+    '{"entry_id":"1a2c","auth_chain_id":"L","auth_seq_id":"1",'
+    '"ins_code":"H","value":1.0}',
+    '{"entry_id":"1A2C","chain_id":"A","seq_id":2,"value":2.0}',
+    '{"entry_id":"1A2C","auth_chain_id":"H","auth_seq_id":"147",'
+    '"ins_code":"A","value":3.0}',
+    '{"entry_id":"9XYZ","chain_id":"A","seq_id":1,"value":4.0}',
+]
+
+
+def _layer_inputs(tmp_path):
+    """A curated step folder with 1a2c, a 4-row residue_values table, a
+    description and a raw tool output; returns the import CLI args."""
+
+    structures = tmp_path / "curated" / "structures" / "a2"
+    structures.mkdir(parents=True)
+    shutil.copy(FIXTURES_DIR / "a2" / "1a2c.cif", structures / "1a2c.cif")
+    (tmp_path / "curated" / "curation.json").write_text("{}")
+    (tmp_path / "cocada.yaml").write_text(
+        "name: t\ntemplate: residue_values\ntool: T\n"
+        'tool_version: "1"\nparameters: {cutoff: 5.0}\n'
+    )
+    (tmp_path / "raw").mkdir()
+    (tmp_path / "raw" / "out.txt").write_text("raw tool output\n")
+    (tmp_path / "t.jsonl").write_text("\n".join(_LAYER_ROWS) + "\n")
+    return [
+        "--structures-dir",
+        str(tmp_path / "curated"),
+        "--table",
+        str(tmp_path / "t.jsonl"),
+        "--description",
+        str(tmp_path / "cocada.yaml"),
+        "--source-files",
+        str(tmp_path / "raw"),
+        "--output-dir",
+        str(tmp_path / "annotations" / "t"),
+        "--table-format",
+        "jsonl",
+    ]
+
+
+def test_annotate_import_writes_layer_folder(tmp_path):
+    main(["annotate", "import", *_layer_inputs(tmp_path)])
+    out = tmp_path / "annotations" / "t"
+    matched = read_records(out / "layer.jsonl", LayerRow)
+    assert [r.model_dump()["seq_id"] for r in matched] == [1, 2]
+    unmatched = [
+        r.model_dump()["reason"]
+        for r in read_records(out / "unmatched.jsonl", LayerRow)
+    ]
+    assert unmatched == ["no_coordinates", "entry_not_found"]
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["step"] == "annotation_import"
+    assert summary["policy"]["template"] == "residue_values"
+    assert summary["counts"] == {
+        "rows_in": 4,
+        "rows_matched": 2,
+        "rows_unmatched": 2,
+        "unmatched:entry_not_found": 1,
+        "unmatched:no_coordinates": 1,
+    }
+    assert summary["previous_summary"].endswith("curation.json")
+    assert (out / "source" / "out.txt").exists()
+
+
+def test_annotate_import_refuses_existing_layer_without_overwrite(tmp_path):
+    args = _layer_inputs(tmp_path)
+    main(["annotate", "import", *args])
+    with pytest.raises(SystemExit):
+        main(["annotate", "import", *args])
+    main(["annotate", "import", *args, "--overwrite"])
+
+
+def test_annotate_import_missing_value_column_writes_nothing(tmp_path):
+    args = _layer_inputs(tmp_path)
+    (tmp_path / "t.jsonl").write_text(
+        '{"entry_id":"1A2C","chain_id":"A","seq_id":1}\n'
+    )
+    with pytest.raises(SystemExit, match="value"):
+        main(["annotate", "import", *args])
+    assert not (tmp_path / "annotations" / "t").exists()
+
+
+def test_annotate_import_empty_table(tmp_path):
+    args = _layer_inputs(tmp_path)
+    (tmp_path / "t.jsonl").write_text("")
+    main(["annotate", "import", *args])
+    out = tmp_path / "annotations" / "t"
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["counts"]["rows_in"] == 0
+    assert not (out / "layer.jsonl").exists()

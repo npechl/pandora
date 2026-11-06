@@ -108,6 +108,17 @@ pandora annotate compute --input-dir deduped/ --layers structure_counts ligand_c
 skip the rest. `--pairwise` additionally computes
 `annotate_pairwise_sequence_identity()` for every pair in the batch.
 
+## annotate import
+
+Import a table produced by an external tool, converted into one of Pandora's layer templates, and link it to the structures the tool ran on (see [Importing a layer from another tool](annotation.md#importing-a-layer-from-another-tool)):
+
+```sh
+pandora annotate import --structures-dir curated/ --table cocada_contacts.jsonl --description cocada.yaml --output-dir annotations/cocada
+# imported: 1 rows, 1 unmatched -> annotations/cocada
+```
+
+It writes `layer.<fmt>`, `unmatched.<fmt>`, `layer.json` and, with `--source-files`, a copy of the tool's files in `source/`.
+
 ## manifest
 
 Assemble a `DatasetManifest` from every prior stage's output:

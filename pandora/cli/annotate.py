@@ -4,19 +4,35 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+from collections import Counter
 from itertools import combinations
 from pathlib import Path
 
+from pandora._util import now_iso
 from pandora.annotations import (
     annotate_chain_interfaces,
     annotate_ligand_contacts,
     annotate_pairwise_sequence_identity,
     annotate_structure_counts,
+    check_layer_columns,
+    resolve_layer_rows,
 )
 from pandora.cli._io import (
+    TABLE_FORMATS,
+    check_table_format,
+    prepare_output_dir,
     read_structures_dir,
+    write_table,
 )
-from pandora.schemas.annotation import AnnotationLayer
+from pandora.export import read_records, write_json
+from pandora.ingestion import load_policy
+from pandora.provenance import build_step_summary
+from pandora.schemas.annotation import (
+    AnnotationLayer,
+    LayerDescription,
+    LayerRow,
+)
 
 _ENTRY_ANNOTATORS = {
     "structure_counts": annotate_structure_counts,
@@ -62,6 +78,86 @@ def _cmd_compute(args: argparse.Namespace) -> None:
     print(f"annotated {len(structures)} entries -> {output_dir}")
 
 
+# What `annotate import` writes: cleared by --overwrite.
+_LAYER_OUTPUTS = [
+    *(f"{t}.{fmt}" for t in ("layer", "unmatched") for fmt in TABLE_FORMATS),
+    "source",
+    "layer.json",
+]
+_PREVIOUS_SUMMARIES = ("curation.json", "canonicalisation.json")
+
+
+def _cmd_import(args: argparse.Namespace) -> None:
+    """Handle `annotate import`: link a tool's table to a step folder's
+    structures and write the layer folder."""
+
+    started_at = now_iso()
+    check_table_format(args.table_format)
+    out = Path(args.output_dir)
+    table = Path(args.table)
+    try:
+        description = load_policy(args.description, model=LayerDescription)
+        rows = [row.model_dump() for row in read_records(table, LayerRow)]
+        if rows:
+            columns = {column for row in rows for column in row}
+            check_layer_columns(columns, description.template)
+    except ValueError as exc:
+        raise SystemExit(f"cannot import {table}: {exc}") from exc
+
+    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    structures_dir = Path(args.structures_dir)
+    structures = read_structures_dir(structures_dir)
+    matched, unmatched = resolve_layer_rows(
+        rows, description.template, structures
+    )
+    if args.source_files:
+        _copy_source(Path(args.source_files), out / "source")
+    write_table(
+        [LayerRow(**r) for r in matched], out, "layer", args.table_format
+    )
+    write_table(
+        [LayerRow(**r) for r in unmatched], out, "unmatched", args.table_format
+    )
+
+    counts = Counter(
+        rows_in=len(rows),
+        rows_matched=len(matched),
+        rows_unmatched=len(unmatched),
+    )
+    counts.update(f"unmatched:{r['reason']}" for r in unmatched)
+    previous = next(
+        (
+            structures_dir / name
+            for name in _PREVIOUS_SUMMARIES
+            if (structures_dir / name).exists()
+        ),
+        None,
+    )
+    write_json(
+        build_step_summary(
+            "annotation_import",
+            description,
+            input=table,
+            output=out,
+            started_at=started_at,
+            counts=dict(sorted(counts.items())),
+            previous_summary=previous,
+        ),
+        out / "layer.json",
+    )
+    print(f"imported: {len(matched)} rows, {len(unmatched)} unmatched -> {out}")
+
+
+def _copy_source(source: Path, dest: Path) -> None:
+    """Copy a tool's original output file or folder into `dest`."""
+
+    if source.is_dir():
+        shutil.copytree(source, dest)
+    else:
+        dest.mkdir(parents=True)
+        shutil.copy2(source, dest / source.name)
+
+
 def register(subparsers: argparse._SubParsersAction) -> None:
     """Add this module's subcommands to the `pandora` parser."""
 
@@ -82,3 +178,17 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--pairwise", action="store_true")
     p.add_argument("--output-dir", required=True)
     p.set_defaults(func=_cmd_compute)
+
+    p = commands.add_parser(
+        "import",
+        help="Link a table from an external tool to a step folder's "
+        "structures, as an annotation layer.",
+    )
+    p.add_argument("--structures-dir", required=True)
+    p.add_argument("--table", required=True)
+    p.add_argument("--description", required=True)
+    p.add_argument("--source-files")
+    p.add_argument("--output-dir", required=True)
+    p.add_argument("--overwrite", action="store_true")
+    p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet")
+    p.set_defaults(func=_cmd_import)
