@@ -9,7 +9,7 @@ from pandora.annotations.entry import (
     annotate_ligand_contacts,
     polymer_asym_ids,
 )
-from pandora.annotations.layers import check_layer_columns
+from pandora.annotations.layers import check_layer_columns, resolve_layer_rows
 from pandora.datasets import extract_interface_records
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.annotation import LayerDescription, LayerRow
@@ -513,3 +513,139 @@ def test_check_layer_columns_accepts_either_naming():
 def test_check_layer_columns_rejects_missing(columns, template, missing):
     with pytest.raises(ValueError, match=missing):
         check_layer_columns(columns, template)
+
+
+_1A2C = mmcif_to_structure(str(MMCIF_DIR / "a2" / "1a2c.cif"))[0]
+S = {"1A2C": _1A2C}
+
+
+def test_resolve_author_naming_fills_pandora_keys():
+    m, u = resolve_layer_rows(
+        [
+            {
+                "entry_id": "1a2c",
+                "auth_chain_id": "L",
+                "auth_seq_id": "1",
+                "ins_code": "G",
+                "value": 0.5,
+            }
+        ],
+        "residue_values",
+        S,
+    )
+    assert u == []
+    assert m == [
+        {
+            "entry_id": "1A2C",
+            "chain_id": "A",
+            "seq_id": 2,
+            "auth_chain_id": "L",
+            "auth_seq_id": "1",
+            "ins_code": "G",
+            "value": 0.5,
+        }
+    ]
+
+
+def test_resolve_pandora_naming_fills_author_keys():
+    m, _ = resolve_layer_rows(
+        [{"entry_id": "1A2C", "chain_id": "A", "seq_id": 1, "value": 1.0}],
+        "residue_values",
+        S,
+    )
+    row = m[0]
+    assert (row["auth_chain_id"], row["auth_seq_id"], row["ins_code"]) == (
+        "L",
+        "1",
+        "H",
+    )
+
+
+def test_resolve_parquet_floats_and_ins_code_spellings():
+    rows = [
+        {"entry_id": "1A2C", "chain_id": "A", "seq_id": 3.0, "value": 1},
+        {
+            "entry_id": "1A2C",
+            "auth_chain_id": "L",
+            "auth_seq_id": 471.0,
+            "ins_code": "?",
+            "value": 1,
+        },
+    ]
+    m, u = resolve_layer_rows(rows, "residue_values", S)
+    assert u == [] and m[0]["seq_id"] == 3
+    assert (m[1]["chain_id"], m[1]["seq_id"]) == ("F", None)
+
+
+@pytest.mark.parametrize(
+    "row, reason",
+    [
+        ({"entry_id": "9XYZ", "chain_id": "A", "seq_id": 1}, "entry_not_found"),
+        ({"entry_id": "1A2C", "chain_id": "A"}, "missing_key"),
+        ({"entry_id": "1A2C", "chain_id": "Z", "seq_id": 1}, "chain_not_found"),
+        (
+            {"entry_id": "1A2C", "chain_id": "A", "seq_id": 9999},
+            "residue_not_found",
+        ),
+        (
+            {
+                "entry_id": "1A2C",
+                "auth_chain_id": "H",
+                "auth_seq_id": "147",
+                "ins_code": "A",
+            },
+            "no_coordinates",
+        ),
+        (
+            {"entry_id": "1A2C", "chain_id": "B", "seq_id": 148},
+            "no_coordinates",
+        ),
+        (
+            {
+                "entry_id": "1A2C",
+                "chain_id": "A",
+                "seq_id": 1,
+                "auth_chain_id": "L",
+                "auth_seq_id": "1",
+                "ins_code": "G",
+            },
+            "naming_conflict",
+        ),
+        ({"entry_id": "1A2C", "chain_id": "A", "seq_id": "x"}, "bad_value"),
+    ],
+)
+def test_resolve_unmatched_reasons(row, reason):
+    m, u = resolve_layer_rows([{**row, "label": "x"}], "residue_labels", S)
+    assert m == [] and u == [{**row, "label": "x", "reason": reason}]
+
+
+def test_resolve_ambiguous_author_id():
+    # strip insertion codes, as preserve_insertion_codes=False does (#125)
+    atoms = [
+        a.model_copy(update={"pdbx_PDB_ins_code": None}) for a in _1A2C.atoms
+    ]
+    s = _1A2C.model_copy(update={"atoms": atoms})
+    _, u = resolve_layer_rows(
+        [
+            {
+                "entry_id": "1A2C",
+                "auth_chain_id": "L",
+                "auth_seq_id": "1",
+                "label": "x",
+            }
+        ],
+        "residue_labels",
+        {"1A2C": s},
+    )
+    assert u[0]["reason"] == "ambiguous_author_id"
+
+
+def test_resolve_does_not_mutate_rows():
+    row = {"entry_id": "1a2c", "chain_id": "A", "seq_id": 1, "label": "x"}
+    resolve_layer_rows([row], "residue_labels", S)
+    assert row == {
+        "entry_id": "1a2c",
+        "chain_id": "A",
+        "seq_id": 1,
+        "label": "x",
+    }
