@@ -13,6 +13,7 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from pandora.annotations.entry import polymer_asym_ids
 from pandora.schemas.annotation import LayerTemplate
 from pandora.schemas.structure import Structure
 
@@ -28,6 +29,15 @@ _TEMPLATES: dict[str, tuple[tuple[str, ...], str, str | None]] = {
 }
 
 _KEY_STEMS = ("chain_id", "seq_id", "auth_chain_id", "auth_seq_id", "ins_code")
+
+# Templates whose rows must be one per key; the rest keep repeats.
+_UNIQUE = {
+    "residue_values",
+    "residue_labels",
+    "chain_values",
+    "chain_labels",
+    "interface_labels",
+}
 
 
 def _namings(side: str, level: str) -> tuple[tuple[str, ...], ...]:
@@ -147,6 +157,8 @@ class _Index:
     structure: Structure
     asym_ids: set[str] = field(default_factory=set)
     auth_chains: set[str] = field(default_factory=set)
+    auth_of: dict[str, str | None] = field(default_factory=dict)
+    polymers_by_auth: dict[str, list[str]] = field(default_factory=dict)
     by_label: dict[tuple[str, int], _Residue] = field(default_factory=dict)
     by_auth: dict[tuple[str, str, str], list[_Residue]] = field(
         default_factory=dict
@@ -161,6 +173,11 @@ def _build_index(structure: Structure) -> _Index:
     index = _Index(structure)
     index.asym_ids = {u.id for u in structure.asym_units}
     index.auth_chains = {u.auth_id for u in structure.asym_units if u.auth_id}
+    index.auth_of = {u.id: u.auth_id for u in structure.asym_units}
+    polymers = polymer_asym_ids(structure)
+    for unit in structure.asym_units:
+        if unit.id in polymers and unit.auth_id:
+            index.polymers_by_auth.setdefault(unit.auth_id, []).append(unit.id)
     seen: set[_Residue] = set()
     for atom in structure.atoms:
         ins = _as_ins(atom.pdbx_PDB_ins_code)
@@ -255,6 +272,56 @@ def _resolve_residue(
     }
 
 
+def _resolve_chain(
+    index: _Index, row: Mapping[str, Any], side: str
+) -> dict[str, Any] | str:
+    """The filled key columns of one chain side, or a reason.
+
+    An author chain id resolves among polymer chains only: ligands and
+    waters usually share their polymer's author chain id.
+    """
+
+    label = row.get(f"chain_id{side}")
+    auth = row.get(f"auth_chain_id{side}")
+    if not _present(label) and not _present(auth):
+        return "missing_key"
+    chains: set[str] = set()
+    if _present(label):
+        if label not in index.asym_ids:
+            return "chain_not_found"
+        chains.add(label)
+    if _present(auth):
+        hits = index.polymers_by_auth.get(auth, [])
+        if not hits:
+            return "chain_not_found"
+        if len(hits) > 1:
+            return "ambiguous_author_id"
+        chains.add(hits[0])
+    if len(chains) > 1:
+        return "naming_conflict"
+    (chain_id,) = chains
+    return {
+        f"chain_id{side}": chain_id,
+        f"auth_chain_id{side}": index.auth_of.get(chain_id),
+    }
+
+
+def _bad_value(row: Mapping[str, Any], template: LayerTemplate) -> bool:
+    """Whether the row's required value has the wrong type."""
+
+    required = _TEMPLATES.get(template, ((), "", None))[2]
+    value = row.get(required) if required else None
+    if required == "value":
+        return (
+            isinstance(value, bool)
+            or not isinstance(value, int | float)
+            or not _present(value)
+        )
+    if required == "label":
+        return not isinstance(value, str) or not value
+    return False
+
+
 def resolve_layer_rows(
     rows: Sequence[Mapping[str, Any]],
     template: LayerTemplate,
@@ -283,8 +350,20 @@ def resolve_layer_rows(
     indexes: dict[str, _Index] = {}
     matched: list[dict[str, Any]] = []
     unmatched: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    sides = _TEMPLATES.get(template, ((), "", None))[0]
     for row in rows:
         result = _resolve_row(row, template, by_entry, indexes)
+        if not isinstance(result, str) and template in _UNIQUE:
+            key = tuple(
+                result.get(f"{stem}{side}")
+                for side in sides
+                for stem in _KEY_STEMS
+            )
+            if (result["entry_id"], key) in seen:
+                result = "duplicate_key"
+            else:
+                seen.add((result["entry_id"], key))
         if isinstance(result, str):
             unmatched.append({**row, "reason": result})
         else:
@@ -307,9 +386,13 @@ def _resolve_row(
     if index is None:
         index = indexes[entry.entry_id] = _build_index(entry)
     filled: dict[str, Any] = {**row, "entry_id": entry.entry_id}
-    for side, _level in _sides(template, row):
-        keys = _resolve_residue(index, row, side)
+    present = [column for column, value in row.items() if _present(value)]
+    for side, level in _sides(template, present):
+        resolve = _resolve_residue if level == "residue" else _resolve_chain
+        keys = resolve(index, row, side)
         if isinstance(keys, str):
             return keys
         filled.update(keys)
+    if _bad_value(row, template):
+        return "bad_value"
     return filled

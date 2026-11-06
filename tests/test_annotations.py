@@ -649,3 +649,103 @@ def test_resolve_does_not_mutate_rows():
         "seq_id": 1,
         "label": "x",
     }
+
+
+def test_resolve_contacts_both_sides_and_repeats_kept():
+    row = {
+        "entry_id": "1A2C",
+        "chain_id_1": "A",
+        "seq_id_1": 1,
+        "auth_chain_id_2": "L",
+        "auth_seq_id_2": "1",
+        "ins_code_2": "G",
+        "contact_type": "hbond",
+    }
+    m, u = resolve_layer_rows(
+        [row, {**row, "contact_type": "vdw"}], "residue_contacts", S
+    )
+    assert u == [] and len(m) == 2
+    assert (m[0]["auth_chain_id_1"], m[0]["chain_id_2"], m[0]["seq_id_2"]) == (
+        "L",
+        "A",
+        2,
+    )
+
+
+def test_resolve_contacts_reports_first_failing_side():
+    _, u = resolve_layer_rows(
+        [
+            {
+                "entry_id": "1A2C",
+                "chain_id_1": "A",
+                "seq_id_1": 1,
+                "chain_id_2": "Z",
+                "seq_id_2": 1,
+            }
+        ],
+        "residue_contacts",
+        S,
+    )
+    assert u[0]["reason"] == "chain_not_found"
+
+
+def test_resolve_chain_author_naming_picks_polymer():
+    m, u = resolve_layer_rows(
+        [{"entry_id": "1A2C", "auth_chain_id": "L", "label": "light"}],
+        "chain_labels",
+        S,
+    )
+    assert u == [] and m[0]["chain_id"] == "A"
+
+
+def test_resolve_interface_labels():
+    m, _ = resolve_layer_rows(
+        [
+            {
+                "entry_id": "1A2C",
+                "chain_id_1": "A",
+                "chain_id_2": "B",
+                "label": "physiological",
+            }
+        ],
+        "interface_labels",
+        S,
+    )
+    assert (m[0]["auth_chain_id_1"], m[0]["auth_chain_id_2"]) == ("L", "H")
+
+
+@pytest.mark.parametrize("value", [None, float("nan"), True, "high"])
+def test_resolve_bad_value(value):
+    _, u = resolve_layer_rows(
+        [{"entry_id": "1A2C", "chain_id": "A", "value": value}],
+        "chain_values",
+        S,
+    )
+    assert u[0]["reason"] == "bad_value"
+
+
+def test_resolve_duplicate_key_keeps_first():
+    rows = [
+        {"entry_id": "1A2C", "chain_id": "A", "seq_id": 1, "label": "a"},
+        {
+            "entry_id": "1A2C",
+            "auth_chain_id": "L",
+            "auth_seq_id": "1",
+            "ins_code": "H",
+            "label": "b",
+        },
+    ]
+    m, u = resolve_layer_rows(rows, "residue_labels", S)
+    assert [r["label"] for r in m] == ["a"]
+    assert u[0]["reason"] == "duplicate_key"
+
+
+def test_resolve_free_form():
+    rows = [
+        {"entry_id": "1a2c", "note": "x"},
+        {"entry_id": "1a2c", "note": "y"},
+        {"entry_id": "1A2C", "chain_id": "Z", "note": "z"},
+    ]
+    m, u = resolve_layer_rows(rows, "free_form", S)
+    assert [r["note"] for r in m] == ["x", "y"]
+    assert u[0]["reason"] == "chain_not_found"
