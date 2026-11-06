@@ -218,6 +218,8 @@ Every row needs `entry_id` (any case). Each side names its residue or chain in e
 
 Pair templates add `_1` / `_2` to every key column (`chain_id_1`, `auth_seq_id_2`, ...). Other columns are kept as they are. A `free_form` row is checked against whichever key columns it has. A chain named by author ID resolves among polymer chains only, because ligands and waters usually share their polymer's author chain ID.
 
+Ligands and waters have no `seq_id`, so name them in the author's naming. Each layer holds one `value` or `label` column; import several measurements as several layers.
+
 The stored layer carries **both** namings, filled in from the structure, so later steps can rely on Pandora's keys.
 
 === "`library`"
@@ -303,7 +305,7 @@ Unmatched rows don't stop the import. A table that lacks a required column altog
 | `missing_key` | neither naming is complete for a side |
 | `chain_not_found` | no such chain |
 | `residue_not_found` | no such residue |
-| `no_coordinates` | the residue is in the sequence but has no atoms |
+| `no_coordinates` | the residue is in the sequence but has no atoms (for author naming, only while the structure keeps `_pdbx_poly_seq_scheme`; otherwise `residue_not_found`) |
 | `naming_conflict` | the row gives both namings and they point at different residues or chains |
 | `ambiguous_author_id` | the author IDs point at more than one residue or polymer chain |
 | `bad_value` | `seq_id` isn't an integer, `value` isn't a number, or `label` is empty |

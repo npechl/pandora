@@ -104,6 +104,9 @@ several value columns in one table (e.g. `value_sasa`,
 `value_plddt`), or one layer per value. Pick whichever keeps the
 downstream parts simpler, and record it here.
 
+Recorded (part 1): **one layer per value.** A table has one `value`
+(or `label`) column. Other columns are kept but not checked.
+
 **Free-form layers** are accepted. Their keys are checked like any
 other layer, but nothing interprets their values: they are carried
 along and, from part 3, joined in at export. If people keep importing
@@ -173,6 +176,14 @@ writing anything.
 How to identify a non-polymer residue (ligand, water) that has no
 `seq_id`: author naming covers it. Builder's call whether the Pandora
 naming also needs a way to address it; record the choice here.
+
+Recorded (part 1): **author naming only.** Non-polymer residues have
+no `seq_id`, so a ligand or water row must use `auth_chain_id` +
+`auth_seq_id` (+ `ins_code`). `no_coordinates` is reported for
+Pandora naming from `_entity_poly_seq`. For author naming it is
+reported only while `_pdbx_poly_seq_scheme` is present, which
+canonicalisation may drop. Without it, the reason is
+`residue_not_found`.
 
 ### The command
 

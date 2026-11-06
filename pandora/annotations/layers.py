@@ -196,6 +196,25 @@ def _build_index(structure: Structure) -> _Index:
         if atom.auth_asym_id is not None and atom.auth_seq_id is not None:
             key = (atom.auth_asym_id, atom.auth_seq_id, ins)
             index.by_auth.setdefault(key, []).append(residue)
+    _index_sequence(index, structure)
+    return index
+
+
+def _index_sequence(index: _Index, structure: Structure) -> None:
+    """Add the sequence positions (with or without atoms) to `index`.
+
+    `_entity_poly_seq` survives canonicalisation, which can drop
+    `_pdbx_poly_seq_scheme`; it covers Pandora's naming only.
+    """
+
+    asyms_by_entity: dict[str, list[str]] = {}
+    for unit in structure.asym_units:
+        asyms_by_entity.setdefault(unit.entity_id, []).append(unit.id)
+    for row in structure.raw.get("_entity_poly_seq", []):
+        num = _as_int(row.get("num"))
+        for asym_id in asyms_by_entity.get(row.get("entity_id") or "", []):
+            if num is not None:
+                index.unobserved_label.add((asym_id, num))
     for row in structure.raw.get("_pdbx_poly_seq_scheme", []):
         seq_id = _as_int(row.get("seq_id"))
         if row.get("asym_id") and seq_id is not None:
@@ -208,7 +227,6 @@ def _build_index(structure: Structure) -> _Index:
                     _as_ins(row.get("pdb_ins_code")),
                 )
             )
-    return index
 
 
 def _by_label(index: _Index, chain: Any, seq: Any) -> _Residue | str:

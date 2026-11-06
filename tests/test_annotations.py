@@ -749,3 +749,16 @@ def test_resolve_free_form():
     m, u = resolve_layer_rows(rows, "free_form", S)
     assert [r["note"] for r in m] == ["x", "y"]
     assert u[0]["reason"] == "chain_not_found"
+
+
+def test_resolve_no_coordinates_without_poly_seq_scheme():
+    # canonicalisation drops _pdbx_poly_seq_scheme when residues change;
+    # _entity_poly_seq still says B 148 is in the sequence
+    raw = {k: v for k, v in _1A2C.raw.items() if k != "_pdbx_poly_seq_scheme"}
+    s = _1A2C.model_copy(update={"raw": raw})
+    _, u = resolve_layer_rows(
+        [{"entry_id": "1A2C", "chain_id": "B", "seq_id": 148, "label": "x"}],
+        "residue_labels",
+        {"1A2C": s},
+    )
+    assert u[0]["reason"] == "no_coordinates"

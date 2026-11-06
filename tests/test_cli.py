@@ -1001,3 +1001,21 @@ def test_annotate_import_empty_table(tmp_path):
     summary = json.loads((out / "layer.json").read_text())
     assert summary["counts"]["rows_in"] == 0
     assert not (out / "layer.jsonl").exists()
+
+
+def test_annotate_import_parquet_with_mixed_type_columns(tmp_path):
+    args = _layer_inputs(tmp_path)[:-2]  # default --table-format parquet
+    (tmp_path / "t.jsonl").write_text(
+        '{"entry_id":"1A2C","chain_id":"A","seq_id":1,"value":1,"note":1}\n'
+        '{"entry_id":"1A2C","chain_id":"A","seq_id":"x","value":1,'
+        '"note":"a"}\n'
+        '{"entry_id":"1A2C","chain_id":"A","seq_id":999,"value":"n/a"}\n'
+    )
+    main(["annotate", "import", *args])
+    out = tmp_path / "annotations" / "t"
+    reasons = [
+        r.model_dump()["reason"]
+        for r in read_records(out / "unmatched.parquet", LayerRow)
+    ]
+    assert reasons == ["bad_value", "residue_not_found"]
+    assert (out / "layer.json").exists()

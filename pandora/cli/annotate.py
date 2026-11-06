@@ -8,6 +8,7 @@ import shutil
 from collections import Counter
 from itertools import combinations
 from pathlib import Path
+from typing import Any
 
 from pandora._util import now_iso
 from pandora.annotations import (
@@ -112,12 +113,13 @@ def _cmd_import(args: argparse.Namespace) -> None:
     )
     if args.source_files:
         _copy_source(Path(args.source_files), out / "source")
-    write_table(
-        [LayerRow(**r) for r in matched], out, "layer", args.table_format
-    )
-    write_table(
-        [LayerRow(**r) for r in unmatched], out, "unmatched", args.table_format
-    )
+    for name, table_rows in (("layer", matched), ("unmatched", unmatched)):
+        write_table(
+            [LayerRow(**row) for row in _uniform_columns(table_rows)],
+            out,
+            name,
+            args.table_format,
+        )
 
     counts = Counter(
         rows_in=len(rows),
@@ -146,6 +148,35 @@ def _cmd_import(args: argparse.Namespace) -> None:
         out / "layer.json",
     )
     print(f"imported: {len(matched)} rows, {len(unmatched)} unmatched -> {out}")
+
+
+def _uniform_columns(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rows with every mixed-type column's values turned into strings.
+
+    User tables are often dirty (a number in one row, "n/a" in the
+    next); Parquet needs one type per column.
+    """
+
+    kinds: dict[str, set[str]] = {}
+    for row in rows:
+        for column, value in row.items():
+            if value is None:
+                continue
+            number = isinstance(value, int | float) and not isinstance(
+                value, bool
+            )
+            kind = "number" if number else type(value).__name__
+            kinds.setdefault(column, set()).add(kind)
+    mixed = {column for column, found in kinds.items() if len(found) > 1}
+    return [
+        {
+            column: str(value)
+            if column in mixed and value is not None
+            else value
+            for column, value in row.items()
+        }
+        for row in rows
+    ]
 
 
 def _copy_source(source: Path, dest: Path) -> None:
