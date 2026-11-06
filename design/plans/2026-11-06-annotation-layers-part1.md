@@ -136,23 +136,41 @@ def test_layer_description_rejects_unknown_template_and_fields():
     with pytest.raises(ValidationError):
         LayerDescription(name="x", template="free_form", tool="t", extra=1)
 
+
 def test_layer_row_keeps_any_columns():
     assert LayerRow(a=1, b="x").model_dump() == {"a": 1, "b": "x"}
 
+
 def test_check_layer_columns_accepts_either_naming():
-    check_layer_columns({"entry_id", "chain_id", "seq_id", "value"}, "residue_values")
-    check_layer_columns({"entry_id", "auth_chain_id", "auth_seq_id", "value"}, "residue_values")
-    check_layer_columns({"entry_id", "chain_id_1", "seq_id_1",
-                         "auth_chain_id_2", "auth_seq_id_2"}, "residue_contacts")
+    check_layer_columns(
+        {"entry_id", "chain_id", "seq_id", "value"}, "residue_values"
+    )
+    check_layer_columns(
+        {"entry_id", "auth_chain_id", "auth_seq_id", "value"}, "residue_values"
+    )
+    check_layer_columns(
+        {
+            "entry_id",
+            "chain_id_1",
+            "seq_id_1",
+            "auth_chain_id_2",
+            "auth_seq_id_2",
+        },
+        "residue_contacts",
+    )
     check_layer_columns({"entry_id"}, "free_form")
 
-@pytest.mark.parametrize("columns, template, missing", [
-    ({"chain_id", "seq_id", "value"}, "residue_values", "entry_id"),
-    ({"entry_id", "chain_id", "seq_id"}, "residue_values", "value"),
-    ({"entry_id", "chain_id", "label"}, "residue_labels", "seq_id"),
-    ({"entry_id", "chain_id_1", "seq_id_1"}, "residue_contacts", "_2"),
-    ({"entry_id", "chain_id_1", "chain_id_2"}, "interface_labels", "label"),
-])
+
+@pytest.mark.parametrize(
+    "columns, template, missing",
+    [
+        ({"chain_id", "seq_id", "value"}, "residue_values", "entry_id"),
+        ({"entry_id", "chain_id", "seq_id"}, "residue_values", "value"),
+        ({"entry_id", "chain_id", "label"}, "residue_labels", "seq_id"),
+        ({"entry_id", "chain_id_1", "seq_id_1"}, "residue_contacts", "_2"),
+        ({"entry_id", "chain_id_1", "chain_id_2"}, "interface_labels", "label"),
+    ],
+)
 def test_check_layer_columns_rejects_missing(columns, template, missing):
     with pytest.raises(ValueError, match=missing):
         check_layer_columns(columns, template)
@@ -231,53 +249,135 @@ rules:
 
 ```python
 def test_resolve_author_naming_fills_pandora_keys():
-    m, u = resolve_layer_rows([{"entry_id": "1a2c", "auth_chain_id": "L",
-        "auth_seq_id": "1", "ins_code": "G", "value": 0.5}], "residue_values", S)
+    m, u = resolve_layer_rows(
+        [
+            {
+                "entry_id": "1a2c",
+                "auth_chain_id": "L",
+                "auth_seq_id": "1",
+                "ins_code": "G",
+                "value": 0.5,
+            }
+        ],
+        "residue_values",
+        S,
+    )
     assert u == []
-    assert m == [{"entry_id": "1A2C", "chain_id": "A", "seq_id": 2,
-        "auth_chain_id": "L", "auth_seq_id": "1", "ins_code": "G", "value": 0.5}]
+    assert m == [
+        {
+            "entry_id": "1A2C",
+            "chain_id": "A",
+            "seq_id": 2,
+            "auth_chain_id": "L",
+            "auth_seq_id": "1",
+            "ins_code": "G",
+            "value": 0.5,
+        }
+    ]
+
 
 def test_resolve_pandora_naming_fills_author_keys():
-    m, _ = resolve_layer_rows([{"entry_id": "1A2C", "chain_id": "A",
-        "seq_id": 1, "value": 1.0}], "residue_values", S)
-    assert (m[0]["auth_chain_id"], m[0]["auth_seq_id"], m[0]["ins_code"]) == ("L", "1", "H")
+    m, _ = resolve_layer_rows(
+        [{"entry_id": "1A2C", "chain_id": "A", "seq_id": 1, "value": 1.0}],
+        "residue_values",
+        S,
+    )
+    assert (m[0]["auth_chain_id"], m[0]["auth_seq_id"], m[0]["ins_code"]) == (
+        "L",
+        "1",
+        "H",
+    )
+
 
 def test_resolve_parquet_floats_and_ins_code_spellings():
-    rows = [{"entry_id": "1A2C", "chain_id": "A", "seq_id": 3.0, "value": 1},
-            {"entry_id": "1A2C", "auth_chain_id": "L", "auth_seq_id": 471.0,
-             "ins_code": "?", "value": 1}]
+    rows = [
+        {"entry_id": "1A2C", "chain_id": "A", "seq_id": 3.0, "value": 1},
+        {
+            "entry_id": "1A2C",
+            "auth_chain_id": "L",
+            "auth_seq_id": 471.0,
+            "ins_code": "?",
+            "value": 1,
+        },
+    ]
     m, u = resolve_layer_rows(rows, "residue_values", S)
     assert u == [] and m[0]["seq_id"] == 3
     assert (m[1]["chain_id"], m[1]["seq_id"]) == ("F", None)
 
-@pytest.mark.parametrize("row, reason", [
-    ({"entry_id": "9XYZ", "chain_id": "A", "seq_id": 1}, "entry_not_found"),
-    ({"entry_id": "1A2C", "chain_id": "A"}, "missing_key"),
-    ({"entry_id": "1A2C", "chain_id": "Z", "seq_id": 1}, "chain_not_found"),
-    ({"entry_id": "1A2C", "chain_id": "A", "seq_id": 9999}, "residue_not_found"),
-    ({"entry_id": "1A2C", "auth_chain_id": "H", "auth_seq_id": "147",
-      "ins_code": "A"}, "no_coordinates"),
-    ({"entry_id": "1A2C", "chain_id": "B", "seq_id": 148}, "no_coordinates"),
-    ({"entry_id": "1A2C", "chain_id": "A", "seq_id": 1, "auth_chain_id": "L",
-      "auth_seq_id": "1", "ins_code": "G"}, "naming_conflict"),
-    ({"entry_id": "1A2C", "chain_id": "A", "seq_id": "x"}, "bad_value"),
-])
+
+@pytest.mark.parametrize(
+    "row, reason",
+    [
+        ({"entry_id": "9XYZ", "chain_id": "A", "seq_id": 1}, "entry_not_found"),
+        ({"entry_id": "1A2C", "chain_id": "A"}, "missing_key"),
+        ({"entry_id": "1A2C", "chain_id": "Z", "seq_id": 1}, "chain_not_found"),
+        (
+            {"entry_id": "1A2C", "chain_id": "A", "seq_id": 9999},
+            "residue_not_found",
+        ),
+        (
+            {
+                "entry_id": "1A2C",
+                "auth_chain_id": "H",
+                "auth_seq_id": "147",
+                "ins_code": "A",
+            },
+            "no_coordinates",
+        ),
+        (
+            {"entry_id": "1A2C", "chain_id": "B", "seq_id": 148},
+            "no_coordinates",
+        ),
+        (
+            {
+                "entry_id": "1A2C",
+                "chain_id": "A",
+                "seq_id": 1,
+                "auth_chain_id": "L",
+                "auth_seq_id": "1",
+                "ins_code": "G",
+            },
+            "naming_conflict",
+        ),
+        ({"entry_id": "1A2C", "chain_id": "A", "seq_id": "x"}, "bad_value"),
+    ],
+)
 def test_resolve_unmatched_reasons(row, reason):
     m, u = resolve_layer_rows([{**row, "label": "x"}], "residue_labels", S)
     assert m == [] and u == [{**row, "label": "x", "reason": reason}]
 
+
 def test_resolve_ambiguous_author_id():
     # strip insertion codes, as preserve_insertion_codes=False does (#125)
-    atoms = [a.model_copy(update={"pdbx_PDB_ins_code": None}) for a in S["1A2C"].atoms]
+    atoms = [
+        a.model_copy(update={"pdbx_PDB_ins_code": None})
+        for a in S["1A2C"].atoms
+    ]
     s = S["1A2C"].model_copy(update={"atoms": atoms})
-    _, u = resolve_layer_rows([{"entry_id": "1A2C", "auth_chain_id": "L",
-        "auth_seq_id": "1", "label": "x"}], "residue_labels", {"1A2C": s})
+    _, u = resolve_layer_rows(
+        [
+            {
+                "entry_id": "1A2C",
+                "auth_chain_id": "L",
+                "auth_seq_id": "1",
+                "label": "x",
+            }
+        ],
+        "residue_labels",
+        {"1A2C": s},
+    )
     assert u[0]["reason"] == "ambiguous_author_id"
+
 
 def test_resolve_does_not_mutate_rows():
     row = {"entry_id": "1a2c", "chain_id": "A", "seq_id": 1, "label": "x"}
     resolve_layer_rows([row], "residue_labels", S)
-    assert row == {"entry_id": "1a2c", "chain_id": "A", "seq_id": 1, "label": "x"}
+    assert row == {
+        "entry_id": "1a2c",
+        "chain_id": "A",
+        "seq_id": 1,
+        "label": "x",
+    }
 ```
 
 - [ ] **Step 2: Run the tests and confirm they fail.** Run
@@ -325,45 +425,100 @@ Rules:
 
 ```python
 def test_resolve_contacts_both_sides_and_repeats_kept():
-    row = {"entry_id": "1A2C", "chain_id_1": "A", "seq_id_1": 1,
-           "auth_chain_id_2": "L", "auth_seq_id_2": "1", "ins_code_2": "G",
-           "contact_type": "hbond"}
-    m, u = resolve_layer_rows([row, {**row, "contact_type": "vdw"}], "residue_contacts", S)
+    row = {
+        "entry_id": "1A2C",
+        "chain_id_1": "A",
+        "seq_id_1": 1,
+        "auth_chain_id_2": "L",
+        "auth_seq_id_2": "1",
+        "ins_code_2": "G",
+        "contact_type": "hbond",
+    }
+    m, u = resolve_layer_rows(
+        [row, {**row, "contact_type": "vdw"}], "residue_contacts", S
+    )
     assert u == [] and len(m) == 2
-    assert (m[0]["auth_chain_id_1"], m[0]["chain_id_2"], m[0]["seq_id_2"]) == ("L", "A", 2)
+    assert (m[0]["auth_chain_id_1"], m[0]["chain_id_2"], m[0]["seq_id_2"]) == (
+        "L",
+        "A",
+        2,
+    )
+
 
 def test_resolve_contacts_reports_first_failing_side():
-    _, u = resolve_layer_rows([{"entry_id": "1A2C", "chain_id_1": "A",
-        "seq_id_1": 1, "chain_id_2": "Z", "seq_id_2": 1}], "residue_contacts", S)
+    _, u = resolve_layer_rows(
+        [
+            {
+                "entry_id": "1A2C",
+                "chain_id_1": "A",
+                "seq_id_1": 1,
+                "chain_id_2": "Z",
+                "seq_id_2": 1,
+            }
+        ],
+        "residue_contacts",
+        S,
+    )
     assert u[0]["reason"] == "chain_not_found"
 
+
 def test_resolve_chain_author_naming_picks_polymer():
-    m, u = resolve_layer_rows([{"entry_id": "1A2C", "auth_chain_id": "L",
-        "label": "light"}], "chain_labels", S)
+    m, u = resolve_layer_rows(
+        [{"entry_id": "1A2C", "auth_chain_id": "L", "label": "light"}],
+        "chain_labels",
+        S,
+    )
     assert u == [] and m[0]["chain_id"] == "A"
 
+
 def test_resolve_interface_labels():
-    m, _ = resolve_layer_rows([{"entry_id": "1A2C", "chain_id_1": "A",
-        "chain_id_2": "B", "label": "physiological"}], "interface_labels", S)
+    m, _ = resolve_layer_rows(
+        [
+            {
+                "entry_id": "1A2C",
+                "chain_id_1": "A",
+                "chain_id_2": "B",
+                "label": "physiological",
+            }
+        ],
+        "interface_labels",
+        S,
+    )
     assert (m[0]["auth_chain_id_1"], m[0]["auth_chain_id_2"]) == ("L", "H")
+
 
 @pytest.mark.parametrize("value", [None, float("nan"), True, "high"])
 def test_resolve_bad_value(value):
-    _, u = resolve_layer_rows([{"entry_id": "1A2C", "chain_id": "A",
-        "value": value}], "chain_values", S)
+    _, u = resolve_layer_rows(
+        [{"entry_id": "1A2C", "chain_id": "A", "value": value}],
+        "chain_values",
+        S,
+    )
     assert u[0]["reason"] == "bad_value"
 
+
 def test_resolve_duplicate_key_keeps_first():
-    rows = [{"entry_id": "1A2C", "chain_id": "A", "seq_id": 1, "label": "a"},
-            {"entry_id": "1A2C", "auth_chain_id": "L", "auth_seq_id": "1",
-             "ins_code": "H", "label": "b"}]
+    rows = [
+        {"entry_id": "1A2C", "chain_id": "A", "seq_id": 1, "label": "a"},
+        {
+            "entry_id": "1A2C",
+            "auth_chain_id": "L",
+            "auth_seq_id": "1",
+            "ins_code": "H",
+            "label": "b",
+        },
+    ]
     m, u = resolve_layer_rows(rows, "residue_labels", S)
     assert [r["label"] for r in m] == ["a"]
     assert u[0]["reason"] == "duplicate_key"
 
+
 def test_resolve_free_form():
-    rows = [{"entry_id": "1a2c", "note": "x"}, {"entry_id": "1a2c", "note": "y"},
-            {"entry_id": "1A2C", "chain_id": "Z", "note": "z"}]
+    rows = [
+        {"entry_id": "1a2c", "note": "x"},
+        {"entry_id": "1a2c", "note": "y"},
+        {"entry_id": "1A2C", "chain_id": "Z", "note": "z"},
+    ]
     m, u = resolve_layer_rows(rows, "free_form", S)
     assert [r["note"] for r in m] == ["x", "y"]
     assert u[0]["reason"] == "chain_not_found"
@@ -396,16 +551,36 @@ def test_resolve_free_form():
 
 ```python
 def test_annotate_compute_writes_annotations(tmp_path):
-    src = tmp_path / "in"; src.mkdir()
+    src = tmp_path / "in"
+    src.mkdir()
     shutil.copy(FIXTURES_DIR / "04" / "104m.cif", src / "104m.cif")
-    main(["annotate", "compute", "--input-dir", str(src),
-          "--layers", "structure_counts", "--output-dir", str(tmp_path / "out")])
+    main(
+        [
+            "annotate",
+            "compute",
+            "--input-dir",
+            str(src),
+            "--layers",
+            "structure_counts",
+            "--output-dir",
+            str(tmp_path / "out"),
+        ]
+    )
     data = json.loads((tmp_path / "out" / "annotations.json").read_text())
     assert list(data) == ["104M"]
 
+
 def test_annotate_old_flat_form_is_gone(tmp_path):
     with pytest.raises(SystemExit):
-        main(["annotate", "--input-dir", str(tmp_path), "--output-dir", str(tmp_path)])
+        main(
+            [
+                "annotate",
+                "--input-dir",
+                str(tmp_path),
+                "--output-dir",
+                str(tmp_path),
+            ]
+        )
 ```
 
 - [ ] **Step 2: Run the tests and confirm they fail.** Run
@@ -487,20 +662,31 @@ Behaviour, in order:
 
 ```python
 def test_annotate_import_writes_layer_folder(tmp_path):
-    args = _layer_inputs(tmp_path)  # list of CLI args incl. --source-files, jsonl
+    args = _layer_inputs(
+        tmp_path
+    )  # list of CLI args incl. --source-files, jsonl
     main(["annotate", "import", *args])
     out = tmp_path / "annotations" / "t"
     matched = read_records(out / "layer.jsonl", LayerRow)
     assert [r.model_dump()["seq_id"] for r in matched] == [1, 2]
-    unmatched = [r.model_dump()["reason"] for r in read_records(out / "unmatched.jsonl", LayerRow)]
+    unmatched = [
+        r.model_dump()["reason"]
+        for r in read_records(out / "unmatched.jsonl", LayerRow)
+    ]
     assert unmatched == ["no_coordinates", "entry_not_found"]
     summary = json.loads((out / "layer.json").read_text())
     assert summary["step"] == "annotation_import"
     assert summary["policy"]["template"] == "residue_values"
-    assert summary["counts"] == {"rows_in": 4, "rows_matched": 2, "rows_unmatched": 2,
-        "unmatched:entry_not_found": 1, "unmatched:no_coordinates": 1}
+    assert summary["counts"] == {
+        "rows_in": 4,
+        "rows_matched": 2,
+        "rows_unmatched": 2,
+        "unmatched:entry_not_found": 1,
+        "unmatched:no_coordinates": 1,
+    }
     assert summary["previous_summary"].endswith("curation.json")
     assert (out / "source" / "out.txt").exists()
+
 
 def test_annotate_import_refuses_existing_layer_without_overwrite(tmp_path):
     args = _layer_inputs(tmp_path)
@@ -509,19 +695,25 @@ def test_annotate_import_refuses_existing_layer_without_overwrite(tmp_path):
         main(["annotate", "import", *args])
     main(["annotate", "import", *args, "--overwrite"])
 
+
 def test_annotate_import_missing_value_column_writes_nothing(tmp_path):
     args = _layer_inputs(tmp_path)
-    (tmp_path / "t.jsonl").write_text('{"entry_id":"1A2C","chain_id":"A","seq_id":1}\n')
+    (tmp_path / "t.jsonl").write_text(
+        '{"entry_id":"1A2C","chain_id":"A","seq_id":1}\n'
+    )
     with pytest.raises(SystemExit, match="value"):
         main(["annotate", "import", *args])
     assert not (tmp_path / "annotations" / "t").exists()
+
 
 def test_annotate_import_empty_table(tmp_path):
     args = _layer_inputs(tmp_path)
     (tmp_path / "t.jsonl").write_text("")
     main(["annotate", "import", *args])
     out = tmp_path / "annotations" / "t"
-    assert json.loads((out / "layer.json").read_text())["counts"]["rows_in"] == 0
+    assert (
+        json.loads((out / "layer.json").read_text())["counts"]["rows_in"] == 0
+    )
     assert not (out / "layer.jsonl").exists()
 ```
 

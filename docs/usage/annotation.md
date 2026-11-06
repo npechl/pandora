@@ -228,19 +228,34 @@ The stored layer carries **both** namings, filled in from the structure, so late
 
     structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/a2/1a2c.cif")
     rows = [
-        {"entry_id": "1a2c", "auth_chain_id_1": "L", "auth_seq_id_1": "1",
-         "ins_code_1": "H", "auth_chain_id_2": "H", "auth_seq_id_2": "16",
-         "contact_type": "hydrogen_bond"},
-        {"entry_id": "1a2c", "auth_chain_id_1": "L", "auth_seq_id_1": "1",
-         "ins_code_1": "H", "auth_chain_id_2": "H", "auth_seq_id_2": "147",
-         "ins_code_2": "A", "contact_type": "hydrophobic"},
+        {
+            "entry_id": "1a2c",
+            "auth_chain_id_1": "L",
+            "auth_seq_id_1": "1",
+            "ins_code_1": "H",
+            "auth_chain_id_2": "H",
+            "auth_seq_id_2": "16",
+            "contact_type": "hydrogen_bond",
+        },
+        {
+            "entry_id": "1a2c",
+            "auth_chain_id_1": "L",
+            "auth_seq_id_1": "1",
+            "ins_code_1": "H",
+            "auth_chain_id_2": "H",
+            "auth_seq_id_2": "147",
+            "ins_code_2": "A",
+            "contact_type": "hydrophobic",
+        },
     ]
     check_layer_columns({c for row in rows for c in row}, "residue_contacts")
     matched, unmatched = resolve_layer_rows(
         rows, "residue_contacts", {structure.entry_id: structure}
     )
     row = matched[0]
-    print(row["chain_id_1"], row["seq_id_1"], "-", row["chain_id_2"], row["seq_id_2"])
+    print(
+        row["chain_id_1"], row["seq_id_1"], "-", row["chain_id_2"], row["seq_id_2"]
+    )
     # A 1 - B 1
     print(unmatched[0]["reason"])
     # no_coordinates  (H 147A is in the sequence but has no atoms)
