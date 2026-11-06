@@ -56,7 +56,7 @@ every structure in a batch.
 === "`cli`"
 
     ```bash
-    pandora annotate --input-dir deduped/ --layers structure_counts --output-dir annotations/
+    pandora annotate compute --input-dir deduped/ --layers structure_counts --output-dir annotations/
     # annotated 5 entries -> annotations/
     ```
 
@@ -104,7 +104,7 @@ every structure in a batch.
 === "`cli`"
 
     ```bash
-    pandora annotate --input-dir deduped/ --layers chain_interfaces --output-dir annotations/
+    pandora annotate compute --input-dir deduped/ --layers chain_interfaces --output-dir annotations/
     # annotated 5 entries -> annotations/
     ```
 
@@ -147,7 +147,7 @@ ligands too).
 === "`cli`"
 
     ```bash
-    pandora annotate --input-dir deduped/ --layers ligand_contacts --output-dir annotations/
+    pandora annotate compute --input-dir deduped/ --layers ligand_contacts --output-dir annotations/
     # annotated 5 entries -> annotations/
     ```
 
@@ -182,7 +182,7 @@ on a shifted reading frame), and reports the best-scoring pair.
     alongside whichever `--layers` you pick:
 
     ```bash
-    pandora annotate --input-dir deduped/ --layers structure_counts --pairwise --output-dir annotations/
+    pandora annotate compute --input-dir deduped/ --layers structure_counts --pairwise --output-dir annotations/
     # annotated 5 entries -> annotations/
     ```
 

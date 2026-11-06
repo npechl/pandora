@@ -25,9 +25,9 @@ _ENTRY_ANNOTATORS = {
 }
 
 
-def _cmd_annotate(args: argparse.Namespace) -> None:
-    """Handle the `annotate` subcommand: compute entry-level and/or
-    pairwise annotation layers."""
+def _cmd_compute(args: argparse.Namespace) -> None:
+    """Handle `annotate compute`: compute entry-level and/or pairwise
+    annotation layers."""
 
     output_dir = Path(args.output_dir)
     structures = read_structures_dir(Path(args.input_dir))
@@ -65,8 +65,12 @@ def _cmd_annotate(args: argparse.Namespace) -> None:
 def register(subparsers: argparse._SubParsersAction) -> None:
     """Add this module's subcommands to the `pandora` parser."""
 
-    p = subparsers.add_parser(
-        "annotate", help="Entry-level and/or pairwise annotation layers."
+    annotate = subparsers.add_parser(
+        "annotate", help="Compute or import annotation layers."
+    )
+    commands = annotate.add_subparsers(dest="annotate_command", required=True)
+    p = commands.add_parser(
+        "compute", help="Entry-level and/or pairwise annotation layers."
     )
     p.add_argument("--input-dir", required=True)
     p.add_argument(
@@ -77,4 +81,4 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     )
     p.add_argument("--pairwise", action="store_true")
     p.add_argument("--output-dir", required=True)
-    p.set_defaults(func=_cmd_annotate)
+    p.set_defaults(func=_cmd_compute)

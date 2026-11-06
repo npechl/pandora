@@ -95,12 +95,12 @@ pandora partition --clusters clusters.json --pct-train 0.6 --pct-val 0.2 --pct-t
 # split sizes: {'train': 4, 'val': 1, 'test': 0} -> splits.json
 ```
 
-## annotate
+## annotate compute
 
 Entry-level and/or pairwise annotation layers:
 
 ```sh
-pandora annotate --input-dir deduped/ --layers structure_counts ligand_contacts --pairwise --output-dir annotations/
+pandora annotate compute --input-dir deduped/ --layers structure_counts ligand_contacts --pairwise --output-dir annotations/
 # annotated 5 entries -> annotations/
 ```
 

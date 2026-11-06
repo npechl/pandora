@@ -874,3 +874,36 @@ def test_curate_duplicate_check_ignores_case(tmp_path):
     )
     failures = _jsonl(out / "failures.jsonl")
     assert [f["error_type"] for f in failures] == ["DuplicateEntry"]
+
+
+def test_annotate_compute_writes_annotations(tmp_path):
+    src = tmp_path / "in"
+    src.mkdir()
+    shutil.copy(FIXTURES_DIR / "04" / "104m.cif", src / "104m.cif")
+    main(
+        [
+            "annotate",
+            "compute",
+            "--input-dir",
+            str(src),
+            "--layers",
+            "structure_counts",
+            "--output-dir",
+            str(tmp_path / "out"),
+        ]
+    )
+    data = json.loads((tmp_path / "out" / "annotations.json").read_text())
+    assert list(data) == ["104M"]
+
+
+def test_annotate_old_flat_form_is_gone(tmp_path):
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "annotate",
+                "--input-dir",
+                str(tmp_path),
+                "--output-dir",
+                str(tmp_path),
+            ]
+        )
