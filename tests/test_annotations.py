@@ -9,8 +9,10 @@ from pandora.annotations.entry import (
     annotate_ligand_contacts,
     polymer_asym_ids,
 )
+from pandora.annotations.layers import check_layer_columns
 from pandora.datasets import extract_interface_records
 from pandora.parsing import mmcif_to_structure
+from pandora.schemas.annotation import LayerDescription, LayerRow
 from pandora.schemas.dataset import InterfaceRecord
 from pandora.schemas.structure import (
     AsymRecord,
@@ -457,3 +459,57 @@ def test_interface_record_without_atom_set_loads_as_all():
 def test_chain_interfaces_rejects_string_polymer_types():
     with pytest.raises(TypeError, match="polymer_types"):
         annotate_chain_interfaces(_load("1a02"), polymer_types="polypeptide(L)")
+
+
+# Layer templates -------------------------------------------------------
+
+
+def test_layer_description_rejects_unknown_template_and_fields():
+    with pytest.raises(ValidationError):
+        LayerDescription(name="x", template="nope", tool="t")
+    with pytest.raises(ValidationError):
+        LayerDescription(name="x", template="free_form", tool="t", extra=1)
+
+
+def test_layer_row_keeps_any_columns():
+    assert LayerRow(a=1, b="x").model_dump() == {"a": 1, "b": "x"}
+
+
+def test_check_layer_columns_accepts_either_naming():
+    check_layer_columns(
+        {"entry_id", "chain_id", "seq_id", "value"}, "residue_values"
+    )
+    check_layer_columns(
+        {"entry_id", "auth_chain_id", "auth_seq_id", "value"},
+        "residue_values",
+    )
+    check_layer_columns(
+        {
+            "entry_id",
+            "chain_id_1",
+            "seq_id_1",
+            "auth_chain_id_2",
+            "auth_seq_id_2",
+        },
+        "residue_contacts",
+    )
+    check_layer_columns({"entry_id"}, "free_form")
+
+
+@pytest.mark.parametrize(
+    "columns, template, missing",
+    [
+        ({"chain_id", "seq_id", "value"}, "residue_values", "entry_id"),
+        ({"entry_id", "chain_id", "seq_id"}, "residue_values", "value"),
+        ({"entry_id", "chain_id", "label"}, "residue_labels", "seq_id"),
+        ({"entry_id", "chain_id_1", "seq_id_1"}, "residue_contacts", "_2"),
+        (
+            {"entry_id", "chain_id_1", "chain_id_2"},
+            "interface_labels",
+            "label",
+        ),
+    ],
+)
+def test_check_layer_columns_rejects_missing(columns, template, missing):
+    with pytest.raises(ValueError, match=missing):
+        check_layer_columns(columns, template)
