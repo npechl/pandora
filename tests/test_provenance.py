@@ -1,5 +1,4 @@
 import shutil
-import stat
 from pathlib import Path
 
 import gemmi
@@ -34,9 +33,7 @@ from pandora.schemas.provenance import (
 from pandora.schemas.similarity import (
     ClusteringProvenance,
     HitFilter,
-    SimilaritySearch,
 )
-from pandora.similarity.hits import HIT_COLUMNS
 
 MMCIF_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
 MMCIF_PATH = MMCIF_DIR / "04" / "104m.cif"
@@ -181,106 +178,20 @@ def _manifest_with_clustering(clustering):
     )
 
 
-def _clustering(search, hit_filter=None):
-    return ClusteringProvenance(
-        clustered_at="2026-01-01T00:00:00+00:00",
-        hit_filter=hit_filter or HitFilter(min_score=0.9),
-        search=search,
-        n_clusters=1,
-    )
-
-
-def test_reproduce_reruns_computed_search(tmp_path, monkeypatch):
+def test_reproduce_does_not_replay_clustering(tmp_path, monkeypatch):
     _patch_fetch(monkeypatch)
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    mmseqs = bin_dir / "mmseqs"
-    mmseqs.write_text(FAKE_MMSEQS)
-    mmseqs.chmod(mmseqs.stat().st_mode | stat.S_IEXEC)
-    search = SimilaritySearch(
-        engine="MMseqs2",
-        hits_path="/somewhere/else/hits.tsv",
-        columns=list(HIT_COLUMNS["MMseqs2"]),
-        parameters={
-            "mmseqs_bin": str(mmseqs),
-            "sensitivity": 5.7,
-            "max_seqs": 300,
-            "mmseqs_options": [],
-        },
-    )
-    out = tmp_path / "out"
-
-    _, new_manifest = reproduce_dataset(
-        _manifest_with_clustering(_clustering(search)), out
-    )
-
-    assert (out / "hits.tsv").exists()
-    assert new_manifest.clustering.search.hits_path == str(out / "hits.tsv")
-    assert new_manifest.clustering.search.parameters == search.parameters
-    assert new_manifest.clustering.hit_filter == HitFilter(min_score=0.9)
-
-
-def test_reproduce_reuses_existing_precomputed_hits(tmp_path, monkeypatch):
-    _patch_fetch(monkeypatch)
-    hits = tmp_path / "pre.tsv"
-    hits.write_text("104M\t104M\t1.0\t10\t1.0\t1.0\n")
-    search = SimilaritySearch(
-        engine="MMseqs2",
-        hits_path=str(hits),
-        columns=list(HIT_COLUMNS["MMseqs2"]),
-        origin="precomputed",
-    )
-
-    _, new_manifest = reproduce_dataset(
-        _manifest_with_clustering(_clustering(search)), tmp_path / "out"
-    )
-
-    assert new_manifest.clustering.search == search
-
-
-def test_reproduce_precomputed_hits_missing_raises(tmp_path, monkeypatch):
-    _patch_fetch(monkeypatch)
-    search = SimilaritySearch(
-        engine="MMseqs2",
-        hits_path=str(tmp_path / "gone.tsv"),
-        columns=list(HIT_COLUMNS["MMseqs2"]),
-        origin="precomputed",
-    )
-
-    with pytest.raises(ValueError, match="precomputed"):
-        reproduce_dataset(
-            _manifest_with_clustering(_clustering(search)), tmp_path / "out"
+    manifest = _manifest_with_clustering(
+        ClusteringProvenance(
+            clustered_at="2026-01-01T00:00:00+00:00",
+            hit_filter=HitFilter(min_score=0.9),
+            n_clusters=1,
         )
-
-
-def test_reproduce_old_manifest_clustering_raises(tmp_path, monkeypatch):
-    _patch_fetch(monkeypatch)
-    old = ClusteringProvenance.model_validate(
-        {
-            "clustered_at": "2026-01-01T00:00:00+00:00",
-            "threshold": 0.9,
-            "n_relationships": 1,
-            "n_clusters": 1,
-        }
     )
 
-    with pytest.raises(ValueError, match="did not record"):
-        reproduce_dataset(_manifest_with_clustering(old), tmp_path / "out")
+    _, new_manifest = reproduce_dataset(manifest, tmp_path / "out")
 
-
-def test_reproduce_interface_filter_raises(tmp_path, monkeypatch):
-    _patch_fetch(monkeypatch)
-    search = SimilaritySearch(
-        engine="Foldseek",
-        hits_path=str(tmp_path / "hits.tsv"),
-        columns=list(HIT_COLUMNS["Foldseek"]),
-    )
-    clustering = _clustering(search, HitFilter(min_interface_coverage=0.5))
-
-    with pytest.raises(ValueError, match="interface"):
-        reproduce_dataset(
-            _manifest_with_clustering(clustering), tmp_path / "out"
-        )
+    assert new_manifest.clustering is None
+    assert new_manifest.partition is None
 
 
 def test_build_step_summary_embeds_policy_and_versions(tmp_path):

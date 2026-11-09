@@ -2,11 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pandora.annotations.pairwise import annotate_pairwise_sequence_identity
 from pandora.canonicalisation import canonicalise_structure
 from pandora.datasets.curation import curate_structure, deduplicate_structures
-from pandora.datasets.records import entry_sequences
-from pandora.export.mmcif import structure_to_mmcif
 from pandora.ingestion.cache import find_cached
 from pandora.ingestion.mmcif import fetch_mmcif
 from pandora.metadata import collect_metadata
@@ -15,7 +12,6 @@ from pandora.provenance.manifest import (
     build_dataset_manifest,
     build_provenance_bundle,
 )
-from pandora.schemas.annotation import AnnotationLayer
 from pandora.schemas.canonicalisation import canonicalisationProvenance
 from pandora.schemas.dataset import (
     DatasetCurationPolicy,
@@ -24,80 +20,7 @@ from pandora.schemas.dataset import (
 )
 from pandora.schemas.ingestion import FetchOptions, IngestionProvenance
 from pandora.schemas.provenance import DatasetManifest
-from pandora.schemas.similarity import (
-    ClusteringProvenance,
-    PartitionProvenance,
-    SimilaritySearch,
-)
 from pandora.schemas.structure import Structure
-from pandora.similarity.clustering import cluster_similar_items
-from pandora.similarity.partition import partition_dataset
-from pandora.similarity.sequence import compute_sequence_similarity
-from pandora.similarity.structure import compute_structure_similarity
-
-PAIRWISE_ANNOTATION_DISPATCH = {
-    "pairwise_sequence_identity": annotate_pairwise_sequence_identity,
-}
-
-
-def _reproduce_similarity(
-    search: SimilaritySearch,
-    structures: dict[str, Structure],
-    output_dir: Path,
-) -> SimilaritySearch:
-    """Re-run search with its recorded parameters into output_dir, or
-    re-use a precomputed hit file that still exists."""
-
-    if search.origin == "precomputed":
-        if Path(search.hits_path).exists():
-            return search
-        raise ValueError(
-            "cannot reproduce clustering: its precomputed hit file "
-            f"{search.hits_path!r} no longer exists; re-run that search "
-            "and load it with load_similarity_search()"
-        )
-    hits_path = output_dir / "hits.tsv"
-    if search.engine == "MMseqs2":
-        return compute_sequence_similarity(
-            entry_sequences(structures), hits_path, **search.parameters
-        )
-    paths: dict[str, Path] = {}
-    for entry_id, structure in structures.items():
-        paths[entry_id] = structure_to_mmcif(
-            structure, output_dir / f"{entry_id}.reproduced.cif"
-        )
-    return compute_structure_similarity(paths, hits_path, **search.parameters)
-
-
-def _reproduce_annotations(
-    manifest: DatasetManifest, structures: dict[str, Structure]
-) -> dict[str, list[AnnotationLayer]]:
-    """Recompute every pairwise annotation layer recorded in manifest,
-    for structures. Entry-level layers (contacts) are no longer
-    `AnnotationLayer`s and are not replayed."""
-
-    layers_by_entry: dict[str, list[AnnotationLayer]] = {
-        entry_id: [] for entry_id in structures
-    }
-    seen_pairs: set[frozenset[str]] = set()
-
-    for bundle in manifest.structures:
-        for record in bundle.annotations:
-            if record.layer_type in PAIRWISE_ANNOTATION_DISPATCH:
-                pair = frozenset(record.target_ids)
-                if len(pair) != 2 or pair in seen_pairs:
-                    continue
-                left_id, right_id = record.target_ids
-                if left_id not in structures or right_id not in structures:
-                    continue
-                seen_pairs.add(pair)
-                layer = PAIRWISE_ANNOTATION_DISPATCH[record.layer_type](
-                    structures[left_id], structures[right_id]
-                )
-                layers_by_entry[left_id].append(layer)
-                layers_by_entry[right_id].append(layer)
-
-    return layers_by_entry
 
 
 def reproduce_dataset(
@@ -109,23 +32,21 @@ def reproduce_dataset(
     """Re-run the pipeline described by a `DatasetManifest` from scratch.
 
     Re-fetches every structure via its recorded `ingestion` provenance,
-    then replays canonicalisation, curation, deduplication, similarity/
-    clustering, partitioning, and annotation exactly as the manifest
-    describes them. Every step is optional in the same way it is in
-    `build_dataset_manifest` (e.g. no `clustering` means no similarity
-    network is (re)computed).
+    then replays canonicalisation, curation and deduplication as the
+    manifest describes them. Similarity, clustering, partitioning and
+    annotation layers are not replayed: the new manifest has no
+    `clustering`, `partition` or `splits`, and its bundles carry no
+    annotations.
 
     This is a best-effort re-run, not a guaranteed byte-identical
-    rebuild: source data can change upstream, and external similarity
-    tools can drift between versions. The returned manifest is the
+    rebuild: source data can change upstream. The returned manifest is the
     record of what *this* run actually produced — diff it against the
     input manifest to see what changed.
 
     Args:
         manifest: A `DatasetManifest`, as returned by
             `build_dataset_manifest`.
-        output_dir: Directory to fetch raw mmCIF files (and, for a
-            Foldseek re-run, write canonicalised structures) into.
+        output_dir: Directory to fetch raw mmCIF files into.
         fetch_options: Passed through to every `fetch_mmcif` call.
 
     Returns:
@@ -135,10 +56,7 @@ def reproduce_dataset(
 
     Raises:
         ValueError: A structure's `ProvenanceBundle` has no `ingestion`
-            provenance to fetch from; `clustering` lacks a recorded
-            `search` or `hit_filter`; its hit filter uses
-            `min_interface_coverage` (interface residues aren't
-            recorded); or its precomputed hit file no longer exists.
+            provenance to fetch from.
     """
 
     output_dir = Path(output_dir)
@@ -160,17 +78,11 @@ def reproduce_dataset(
         excluded.extend(removed)
         structures = {s.entry_id: s for s in retained}
 
-    cluster_prov, partition_prov, splits = _reproduce_clustering(
-        manifest, structures, output_dir
-    )
-
-    annotation_layers = _reproduce_annotations(manifest, structures)
     new_structures = {
         entry_id: build_provenance_bundle(
             structures[entry_id],
             ingestion=ingestion_provenance.get(entry_id),
             canonicalisation=canonicalisation_provenance.get(entry_id),
-            annotations=annotation_layers.get(entry_id, []),
         )
         for entry_id in structures
     }
@@ -183,9 +95,6 @@ def reproduce_dataset(
         canonicalisation_policy=manifest.canonicalisation_policy,
         excluded=excluded,
         deduplication=dedup_prov,
-        clustering=cluster_prov,
-        partition=partition_prov,
-        splits=splits,
         structures=list(new_structures.values()),
     )
     return structures, new_manifest
@@ -253,46 +162,3 @@ def _reproduce_curation(
         if curated is not None:
             kept[entry_id] = curated
     return kept, excluded
-
-
-def _reproduce_clustering(
-    manifest: DatasetManifest,
-    structures: dict[str, Structure],
-    output_dir: Path,
-) -> tuple[
-    ClusteringProvenance | None,
-    PartitionProvenance | None,
-    dict[str, list[str]],
-]:
-    """Re-run the manifest's similarity search, clustering and partition,
-    if it recorded them."""
-
-    if manifest.clustering is None:
-        return None, None, {}
-    recorded = manifest.clustering
-    if recorded.search is None or recorded.hit_filter is None:
-        raise ValueError(
-            "cannot reproduce clustering: the original manifest did "
-            "not record which similarity search and hit filter "
-            "produced the clusters"
-        )
-    if recorded.hit_filter.min_interface_coverage is not None:
-        raise ValueError(
-            "cannot reproduce clustering: its hit filter uses "
-            "min_interface_coverage, and the interface residues it "
-            "was computed with are not recorded in the manifest"
-        )
-    search = _reproduce_similarity(recorded.search, structures, output_dir)
-    clusters, cluster_prov = cluster_similar_items(
-        list(structures), search, recorded.hit_filter
-    )
-    if manifest.partition is None:
-        return cluster_prov, None, {}
-    splits, partition_prov = partition_dataset(
-        clusters,
-        manifest.partition.pct_train,
-        manifest.partition.pct_val,
-        manifest.partition.pct_test,
-        keep_similar_items=manifest.partition.keep_similar_items,
-    )
-    return cluster_prov, partition_prov, splits

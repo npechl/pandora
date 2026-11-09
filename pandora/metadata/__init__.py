@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from pandora.annotations import (
-    annotate_ligand_contacts,
-    annotate_pairwise_sequence_identity,
-)
+from pandora.annotations import annotate_ligand_contacts
 from pandora.metadata.collect import collect_metadata
 from pandora.metadata.mmcif import (
     RawRow,
@@ -21,7 +18,6 @@ from pandora.metadata.mmcif import (
 __all__ = [
     "RawRow",
     "annotate_ligand_contacts",
-    "annotate_pairwise_sequence_identity",
     "collect_metadata",
     "extract_entity_metadata",
     "extract_entry_metadata",
