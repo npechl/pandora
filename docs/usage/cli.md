@@ -132,6 +132,17 @@ pandora annotate count-contacts --contacts annotations/interfaces --level chain 
 
 It writes `layer.<fmt>` and `layer.json`, whose `previous_summary` is the contact layer's `layer.json`. A folder that isn't a `residue_contacts` layer is an error. `--overwrite` and `--table-format` work as on `annotate import`.
 
+## annotate filter-contacts
+
+Drop the interfaces an `interface_labels` layer marks with a `--drop` label (repeatable) from a `residue_contacts` layer, writing a new contact layer; see [Dropping interfaces by label](annotation.md#dropping-interfaces-by-label):
+
+```sh
+pandora annotate filter-contacts --contacts annotations/interfaces --labels annotations/hbond_verdict --drop low_hbond --output-dir annotations/interfaces_strong
+# filtered: 1 interfaces dropped, 2 kept, 0 unlabelled -> annotations/interfaces_strong
+```
+
+It writes `layer.<fmt>` and `layer.json`, whose `previous_summary` is the contact layer's `layer.json` and whose `counts` give rows in and out, interfaces in, dropped and unlabelled, and labelled interfaces not in the contact layer. Interfaces without a label are kept. It is an error, before anything is written, when a folder isn't a layer of the right template, `--output-dir` is an input folder, a `--drop` label is on no interface, or the two layers come from different structures folders (a layer whose structures folder can't be traced gives a warning). `--overwrite` and `--table-format` work as on `annotate import`.
+
 ## manifest
 
 Assemble a `DatasetManifest` from every prior stage's output:

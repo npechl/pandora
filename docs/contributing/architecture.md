@@ -73,6 +73,8 @@ only need one piece. See [Metadata](../usage/metadata.md).
 | `annotate_chain_interfaces()` | `Structure` | `list[ResidueContactRow]` (a `residue_contacts` layer) |
 | `count_residue_contacts()` | `list[ResidueContactRow]` | `list[LayerRow]` (a `residue_values` layer) |
 | `count_chain_contacts()` | `list[ResidueContactRow]` | `list[LayerRow]` (a `chain_values` layer) |
+| `drop_labelled_interfaces()` | `list[ResidueContactRow]`, `interface_labels` rows, drop labels | `list[ResidueContactRow]` (the kept rows) |
+| `count_interface_labels()` | the same | `dict[str, int]` (interfaces in, dropped, unlabelled; labels unmatched) |
 
 The contact functions return the same `ResidueContactRow` rows that `annotate import` stores for another tool's contacts, so everything that reads contacts takes either; see [Annotation](../usage/annotation.md#contacts-are-one-layer).
 

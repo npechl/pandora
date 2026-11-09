@@ -455,3 +455,126 @@ There is no join function; these are plain pandas joins. The example uses `1a2c`
     No command writes residue records; build them with `extract_residue_records()` as in the library tab.
 
 Per-entry values from another tool (an R-free, a clashscore) import as a `free_form` layer, which needs only `entry_id`, and join on `entry_id`.
+
+### Dropping interfaces by label
+
+To drop interfaces from a dataset, for example those with too few hydrogen bonds according to COCaDA, judge each interface yourself in pandas and write the verdict as an `interface_labels` layer. Pandora then removes the dropped interfaces' rows from the contact layer and writes the result as a **new** contact layer. Interface records and `cluster --contacts` read it like any other contact layer, so the dropped interfaces disappear from everything downstream; the original layer is left as it was.
+
+- An interface is an entry's chain pair in either order: a label on B–A also drops rows written A–B.
+- Only interfaces carrying a dropped label go. Interfaces without a label are kept, and their number is reported.
+- An interface has one label (import rejects a second). For several criteria, either fold them into one label in pandas, or make one labels layer per criterion and filter once per layer, each output feeding the next.
+- Both layers must come from the same structures folder, because chain ids can differ between step folders.
+
+The example uses `1a2c` again. Pandora's own contact layers leave `contact_type` empty, so here pairs closer than 3.2 Å stand in for COCaDA's hydrogen bonds.
+
+=== "`library`"
+
+    ```python
+    import pandas as pd
+
+    from pandora.annotations import (
+        annotate_chain_interfaces,
+        count_interface_labels,
+        drop_labelled_interfaces,
+        resolve_layer_rows,
+    )
+    from pandora.datasets import extract_interface_records
+    from pandora.parsing import mmcif_to_structure
+
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/a2/1a2c.cif")
+    # Stand-in for an imported COCaDA layer: tag close pairs as hydrogen bonds
+    contacts = [
+        row.model_copy(
+            update={"contact_type": "hbond" if row.distance < 3.2 else "other"}
+        )
+        for row in annotate_chain_interfaces(structure)
+    ]
+
+    # Your judgement, in pandas: fewer than 10 hydrogen bonds is too weak
+    df = pd.DataFrame([row.model_dump() for row in contacts])
+    pair = ["chain_id_1", "chain_id_2"]
+    df[pair] = pd.DataFrame(df[pair].apply(sorted, axis=1).tolist(), index=df.index)
+    hbonds = (
+        df.assign(hbond=df.contact_type == "hbond")
+        .groupby(["entry_id", *pair])["hbond"]
+        .sum()
+        .reset_index()
+    )
+    hbonds["label"] = ["low_hbond" if n < 10 else "ok" for n in hbonds.hbond]
+    print(hbonds)
+
+    labels, _ = resolve_layer_rows(
+        hbonds.drop(columns="hbond").to_dict("records"),
+        "interface_labels",
+        {structure.entry_id: structure},
+    )
+    kept = drop_labelled_interfaces(contacts, labels, {"low_hbond"})
+    print(count_interface_labels(contacts, labels, {"low_hbond"}))
+    for record in extract_interface_records(kept):
+        print(record.chain_id_1, record.chain_id_2, record.contact_count)
+    ```
+
+    ```text
+      entry_id chain_id_1 chain_id_2  hbond      label
+    0     1A2C          A          B     27         ok
+    1     1A2C          B          C      8  low_hbond
+    2     1A2C          B          D     10         ok
+    {'interfaces_in': 3, 'interfaces_dropped': 1, 'interfaces_unlabelled': 0, 'labels_unmatched': 0}
+    A B 61
+    B D 22
+    ```
+
+=== "`cli`"
+
+    Compute (or import) the contact layer, then write the verdict table in pandas, `verdict.py`:
+
+    ```python
+    import pandas as pd
+
+    df = pd.read_parquet("annotations/interfaces/layer.parquet")
+    pair = ["chain_id_1", "chain_id_2"]
+    df[pair] = pd.DataFrame(df[pair].apply(sorted, axis=1).tolist(), index=df.index)
+    # Stand-in for COCaDA's contact_type: close pairs count as hydrogen bonds
+    df["hbond"] = df.distance < 3.2
+    verdict = df.groupby(["entry_id", *pair])["hbond"].sum().reset_index()
+    verdict["label"] = ["low_hbond" if n < 10 else "ok" for n in verdict.hbond]
+    verdict.drop(columns="hbond").to_parquet("verdict.parquet")
+    ```
+
+    Describe it as an `interface_labels` layer, `verdict.yaml`:
+
+    ```yaml
+    name: hbond_verdict
+    template: interface_labels
+    tool: pandas
+    tool_version: "2.2"
+    parameters:
+      rule: fewer than 10 hydrogen bonds is low_hbond
+    ```
+
+    Import it against the same step folder, then filter:
+
+    ```bash
+    pandora annotate compute --layer chain_interfaces --structures-dir curated/ \
+      --output-dir annotations/interfaces
+    python verdict.py
+    pandora annotate import --structures-dir curated/ --table verdict.parquet \
+      --description verdict.yaml --output-dir annotations/hbond_verdict
+    pandora annotate filter-contacts --contacts annotations/interfaces \
+      --labels annotations/hbond_verdict --drop low_hbond \
+      --output-dir annotations/interfaces_strong
+    jq -c '.counts' annotations/interfaces_strong/layer.json
+    ```
+
+    ```text
+    computed: 120 rows for 1 entries -> annotations/interfaces
+    imported: 3 rows, 0 unmatched -> annotations/hbond_verdict
+    filtered: 1 interfaces dropped, 2 kept, 0 unlabelled -> annotations/interfaces_strong
+    {"interfaces_dropped":1,"interfaces_in":3,"interfaces_unlabelled":0,"labels_unmatched":0,"rows_in":120,"rows_out":99}
+    ```
+
+    Pass `annotations/interfaces_strong` wherever a contact layer goes, for example `cluster --contacts`. A `--drop` label that no interface has is an error, before anything is written:
+
+    ```text
+    annotate filter-contacts: no interface has the label(s) ['typo']; check for typos
+    ```
