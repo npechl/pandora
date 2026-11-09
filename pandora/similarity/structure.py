@@ -6,10 +6,8 @@ import tempfile
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
-from pandora._util import now_iso
 from pandora.datasets.records import interface_residue_pairs
-from pandora.schemas.annotation import ResidueContactRow
-from pandora.schemas.similarity import SimilaritySearch
+from pandora.schemas.annotation import LayerDescription, ResidueContactRow
 from pandora.schemas.structure import Structure
 from pandora.similarity.hits import HIT_COLUMNS
 
@@ -147,7 +145,7 @@ def compute_structure_similarity(
     exhaustive_search: bool = False,
     tmp_dir: str | Path | None = None,
     foldseek_options: list[str] | None = None,
-) -> SimilaritySearch:
+) -> LayerDescription:
     """All-vs-all structural similarity via Foldseek `easy-search`.
 
     Writes Foldseek's hits to `hits_path` as a TSV with the columns in
@@ -177,10 +175,11 @@ def compute_structure_similarity(
         foldseek_options: Additional options passed to Foldseek.
 
     Returns:
-        A `SimilaritySearch` pointing at `hits_path`. Its `parameters`
-        are this function's keyword arguments, so the search can be
-        re-run with `compute_structure_similarity(structures, path,
-        **search.parameters)`.
+        The `LayerDescription` of the chain-level `similarity` layer
+        these hits become (read them with `read_hit_tsv()`). Its
+        `parameters` are this function's keyword arguments, so the
+        search can be re-run with `compute_structure_similarity(structures, path,
+        **description.parameters)`.
 
     Raises:
         RuntimeError: `foldseek_bin` is not on PATH.
@@ -229,11 +228,12 @@ def compute_structure_similarity(
             command + options, check=True, capture_output=True, text=True
         )
 
-    return SimilaritySearch(
-        engine="Foldseek",
-        version=_foldseek_version(foldseek_bin),
-        hits_path=str(hits),
-        columns=list(HIT_COLUMNS["Foldseek"]),
+    return LayerDescription(
+        name="foldseek",
+        template="similarity",
+        items="chain",
+        tool="Foldseek",
+        tool_version=_foldseek_version(foldseek_bin),
         parameters={
             "foldseek_bin": foldseek_bin,
             "sensitivity": sensitivity,
@@ -242,5 +242,4 @@ def compute_structure_similarity(
             "exhaustive_search": exhaustive_search,
             "foldseek_options": options,
         },
-        searched_at=now_iso(),
     )

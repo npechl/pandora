@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import inspect
-import shutil
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -22,6 +21,7 @@ from pandora.annotations.entry import CONTACT_ATOM_SETS
 from pandora.cli._io import (
     TABLE_FORMATS,
     check_table_format,
+    copy_source,
     prepare_output_dir,
     read_structures_dir,
     write_table,
@@ -153,7 +153,7 @@ def _cmd_import(args: argparse.Namespace) -> None:
         rows, description.template, structures
     )
     if args.source_files:
-        _copy_source(Path(args.source_files), out / "source")
+        copy_source(Path(args.source_files), out / "source")
     for name, table_rows in (("layer", matched), ("unmatched", unmatched)):
         write_table(
             [LayerRow(**row) for row in _uniform_columns(table_rows)],
@@ -211,16 +211,6 @@ def _uniform_columns(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         }
         for row in rows
     ]
-
-
-def _copy_source(source: Path, dest: Path) -> None:
-    """Copy a tool's original output file or folder into `dest`."""
-
-    if source.is_dir():
-        shutil.copytree(source, dest)
-    else:
-        dest.mkdir(parents=True)
-        shutil.copy2(source, dest / source.name)
 
 
 def register(subparsers: argparse._SubParsersAction) -> None:

@@ -382,83 +382,6 @@ def test_cluster_flag_overrides_hit_filter_yaml(tmp_path):
     assert ["104M", "112M"] in [c["components"] for c in clusters]
 
 
-FAKE_MMSEQS_CLI = """#!/bin/sh
-if [ "$1" = version ]; then echo 15.6f452; exit 0; fi
-echo "$@" > "$(dirname "$0")/args.txt"
-printf '104M\\t112M\\t0.99\\t100\\t0.95\\t0.95\\n' > "$4"
-"""
-
-
-def test_similarity_writes_hits_and_search_record(tmp_path):
-    mmseqs = tmp_path / "mmseqs"
-    mmseqs.write_text(FAKE_MMSEQS_CLI)
-    mmseqs.chmod(mmseqs.stat().st_mode | stat.S_IEXEC)
-    input_dir = tmp_path / "in"
-    input_dir.mkdir()
-    for name in ("104m", "112m"):
-        shutil.copy(
-            FIXTURES_DIR / name[1:3] / f"{name}.cif", input_dir / f"{name}.cif"
-        )
-    output = tmp_path / "hits.tsv"
-
-    main(
-        [
-            "similarity",
-            "--input-dir",
-            str(input_dir),
-            "--engine",
-            "mmseqs2",
-            "--mmseqs-bin",
-            str(mmseqs),
-            "--max-seqs",
-            "500",
-            "--output",
-            str(output),
-        ]
-    )
-
-    record = json.loads((tmp_path / "hits.tsv.search.json").read_text())
-    assert output.read_text().startswith("104M\t112M")
-    assert record["hits_path"] == str(output)
-    assert record["parameters"]["max_seqs"] == 500
-    assert record["origin"] == "computed"
-
-
-def test_similarity_wraps_precomputed_hits(tmp_path):
-    hits = tmp_path / "elsewhere.tsv"
-    hits.write_text("104M\t112M\t0.99\t100\t0.95\t0.95\n")
-    output = tmp_path / "hits.tsv"
-
-    main(
-        [
-            "similarity",
-            "--engine",
-            "mmseqs2",
-            "--precomputed-hits",
-            str(hits),
-            "--output",
-            str(output),
-        ]
-    )
-
-    record = json.loads((tmp_path / "hits.tsv.search.json").read_text())
-    assert record["origin"] == "precomputed"
-    assert record["hits_path"] == str(hits)
-
-
-def test_similarity_needs_input_dir_without_precomputed_hits(tmp_path):
-    with pytest.raises(SystemExit, match="--input-dir"):
-        main(
-            [
-                "similarity",
-                "--engine",
-                "mmseqs2",
-                "--output",
-                str(tmp_path / "hits.tsv"),
-            ]
-        )
-
-
 def test_cluster_requires_a_threshold(tmp_path):
     input_dir, search = _cluster_inputs(tmp_path)
 
@@ -472,48 +395,6 @@ def test_cluster_requires_a_threshold(tmp_path):
                 str(search),
                 "--output",
                 str(tmp_path / "clusters.json"),
-            ]
-        )
-
-
-def test_similarity_records_absolute_hits_path(tmp_path, monkeypatch):
-    (tmp_path / "elsewhere.tsv").write_text(
-        "104M\t112M\t0.99\t100\t0.95\t0.95\n"
-    )
-    monkeypatch.chdir(tmp_path)
-
-    main(
-        [
-            "similarity",
-            "--engine",
-            "mmseqs2",
-            "--precomputed-hits",
-            "elsewhere.tsv",
-            "--output",
-            "hits.tsv",
-        ]
-    )
-
-    record = json.loads((tmp_path / "hits.tsv.search.json").read_text())
-    assert record["hits_path"] == str((tmp_path / "elsewhere.tsv").resolve())
-
-
-def test_similarity_rejects_search_options_with_precomputed_hits(tmp_path):
-    hits = tmp_path / "elsewhere.tsv"
-    hits.write_text("104M\t112M\t0.99\t100\t0.95\t0.95\n")
-
-    with pytest.raises(SystemExit, match="--max-seqs"):
-        main(
-            [
-                "similarity",
-                "--engine",
-                "mmseqs2",
-                "--precomputed-hits",
-                str(hits),
-                "--max-seqs",
-                "10",
-                "--output",
-                str(tmp_path / "hits.tsv"),
             ]
         )
 
@@ -1195,3 +1076,306 @@ def test_annotate_import_refuses_similarity_layer(tmp_path):
     with pytest.raises(SystemExit, match="pandora similarity import"):
         main(["annotate", "import", *args])
     assert not (tmp_path / "annotations" / "t").exists()
+
+
+# Stands in for `mmseqs`: keeps the query FASTA, writes two hits.
+FAKE_MMSEQS_CLI = """#!/bin/sh
+if [ "$1" = version ]; then echo 15.6f452; exit 0; fi
+cp "$2" "$(dirname "$0")/query.fasta"
+printf '104M_A\\t112M_A\\t0.99\\t100\\t0.95\\t0.9\\n' > "$4"
+printf '104M_A\\t999X_A\\t0.5\\t100\\t0.95\\t0.9\\n' >> "$4"
+"""
+
+# Stands in for `foldseek`: one hit between two chain files.
+FAKE_FOLDSEEK_CLI = """#!/bin/sh
+if [ "$1" = version ]; then echo 10.941cd33; exit 0; fi
+printf '104m_A\\t112m_A\\t0.5\\t100\\t0.9\\t0.8\\t0.7\\t0.6\\t0.6\\t1\\t100\\t1\\t90\\n' > "$4"
+"""
+
+
+def _write_jsonl(path, rows):
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+
+
+def _similarity_step(tmp_path):
+    """A step folder holding only tables: entries 104M, 112M; chains
+    104M_A, 112M_A and 112M_B (a symmetry copy of 112M_A)."""
+
+    folder = tmp_path / "curated"
+    folder.mkdir()
+    _write_jsonl(
+        folder / "entries.jsonl",
+        [
+            {"entry_id": "104M", "structure_path": "s/104m.cif"},
+            {"entry_id": "112M", "structure_path": "s/112m.cif"},
+            {"entry_id": "118L", "structure_path": None},
+        ],
+    )
+    _write_jsonl(
+        folder / "chains.jsonl",
+        [
+            {"entry_id": "104M", "chain_id": "A", "sequence": "MKV"},
+            {"entry_id": "112M", "chain_id": "A", "sequence": "MKL"},
+            {
+                "entry_id": "112M",
+                "chain_id": "B",
+                "sequence": "MKL",
+                "copy_of": "A",
+            },
+        ],
+    )
+    (folder / "curation.json").write_text("{}")
+    return folder
+
+
+def _executable(path, text):
+    path.write_text(text)
+    path.chmod(path.stat().st_mode | stat.S_IEXEC)
+    return path
+
+
+def _search_mmseqs(tmp_path, out, *extra):
+    mmseqs = _executable(tmp_path / "mmseqs", FAKE_MMSEQS_CLI)
+    main(
+        [
+            "similarity",
+            "search",
+            "--engine",
+            "mmseqs2",
+            "--mmseqs-bin",
+            str(mmseqs),
+            "--structures-dir",
+            str(_similarity_step(tmp_path)),
+            "--output-dir",
+            str(out),
+            *extra,
+        ]
+    )
+
+
+def _parquet_rows(path):
+    import pyarrow.parquet as pq
+
+    return pq.read_table(path).to_pylist()
+
+
+def test_similarity_search_mmseqs_writes_layer_without_copies(tmp_path):
+    out = tmp_path / "similarity" / "seq"
+    _search_mmseqs(tmp_path, out, "--max-seqs", "500")
+
+    query = (tmp_path / "query.fasta").read_text()
+    assert ">104M_A" in query
+    assert ">112M_B" not in query
+    rows = _parquet_rows(out / "layer.parquet")
+    assert [(r["item_id_1"], r["item_id_2"]) for r in rows] == [
+        ("104M_A", "112M_A")
+    ]
+    assert rows[0]["score"] == rows[0]["identity"] == 0.99
+    assert rows[0]["coverage_2"] == 0.9
+    unmatched = _parquet_rows(out / "unmatched.parquet")
+    assert [r["reason"] for r in unmatched] == ["entry_not_found"]
+    assert not (out / "hits.tsv").exists()
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["step"] == "similarity_search"
+    assert summary["policy"]["items"] == "chain"
+    assert summary["policy"]["tool"] == "MMseqs2"
+    assert summary["policy"]["parameters"]["max_seqs"] == 500
+    assert summary["previous_summary"].endswith("curation.json")
+    assert summary["counts"] == {
+        "rows_in": 2,
+        "rows_matched": 1,
+        "rows_unmatched": 1,
+        "unmatched:entry_not_found": 1,
+    }
+
+
+def test_similarity_search_refuses_existing_layer(tmp_path):
+    out = tmp_path / "similarity" / "seq"
+    _search_mmseqs(tmp_path, out)
+    shutil.rmtree(tmp_path / "curated")
+    with pytest.raises(SystemExit, match="overwrite"):
+        _search_mmseqs(tmp_path, out)
+
+
+def test_similarity_search_foldseek_matches_file_stems(tmp_path):
+    foldseek = _executable(tmp_path / "foldseek", FAKE_FOLDSEEK_CLI)
+    chains = tmp_path / "chains"
+    chains.mkdir()
+    out = tmp_path / "similarity" / "struct"
+    main(
+        [
+            "similarity",
+            "search",
+            "--engine",
+            "foldseek",
+            "--foldseek-bin",
+            str(foldseek),
+            "--input-dir",
+            str(chains),
+            "--structures-dir",
+            str(_similarity_step(tmp_path)),
+            "--output-dir",
+            str(out),
+        ]
+    )
+
+    rows = _parquet_rows(out / "layer.parquet")
+    assert [(r["item_id_1"], r["item_id_2"]) for r in rows] == [
+        ("104M_A", "112M_A")
+    ]
+    assert rows[0]["score"] == 0.7
+    assert rows[0]["end_2"] == 90
+
+
+def test_similarity_search_mmseqs_rejects_input_dir(tmp_path):
+    with pytest.raises(SystemExit, match="--input-dir"):
+        _search_mmseqs(tmp_path, tmp_path / "out", "--input-dir", str(tmp_path))
+
+
+def _import(tmp_path, items, *flags, rows=None):
+    (tmp_path / "graph.yaml").write_text(
+        f"name: r_graph\ntemplate: similarity\n{items}tool: R\n"
+    )
+    table = tmp_path / "edges.tsv"
+    table.write_text(
+        "item_id_1\titem_id_2\tscore\tweight\n"
+        + "".join("\t".join(r) + "\n" for r in rows or [])
+    )
+    out = tmp_path / "similarity" / "r_graph"
+    main(
+        [
+            "similarity",
+            "import",
+            "--table",
+            str(table),
+            "--description",
+            str(tmp_path / "graph.yaml"),
+            "--output-dir",
+            str(out),
+            *flags,
+        ]
+    )
+    return out
+
+
+def test_similarity_import_tsv_entry_level(tmp_path):
+    out = _import(
+        tmp_path,
+        "items: entry\n",
+        "--structures-dir",
+        str(_similarity_step(tmp_path)),
+        rows=[("104m", "112M", "0.8", "w"), ("104M", "999X", "0.5", "w")],
+    )
+
+    rows = _parquet_rows(out / "layer.parquet")
+    assert rows == [
+        {"item_id_1": "104M", "item_id_2": "112M", "score": 0.8, "weight": "w"}
+    ]
+    assert [r["reason"] for r in _parquet_rows(out / "unmatched.parquet")] == [
+        "entry_not_found"
+    ]
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["step"] == "similarity_import"
+    assert summary["input"].endswith("edges.tsv")
+
+
+def test_similarity_import_118l_without_structure_is_not_an_item(tmp_path):
+    out = _import(
+        tmp_path,
+        "items: entry\n",
+        "--structures-dir",
+        str(_similarity_step(tmp_path)),
+        rows=[("104M", "118L", "0.8", "w")],
+    )
+
+    assert not (out / "layer.parquet").exists()
+    assert [r["reason"] for r in _parquet_rows(out / "unmatched.parquet")] == [
+        "entry_not_found"
+    ]
+
+
+def test_similarity_import_interface_level_from_contacts(tmp_path):
+    contacts = tmp_path / "contacts"
+    contacts.mkdir()
+    _write_jsonl(
+        contacts / "layer.jsonl",
+        [
+            {
+                "entry_id": "1A2C",
+                "chain_id_1": "B",
+                "chain_id_2": "A",
+                "seq_id_1": 3,
+                "seq_id_2": 9,
+            }
+        ],
+    )
+    (contacts / "layer.json").write_text(
+        json.dumps({"policy": {"template": "residue_contacts"}})
+    )
+    out = _import(
+        tmp_path,
+        "items: interface\n",
+        "--contacts",
+        str(contacts),
+        rows=[
+            ("1A2C_B_A", "1A2C_A_B", "1", "w"),
+            ("1A2C_A_C", "1A2C_A_B", "1", "w"),
+        ],
+    )
+
+    assert [r["item_id_1"] for r in _parquet_rows(out / "layer.parquet")] == [
+        "1A2C_A_B"
+    ]
+    assert [r["reason"] for r in _parquet_rows(out / "unmatched.parquet")] == [
+        "interface_not_found"
+    ]
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["previous_summary"] == str(contacts / "layer.json")
+
+
+def test_similarity_import_interface_level_needs_contacts(tmp_path):
+    with pytest.raises(SystemExit, match="--contacts"):
+        _import(
+            tmp_path,
+            "items: interface\n",
+            "--structures-dir",
+            str(_similarity_step(tmp_path)),
+        )
+
+
+def test_similarity_import_chain_level_without_chains_table(tmp_path):
+    folder = _similarity_step(tmp_path)
+    (folder / "chains.jsonl").unlink()
+    with pytest.raises(SystemExit, match="pandora curate"):
+        _import(tmp_path, "items: chain\n", "--structures-dir", str(folder))
+
+
+def test_similarity_import_missing_items_stops_before_writing(tmp_path):
+    with pytest.raises(SystemExit, match="items"):
+        _import(
+            tmp_path, "", "--structures-dir", str(_similarity_step(tmp_path))
+        )
+    assert not (tmp_path / "similarity" / "r_graph").exists()
+
+
+def test_similarity_import_missing_score_stops_before_writing(tmp_path):
+    (tmp_path / "g.tsv").write_text("item_id_1\titem_id_2\n104M\t112M\n")
+    (tmp_path / "g.yaml").write_text(
+        "name: g\ntemplate: similarity\nitems: entry\ntool: R\n"
+    )
+    with pytest.raises(SystemExit, match="score"):
+        main(
+            [
+                "similarity",
+                "import",
+                "--table",
+                str(tmp_path / "g.tsv"),
+                "--description",
+                str(tmp_path / "g.yaml"),
+                "--structures-dir",
+                str(_similarity_step(tmp_path)),
+                "--output-dir",
+                str(tmp_path / "out"),
+            ]
+        )
+    assert not (tmp_path / "out").exists()

@@ -5,10 +5,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from pandora._util import now_iso
 from pandora.export.fasta import write_fasta
+from pandora.schemas.annotation import LayerDescription
 from pandora.schemas.dataset import ChainRecord
-from pandora.schemas.similarity import SimilaritySearch
 from pandora.similarity.hits import HIT_COLUMNS
 
 _FASTA_GLOBS = ("*.fasta", "*.fa", "*.fna", "*.faa")
@@ -49,12 +48,12 @@ def compute_sequence_similarity(
     max_seqs: int = 300,
     tmp_dir: str | Path | None = None,
     mmseqs_options: list[str] | None = None,
-) -> SimilaritySearch:
+) -> LayerDescription:
     """All-vs-all sequence similarity via MMseqs2 `easy-search`.
 
     Writes MMseqs2's hits to `hits_path` as a TSV with the columns in
     `HIT_COLUMNS["MMseqs2"]` and keeps it there; nothing is loaded into
-    memory. Read it with `iter_edges()` / `cluster_similar_items()`.
+    memory. Read it with `read_hit_tsv()`.
 
     Args:
         sequences: Mapping of item id -> sequence, a list of `ChainRecord`
@@ -73,10 +72,11 @@ def compute_sequence_similarity(
         mmseqs_options: Additional options passed to MMseqs2.
 
     Returns:
-        A `SimilaritySearch` pointing at `hits_path`. Its `parameters`
-        are this function's keyword arguments, so the search can be
-        re-run with `compute_sequence_similarity(seqs, path,
-        **search.parameters)`.
+        The `LayerDescription` of the chain-level `similarity` layer
+        these hits become (read them with `read_hit_tsv()`). Its
+        `parameters` are this function's keyword arguments, so the
+        search can be re-run with `compute_sequence_similarity(seqs, path,
+        **description.parameters)`.
 
     Raises:
         RuntimeError: `mmseqs_bin` is not on PATH.
@@ -131,16 +131,16 @@ def compute_sequence_similarity(
             text=True,
         )
 
-    return SimilaritySearch(
-        engine="MMseqs2",
-        version=_mmseqs_version(mmseqs_bin),
-        hits_path=str(hits),
-        columns=list(HIT_COLUMNS["MMseqs2"]),
+    return LayerDescription(
+        name="mmseqs2",
+        template="similarity",
+        items="chain",
+        tool="MMseqs2",
+        tool_version=_mmseqs_version(mmseqs_bin),
         parameters={
             "mmseqs_bin": mmseqs_bin,
             "sensitivity": sensitivity,
             "max_seqs": max_seqs,
             "mmseqs_options": options,
         },
-        searched_at=now_iso(),
     )

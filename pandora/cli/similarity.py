@@ -3,21 +3,34 @@
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
+from collections import Counter
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
+from pandora._util import now_iso
 from pandora.cli._io import (
+    ParquetSink,
+    copy_source,
+    find_table,
     load_json_list,
     load_json_model,
     load_pairs,
     load_yaml_model,
+    prepare_output_dir,
+    read_columns,
     read_structures_dir,
 )
-from pandora.datasets import (
-    entry_sequences,
-)
 from pandora.export import read_records, write_json, write_records
-from pandora.schemas.annotation import ResidueContactRow
+from pandora.ingestion import load_policy
+from pandora.provenance import build_step_summary
+from pandora.schemas.annotation import (
+    LayerDescription,
+    ResidueContactRow,
+    SimilarityItems,
+)
 from pandora.schemas.similarity import (
     HitFilter,
     SimilarityCluster,
@@ -28,68 +41,306 @@ from pandora.similarity import (
     compute_sequence_similarity,
     compute_structure_similarity,
     interface_residues_from_annotation,
-    load_similarity_search,
     pair_cluster_keys,
     partition_dataset,
+)
+from pandora.similarity.hits import read_hit_tsv, read_similarity_table
+from pandora.similarity.layer import (
+    ItemSet,
+    chain_items,
+    check_similarity_columns,
+    entry_items,
+    interface_items,
+    item_id,
+    match_similarity_batches,
 )
 
 _CLI_ENGINES = {"mmseqs2": "MMseqs2", "foldseek": "Foldseek"}
 
+# What `similarity search` / `import` write: cleared by --overwrite.
+_LAYER_OUTPUTS = [
+    "layer.parquet",
+    "unmatched.parquet",
+    "source",
+    "layer.json",
+    "hits.tsv",
+]
+_STEP_SUMMARIES = ("curation.json", "canonicalisation.json")
+_CONTACT_COLUMNS = (
+    "entry_id",
+    "chain_id_1",
+    "chain_id_2",
+    "seq_id_1",
+    "seq_id_2",
+)
 
-def _cmd_similarity(args: argparse.Namespace) -> None:
-    """Handle the `similarity` subcommand: run (or wrap a precomputed)
-    all-vs-all sequence or structure search, keeping its hit file."""
 
-    output = Path(args.output)
+def _require_pyarrow(command: str) -> None:
+    """Exit unless pyarrow (the `export` extra) is installed."""
 
-    if args.precomputed_hits:
-        ignored = [
-            flag
-            for flag, value in (
-                ("--max-seqs", args.max_seqs),
-                ("--sensitivity", args.sensitivity),
-            )
-            if value is not None
-        ]
-        if ignored:
-            raise SystemExit(
-                f"similarity: {', '.join(ignored)} has no effect with "
-                "--precomputed-hits (no search is run)"
-            )
-        search = load_similarity_search(
-            args.precomputed_hits, _CLI_ENGINES[args.engine]
-        )
-    elif args.input_dir is None:
+    try:
+        import pyarrow  # noqa: F401
+    except ImportError as exc:
         raise SystemExit(
-            "similarity: --input-dir is required unless --precomputed-hits "
-            "is given"
+            f"{command}: similarity layers need pyarrow (the export extra)"
+        ) from exc
+
+
+def _step_table(command: str, folder: Path, name: str, writer: str) -> Path:
+    """`folder`'s `<name>.<fmt>` table, or exit naming the step that
+    writes it."""
+
+    path = find_table(folder, name)
+    if path is None:
+        raise SystemExit(
+            f"{command}: {folder} has no {name} table; it is written by "
+            f"`{writer}`"
         )
-    elif args.engine == "mmseqs2":
-        structures = read_structures_dir(Path(args.input_dir))
-        sequences = entry_sequences(structures)
-        kwargs = {"mmseqs_bin": args.mmseqs_bin}
-        if args.sensitivity is not None:
-            kwargs["sensitivity"] = args.sensitivity
-        if args.max_seqs is not None:
-            kwargs["max_seqs"] = args.max_seqs
-        search = compute_sequence_similarity(sequences, output, **kwargs)
+    return path
+
+
+def _contact_layer(command: str, folder: Path) -> Path:
+    """The rows file of a `residue_contacts` layer folder."""
+
+    summary = folder / "layer.json"
+    if not summary.exists():
+        raise SystemExit(f"{command}: {folder} is not a layer folder")
+    template = (json.loads(summary.read_text()).get("policy") or {}).get(
+        "template"
+    )
+    if template != "residue_contacts":
+        raise SystemExit(
+            f"{command}: {folder} is a {template} layer, --contacts needs "
+            "residue_contacts"
+        )
+    return find_table(folder, "layer") or summary
+
+
+def _item_set(
+    command: str,
+    level: SimilarityItems,
+    structures_dir: Path | None,
+    contacts: Path | None,
+) -> tuple[ItemSet, Path | None]:
+    """The items a layer at `level` may name, read from a step folder's
+    tables or a contact layer, and the summary of where they came from."""
+
+    if level == "interface":
+        if contacts is None:
+            raise SystemExit(
+                f"{command}: interface items come from --contacts "
+                "(a residue_contacts layer folder)"
+            )
+        rows_file = _contact_layer(command, contacts)
+        rows = (
+            read_columns(rows_file, _CONTACT_COLUMNS)
+            if rows_file.name != "layer.json"
+            else iter(())
+        )
+        return interface_items(rows), contacts / "layer.json"
+    if structures_dir is None:
+        raise SystemExit(f"{command}: {level} items need --structures-dir")
+    previous = next(
+        (
+            structures_dir / name
+            for name in _STEP_SUMMARIES
+            if (structures_dir / name).exists()
+        ),
+        None,
+    )
+    if level == "entry":
+        table = _step_table(
+            command, structures_dir, "entries", "pandora canonicalise"
+        )
+        rows = read_columns(table, ("entry_id", "structure_path"))
+        entries = [r["entry_id"] for r in rows if r["structure_path"]]
+        return entry_items(entries), previous
+    table = _step_table(command, structures_dir, "chains", "pandora curate")
+    rows = read_columns(table, ("entry_id", "chain_id"))
+    return chain_items((r["entry_id"], r["chain_id"]) for r in rows), previous
+
+
+def _write_layer(
+    batches: Iterable[Any], items: ItemSet, out: Path
+) -> Counter[str]:
+    """Match `batches` against `items` into `out`'s layer and unmatched
+    tables; returns the counts."""
+
+    counts: Counter[str] = Counter(rows_in=0, rows_matched=0, rows_unmatched=0)
+    with (
+        ParquetSink(out / "layer.parquet") as layer,
+        ParquetSink(out / "unmatched.parquet") as unmatched,
+    ):
+        for matched, rest in match_similarity_batches(batches, items):
+            layer.write(matched)
+            unmatched.write(rest)
+            counts["rows_in"] += matched.num_rows + rest.num_rows
+            counts.update(
+                f"unmatched:{r}" for r in rest.column("reason").to_pylist()
+            )
+        counts["rows_matched"] = layer.rows
+        counts["rows_unmatched"] = unmatched.rows
+    return counts
+
+
+def _write_summary(
+    step: str,
+    description: LayerDescription,
+    *,
+    input: Path,
+    out: Path,
+    started_at: str,
+    counts: Counter[str],
+    previous: Path | None,
+) -> None:
+    """Write the layer folder's `layer.json`."""
+
+    write_json(
+        build_step_summary(
+            step,
+            description,
+            input=input,
+            output=out,
+            started_at=started_at,
+            counts=dict(sorted(counts.items())),
+            previous_summary=previous,
+        ),
+        out / "layer.json",
+    )
+
+
+def _search_options(args: argparse.Namespace) -> dict[str, Any]:
+    """Keyword arguments for the search function from the CLI flags."""
+
+    if args.engine == "mmseqs2":
+        options: dict[str, Any] = {"mmseqs_bin": args.mmseqs_bin}
     else:
-        kwargs = {
+        options = {
             "foldseek_bin": args.foldseek_bin,
             "alignment_type": args.alignment_type,
             "exhaustive_search": args.exhaustive_search,
         }
-        if args.sensitivity is not None:
-            kwargs["sensitivity"] = args.sensitivity
-        if args.max_seqs is not None:
-            kwargs["max_seqs"] = args.max_seqs
-        search = compute_structure_similarity(
-            Path(args.input_dir), output, **kwargs
-        )
+    for name in ("sensitivity", "max_seqs"):
+        if getattr(args, name) is not None:
+            options[name] = getattr(args, name)
+    return options
 
-    record = output.with_name(output.name + ".search.json")
-    write_json(search, record)
-    print(f"hits -> {search.hits_path}; search record -> {record}")
+
+def _cmd_search(args: argparse.Namespace) -> None:
+    """Handle `similarity search`: run MMseqs2 or Foldseek over chains
+    and write the hits as a similarity layer folder."""
+
+    started_at = now_iso()
+    _require_pyarrow("similarity search")
+    if args.engine == "mmseqs2" and args.input_dir is not None:
+        raise SystemExit(
+            "similarity search: --input-dir is for foldseek; mmseqs2 reads "
+            "chain sequences from --structures-dir"
+        )
+    if args.engine == "foldseek" and args.input_dir is None:
+        raise SystemExit(
+            "similarity search: foldseek needs --input-dir (the per-chain "
+            "structure files)"
+        )
+    structures_dir = Path(args.structures_dir)
+    items, previous = _item_set(
+        "similarity search", "chain", structures_dir, None
+    )
+    out = Path(args.output_dir)
+    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    hits = out / "hits.tsv"
+    if args.engine == "mmseqs2":
+        description = compute_sequence_similarity(
+            _chain_sequences(structures_dir), hits, **_search_options(args)
+        )
+        searched: Path = structures_dir
+    else:
+        searched = Path(args.input_dir)
+        description = compute_structure_similarity(
+            searched, hits, **_search_options(args)
+        )
+    counts = _write_layer(
+        read_hit_tsv(hits, _CLI_ENGINES[args.engine]), items, out
+    )
+    hits.unlink()
+    _write_summary(
+        "similarity_search",
+        description,
+        input=searched,
+        out=out,
+        started_at=started_at,
+        counts=counts,
+        previous=previous,
+    )
+    print(
+        f"searched: {counts['rows_matched']} hits, "
+        f"{counts['rows_unmatched']} unmatched -> {out}"
+    )
+
+
+def _chain_sequences(structures_dir: Path) -> dict[str, str]:
+    """Item ID -> sequence for the step folder's chains, without
+    symmetry copies (they would crowd out real homologues)."""
+
+    table = _step_table(
+        "similarity search", structures_dir, "chains", "pandora curate"
+    )
+    columns = ("entry_id", "chain_id", "sequence", "copy_of")
+    return {
+        item_id("chain", r["entry_id"], r["chain_id"]): r["sequence"]
+        for r in read_columns(table, columns)
+        if r["sequence"] and not r["copy_of"]
+    }
+
+
+def _cmd_import(args: argparse.Namespace) -> None:
+    """Handle `similarity import`: link a user's edge list to the items
+    of a step folder or contact layer, as a similarity layer folder."""
+
+    started_at = now_iso()
+    _require_pyarrow("similarity import")
+    table = Path(args.table)
+    try:
+        description = load_policy(args.description, model=LayerDescription)
+        if description.template != "similarity":
+            raise ValueError(
+                f"template is {description.template!r}; `similarity "
+                "import` takes similarity layers"
+            )
+        batches = read_similarity_table(table)
+        first = next(batches, None)
+        if first is not None:
+            check_similarity_columns(first.schema.names)
+    except (ValueError, FileNotFoundError) as exc:
+        raise SystemExit(f"cannot import {table}: {exc}") from exc
+
+    structures_dir = Path(args.structures_dir) if args.structures_dir else None
+    contacts = Path(args.contacts) if args.contacts else None
+    items, previous = _item_set(
+        "similarity import", description.items, structures_dir, contacts
+    )
+    out = Path(args.output_dir)
+    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    if args.source_files:
+        copy_source(Path(args.source_files), out / "source")
+    rest = [] if first is None else itertools.chain([first], batches)
+    try:
+        counts = _write_layer(rest, items, out)
+    except ValueError as exc:
+        raise SystemExit(f"cannot import {table}: {exc}") from exc
+    _write_summary(
+        "similarity_import",
+        description,
+        input=table,
+        out=out,
+        started_at=started_at,
+        counts=counts,
+        previous=previous,
+    )
+    print(
+        f"imported: {counts['rows_matched']} rows, "
+        f"{counts['rows_unmatched']} unmatched -> {out}"
+    )
 
 
 def _interface_residues(
@@ -228,17 +479,32 @@ def _cmd_partition(args: argparse.Namespace) -> None:
 def register(subparsers: argparse._SubParsersAction) -> None:
     """Add this module's subcommands to the `pandora` parser."""
 
-    p = subparsers.add_parser(
-        "similarity", help="All-vs-all sequence or structure similarity."
+    similarity = subparsers.add_parser(
+        "similarity", help="Similarity layers: search or import."
+    )
+    commands = similarity.add_subparsers(
+        dest="similarity_command", required=True
+    )
+    p = commands.add_parser(
+        "search",
+        help="All-vs-all MMseqs2 or Foldseek search over a step folder's "
+        "chains, written as a similarity layer.",
     )
     p.add_argument("--engine", choices=["mmseqs2", "foldseek"], required=True)
+    p.add_argument(
+        "--structures-dir",
+        required=True,
+        help="step folder with a chains table (pandora curate)",
+    )
+    p.add_argument(
+        "--input-dir", help="foldseek only: dir of per-chain structure files"
+    )
+    p.add_argument("--output-dir", required=True)
+    p.add_argument("--overwrite", action="store_true")
     p.add_argument("--mmseqs-bin", default="mmseqs")
     p.add_argument("--foldseek-bin", default="foldseek")
     p.add_argument("--sensitivity", type=float, default=None)
     p.add_argument("--alignment-type", type=int, default=2)
-    p.add_argument(
-        "--input-dir", help="required unless --precomputed-hits is given"
-    )
     p.add_argument(
         "--max-seqs",
         type=int,
@@ -251,17 +517,25 @@ def register(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="foldseek only: skip the prefilter",
     )
+    p.set_defaults(func=_cmd_search)
+
+    p = commands.add_parser(
+        "import",
+        help="Link an edge list (Parquet, or TSV with a header) to a step "
+        "folder's entries/chains or a contact layer's interfaces.",
+    )
+    p.add_argument("--table", required=True)
+    p.add_argument("--description", required=True)
     p.add_argument(
-        "--precomputed-hits",
-        help="wrap an existing hit TSV (Pandora's --format-output "
-        "columns) instead of running a search",
+        "--structures-dir", help="step folder, for entry or chain items"
     )
     p.add_argument(
-        "--output",
-        required=True,
-        help="hit TSV path; the search record goes to <output>.search.json",
+        "--contacts", help="residue_contacts layer folder, for interface items"
     )
-    p.set_defaults(func=_cmd_similarity)
+    p.add_argument("--source-files")
+    p.add_argument("--output-dir", required=True)
+    p.add_argument("--overwrite", action="store_true")
+    p.set_defaults(func=_cmd_import)
 
     p = subparsers.add_parser(
         "cluster",

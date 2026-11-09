@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pandora.schemas.similarity import Edge, HitFilter, SimilaritySearch
+from pandora.similarity.layer import SIMILARITY_FLOATS, SIMILARITY_INTS
+
+if TYPE_CHECKING:
+    import pyarrow as pa
 
 HIT_COLUMNS: dict[str, list[str]] = {
     "MMseqs2": ["query", "target", "fident", "alnlen", "qcov", "tcov"],
@@ -24,6 +28,21 @@ HIT_COLUMNS: dict[str, list[str]] = {
         "tend",
     ],
 }
+
+# Tool TSV column -> similarity template column.
+_TEMPLATE_NAMES = {
+    "query": "item_id_1",
+    "target": "item_id_2",
+    "fident": "identity",
+    "qcov": "coverage_1",
+    "tcov": "coverage_2",
+    "qstart": "start_1",
+    "qend": "end_1",
+    "tstart": "start_2",
+    "tend": "end_2",
+}
+# Tool TSV column that becomes the template's `score`.
+_SCORE = {"MMseqs2": "fident", "Foldseek": "alntmscore"}
 
 _COVERAGE: dict[str, Callable[[float, float], float]] = {
     "both": min,
@@ -277,3 +296,155 @@ def _interface_coverage(residues: set[int], start: int, end: int) -> float:
     if not residues:
         return 0.0
     return sum(1 for r in residues if start <= r <= end) / len(residues)
+
+
+def read_hit_tsv(
+    path: str | Path, engine: str, *, batch_size: int = 1 << 20
+) -> Iterator[pa.RecordBatch]:
+    """Stream a tool's hit TSV as `similarity` template batches.
+
+    The file is the headerless TSV MMseqs2 or Foldseek writes with
+    Pandora's `--format-output` columns (`HIT_COLUMNS[engine]`).
+    Columns are renamed to the template (`query` -> `item_id_1`,
+    `fident` -> `identity`, `qcov` -> `coverage_1`, `qstart` ->
+    `start_1`, ...) and `score` is added: `fident` for MMseqs2,
+    `alntmscore` for Foldseek. Other columns keep their names.
+
+    Args:
+        path: The hit TSV.
+        engine: "MMseqs2" or "Foldseek".
+        batch_size: Rows per batch, at most.
+
+    Returns:
+        An iterator of record batches.
+
+    Raises:
+        ValueError: `engine` is unknown, or a row doesn't fit the
+            engine's columns (while iterating).
+        FileNotFoundError: `path` does not exist (while iterating).
+    """
+
+    if engine not in HIT_COLUMNS:
+        raise ValueError(
+            f"engine must be one of {sorted(HIT_COLUMNS)}, got {engine!r}"
+        )
+    return _read_hit_tsv(Path(path), engine, batch_size)
+
+
+def _read_hit_tsv(
+    path: Path, engine: str, batch_size: int
+) -> Iterator[pa.RecordBatch]:
+    """Generator behind `read_hit_tsv` (engine already checked)."""
+
+    import pyarrow as pa
+    from pyarrow import csv
+
+    columns = HIT_COLUMNS[engine]
+    names = [_TEMPLATE_NAMES.get(c, c) for c in columns]
+    types = {
+        name: pa.string()
+        if name.startswith("item_id")
+        else pa.int64()
+        if name in SIMILARITY_INTS or name == "alnlen"
+        else pa.float64()
+        for name in names
+    }
+    if not path.exists():
+        raise FileNotFoundError(path)
+    if path.stat().st_size == 0:
+        return
+    reader = _open_tsv(
+        path,
+        csv.ReadOptions(column_names=names, block_size=_block(batch_size)),
+        csv.ConvertOptions(column_types=types),
+    )
+    score = names[columns.index(_SCORE[engine])]
+    for batch in _batches(reader, path):
+        yield pa.RecordBatch.from_arrays(
+            [*batch.columns, batch.column(score)],
+            names=[*batch.schema.names, "score"],
+        )
+
+
+def read_similarity_table(
+    path: str | Path, *, block_size: int | None = None
+) -> Iterator[pa.RecordBatch]:
+    """Stream a user's similarity table as record batches.
+
+    Parquet is read batch by batch. A TSV needs a header row; its item
+    columns and recognised value columns are read as text, so that
+    `match_similarity_batches` decides which values are numbers.
+
+    Args:
+        path: A `.parquet` or `.tsv` file.
+        block_size: TSV only: bytes read per batch (pyarrow's default
+            if None).
+
+    Returns:
+        An iterator of record batches.
+
+    Raises:
+        ValueError: `path` is neither `.parquet` nor `.tsv`, or a TSV
+            column changes type part-way through the file (while
+            iterating; the message names the file and the column).
+        FileNotFoundError: `path` does not exist.
+    """
+
+    path = Path(path)
+    if path.suffix not in (".parquet", ".tsv"):
+        raise ValueError(
+            f"{path}: similarity tables are .parquet or .tsv (with a "
+            "header row)"
+        )
+    if not path.exists():
+        raise FileNotFoundError(path)
+    if path.suffix == ".parquet":
+        import pyarrow.parquet as pq
+
+        return pq.ParquetFile(path).iter_batches()
+
+    import pyarrow as pa
+    from pyarrow import csv
+
+    text = ("item_id_1", "item_id_2", *SIMILARITY_FLOATS, *SIMILARITY_INTS)
+    reader = _open_tsv(
+        path,
+        csv.ReadOptions(block_size=block_size),
+        csv.ConvertOptions(column_types=dict.fromkeys(text, pa.string())),
+    )
+    return _batches(reader, path)
+
+
+def _block(batch_size: int) -> int:
+    """TSV bytes per block for about `batch_size` hit rows."""
+
+    return max(1 << 16, min(batch_size * 64, 1 << 30))
+
+
+def _open_tsv(path: Path, read: Any, convert: Any) -> Any:
+    """A pyarrow streaming reader over a tab-separated file."""
+
+    from pyarrow import csv
+    from pyarrow.lib import ArrowInvalid
+
+    try:
+        return csv.open_csv(
+            path,
+            read_options=read,
+            parse_options=csv.ParseOptions(delimiter="\t"),
+            convert_options=convert,
+        )
+    except ArrowInvalid as exc:
+        raise ValueError(f"{path}: {exc}") from exc
+
+
+def _batches(reader: Any, path: Path) -> Iterator[pa.RecordBatch]:
+    """`reader`'s batches; pyarrow parse errors become ValueError naming
+    `path`."""
+
+    from pyarrow.lib import ArrowInvalid
+
+    try:
+        yield from reader
+    except ArrowInvalid as exc:
+        raise ValueError(f"{path}: {exc}") from exc

@@ -7,6 +7,8 @@ from pandora.similarity.hits import (
     HIT_COLUMNS,
     iter_edges,
     load_similarity_search,
+    read_hit_tsv,
+    read_similarity_table,
 )
 
 
@@ -288,3 +290,64 @@ def test_iter_edges_rejects_search_missing_columns(tmp_path):
 
     with pytest.raises(ValueError, match="qcov"):
         iter_edges(search, HitFilter())
+
+
+def test_read_hit_tsv_maps_foldseek_columns(tmp_path):
+    path = tmp_path / "hits.tsv"
+    path.write_text(_foldseek_row("a_A", "b_A", alntm=0.7, qtm=0.4) + "\n")
+
+    batch = next(read_hit_tsv(path, "Foldseek"))
+
+    row = batch.to_pylist()[0]
+    assert row["item_id_1"] == "a_A"
+    assert row["item_id_2"] == "b_A"
+    assert row["score"] == row["alntmscore"] == 0.7
+    assert row["qtmscore"] == 0.4
+    assert row["identity"] == 0.5
+    assert (row["coverage_1"], row["start_2"], row["end_2"]) == (0.9, 1, 100)
+    assert "query" not in row
+
+
+def test_read_hit_tsv_mmseqs_score_is_identity(tmp_path):
+    path = tmp_path / "hits.tsv"
+    path.write_text("a_A\tb_A\t0.3\t10\t0.9\t0.8\n")
+
+    row = next(read_hit_tsv(path, "MMseqs2")).to_pylist()[0]
+
+    assert row["score"] == row["identity"] == 0.3
+    assert (row["coverage_1"], row["coverage_2"]) == (0.9, 0.8)
+
+
+def test_read_hit_tsv_unknown_engine(tmp_path):
+    with pytest.raises(ValueError, match="engine"):
+        list(read_hit_tsv(tmp_path / "x.tsv", "BLAST"))
+
+
+def test_read_similarity_table_tsv_reads_values_as_text(tmp_path):
+    path = tmp_path / "edges.tsv"
+    path.write_text("item_id_1\titem_id_2\tscore\tnote\n104M\t112M\t0.5\tk\n")
+
+    row = next(read_similarity_table(path)).to_pylist()[0]
+
+    assert row == {
+        "item_id_1": "104M",
+        "item_id_2": "112M",
+        "score": "0.5",
+        "note": "k",
+    }
+
+
+def test_read_similarity_table_bad_extra_column_names_file(tmp_path):
+    path = tmp_path / "edges.tsv"
+    lines = ["item_id_1\titem_id_2\tscore\tnote_num"]
+    lines += [f"104M_A\t112M_A\t0.5\t{i}" for i in range(20000)]
+    lines += ["104M_A\t112M_A\t0.5\tunknown"]  # pyarrow reads n/a as null
+    path.write_text("\n".join(lines) + "\n")
+
+    with pytest.raises(ValueError, match="edges.tsv"):
+        list(read_similarity_table(path, block_size=1 << 12))
+
+
+def test_read_similarity_table_rejects_other_suffix(tmp_path):
+    with pytest.raises(ValueError, match="parquet"):
+        list(read_similarity_table(tmp_path / "edges.csv"))

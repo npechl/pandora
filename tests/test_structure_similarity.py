@@ -129,9 +129,11 @@ def test_structure_search_passes_caps_and_keeps_hits(tmp_path):
         HIT_COLUMNS["Foldseek"]
     )
     assert hits_path.read_text().count("\n") == 1
-    assert search.engine == "Foldseek"
-    assert search.version == "10.941cd33"
-    assert search.columns == HIT_COLUMNS["Foldseek"]
+    assert search.template == "similarity"
+    assert search.items == "chain"
+    assert search.tool == "Foldseek"
+    assert search.name == "foldseek"
+    assert search.tool_version == "10.941cd33"
     assert search.parameters == {
         "foldseek_bin": str(foldseek),
         "sensitivity": 9.5,
@@ -156,16 +158,16 @@ def test_structure_search_omits_exhaustive_flag_by_default(tmp_path):
     assert args[args.index("--max-seqs") + 1] == "1000"
 
 
-def test_structure_search_records_absolute_hits_path(tmp_path, monkeypatch):
+def test_structure_search_writes_relative_hits_path(tmp_path, monkeypatch):
     foldseek = _fake_foldseek(tmp_path)
     (tmp_path / "structures").mkdir()
     monkeypatch.chdir(tmp_path)
 
-    search = compute_structure_similarity(
+    compute_structure_similarity(
         "structures", "hits.tsv", foldseek_bin=str(foldseek)
     )
 
-    assert search.hits_path == str((tmp_path / "hits.tsv").resolve())
+    assert (tmp_path / "hits.tsv").read_text().count("\n") == 1
 
 
 if __name__ == "__main__":

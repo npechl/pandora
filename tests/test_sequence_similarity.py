@@ -43,12 +43,11 @@ def test_search_keeps_hit_file_and_records_parameters(tmp_path):
 
     assert (tmp_path / "query.fasta").read_text() == ">a_A\nMKV\n>b_A\nMKL\n"
     assert hits_path.read_text().count("\n") == 2
-    assert search.engine == "MMseqs2"
-    assert search.version == "15.6f452"
-    assert search.hits_path == str(hits_path)
-    assert search.columns == HIT_COLUMNS["MMseqs2"]
-    assert search.origin == "computed"
-    assert search.searched_at is not None
+    assert search.template == "similarity"
+    assert search.items == "chain"
+    assert search.tool == "MMseqs2"
+    assert search.name == "mmseqs2"
+    assert search.tool_version == "15.6f452"
     assert search.parameters == {
         "mmseqs_bin": str(mmseqs),
         "sensitivity": 5.7,
@@ -62,12 +61,12 @@ def test_search_keeps_hit_file_and_records_parameters(tmp_path):
     )
 
 
-def test_search_records_absolute_hits_path(tmp_path, monkeypatch):
+def test_search_writes_relative_hits_path(tmp_path, monkeypatch):
     mmseqs = _fake_mmseqs(tmp_path)
     monkeypatch.chdir(tmp_path)
 
-    search = compute_sequence_similarity(
+    compute_sequence_similarity(
         {"a_A": "MKV"}, "hits.tsv", mmseqs_bin=str(mmseqs)
     )
 
-    assert search.hits_path == str((tmp_path / "hits.tsv").resolve())
+    assert (tmp_path / "hits.tsv").read_text().count("\n") == 2

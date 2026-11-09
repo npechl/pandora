@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import shutil
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
+from typing import Any
 
 import yaml
 from pydantic import BaseModel
@@ -107,6 +108,72 @@ def find_table(folder: Path, name: str) -> Path | None:
         if path.exists():
             return path
     return None
+
+
+def read_columns(
+    path: Path, columns: Sequence[str]
+) -> Iterator[dict[str, Any]]:
+    """Stream rows of a Parquet or JSON Lines table as dicts holding only
+    `columns` (None where the file lacks one)."""
+
+    if path.suffix == ".parquet":
+        import pyarrow.parquet as pq
+
+        parquet = pq.ParquetFile(path)
+        present = [c for c in columns if c in parquet.schema_arrow.names]
+        for batch in parquet.iter_batches(columns=present):
+            for row in batch.to_pylist():
+                yield {column: row.get(column) for column in columns}
+        return
+    with path.open() as handle:
+        for line in handle:
+            if line.strip():
+                row = json.loads(line)
+                yield {column: row.get(column) for column in columns}
+
+
+class ParquetSink:
+    """Write record batches to one Parquet file, opened on the first
+    non-empty batch; no file if nothing is written."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.rows = 0
+        self._writer: Any = None
+
+    def write(self, batch: Any) -> None:
+        """Append `batch` (a pyarrow RecordBatch) to the file."""
+
+        if batch.num_rows == 0:
+            return
+        if self._writer is None:
+            import pyarrow.parquet as pq
+
+            self._writer = pq.ParquetWriter(self.path, batch.schema)
+        self._writer.write_batch(batch)
+        self.rows += batch.num_rows
+
+    def close(self) -> None:
+        """Finish the file, if one was opened."""
+
+        if self._writer is not None:
+            self._writer.close()
+
+    def __enter__(self) -> ParquetSink:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
+
+def copy_source(source: Path, dest: Path) -> None:
+    """Copy a tool's original output file or folder into `dest`."""
+
+    if source.is_dir():
+        shutil.copytree(source, dest)
+    else:
+        dest.mkdir(parents=True)
+        shutil.copy2(source, dest / source.name)
 
 
 def write_table(
