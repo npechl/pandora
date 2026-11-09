@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import itertools
 import json
+import sys
 from collections import Counter
 from collections.abc import Iterable, Iterator
 from pathlib import Path
@@ -28,6 +29,7 @@ from pandora.ingestion import load_policy
 from pandora.provenance import build_step_summary
 from pandora.schemas.annotation import (
     LayerDescription,
+    LayerRow,
     ResidueContactRow,
     SimilarityItems,
 )
@@ -56,6 +58,7 @@ from pandora.similarity.layer import (
     entry_items,
     interface_items,
     item_id,
+    item_labels,
     match_similarity_batches,
 )
 
@@ -522,10 +525,35 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
         print(f"{len(keys)} paired cluster keys -> {pairs_output}")
 
 
+def _partition_labels(args: argparse.Namespace) -> dict[str, str] | None:
+    """The item labels from `--labels`, or None; exits on a bad layer."""
+
+    if args.labels_dir is None:
+        return None
+    command = "partition"
+    folder = Path(args.labels_dir)
+    if args.no_keep_similar_items:
+        raise SystemExit(
+            f"{command}: --labels needs whole clusters; drop "
+            "--no-keep-similar-items"
+        )
+    if not (folder / "layer.json").exists():
+        raise SystemExit(f"{command}: {folder} is not a layer folder")
+    policy = json.loads((folder / "layer.json").read_text()).get("policy")
+    template = (policy or {}).get("template")
+    table = find_table(folder, "layer")
+    rows = read_records(table, LayerRow) if table else []
+    try:
+        return item_labels(rows, template)
+    except ValueError as exc:
+        raise SystemExit(f"{command}: {folder}: {exc}") from exc
+
+
 def _cmd_partition(args: argparse.Namespace) -> None:
     """Handle the `partition` subcommand: leakage-safe train/val/test
     split of clusters."""
 
+    labels = _partition_labels(args)
     clusters = load_json_list(SimilarityCluster, Path(args.clusters))
     splits, prov = partition_dataset(
         clusters,
@@ -533,13 +561,26 @@ def _cmd_partition(args: argparse.Namespace) -> None:
         args.pct_val,
         args.pct_test,
         keep_similar_items=not args.no_keep_similar_items,
+        labels=labels,
     )
+    if labels is not None:
+        prov = prov.model_copy(update={"labels_layer": args.labels_dir})
 
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(splits, indent=2), encoding="utf-8")
     write_json(prov, output.parent / "partition_provenance.json")
     print(f"split sizes: {prov.split_sizes} -> {output}")
+    if labels is not None:
+        items = [i for c in clusters for i in c.components]
+        unlabelled = sum(i not in labels for i in items)
+        print(f"unlabelled items: {unlabelled} of {len(items)}")
+        for split, missing in prov.missing_labels.items():
+            print(
+                f"partition: warning: {split} has no item labelled "
+                f"{', '.join(missing)}",
+                file=sys.stderr,
+            )
 
 
 def register(subparsers: argparse._SubParsersAction) -> None:
@@ -661,5 +702,11 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--pct-val", type=float, default=0.2)
     p.add_argument("--pct-test", type=float, default=0.2)
     p.add_argument("--no-keep-similar-items", action="store_true")
+    p.add_argument(
+        "--labels",
+        dest="labels_dir",
+        help="chain_labels or interface_labels layer folder: place clusters "
+        "so every label reaches every split",
+    )
     p.add_argument("--output", required=True)
     p.set_defaults(func=_cmd_partition)

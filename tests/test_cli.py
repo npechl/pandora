@@ -1830,3 +1830,128 @@ def test_layer_origin_stops_on_a_loop(tmp_path):
             )
         )
     assert _layer_origin(tmp_path / "a") is None
+
+
+def _kinds_clusters(tmp_path, groups):
+    path = tmp_path / "clusters.json"
+    path.write_text(
+        json.dumps([{"components": g, "n_components": len(g)} for g in groups])
+    )
+    return path
+
+
+def _labels_layer(tmp_path, template, rows):
+    folder = tmp_path / "labels"
+    folder.mkdir()
+    (folder / "layer.json").write_text(
+        json.dumps({"policy": {"name": "kinds", "template": template}})
+    )
+    if rows is not None:
+        _write_jsonl(folder / "layer.jsonl", rows)
+    return folder
+
+
+_KIND_GROUPS = [
+    [f"1A{i}_A" for i in range(6)],
+    [f"1B{i}_A" for i in range(4)],
+    ["1H0_A", "1H0_B"],
+    ["1H1_A"],
+    ["1H2_A"],
+    ["1S0_A"],
+    ["1S1_A"],
+]
+
+
+def _kind_rows(groups, hetero_entries):
+    return [
+        {
+            "entry_id": item.split("_")[0],
+            "chain_id": item.split("_")[1],
+            "label": "heteromer"
+            if item.split("_")[0] in hetero_entries
+            else "homomer",
+        }
+        for g in groups
+        for item in g
+    ]
+
+
+def _partition(tmp_path, clusters, labels, *extra):
+    return main(
+        [
+            "partition",
+            "--clusters",
+            str(clusters),
+            "--labels",
+            str(labels),
+            "--output",
+            str(tmp_path / "out" / "splits.json"),
+            *extra,
+        ]
+    )
+
+
+def test_partition_labels_writes_counts(tmp_path):
+    clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
+    rows = _kind_rows(_KIND_GROUPS, {"1H0", "1H1", "1H2"})
+    labels = _labels_layer(tmp_path, "chain_labels", rows)
+    _partition(tmp_path, clusters, labels)
+    splits = json.loads((tmp_path / "out" / "splits.json").read_text())
+    assert set(splits) == {"train", "val", "test"}
+    prov = json.loads(
+        (tmp_path / "out" / "partition_provenance.json").read_text()
+    )
+    assert prov["missing_labels"] == {}
+    assert prov["labels_layer"] == str(labels)
+    for counts in prov["label_counts"].values():
+        assert set(counts) == {"homomer", "heteromer"}
+
+
+def test_partition_labels_warns_missing(tmp_path, capsys):
+    clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
+    rows = _kind_rows(_KIND_GROUPS, {"1H0"})
+    labels = _labels_layer(tmp_path, "chain_labels", rows)
+    _partition(tmp_path, clusters, labels)
+    err = capsys.readouterr().err
+    assert err.count("has no item labelled heteromer") == 2
+
+
+def test_partition_labels_wrong_level(tmp_path, capsys):
+    clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
+    labels = _labels_layer(
+        tmp_path,
+        "interface_labels",
+        [
+            {
+                "entry_id": "1H0",
+                "chain_id_1": "A",
+                "chain_id_2": "B",
+                "label": "heteromer",
+            }
+        ],
+    )
+    _partition(tmp_path, clusters, labels)
+    assert "unlabelled items: 16 of 16" in capsys.readouterr().out
+
+
+def test_partition_labels_empty_layer(tmp_path, capsys):
+    clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
+    labels = _labels_layer(tmp_path, "chain_labels", None)
+    _partition(tmp_path, clusters, labels)
+    assert "unlabelled items: 16 of 16" in capsys.readouterr().out
+
+
+def test_partition_labels_rejects_template(tmp_path):
+    clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
+    labels = _labels_layer(tmp_path, "residue_values", [])
+    with pytest.raises(SystemExit, match="residue_values"):
+        _partition(tmp_path, clusters, labels)
+    assert not (tmp_path / "out" / "splits.json").exists()
+
+
+def test_partition_labels_rejects_no_keep(tmp_path):
+    clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
+    labels = _labels_layer(tmp_path, "chain_labels", [])
+    with pytest.raises(SystemExit, match="no-keep-similar-items"):
+        _partition(tmp_path, clusters, labels, "--no-keep-similar-items")
+    assert not (tmp_path / "out" / "splits.json").exists()
