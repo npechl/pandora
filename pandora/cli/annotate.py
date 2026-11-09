@@ -283,20 +283,28 @@ def _layer_origin(folder: Path) -> Path | None:
 
     Follows `previous_summary` back through layer summaries (a filtered
     layer points at its parent layer) to the structures folder's step
-    summary.
+    summary. Recorded paths may be relative to wherever the step ran, so
+    a path that can't be read from here, or a loop, means unknown.
     """
 
-    summary = json.loads((folder / "layer.json").read_text())
-    while True:
+    path = folder / "layer.json"
+    seen: set[Path] = set()
+    while path.resolve() not in seen:
+        seen.add(path.resolve())
+        try:
+            summary = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
         previous = summary.get("previous_summary")
         if previous is None:
-            if summary.get("step") == "annotation_compute":
-                return Path(summary["input"]).resolve()
-            return None
-        previous = Path(previous)
-        if previous.name != "layer.json":
-            return previous.parent.resolve()
-        summary = json.loads(previous.read_text())
+            if summary.get("step") != "annotation_compute":
+                return None
+            origin = Path(summary["input"])
+            return origin.resolve() if origin.is_dir() else None
+        path = Path(previous)
+        if path.name != "layer.json":
+            return path.parent.resolve() if path.exists() else None
+    return None
 
 
 def _cmd_filter(args: argparse.Namespace) -> None:

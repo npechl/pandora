@@ -14,6 +14,7 @@ from pandora.annotations import (
     drop_labelled_interfaces,
 )
 from pandora.cli._io import read_structures_dir, write_structures_dir
+from pandora.cli.annotate import _layer_origin
 from pandora.cli.app import _build_parser, main
 from pandora.datasets import extract_interface_records
 from pandora.export import read_records
@@ -1796,3 +1797,36 @@ def test_annotate_filter_contacts_empty_contacts(tmp_path):
         "rows_in": 0,
         "rows_out": 0,
     }
+
+
+def test_annotate_filter_contacts_from_another_cwd(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.chdir(tmp_path)
+    step = _step_folder(Path("."))
+    (step / "curation.json").write_text("{}")
+    contacts = Path("annotations") / "interfaces"
+    _compute(step, contacts, "--layer", "chain_interfaces")
+    labels = Path("annotations") / "verdict"
+    _import_labels(Path("."), step, _verdicts(_contact_pairs(contacts)), labels)
+    _filter(contacts, labels, Path("first"), "--drop", "bad")
+
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    capsys.readouterr()
+    out = tmp_path / "second"
+    _filter(tmp_path / "first", tmp_path / labels, out, "--drop", "bad")
+    assert "warning" in capsys.readouterr().err
+    assert (out / "layer.json").exists()
+
+
+def test_layer_origin_stops_on_a_loop(tmp_path):
+    for name, other in (("a", "b"), ("b", "a")):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "layer.json").write_text(
+            json.dumps(
+                {"previous_summary": str(tmp_path / other / "layer.json")}
+            )
+        )
+    assert _layer_origin(tmp_path / "a") is None
