@@ -1217,3 +1217,13 @@ def test_filter_functions_do_not_mutate_input():
     drop_labelled_interfaces(rows, labels, {"bad"})
     count_interface_labels(rows, labels, {"bad"})
     assert [r.model_dump() for r in rows + labels] == before
+
+
+def test_drop_labelled_interfaces_accepts_resolved_dicts():
+    rows = [_contact("A", 1, "B", 2), _contact("A", 1, "C", 2)]
+    labels = [_label("A", "B", "bad").model_dump()]
+    kept = drop_labelled_interfaces(rows, labels, {"bad"})
+    assert _pairs(kept) == [("A", 1, "C", 2)]
+    assert (
+        count_interface_labels(rows, labels, {"bad"})["interfaces_dropped"] == 1
+    )

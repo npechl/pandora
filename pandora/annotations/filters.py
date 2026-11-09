@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Collection, Iterable
+from collections.abc import Collection, Iterable, Mapping
+from typing import Any
 
 from pandora.schemas.annotation import LayerRow, ResidueContactRow
 
 _Interface = tuple[str, frozenset[str]]
+_Label = LayerRow | Mapping[str, Any]
 
 
 def _interface(entry_id: str, chain_1: str, chain_2: str) -> _Interface:
@@ -23,20 +25,21 @@ def _contact_interface(row: ResidueContactRow) -> _Interface:
 
 
 def _labels_by_interface(
-    labels: Iterable[LayerRow],
+    labels: Iterable[_Label],
 ) -> dict[_Interface, set[str]]:
     """Every label given to each interface."""
 
     found: dict[_Interface, set[str]] = defaultdict(set)
     for row in labels:
-        key = _interface(row.entry_id, row.chain_id_1, row.chain_id_2)
-        found[key].add(row.label)
+        r = dict(row)  # a LayerRow or a resolve_layer_rows() dict
+        key = _interface(r["entry_id"], r["chain_id_1"], r["chain_id_2"])
+        found[key].add(r["label"])
     return found
 
 
 def drop_labelled_interfaces(
     contacts: Iterable[ResidueContactRow],
-    labels: Iterable[LayerRow],
+    labels: Iterable[_Label],
     drop: Collection[str],
 ) -> list[ResidueContactRow]:
     """Remove the contact rows of interfaces labelled for dropping.
@@ -48,7 +51,8 @@ def drop_labelled_interfaces(
 
     Args:
         contacts: The rows of one `residue_contacts` layer.
-        labels: The rows of one `interface_labels` layer.
+        labels: The rows of one `interface_labels` layer, as
+            `LayerRow`s or as `resolve_layer_rows()` dicts.
         drop: The label values that mean drop.
 
     Returns:
@@ -63,7 +67,7 @@ def drop_labelled_interfaces(
     if unknown:
         raise ValueError(
             f"no interface has the label(s) {sorted(unknown)}; "
-            "check --drop for typos"
+            "check for typos"
         )
     dropped = {key for key, found in by_interface.items() if found & set(drop)}
     return [row for row in contacts if _contact_interface(row) not in dropped]
@@ -71,14 +75,15 @@ def drop_labelled_interfaces(
 
 def count_interface_labels(
     contacts: Iterable[ResidueContactRow],
-    labels: Iterable[LayerRow],
+    labels: Iterable[_Label],
     drop: Collection[str],
 ) -> dict[str, int]:
     """Count how a label layer matches a contact layer's interfaces.
 
     Args:
         contacts: The rows of one `residue_contacts` layer.
-        labels: The rows of one `interface_labels` layer.
+        labels: The rows of one `interface_labels` layer, as
+            `LayerRow`s or as `resolve_layer_rows()` dicts.
         drop: The label values that mean drop.
 
     Returns:
