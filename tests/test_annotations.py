@@ -14,6 +14,10 @@ from pandora.annotations.entry import (
     annotate_ligand_contacts,
     polymer_asym_ids,
 )
+from pandora.annotations.filters import (
+    count_interface_labels,
+    drop_labelled_interfaces,
+)
 from pandora.annotations.layers import check_layer_columns, resolve_layer_rows
 from pandora.datasets import extract_interface_records
 from pandora.parsing import mmcif_to_structure
@@ -1122,3 +1126,94 @@ def test_count_functions_do_not_mutate_input():
     count_residue_contacts(rows)
     count_chain_contacts(rows)
     assert rows == before
+
+
+def _label(c1, c2, label, entry_id="1abc") -> LayerRow:
+    return LayerRow(
+        entry_id=entry_id, chain_id_1=c1, chain_id_2=c2, label=label
+    )
+
+
+def _pairs(rows):
+    return [(r.chain_id_1, r.seq_id_1, r.chain_id_2, r.seq_id_2) for r in rows]
+
+
+def test_drop_labelled_interfaces_drops_both_orders():
+    rows = [_contact("A", 1, "B", 5), _contact("B", 6, "A", 2)]
+    rows.append(_contact("A", 1, "C", 3))
+    kept = drop_labelled_interfaces(
+        rows, [_label("B", "A", "low_hbond")], {"low_hbond"}
+    )
+    assert _pairs(kept) == [("A", 1, "C", 3)]
+
+
+def test_drop_labelled_interfaces_keeps_order_and_unlabelled():
+    rows = [
+        _contact("A", 1, "C", 1),
+        _contact("A", 2, "B", 2),
+        _contact("B", 3, "C", 3),
+    ]
+    kept = drop_labelled_interfaces(rows, [_label("A", "B", "bad")], {"bad"})
+    assert _pairs(kept) == [("A", 1, "C", 1), ("B", 3, "C", 3)]
+
+
+def test_drop_labelled_interfaces_any_label_drops():
+    rows = [_contact("A", 1, "B", 2), _contact("A", 1, "C", 2)]
+    labels = [_label("A", "B", "ok"), _label("B", "A", "bad")]
+    kept = drop_labelled_interfaces(rows, labels, {"bad"})
+    assert _pairs(kept) == [("A", 1, "C", 2)]
+
+
+def test_drop_labelled_interfaces_self_pair_and_ligand():
+    rows = [_contact("A", 1, "A", 9), _contact("A", 1, "J", None)]
+    labels = [_label("A", "A", "x"), _label("A", "J", "y")]
+    assert _pairs(drop_labelled_interfaces(rows, labels, {"x"})) == [
+        ("A", 1, "J", None)
+    ]
+    assert _pairs(drop_labelled_interfaces(rows, labels, {"y"})) == [
+        ("A", 1, "A", 9)
+    ]
+
+
+def test_drop_labelled_interfaces_entry_case():
+    rows = [_contact("A", 1, "B", 2), _contact("A", 1, "C", 2)]
+    labels = [_label("A", "B", "bad", entry_id="1ABC")]
+    kept = drop_labelled_interfaces(rows, labels, {"bad"})
+    assert _pairs(kept) == [("A", 1, "C", 2)]
+
+
+def test_drop_labelled_interfaces_unknown_label_raises():
+    rows = [_contact("A", 1, "B", 2)]
+    with pytest.raises(ValueError, match="typo"):
+        drop_labelled_interfaces(
+            rows, [_label("A", "B", "bad")], {"bad", "typo"}
+        )
+
+
+def test_count_interface_labels():
+    rows = [
+        _contact("A", 1, "B", 1),
+        _contact("B", 2, "A", 2),
+        _contact("A", 1, "C", 1),
+        _contact("B", 1, "C", 1),
+    ]
+    labels = [
+        _label("A", "B", "bad"),
+        _label("A", "C", "ok"),
+        _label("C", "D", "bad"),
+    ]
+    assert count_interface_labels(rows, labels, {"bad"}) == {
+        "interfaces_in": 3,
+        "interfaces_dropped": 1,
+        "interfaces_unlabelled": 1,
+        "labels_unmatched": 1,
+    }
+
+
+def test_filter_functions_do_not_mutate_input():
+    rows = [_contact("A", 1, "B", 2), _contact("A", 1, "C", 2)]
+    labels = [_label("A", "B", "bad")]
+    before = [r.model_dump() for r in rows + labels]
+    drop_labelled_interfaces(rows, labels, {"bad"})
+    count_interface_labels(rows, labels, {"bad"})
+    assert [r.model_dump() for r in rows + labels] == before
