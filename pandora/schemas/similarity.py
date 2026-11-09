@@ -116,6 +116,13 @@ class PartitionProvenance(BaseModel):
         keep_similar_items: Whether each cluster was kept whole in
             one split (leakage-safe) or divided proportionally.
         split_sizes: The resulting number of items per split.
+        label_counts: With labels: split -> label -> number of items,
+            listing only labels present in that split. Empty otherwise.
+        missing_labels: With labels: split -> sorted labels with no item
+            in that split. Splits missing none, and splits with a 0
+            fraction, are left out. Empty otherwise.
+        labels_layer: The labels layer folder, when the CLI was given
+            one.
     """
 
     partitioned_at: str
@@ -124,3 +131,6 @@ class PartitionProvenance(BaseModel):
     pct_test: float
     keep_similar_items: bool
     split_sizes: dict[str, int] = Field(default_factory=dict)
+    label_counts: dict[str, dict[str, int]] = Field(default_factory=dict)
+    missing_labels: dict[str, list[str]] = Field(default_factory=dict)
+    labels_layer: str | None = None
