@@ -235,28 +235,14 @@ def _match_batch(
         pc.and_(*(pc.is_in(ids[name], value_set=stored) for name in ids)),
         False,
     )
-    values_ok = pa.repeat(True, n_rows)
-    numbers: dict[str, pa.Array] = {}
-    for names, kind in ((SIMILARITY_FLOATS, float), (SIMILARITY_INTS, int)):
-        for name in names:
-            if name in batch.schema.names:
-                array, ok = _numbers(batch.column(name), kind, name == "score")
-                numbers[name] = array
-                values_ok = pc.and_(values_ok, ok)
+    numbers, values_ok = _value_columns(batch)
     good = pc.and_(good, values_ok)
 
     slow_matched: list[int] = []
     replaced: dict[str, list[str]] = {name: [] for name in ids}
     reasons: list[str] = []
     for row in pc.indices_nonzero(pc.invert(good)).to_pylist():
-        resolved: dict[str, str] = {}
-        reason = None
-        for name, column in ids.items():
-            resolved[name], reason = _resolve(column[row].as_py(), items)
-            if reason is not None:
-                break
-        if reason is None and not values_ok[row].as_py():
-            reason = "bad_value"
+        resolved, reason = _row_reason(row, ids, values_ok, items)
         if reason is None:
             slow_matched.append(row)
             for name in ids:
@@ -292,6 +278,44 @@ def _match_batch(
         names=[*batch.schema.names, "reason"],
     )
     return matched_batch, unmatched_batch
+
+
+def _value_columns(
+    batch: pa.RecordBatch,
+) -> tuple[dict[str, pa.Array], pa.BooleanArray]:
+    """The batch's recognised number columns cast, and per row whether
+    all of its values are usable."""
+
+    import pyarrow as pa
+    import pyarrow.compute as pc
+
+    values_ok = pa.repeat(True, batch.num_rows)
+    numbers: dict[str, pa.Array] = {}
+    for names, kind in ((SIMILARITY_FLOATS, float), (SIMILARITY_INTS, int)):
+        for name in names:
+            if name in batch.schema.names:
+                array, ok = _numbers(batch.column(name), kind, name == "score")
+                numbers[name] = array
+                values_ok = pc.and_(values_ok, ok)
+    return numbers, values_ok
+
+
+def _row_reason(
+    row: int,
+    ids: Mapping[str, pa.Array],
+    values_ok: pa.BooleanArray,
+    items: ItemSet,
+) -> tuple[dict[str, str], str | None]:
+    """One row's stored item IDs, and why it is unmatched (None if not)."""
+
+    resolved: dict[str, str] = {}
+    for name, column in ids.items():
+        resolved[name], reason = _resolve(column[row].as_py(), items)
+        if reason is not None:
+            return resolved, reason
+    if not values_ok[row].as_py():
+        return resolved, "bad_value"
+    return resolved, None
 
 
 def _numbers(
