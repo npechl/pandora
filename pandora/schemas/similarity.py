@@ -121,8 +121,8 @@ class PartitionProvenance(BaseModel):
         missing_labels: With labels: split -> sorted labels with no item
             in that split. Splits missing none, and splits with a 0
             fraction, are left out. Empty otherwise.
-        labels_layer: The labels layer folder, when the CLI was given
-            one.
+        labels_layer: The labels layer's `layer.json` (it records the
+            layer's name), when the CLI was given one.
     """
 
     partitioned_at: str

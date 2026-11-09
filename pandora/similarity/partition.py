@@ -133,14 +133,17 @@ def _cover_labels(
     the indexes of the placed clusters."""
 
     kinds = [{_label(labels, i) for i in c.components} for c in clusters]
-    carrying = Counter(label for k in kinds for label in k)
+    by_label: dict[str, list[int]] = {}
+    for i in sorted(
+        range(len(clusters)),
+        key=lambda i: (clusters[i].n_components, clusters[i].components[0]),
+    ):
+        for label in kinds[i]:
+            by_label.setdefault(label, []).append(i)
     covered: dict[str, set[str]] = {name: set() for name in splits}
     placed: set[int] = set()
-    for label in sorted(carrying, key=lambda x: (carrying[x], x)):
-        candidates = sorted(
-            (i for i, k in enumerate(kinds) if label in k and i not in placed),
-            key=lambda i: (clusters[i].n_components, clusters[i].components[0]),
-        )
+    for label in sorted(by_label, key=lambda x: (len(by_label[x]), x)):
+        candidates = (i for i in by_label[label] if i not in placed)
         for i in candidates:
             lacking = [n for n in active if label not in covered[n]]
             if not lacking:

@@ -564,7 +564,9 @@ def _cmd_partition(args: argparse.Namespace) -> None:
         labels=labels,
     )
     if labels is not None:
-        prov = prov.model_copy(update={"labels_layer": args.labels_dir})
+        prov = prov.model_copy(
+            update={"labels_layer": str(Path(args.labels_dir) / "layer.json")}
+        )
 
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)

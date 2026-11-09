@@ -1902,7 +1902,7 @@ def test_partition_labels_writes_counts(tmp_path):
         (tmp_path / "out" / "partition_provenance.json").read_text()
     )
     assert prov["missing_labels"] == {}
-    assert prov["labels_layer"] == str(labels)
+    assert prov["labels_layer"] == str(labels / "layer.json")
     for counts in prov["label_counts"].values():
         assert set(counts) == {"homomer", "heteromer"}
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from pandora.schemas.similarity import SimilarityCluster
@@ -168,6 +170,15 @@ def test_labels_input_not_mutated() -> None:
     partition_dataset(clusters, labels=labels)
     assert [c.model_dump() for c in clusters] == before
     assert labels == KIND_LABELS
+
+
+def test_many_labels_scale_linearly() -> None:
+    clusters = _clusters([[f"i{k}"] for k in range(20000)])
+    labels = {f"i{k}": f"l{k % 5000}" for k in range(20000)}
+    started = time.perf_counter()
+    _, provenance = partition_dataset(clusters, labels=labels)
+    assert time.perf_counter() - started < 1.0
+    assert provenance.missing_labels == {}
 
 
 if __name__ == "__main__":

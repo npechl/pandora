@@ -1299,7 +1299,8 @@ dir> --output splits.json`
   printout says how many cluster items were unlabelled, so a wrong
   layer shows up as "everything unlabelled".
 - `splits.json` is unchanged. `partition_provenance.json` carries the
-  new fields plus `labels_layer` (folder) when `--labels` is given.
+  new fields plus `labels_layer` (the layer's `layer.json`, which
+  records its name, as `similarity_layer` does) when `--labels` is given.
 - Prints the split sizes as today, then one warning line per split
   with missing labels, e.g. `warning: test has no item labelled
   heteromer`.
