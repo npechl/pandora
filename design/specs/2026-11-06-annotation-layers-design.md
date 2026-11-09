@@ -79,7 +79,10 @@ accepted.
    by an `interface_labels` layer into a new contact layer. (Re-scoped
    2026-11-09: was "curation rules on layers", e.g. drop chains with
    fewer than N contacts.)
-6. **Split balancing on a label** from any label layer (issue #95).
+6. **Every kind reaches every split.** `partition` takes a
+   `chain_labels` / `interface_labels` layer and places clusters so
+   each label appears in every split where leakage safety allows
+   (issue #95).
 
 The guiding idea, confirmed in part 2's brainstorm: there is **one
 layer per kind of information, not one per source**. Built-in
@@ -1174,7 +1177,180 @@ Offline, with `datasets/dev/mmcif/` fixtures:
   input are rejected before writing; `cluster --contacts` accepts the
   output.
 
+## Part 6: every kind reaches every split
+
+### Intent
+
+Issue #95. `partition_dataset()` places whole clusters only to hit
+size targets, so a kind of item (e.g. heteromer interfaces) can end up
+missing from a split entirely. A test set with no heteromers says
+nothing about heteromers. The user's goal is **diversity across
+splits**, and what would make them wince is **a kind missing from a
+split entirely**. Matching the overall proportions in every split
+(70/30 in train, val and test) is secondary (user decision).
+
+The "kind" comes from a label layer the user already has or imports
+(`chain_labels` or `interface_labels`), so Pandora decides nothing
+about what a kind is.
+
+### Scope
+
+In:
+- an optional `labels` argument to `partition_dataset()`;
+- `pandora partition --labels <layer dir>`;
+- per-split label counts and missing kinds in the partition
+  provenance;
+- docs and tests.
+
+Out:
+- the `SplitPolicy` model (#107). Left for later (user decision); when
+  it lands, `labels` moves into it unchanged.
+- steering splits toward the overall proportions beyond coverage (my
+  call: the user ranked it second; the per-split counts show the
+  proportions, so add a proportion pass when a real split needs it);
+- entry-level clusters: there is no entry label template (part 4);
+- labels with `keep_similar_items=False`: an error (my call; that mode
+  is not leakage-safe and nobody has asked for it).
+
+### Rules
+
+- **Leakage safety always wins.** Clusters stay whole; balancing only
+  chooses which split a whole cluster goes to.
+- **Never refuses for coverage** (user decision). When a kind is in
+  fewer clusters than there are splits, or its clusters can't reach
+  every split, the partition goes ahead. The provenance lists which
+  kinds are missing from which splits, and the command prints a
+  warning naming them.
+- **Unlabelled items are their own kind, `unlabelled`** (my call),
+  counted and covered like any other label, so cluster items with no
+  label row are visible rather than dropped.
+- A cluster can hold items with different labels; it counts as
+  carrying every label of its items.
+- **Symmetry copies get no label of their own** (user decision, my
+  recommendation). `cluster` puts copy chains (`copy_of`) into their
+  source chain's cluster as ordinary items; an unlabelled copy counts
+  as `unlabelled`. `partition` never reads a structures folder. The
+  docs say to label copies too (one line in pandas).
+
+### Placement (my call)
+
+1. **Coverage pass.** Labels in order of how few clusters carry them
+   (ties by label name). For each label, while some split lacks it and
+   unplaced clusters carry it: take the smallest such cluster (ties by
+   its first component ID) and place it in the split, among those
+   lacking the label, furthest below its size target. A placed cluster
+   covers every label it carries, so later labels may already be done.
+2. **Size pass.** The remaining clusters are placed exactly as today
+   (largest first, into the split furthest below its target).
+
+Smallest-first in step 1 keeps the coverage pass from wrecking the
+size targets; step 2 then fills sizes around it. Without `labels` the
+result is identical to today's.
+
+Edge cases (my calls):
+- A split with a 0% target is left out of the coverage pass and of
+  `missing_labels`.
+- A real label named `unlabelled` is the same kind as unlabelled
+  items.
+- `unlabelled` appears in `label_counts` only when some item has no
+  label.
+- No size cap in the coverage pass: a large rare cluster may overshoot
+  a target (proportions are second).
+- No level check: a clusters file at another level than the labels
+  (e.g. chain clusters with interface labels) shows as all items
+  unlabelled.
+
+### Library side
+
+`partition_dataset(clusters, pct_train, pct_val, pct_test,
+keep_similar_items=True, labels=None)`
+
+- `labels`: `Mapping[str, str] | None`, item ID → label. Items missing
+  from it are `unlabelled`.
+- Raises `ValueError` if `labels` is given with
+  `keep_similar_items=False`.
+- `PartitionProvenance` gains (empty when no labels were given):
+  - `label_counts: dict[str, dict[str, int]]`: split → label → number
+    of items;
+  - `missing_labels: dict[str, list[str]]`: split → labels with no
+    item in it (sorted; splits with none missing are left out).
+
+Turning a label layer into that mapping is a small exported function
+(name is the builder's; e.g. `item_labels(rows, template)`), in
+`pandora/similarity/` next to `item_id()`: a `chain_labels` row gives
+`item_id("chain", entry_id, chain_id)`, an `interface_labels` row gives
+`item_id("interface", entry_id, chain_id_1, chain_id_2)` (chains
+sorted, so B–A labels A–B). Rows are `LayerRow`s or dicts, as in part
+5. Two different labels for one item ID (A–B and B–A slipping past
+import) raise `ValueError` (my call: unlike a drop, a split can't use
+both).
+
+### The command
+
+`pandora partition --clusters clusters.json [--pct-*] --labels <layer
+dir> --output splits.json`
+
+- `--labels` must be a `chain_labels` or `interface_labels` layer
+  folder; otherwise an error before anything is written.
+- Item matching is exact on IDs: cluster IDs and imported label rows
+  both carry Pandora's entry ID and chain IDs. No origin check against
+  a structures folder (clusters JSON records none); instead the
+  provenance records the labels layer's folder and name, and the
+  printout says how many cluster items were unlabelled, so a wrong
+  layer shows up as "everything unlabelled".
+- `splits.json` is unchanged. `partition_provenance.json` carries the
+  new fields plus `labels_layer` (folder) when `--labels` is given.
+- Prints the split sizes as today, then one warning line per split
+  with missing labels, e.g. `warning: test has no item labelled
+  heteromer`.
+
+### Docs
+
+`docs/usage/similarity.md`, "Leakage-safe partitioning": a short
+"Every kind in every split" section, full code inline with tested
+output, library and CLI tabs: import a `interface_labels` layer
+(homomer/heteromer), partition with it, read the counts. Also
+`docs/usage/cli.md`, `pandora/cli/README.md`,
+`docs/contributing/architecture.md`. Close #95 when merged; note on
+#107 that `labels` is the first field waiting for `SplitPolicy`.
+
+### Tests
+
+Offline, small hand-built clusters (no structures needed):
+- a rare label in three clusters ends up in all three splits, where
+  plain partitioning leaves it out of one;
+- a label in one cluster: partition runs, `missing_labels` names the
+  two splits, the CLI warns;
+- unlabelled items count as `unlabelled`;
+- no `labels`: output identical to today's;
+- `labels` with `keep_similar_items=False` raises;
+- interface labels written B–A match `1ABC_A_B`; conflicting labels
+  for one item raise;
+- CLI: wrong template rejected before writing; provenance has
+  `label_counts`, `missing_labels`, `labels_layer`.
+
 ## Decisions
+
+The user decided (part 6):
+- The goal is diversity: every kind of item appears in every split.
+  Proportions are secondary.
+- When a kind can't reach every split, partition still runs and the
+  report says which kinds are missing where.
+- `SplitPolicy` (#107) is left for later; part 6 adds one keyword
+  argument and one CLI option (my recommendation, accepted).
+- Symmetry copy chains don't inherit their source chain's label; an
+  unlabelled copy is `unlabelled` and the docs say to label copies
+  (my recommendation, accepted).
+
+My calls (part 6), which the user can overturn:
+- Labels come from `chain_labels` / `interface_labels` layers; no
+  entry level.
+- Unlabelled items are their own kind, `unlabelled`.
+- Coverage pass (rarest label first, smallest cluster first) then
+  today's size pass; no proportion steering.
+- `labels` with `keep_similar_items=False` is an error.
+- Conflicting labels for one item ID are an error.
+- No origin check; the unlabelled count is printed instead.
 
 The user decided (part 5):
 - The real need is dropping interfaces on their physicochemical
