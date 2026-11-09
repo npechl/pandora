@@ -121,6 +121,17 @@ pandora annotate import --structures-dir curated/ --table cocada_contacts.jsonl 
 
 It writes `layer.<fmt>`, `unmatched.<fmt>`, `layer.json` and, with `--source-files`, a copy of the tool's files in `source/`.
 
+## annotate count-contacts
+
+Count a `residue_contacts` layer's distinct partners per residue (`--level residue`, a `residue_values` layer) or residues in contact per chain (`--level chain`, a `chain_values` layer), see [Contact counts](annotation.md#contact-counts):
+
+```sh
+pandora annotate count-contacts --contacts annotations/interfaces --level chain --output-dir annotations/chain_contacts
+# counted: 4 chain rows from 120 contacts -> annotations/chain_contacts
+```
+
+It writes `layer.<fmt>` and `layer.json`, whose `previous_summary` is the contact layer's `layer.json`. A folder that isn't a `residue_contacts` layer is an error. `--overwrite` and `--table-format` work as on `annotate import`.
+
 ## manifest
 
 Assemble a `DatasetManifest` from every prior stage's output:

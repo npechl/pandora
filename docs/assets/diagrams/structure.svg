@@ -95,33 +95,41 @@
 <!-- pandora.schemas.dataset.ResidueRecord -->
 <g id="node3" class="node">
 <title>pandora.schemas.dataset.ResidueRecord</title>
-<g id="a_node3"><a xlink:title="pandora.schemas.dataset.ResidueRecord&#10;&#10;One polymer residue and its atoms, reshaped from a canonical&#10;`Structure` for dataset export.&#10;&#10;Attributes:&#10; &#160;&#160;&#160;entry_id: The structure&#39;s entry id.&#10; &#160;&#160;&#160;chain_id: The residue&#39;s `label_asym_id`.&#10; &#160;&#160;&#160;seq_id: The residue&#39;s `label_seq_id`, if polymeric.&#10; &#160;&#160;&#160;auth_seq_id: The residue&#39;s `auth_seq_id`.&#10; &#160;&#160;&#160;comp_id: The residue&#39;s component id (e.g. &quot;ALA&quot;).&#10; &#160;&#160;&#160;atoms: Every atom belonging to this residue.&#10;">
-<polygon fill="none" stroke="black" points="122.77,-1693 122.77,-1713 337.88,-1713 337.88,-1693 122.77,-1693"/>
-<text xml:space="preserve" text-anchor="start" x="182.08" y="-1699.8" font-family="Times New Roman,Times,Liberation Serif,serif" font-weight="bold" font-size="14.00">ResidueRecord</text>
-<polygon fill="none" stroke="black" points="122.77,-1673 122.77,-1693 205.06,-1693 205.06,-1673 122.77,-1673"/>
-<text xml:space="preserve" text-anchor="start" x="139.01" y="-1679.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">entry_id</text>
-<polygon fill="none" stroke="black" points="205.06,-1673 205.06,-1693 337.88,-1693 337.88,-1673 205.06,-1673"/>
-<text xml:space="preserve" text-anchor="start" x="263.69" y="-1679.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">str</text>
-<polygon fill="none" stroke="black" points="122.77,-1653 122.77,-1673 205.06,-1673 205.06,-1653 122.77,-1653"/>
-<text xml:space="preserve" text-anchor="start" x="137.84" y="-1659.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">chain_id</text>
-<polygon fill="none" stroke="black" points="205.06,-1653 205.06,-1673 337.88,-1673 337.88,-1653 205.06,-1653"/>
-<text xml:space="preserve" text-anchor="start" x="263.69" y="-1659.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">str</text>
-<polygon fill="none" stroke="black" points="122.77,-1633 122.77,-1653 205.06,-1653 205.06,-1633 122.77,-1633"/>
-<text xml:space="preserve" text-anchor="start" x="143.29" y="-1639.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">seq_id</text>
-<polygon fill="none" stroke="black" points="205.06,-1633 205.06,-1653 337.88,-1653 337.88,-1633 205.06,-1633"/>
-<text xml:space="preserve" text-anchor="start" x="241.63" y="-1639.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">int | None</text>
-<polygon fill="none" stroke="black" points="122.77,-1613 122.77,-1633 205.06,-1633 205.06,-1613 122.77,-1613"/>
-<text xml:space="preserve" text-anchor="start" x="125.77" y="-1619.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">auth_seq_id</text>
-<polygon fill="none" stroke="black" points="205.06,-1613 205.06,-1633 337.88,-1633 337.88,-1613 205.06,-1613"/>
-<text xml:space="preserve" text-anchor="start" x="241.25" y="-1619.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">str | None</text>
-<polygon fill="none" stroke="black" points="122.77,-1593 122.77,-1613 205.06,-1613 205.06,-1593 122.77,-1593"/>
+<g id="a_node3"><a xlink:title="pandora.schemas.dataset.ResidueRecord&#10;&#10;One polymer residue and its atoms, reshaped from a canonical&#10;`Structure` for dataset export.&#10;&#10;Attributes:&#10; &#160;&#160;&#160;entry_id: The structure&#39;s entry id.&#10; &#160;&#160;&#160;chain_id: The residue&#39;s `label_asym_id`.&#10; &#160;&#160;&#160;seq_id: The residue&#39;s `label_seq_id`, if polymeric.&#10; &#160;&#160;&#160;auth_seq_id: The residue&#39;s `auth_seq_id`.&#10; &#160;&#160;&#160;auth_chain_id: The residue&#39;s `auth_asym_id`, if known.&#10; &#160;&#160;&#160;ins_code: The residue&#39;s insertion code, None for none.&#10; &#160;&#160;&#160;comp_id: The residue&#39;s component id (e.g. &quot;ALA&quot;).&#10; &#160;&#160;&#160;atoms: Every atom belonging to this residue.&#10;">
+<polygon fill="none" stroke="black" points="117.32,-1733 117.32,-1753 343.33,-1753 343.33,-1733 117.32,-1733"/>
+<text xml:space="preserve" text-anchor="start" x="182.08" y="-1739.8" font-family="Times New Roman,Times,Liberation Serif,serif" font-weight="bold" font-size="14.00">ResidueRecord</text>
+<polygon fill="none" stroke="black" points="117.32,-1713 117.32,-1733 210.51,-1733 210.51,-1713 117.32,-1713"/>
+<text xml:space="preserve" text-anchor="start" x="139.01" y="-1719.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">entry_id</text>
+<polygon fill="none" stroke="black" points="210.51,-1713 210.51,-1733 343.33,-1733 343.33,-1713 210.51,-1713"/>
+<text xml:space="preserve" text-anchor="start" x="269.14" y="-1719.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">str</text>
+<polygon fill="none" stroke="black" points="117.32,-1693 117.32,-1713 210.51,-1713 210.51,-1693 117.32,-1693"/>
+<text xml:space="preserve" text-anchor="start" x="137.84" y="-1699.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">chain_id</text>
+<polygon fill="none" stroke="black" points="210.51,-1693 210.51,-1713 343.33,-1713 343.33,-1693 210.51,-1693"/>
+<text xml:space="preserve" text-anchor="start" x="269.14" y="-1699.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">str</text>
+<polygon fill="none" stroke="black" points="117.32,-1673 117.32,-1693 210.51,-1693 210.51,-1673 117.32,-1673"/>
+<text xml:space="preserve" text-anchor="start" x="143.29" y="-1679.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">seq_id</text>
+<polygon fill="none" stroke="black" points="210.51,-1673 210.51,-1693 343.33,-1693 343.33,-1673 210.51,-1673"/>
+<text xml:space="preserve" text-anchor="start" x="247.08" y="-1679.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">int | None</text>
+<polygon fill="none" stroke="black" points="117.32,-1653 117.32,-1673 210.51,-1673 210.51,-1653 117.32,-1653"/>
+<text xml:space="preserve" text-anchor="start" x="125.77" y="-1659.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">auth_seq_id</text>
+<polygon fill="none" stroke="black" points="210.51,-1653 210.51,-1673 343.33,-1673 343.33,-1653 210.51,-1653"/>
+<text xml:space="preserve" text-anchor="start" x="246.7" y="-1659.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">str | None</text>
+<polygon fill="none" stroke="black" points="117.32,-1633 117.32,-1653 210.51,-1653 210.51,-1633 117.32,-1633"/>
+<text xml:space="preserve" text-anchor="start" x="120.32" y="-1639.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">auth_chain_id</text>
+<polygon fill="none" stroke="black" points="210.51,-1633 210.51,-1653 343.33,-1653 343.33,-1633 210.51,-1633"/>
+<text xml:space="preserve" text-anchor="start" x="246.7" y="-1639.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">str | None</text>
+<polygon fill="none" stroke="black" points="117.32,-1613 117.32,-1633 210.51,-1633 210.51,-1613 117.32,-1613"/>
+<text xml:space="preserve" text-anchor="start" x="135.89" y="-1619.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">ins_code</text>
+<polygon fill="none" stroke="black" points="210.51,-1613 210.51,-1633 343.33,-1633 343.33,-1613 210.51,-1613"/>
+<text xml:space="preserve" text-anchor="start" x="246.7" y="-1619.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">str | None</text>
+<polygon fill="none" stroke="black" points="117.32,-1593 117.32,-1613 210.51,-1613 210.51,-1593 117.32,-1593"/>
 <text xml:space="preserve" text-anchor="start" x="137.46" y="-1599.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">comp_id</text>
-<polygon fill="none" stroke="black" points="205.06,-1593 205.06,-1613 337.88,-1613 337.88,-1593 205.06,-1593"/>
-<text xml:space="preserve" text-anchor="start" x="263.69" y="-1599.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">str</text>
-<polygon fill="none" stroke="black" points="122.77,-1573 122.77,-1593 205.06,-1593 205.06,-1573 122.77,-1573"/>
+<polygon fill="none" stroke="black" points="210.51,-1593 210.51,-1613 343.33,-1613 343.33,-1593 210.51,-1593"/>
+<text xml:space="preserve" text-anchor="start" x="269.14" y="-1599.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">str</text>
+<polygon fill="none" stroke="black" points="117.32,-1573 117.32,-1593 210.51,-1593 210.51,-1573 117.32,-1573"/>
 <text xml:space="preserve" text-anchor="start" x="144.85" y="-1579.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">atoms</text>
-<polygon fill="none" stroke="black" points="205.06,-1573 205.06,-1593 337.88,-1593 337.88,-1573 205.06,-1573"/>
-<text xml:space="preserve" text-anchor="start" x="208.06" y="-1579.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">list[AtomSiteRecord]</text>
+<polygon fill="none" stroke="black" points="210.51,-1573 210.51,-1593 343.33,-1593 343.33,-1573 210.51,-1573"/>
+<text xml:space="preserve" text-anchor="start" x="213.51" y="-1579.22" font-family="Times New Roman,Times,Liberation Serif,serif" font-size="14.00">list[AtomSiteRecord]</text>
 </a>
 </g>
 </g>
@@ -217,9 +225,9 @@
 <!-- pandora.schemas.dataset.ResidueRecord&#45;&gt;pandora.schemas.structure.AtomSiteRecord -->
 <g id="edge1" class="edge">
 <title>pandora.schemas.dataset.ResidueRecord:e&#45;&gt;pandora.schemas.structure.AtomSiteRecord:w</title>
-<path fill="none" stroke="black" d="M348.63,-1583C476.64,-1583 515.64,-1583 641.08,-1583"/>
-<polyline fill="none" stroke="black" points="338.88,-1583 343.88,-1583"/>
-<polyline fill="none" stroke="black" points="343.88,-1583 348.88,-1583"/>
+<path fill="none" stroke="black" d="M354.3,-1583C479.68,-1583 518.1,-1583 640.98,-1583"/>
+<polyline fill="none" stroke="black" points="344.33,-1583 349.33,-1583"/>
+<polyline fill="none" stroke="black" points="349.33,-1583 354.33,-1583"/>
 <polygon fill="black" stroke="black" points="646.06,-1583 656.06,-1587.5 651.39,-1583 655.72,-1583 655.72,-1583 655.72,-1583 651.39,-1583 656.06,-1578.5 646.06,-1583"/>
 <polyline fill="none" stroke="black" points="644.84,-1583 639.84,-1583"/>
 </g>

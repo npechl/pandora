@@ -296,3 +296,148 @@ Unmatched rows don't stop the import. A table that lacks a required column altog
 | `ambiguous_author_id` | the author IDs point at more than one residue or polymer chain |
 | `bad_value` | `seq_id` isn't an integer, `value` isn't a number, or `label` is empty |
 | `duplicate_key` | a second row for the same key; kept for `residue_contacts` and `free_form`, where repeats are allowed |
+
+## Using layers in a dataset
+
+Pandora doesn't merge layers into the record tables. Every layer is its own table, keyed by the same columns as the records (`entry_id`, `chain_id`, `seq_id`; `chain_id_1`/`chain_id_2` for interfaces), so you join the layers you want with pandas, polars or DuckDB. Residue records also carry the author's keys (`auth_chain_id`, `auth_seq_id`, `ins_code`), so either naming works.
+
+### Contact counts
+
+`count_residue_contacts()` and `count_chain_contacts()` turn any `residue_contacts` layer, Pandora's own or imported, into value layers:
+
+| Function | Layer | `value` |
+|---|---|---|
+| `count_residue_contacts()` | `residue_values` | distinct partner residues of the residue |
+| `count_chain_contacts()` | `chain_values` | distinct residues of the chain in contact |
+
+A pair given several times (for example with several contact types), in either order, counts once. Residues and chains without contacts get no row, so fill in 0 after the join.
+
+### Joining
+
+There is no join function; these are plain pandas joins. The example uses `1a2c` (thrombin light chain L and heavy chain H, with a hirudin peptide I and the inhibitor aeruginosin J), whose light chain has insertion codes.
+
+=== "`library`"
+
+    ```python
+    import pandas as pd
+
+    from pandora.annotations import (
+        annotate_chain_interfaces,
+        count_chain_contacts,
+        count_residue_contacts,
+        resolve_layer_rows,
+    )
+    from pandora.datasets import (
+        extract_chain_records,
+        extract_interface_records,
+        extract_residue_records,
+    )
+    from pandora.parsing import mmcif_to_structure
+
+    structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/a2/1a2c.cif")
+    contacts = annotate_chain_interfaces(structure)
+
+
+    def table(rows, exclude=()):
+        return pd.DataFrame([r.model_dump(exclude=set(exclude)) for r in rows])
+
+
+    # Residue counts onto residue records, on Pandora's keys
+    residues = table(extract_residue_records(structure), exclude={"atoms"})
+    counts = table(count_residue_contacts(contacts))
+    keys = ["entry_id", "chain_id", "seq_id"]
+    joined = residues.merge(counts[[*keys, "value"]], on=keys, how="left")
+    joined = joined.fillna({"value": 0}).astype({"value": int})
+    print(joined.loc[joined.value > 0, ["chain_id", "seq_id", "auth_seq_id", "ins_code", "value"]].head(3))
+
+    # ... or on the author's keys
+    auth = ["entry_id", "auth_chain_id", "auth_seq_id", "ins_code"]
+    by_auth = residues.merge(counts[[*auth, "value"]], on=auth, how="left")
+    print((by_auth.value.fillna(0) == joined.value).all())
+
+    # Chain counts onto chain records
+    chain_counts = table(count_chain_contacts(contacts))
+    keys = ["entry_id", "chain_id"]
+    chains = table(extract_chain_records(structure)).merge(
+        chain_counts[[*keys, "value"]], on=keys, how="left"
+    )
+    chains = chains.fillna({"value": 0}).astype({"value": int})
+    print(chains[["chain_id", "auth_chain_id", "residue_count", "value"]])
+
+    # An entry total
+    print(chain_counts.groupby("entry_id")["value"].sum())
+
+    # Interface labels onto interface records, in either chain order
+    labels, _ = resolve_layer_rows(
+        [{"entry_id": "1a2c", "chain_id_1": "B", "chain_id_2": "A", "label": "light_heavy"}],
+        "interface_labels",
+        {structure.entry_id: structure},
+    )
+    labels = pd.DataFrame(labels)
+    interfaces = table(extract_interface_records(contacts))
+    pair = ["chain_id_1", "chain_id_2"]
+    for df in (interfaces, labels):
+        df[pair] = pd.DataFrame(df[pair].apply(sorted, axis=1).tolist(), index=df.index)
+    keys = ["entry_id", *pair]
+    interfaces = interfaces.merge(labels[[*keys, "label"]], on=keys, how="left")
+    print(interfaces[[*pair, "contact_count", "label"]])
+    ```
+
+    ```text
+      chain_id  seq_id auth_seq_id ins_code  value
+    0        A       1           1        H      4
+    1        A       2           1        G      2
+    2        A       3           1        F      2
+    True
+      chain_id auth_chain_id  residue_count  value
+    0        A             L             36     27
+    1        B             H            252     65
+    2        C             I             10      8
+    3        D             J              4      4
+    entry_id
+    1A2C    104
+    Name: value, dtype: int64
+      chain_id_1 chain_id_2  contact_count        label
+    0          A          B             61  light_heavy
+    1          B          C             21          NaN
+    2          B          D             22          NaN
+    ```
+
+=== "`cli`"
+
+    `pandora annotate count-contacts` writes a count layer folder (`layer.<fmt>`, `layer.json`) from a contact layer folder, one level per run:
+
+    ```bash
+    pandora annotate compute --layer chain_interfaces --structures-dir curated/ \
+      --output-dir annotations/interfaces
+    pandora annotate count-contacts --contacts annotations/interfaces \
+      --level residue --output-dir annotations/residue_contacts
+    pandora annotate count-contacts --contacts annotations/interfaces \
+      --level chain --output-dir annotations/chain_contacts
+    jq -c '.counts, .policy.template, .policy.parameters' annotations/chain_contacts/layer.json
+    ```
+
+    ```text
+    computed: 120 rows for 1 entries -> annotations/interfaces
+    counted: 104 residue rows from 120 contacts -> annotations/residue_contacts
+    counted: 4 chain rows from 120 contacts -> annotations/chain_contacts
+    {"rows_in":120,"rows_out":4}
+    "chain_values"
+    {"level":"chain","contacts_layer":"chain_interfaces"}
+    ```
+
+    Then join the layer onto `curated/chains.parquet` (written by `pandora curate`):
+
+    ```python
+    import pandas as pd
+
+    keys = ["entry_id", "chain_id"]
+    chains = pd.read_parquet("curated/chains.parquet")
+    counts = pd.read_parquet("annotations/chain_contacts/layer.parquet")
+    chains = chains.merge(counts[[*keys, "value"]], on=keys, how="left")
+    chains = chains.fillna({"value": 0}).astype({"value": int})
+    ```
+
+    No command writes residue records; build them with `extract_residue_records()` as in the library tab.
+
+Per-entry values from another tool (an R-free, a clashscore) import as a `free_form` layer, which needs only `entry_id`, and join on `entry_id`.
