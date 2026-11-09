@@ -2,9 +2,9 @@
 
 Roadmap sub-project 4 ("external tool outputs") from
 `2026-10-07-contacts-design.md`, now scoped as a project of its own.
-This document covers the whole project and its order. **Part 1 is
-specified in detail.** Parts 2–6 are each brainstormed and specified
-separately when their turn comes.
+This document covers the whole project and its order. **Parts 1 and 2
+are specified in detail.** Parts 3–6 are each brainstormed and
+specified separately when their turn comes.
 
 ## Intent
 
@@ -59,24 +59,35 @@ accepted.
 
 ## Order of work
 
-1. **Foundation** (this document): templates, the layer folder, and
-   `pandora` import of a user's table checked against a step folder.
-2. **Built-in annotations produce templates.** Pandora's chain
-   interfaces become a `residue_contacts` layer, and so on.
-3. **Export joins layers** onto chain/residue/interface records, so the
-   values reach the final dataset.
-4. **Curation rules on layers**, e.g. drop chains with fewer than N
+1. **Foundation**: templates, the layer folder, and `pandora` import of
+   a user's table checked against a step folder. (Done.)
+2. **Contacts are one layer.** Pandora's chain interfaces and ligand
+   contacts produce `residue_contacts` layers, and interface records
+   and interface clustering read any `residue_contacts` layer. (This
+   absorbs the former "clustering from any contact layer" part.)
+3. **Similarity is a layer.** A `similarity` template of item pairs,
+   produced by the MMseqs2/Foldseek search, by `pandora similarity
+   import` (replacing `--precomputed-hits`), and by the built-in
+   pairwise sequence identity; `pandora cluster` reads any similarity
+   layer.
+4. **Export joins layers** onto chain/residue/interface records, so the
+   values reach the final dataset. Entry-level structure counts become
+   columns of an entry record here.
+5. **Curation rules on layers**, e.g. drop chains with fewer than N
    contacts, or keep residues with a given label.
-5. **Clustering from any contact layer.** Interface residues come from
-   any `residue_contacts` layer, not only Pandora's own interfaces.
 6. **Split balancing on a label** from any label layer (issue #95).
 
-Export comes before curation because it is the quickest way to get a
-combined COCaDA + MMseqs2 dataset out the other end.
+The guiding idea, confirmed in part 2's brainstorm: there is **one
+layer per kind of information, not one per source**. Built-in
+functions produce a layer directly; importing is the bridge that turns
+another tool's output into the same layer. A layer is a typed table:
+on disk a layer folder, in Python a list of rows of that template's
+row model. Nothing downstream can tell a built-in layer from an
+imported one apart from its recorded provenance. Extending Pandora for
+a new kind of information means adding a template, not subclassing.
 
 The existing similarity import (`pandora similarity --precomputed-hits`)
-is unchanged in part 1. It becomes the `similarity` template in a later
-part.
+is unchanged in parts 1 and 2.
 
 ## Part 1: foundation
 
@@ -266,9 +277,8 @@ gets:
 
 How this relates to the existing `AnnotationLayer` model (free-form
 `data` dict per entry): part 1 does not change `AnnotationLayer`.
-Whether imported layers are also exposed as `AnnotationLayer`s, or
-`AnnotationLayer` moves to templates, is settled in part 2, when the
-built-in annotations are reworked.
+Settled in part 2: built-ins move to templates, and `AnnotationLayer`
+is retired once nothing needs it.
 
 ### Tests
 
@@ -284,9 +294,269 @@ in a temp dir:
 - `free_form` with only `entry_id`;
 - `layer.json` counts and `previous_summary`.
 
+## Part 2: contacts are one layer
+
+### Intent
+
+Today Pandora has two worlds. `annotate_chain_interfaces` and
+`annotate_ligand_contacts` return an `AnnotationLayer` whose results sit
+in a free-form `data` dict, and interface records
+(`extract_interface_records`) and interface clustering
+(`interface_residues_from_annotation`) read that dict. A COCaDA layer
+imported through part 1 is a `residue_contacts` table that nothing
+reads yet. Part 2 makes them one thing: both built-ins produce
+`residue_contacts` rows, and both consumers take `residue_contacts`
+rows, whoever produced them. COCaDA contacts and Pandora's own contacts
+then give the same interface records and the same clustering input.
+
+### Scope
+
+In:
+- `annotate_chain_interfaces` and `annotate_ligand_contacts` return
+  `residue_contacts` rows.
+- `extract_interface_records` and `interface_residues_from_annotation`
+  take `residue_contacts` rows.
+- `pandora annotate compute` writes a layer folder, one layer per run.
+- `pandora cluster` takes a contact layer folder for interface coverage.
+- `annotate_structure_counts` is removed.
+
+Out:
+- Pairwise sequence identity: unchanged on the old `AnnotationLayer`
+  until part 3 (similarity).
+- `reproduce` / `manifest`: left as they are, still on `AnnotationLayer`
+  (they are likely to be removed; that is a separate decision). They
+  lose `structure_counts`, and their replay of `chain_interfaces` /
+  `ligand_contacts` follows whatever the new functions return (see
+  "Builder's calls").
+- The `AnnotationLayer` model itself stays until pairwise identity and
+  reproduce/manifest no longer need it.
+- Export of layers (part 4), curation on layers (part 5).
+
+### The row model
+
+Part 1 stores layer rows as `LayerRow` (any columns, checked by
+`check_layer_columns`). Part 2 adds a typed row model for the one
+template it touches, `ResidueContactRow`, in
+`pandora/schemas/annotation.py` (my call; other templates get a row
+model when a part needs one):
+
+- `entry_id`
+- per side `s` in `1`, `2`: `chain_id_s` (`label_asym_id`), `seq_id_s`
+  (`label_seq_id`, `None` for non-polymer residues), `auth_chain_id_s`,
+  `auth_seq_id_s`, `ins_code_s` (`None` for none, as part 1 stores
+  it), `comp_id_s`
+- `contact_type: str | None`, `distance: float | None`
+- `extra="allow"`, so an imported table's own columns survive.
+
+Column names are part 1's. `comp_id_s` is new and optional (my call):
+both built-ins know it and it makes the table readable. Import fills
+it from the structure when it resolves a row; part 1's
+`resolve_layer_rows` does not do this yet, so its residue index gains
+the comp ID. A `layer.<fmt>` written by part 1 reads into this model
+unchanged except for `distance`: part 1 never type-checked it, so
+import now marks a row whose `distance` is present but not a number as
+`bad_value` (my call), and reading a stored layer coerces numeric
+strings and fails loudly on anything else.
+
+### Built-in producers
+
+**`annotate_chain_interfaces(structure, distance_cutoff, atom_set,
+polymer_types)`** keeps its arguments and contact detection, and
+returns `list[ResidueContactRow]`: one row per contacting residue pair
+across two polymer chains, side 1 the chain that sorts first (as
+today). Both namings are filled from the atoms. `distance` is the
+closest atom–atom distance for the pair (my call: cheap, already
+computed while scanning, and makes the built-in layer at least as rich
+as a typical COCaDA conversion). `contact_type` is `None`.
+
+**`annotate_ligand_contacts(structure, distance_cutoff,
+include_waters)`** returns `list[ResidueContactRow]`: side 1 the
+polymer residue, side 2 the ligand residue (`seq_id_2` is `None`;
+`auth_*` identifies it, as part 1 requires), `distance` the nearest
+distance it reports today. `contact_type` is `None`.
+
+A ligand is now a residue of a **non-polymer chain** (waters only with
+`include_waters`), not any non-water `HETATM` (user's decision). Today
+modified residues inside polymer chains (TYS in 1a2c, SME in 1ba6, HYP
+in 1bkv, ...) count as ligands; as `residue_contacts` rows they would
+look like polymer–polymer contacts and create false interfaces. They
+are dropped from the ligand side, which changes today's ligand output
+for those entries. This also makes `seq_id_2 = None` hold for every
+ligand row.
+
+Both stay plain functions with no file I/O. They do not go through
+`resolve_layer_rows`: they build rows from the structure's own atoms,
+so the rows already match.
+
+### Consumers
+
+**`extract_interface_records(rows, distance_cutoff=None,
+atom_set=None)`** takes `residue_contacts` rows for any number of
+entries. It groups them by entry and **unordered** chain pair, keeps
+pairs where both sides are polymer residues on different chains
+(`seq_id` present on both sides), and returns one `InterfaceRecord` per
+pair. Side 1 of the record is the chain that sorts first. Rows that do
+not qualify (ligand contacts, same-chain contacts) are skipped, not
+errors: a ligand layer gives no interfaces rather than wrong ones.
+Repeated rows for one residue pair (several contact types) count once.
+
+`InterfaceRecord.distance_cutoff` becomes `float | None` (default
+`None`) and `atom_set` becomes `ContactAtomSet | None`, keeping its
+`"all"` default so records written before the field existed still
+load as all-atom (pinned by
+`test_interface_record_without_atom_set_loads_as_all`); callers pass
+`None` explicitly when the setting is unknown. A
+caller using the built-in passes the settings it ran with; for an
+imported layer they are unknown unless the caller supplies them (e.g.
+from the layer's `parameters`).
+
+The interface residue IDs and `residue_pairs` keep today's
+`label_asym_id:label_seq_id` string form, so existing
+`InterfaceRecord` readers are unaffected.
+
+Callers that today write `extract_interface_records(structure, 4.0)`
+become `extract_interface_records(annotate_chain_interfaces(structure,
+4.0), distance_cutoff=4.0)`. No convenience wrapper (my call; it is one
+line).
+
+**`interface_residues_from_annotation(structures, rows)`** takes
+`residue_contacts` rows instead of `entry_id -> AnnotationLayer`, with
+the same filter as above (polymer–polymer, different chains), and maps
+each side's `seq_id` to Foldseek positions as today. Return value
+unchanged. Builder's call: whether it reuses the interface-record
+grouping or filters rows directly.
+
+### The commands
+
+**`pandora annotate compute`** writes one layer folder per run, the
+same shape `annotate import` writes:
+
+```sh
+pandora annotate compute --layer chain_interfaces \
+  --structures-dir curated/ \
+  --distance-cutoff 5.0 --atom-set heavy \
+  --output-dir annotations/interfaces
+```
+
+- `--layer`: `chain_interfaces` or `ligand_contacts`.
+- `--structures-dir` replaces `--input-dir`, matching `annotate import`.
+- Settings as flags: `--distance-cutoff`, `--atom-set`,
+  `--polymer-types` (repeatable) for `chain_interfaces`;
+  `--distance-cutoff`, `--include-waters` for `ligand_contacts`. Flags
+  that don't apply to the chosen `--layer` are an error. Defaults are
+  the functions' defaults.
+- `--output-dir`, `--overwrite`, `--table-format` as on `import`.
+- Writes `layer.<fmt>` and `layer.json`. No `unmatched` table (nothing
+  can fail to match) and no `source/`.
+- `layer.json` is a `StepSummary` with `step: "annotation_compute"`;
+  its `policy` is a `LayerDescription` with `name` = the layer,
+  `template: residue_contacts`, `tool: "pandora"`, `tool_version` =
+  Pandora's version, `parameters` = the settings used. `input` and
+  `previous_summary` as in `import`. `counts`: entries, rows.
+- `--pairwise` is dropped from the CLI until part 3 (my call). The
+  library function stays. `pandora manifest --annotations` is left as
+  it is: it still reads an `AnnotationLayer` JSON, now only an old or
+  hand-written one. Not worth reworking for commands likely to be
+  removed; the docs example in `docs/usage/cli.md` loses that flag.
+- `structure_counts` is no longer a choice.
+- The old `annotations.json` output goes away (no transition, Pandora
+  is 0.x).
+
+**`pandora cluster --contacts <layer folder> --structures-dir <step
+folder>`** replaces `--interface-residues <json>` (my call, no
+transition). `--input-dir` stays the folder Foldseek ran on (the
+per-chain files from `export_chain_mmcif`, stems `{entry}_{chain}`).
+`--structures-dir` is the step folder the layer refers to; its entry
+structures give the `seq_id` → Foldseek position mapping, and the
+resulting `{entry}_{chain}` keys match the per-chain file stems.
+Reading the per-chain files themselves would not work:
+`read_structures_dir` keys by entry ID, so chains of one entry
+overwrite each other. `--structures-dir` is required with `--contacts`. A layer whose `layer.json`
+template is not `residue_contacts` is an error. The hand-written
+positions JSON and `load_interface_residues` go away.
+
+No command builds interface records today; part 2 does not add one
+(export, part 4).
+
+### Removed
+
+`annotate_structure_counts`, from `pandora.annotations`,
+`pandora.metadata`'s re-exports, `reproduce`'s replay table, and the
+docs and examples that call it. Per-chain counts already live on chain
+records; entry-level counts return as entry-record columns in part 4.
+
+### Docs and examples to update
+
+`docs/usage/annotation.md`, `docs/usage/datasets.md`,
+`docs/usage/similarity.md`, `docs/usage/cli.md`,
+`docs/usage/provenance.md`, `docs/getting-started/quickstart.md`,
+`docs/index.md`, `docs/recipes/ppi-01.md`,
+`docs/contributing/architecture.md`, `README.md`,
+`pandora/cli/README.md`, and the scripts in `examples/` that call the
+changed functions. Every snippet that reads `.data["interfaces"]` or
+`.data["ligands"]` changes to rows. Regenerate the ERD
+(`InterfaceRecord` and the new row model change).
+
+### Tests
+
+Offline, with `datasets/dev/mmcif/` fixtures:
+- `annotate_chain_interfaces` rows: both namings filled, `distance` is
+  the closest pair distance, same residue pairs as today's layer for the
+  fixtures the current tests use;
+- `annotate_ligand_contacts` rows: ligand side by author naming,
+  `seq_id_2` empty; a modified residue in a polymer chain (e.g. 1a2c's
+  TYS) is not a ligand;
+- `extract_interface_records` gives the same records as today for the
+  built-in layer, treats (A,B) and (B,A) rows as one pair, counts a
+  repeated residue pair once, skips ligand and same-chain rows, and
+  works on rows read back from an imported `layer.<fmt>`;
+- `interface_residues_from_annotation` on built-in and imported rows
+  gives the same positions;
+- `annotate compute` writes `layer.<fmt>` + `layer.json` with the
+  settings, rejects a flag that doesn't apply, refuses an existing layer
+  without `--overwrite`;
+- a layer from `annotate compute` and the same contacts brought in with
+  `annotate import` give identical interface records;
+- `cluster --contacts` with a fake Foldseek, and a non-contact layer is
+  rejected.
+
+### Builder's calls
+
+- How reproduce/manifest keep working for `chain_interfaces` /
+  `ligand_contacts` with the new return type (wrap the rows in an
+  `AnnotationLayer` there, or drop those two from its replay table).
+  Pick the smaller change; they are likely to be removed.
+- Module layout inside `pandora/annotations/` and
+  `pandora/datasets/records.py`.
+
 ## Decisions
 
-The user decided:
+The user decided (part 2):
+- One layer per kind of information, not one per source. Built-ins
+  produce the layer directly; import is the bridge for other tools.
+  The `pandora` command stays enough to bring in another tool's output.
+- Interface records and interface clustering read any
+  `residue_contacts` layer, in part 2.
+- Reproduce/manifest are left alone (likely to be removed later).
+- Structure counts are dropped as an annotation; entry-level counts
+  belong on an entry record at export.
+- Ligand contacts count only residues of non-polymer chains as
+  ligands; modified residues inside polymer chains are not ligands.
+- Similarity becomes a layer (`pandora similarity import`), as its own
+  part, next after part 2. Pairwise identity moves there.
+
+My calls (part 2), which the user can overturn:
+- A layer is a typed table (pydantic row model), not a class with
+  behaviour; extending means a new template, not subclassing.
+- `ResidueContactRow` added now; other templates' row models later.
+- `comp_id_s` columns; closest-atom `distance` on chain-interface rows.
+- `InterfaceRecord.distance_cutoff` / `atom_set` become optional.
+- `annotate compute`: one layer per run, settings as flags,
+  `--structures-dir`; `annotations.json` dropped.
+- `cluster --contacts` replaces `--interface-residues`.
+- No convenience wrapper for structure → interface records.
+
+The user decided (part 1):
 - Templates, with users converting their tool output into one. Pandora
   does not parse each tool's own format.
 - A user with a custom workflow provides the linking table. Without it,
