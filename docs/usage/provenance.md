@@ -16,7 +16,7 @@ from pandora.ingestion import fetch_mmcif
 from pandora.parsing import mmcif_to_structure
 from pandora.canonicalisation import canonicalise_structure
 from pandora.metadata import collect_metadata
-from pandora.annotations import annotate_structure_counts
+from pandora.annotations import annotate_pairwise_sequence_identity
 from pandora.schemas.canonicalisation import canonicalisationPolicy
 from pandora.schemas.dataset import DatasetCurationPolicy
 
@@ -69,13 +69,15 @@ below.
 ```python
 from pandora.provenance import build_provenance_bundle
 
-counts = annotate_structure_counts(structures["104M"])
+identity = annotate_pairwise_sequence_identity(
+    structures["104M"], structures["112M"]
+)
 bundle = build_provenance_bundle(
     structures["104M"],
     ingestion=ingestion_prov["104M"],
     canonicalisation=canon_prov["104M"],
     metadata=metadata,
-    annotations=[counts],
+    annotations=[identity],
 )
 print(bundle.entry_id, bundle.ingestion is not None, len(bundle.annotations))
 # 104M True 1
@@ -147,8 +149,9 @@ into one `DatasetManifest`.
 
 `reproduce_dataset()` re-fetches every structure via its bundle's
 `ingestion` provenance, then replays canonicalisation, curation, dedup,
-similarity/clustering, partitioning, and annotation exactly as the
-manifest recorded them.
+similarity/clustering, partitioning, and pairwise sequence identity
+annotations exactly as the manifest recorded them. Contact layers
+(`residue_contacts`) are not `AnnotationLayer`s and are not replayed.
 
 === "`library`"
 

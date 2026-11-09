@@ -814,6 +814,7 @@ into a list of flat, independently-serializable records — see
 this reshaping step.
 
 ```python
+from pandora.annotations import annotate_chain_interfaces
 from pandora.datasets import (
     entry_sequences,
     extract_chain_records,
@@ -837,7 +838,8 @@ print(len(residues), residues[0].chain_id, residues[0].comp_id)
 
 structure2, _, _ = mmcif_to_structure("datasets/dev/mmcif/a3/1a3n.cif")
 canonical2, _, _ = canonicalise_structure(structure2, policy)
-interfaces = extract_interface_records(canonical2, distance_cutoff=4.0)
+contacts = annotate_chain_interfaces(canonical2, distance_cutoff=4.0)
+interfaces = extract_interface_records(contacts, distance_cutoff=4.0)
 print(
     len(interfaces),
     interfaces[0].chain_id_1,
@@ -847,4 +849,4 @@ print(
 # 5 A B 35
 ```
 
-`extract_residue_records()` carries each residue's full atom list (coordinates, B-factor, ...) rather than a bare count — residue-level ML use cases (contact maps, solvent exposure) don't need to go back to the structure. `extract_interface_records()` reshapes [`annotate_chain_interfaces()`](annotation.md#chain-chain-interfaces)'s output; it doesn't compute contacts itself. It takes the same `atom_set` and `polymer_types` arguments, and each `InterfaceRecord` carries the `atom_set` used and the `residue_pairs`.
+`extract_residue_records()` carries each residue's full atom list (coordinates, B-factor, ...) rather than a bare count — residue-level ML use cases (contact maps, solvent exposure) don't need to go back to the structure. `extract_interface_records()` takes any [`residue_contacts` layer](annotation.md#contacts-are-one-layer) — Pandora's [`annotate_chain_interfaces()`](annotation.md#chain-chain-interfaces) or another tool's contacts imported with `pandora annotate import` — and groups it into one record per polymer chain pair; it doesn't compute contacts itself. Pairs are unordered, a residue pair reported on several rows counts once, and ligand and same-chain rows are skipped. Pass `distance_cutoff` and `atom_set` to record the settings the contacts were computed with; they stay `None` when unknown. Each `InterfaceRecord` carries the `residue_pairs`.

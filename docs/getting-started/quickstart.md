@@ -63,21 +63,16 @@ print(metadata.quality.experimental_method, metadata.quality.resolution)
 
 ## 4. Annotate
 
-Annotations are derived layers computed from the canonical structure. `annotate_structure_counts()` gives you a quick per-entry summary; `annotate_ligand_contacts()` finds polymer residues near each ligand:
+Annotations are derived layers computed from the canonical structure. `annotate_ligand_contacts()` finds polymer residues near each ligand and returns one row per (polymer residue, ligand) pair in contact — a [`residue_contacts` layer](../usage/annotation.md#contacts-are-one-layer):
 
 ```python
-from pandora.annotations import (
-    annotate_structure_counts,
-    annotate_ligand_contacts,
-)
+from collections import Counter
 
-counts = annotate_structure_counts(canonical)
-print(counts.data["atom_count"], counts.data["entity_type_counts"])
-# 1450 {'polymer': 1, 'non-polymer': 3, 'water': 1}
+from pandora.annotations import annotate_ligand_contacts
 
 contacts = annotate_ligand_contacts(canonical)
-for ligand in contacts.data["ligands"]:
-    print(ligand["ligand_comp_id"], ligand["contact_count"])
+for comp_id, n in Counter(row.comp_id_2 for row in contacts).items():
+    print(comp_id, n)
 # SO4 4
 # HEM 15
 # NBN 4
@@ -93,10 +88,7 @@ from pathlib import Path
 from pandora.parsing import mmcif_to_structure
 from pandora.canonicalisation import canonicalise_structure
 from pandora.metadata import collect_metadata
-from pandora.annotations import (
-    annotate_structure_counts,
-    annotate_ligand_contacts,
-)
+from pandora.annotations import annotate_ligand_contacts
 from pandora.schemas.canonicalisation import canonicalisationPolicy
 
 mmcif_dir = Path("datasets/dev/mmcif")
@@ -112,7 +104,6 @@ policy = canonicalisationPolicy(
 canonical, mappings, canon_prov = canonicalise_structure(structure, policy)
 
 metadata = collect_metadata(canonical)
-counts = annotate_structure_counts(canonical)
 contacts = annotate_ligand_contacts(canonical)
 ```
 
@@ -163,14 +154,15 @@ print(
 
 ligand_counts = Counter()
 for structure in structures.values():
-    for ligand in annotate_ligand_contacts(structure).data["ligands"]:
-        ligand_counts[ligand["ligand_comp_id"]] += 1
+    rows = annotate_ligand_contacts(structure)
+    ligands = {(r.chain_id_2, r.auth_seq_id_2, r.comp_id_2) for r in rows}
+    ligand_counts.update(comp_id for _, _, comp_id in ligands)
 
 print(ligand_counts.most_common(5))
-# [('ZN', 56), ('HEM', 11), ('CA', 11), ('POL', 10), ('CL', 9)]
+# [('ZN', 56), ('HEM', 11), ('CA', 10), ('POL', 10), ('CL', 9)]
 ```
 
-Zinc alone shows up in 56 of the 100 entries — this fixture set leans heavily on metalloproteins and small ligand-bound structures.
+Zinc alone accounts for 56 ligands in contact with a polymer, across 20 of the 100 entries — this fixture set leans heavily on metalloproteins and small ligand-bound structures.
 
 `curate_structure()` and `deduplicate_structures()` (both pure Python — no external tools) filter and dedupe that same batch:
 

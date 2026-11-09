@@ -69,14 +69,11 @@ only need one piece. See [Metadata](../usage/metadata.md).
 
 | Function | Takes | Returns |
 |---|---|---|
-| `annotate_structure_counts()` | `Structure` | `AnnotationLayer` (`type="structure_counts"`) |
-| `annotate_ligand_contacts()` | `Structure` | `AnnotationLayer` (`type="ligand_contacts"`) |
-| `annotate_chain_interfaces()` | `Structure` | `AnnotationLayer` (`type="chain_interfaces"`) |
+| `annotate_ligand_contacts()` | `Structure` | `list[ResidueContactRow]` (a `residue_contacts` layer) |
+| `annotate_chain_interfaces()` | `Structure` | `list[ResidueContactRow]` (a `residue_contacts` layer) |
 | `annotate_pairwise_sequence_identity()` | two `Structure`s | `AnnotationLayer` (`type="pairwise_sequence_identity"`) |
 
-Every `annotate_*()` function returns the same `AnnotationLayer` envelope
-regardless of what it computed — `layer.data` is where the shape actually
-differs; see [Annotation](../usage/annotation.md) for each one's `data` schema.
+The contact functions return the same `ResidueContactRow` rows that `annotate import` stores for another tool's contacts, so everything that reads contacts takes either; see [Annotation](../usage/annotation.md#contacts-are-one-layer). Pairwise identity still returns the older `AnnotationLayer` envelope, whose `layer.data` holds the result.
 
 ### Datasets
 
@@ -88,7 +85,8 @@ differs; see [Annotation](../usage/annotation.md) for each one's `data` schema.
 | `extract_chain_records()` | `Structure` | `list[ChainRecord]` |
 | `dataset_chain_records()` | `Structure`, `MetadataRecord \| None`, `MissingResidueDefinition`, `copy_of`, `structure_path` | `list[DatasetChainRecord]`: `ChainRecord` + completeness + method/resolution + path + `copy_of` |
 | `extract_residue_records()` | `Structure` | `list[ResidueRecord]` |
-| `extract_interface_records()` | `Structure` | `list[InterfaceRecord]` — reshapes `annotate_chain_interfaces()`'s output |
+| `extract_interface_records()` | `Iterable[ResidueContactRow]`, `distance_cutoff`, `atom_set` | `list[InterfaceRecord]` — one per polymer chain pair in any `residue_contacts` layer |
+| `interface_residue_pairs()` | `Iterable[ResidueContactRow]` | `dict[(entry_id, chain_1, chain_2), set[(res_1, res_2)]]` — the polymer–polymer pairs behind `extract_interface_records()` |
 | `entry_sequences()` | `dict[str, Structure]` | `dict[str, str]` — one representative sequence per entry, feeds `compute_sequence_similarity()` |
 
 ### Similarity

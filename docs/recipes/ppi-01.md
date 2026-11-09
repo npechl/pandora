@@ -14,6 +14,7 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
 
     from pathlib import Path
 
+    from pandora.annotations import annotate_chain_interfaces
     from pandora.canonicalisation import canonicalise_structure
     from pandora.datasets import (
         curate_structure,
@@ -37,7 +38,7 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
     MMCIF_DIR = Path("./datasets/dev/mmcif")
     OUTPUT_DIR = Path("./datasets/output/ppi/")
 
-    DISTANCE_CUTOFF = 4.0  # extract_interface_records's own default
+    DISTANCE_CUTOFF = 4.0  # annotate_chain_interfaces's own default
     IDENTITY_THRESHOLD = 0.3  # ATOM3D PIP's split cutoff
 
     policy = canonicalisationPolicy(
@@ -95,7 +96,8 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
     interfaces = []
     heteromeric: dict[str, Structure] = {}
     for entry_id, structure in structures.items():
-        records = extract_interface_records(structure, DISTANCE_CUTOFF)
+        contacts = annotate_chain_interfaces(structure, DISTANCE_CUTOFF)
+        records = extract_interface_records(contacts, DISTANCE_CUTOFF, "heavy")
         if not records:
             continue
         heteromeric[entry_id] = structure
@@ -227,13 +229,14 @@ print(
 
 ### 3. Keep only heteromeric structures, collect interfaces
 
-[`extract_interface_records()`](../usage/datasets.md#reshape-into-flat-records) reshapes [`annotate_chain_interfaces()`](../usage/annotation.md#chain-chain-interfaces)'s output; a structure with no chain-chain contacts (a monomer, or chains that never touch) contributes nothing and is dropped from the dataset entirely — this is the PPI-specific filter, and it's ad hoc script logic rather than a declarative curation rule (see gap 1 below):
+[`extract_interface_records()`](../usage/datasets.md#reshape-into-flat-records) groups [`annotate_chain_interfaces()`](../usage/annotation.md#chain-chain-interfaces)'s contact rows into one record per chain pair; a structure with no chain-chain contacts (a monomer, or chains that never touch) contributes nothing and is dropped from the dataset entirely — this is the PPI-specific filter, and it's ad hoc script logic rather than a declarative curation rule (see gap 1 below):
 
 ```python linenums="1"
 interfaces = []
 heteromeric: dict[str, Structure] = {}
 for entry_id, structure in structures.items():
-    records = extract_interface_records(structure, DISTANCE_CUTOFF)
+    contacts = annotate_chain_interfaces(structure, DISTANCE_CUTOFF)
+    records = extract_interface_records(contacts, DISTANCE_CUTOFF, "heavy")
     if not records:
         continue
     heteromeric[entry_id] = structure

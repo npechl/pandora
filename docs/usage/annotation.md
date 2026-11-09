@@ -32,40 +32,17 @@ structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/a3/1a3n.cif")
 canonical, _, _ = canonicalise_structure(structure, policy)
 ```
 
-## Per-entry counts
+## Contacts are one layer
 
-`annotate_structure_counts()` summarizes atom/residue/chain/entity/
-assembly counts and a few breakdowns — a cheap sanity check to run on
-every structure in a batch.
+Pandora's contact annotations return a `residue_contacts` layer: a list of `ResidueContactRow`s, one per pair of residues in contact. It is the same table shape that [`pandora annotate import`](#importing-a-layer-from-another-tool) stores for another tool's contacts (COCaDA, for example). Everything that reads contacts ([`extract_interface_records()`](datasets.md#reshape-into-flat-records), [interface clustering](similarity.md)) takes any `residue_contacts` layer, whoever produced it.
 
-=== "`library`"
+Each row names both residues in both namings (`chain_id_1`, `seq_id_1`, `auth_chain_id_1`, `auth_seq_id_1`, `ins_code_1`, `comp_id_1`, and the same with `_2`), plus `contact_type` and `distance` when known. Ligand residues have no `seq_id`.
 
-    ```python
-    from pandora.annotations import annotate_structure_counts
-
-    counts = annotate_structure_counts(canonical)
-    print(
-        counts.data["asym_unit_count"],
-        "chains,",
-        counts.data["residue_count"],
-        "residues",
-    )
-    # 8 chains, 576 residues
-    ```
-
-=== "`cli`"
-
-    ```bash
-    pandora annotate compute --input-dir deduped/ --layers structure_counts --output-dir annotations/
-    # annotated 5 entries -> annotations/
-    ```
-
-    Each entry's `structure_counts` layer lands in
-    `annotations/annotations.json`, keyed by entry id.
+On the command line, `pandora annotate compute` computes one layer for every structure of a step folder and writes the same layer folder as `annotate import`: `layer.<fmt>` with the rows and a `layer.json` step summary whose `parameters` record the settings used.
 
 ## Chain-chain interfaces
 
-`annotate_chain_interfaces()` finds every polymer chain pair with at least one pair of selected atoms within `distance_cutoff` angstroms. For each pair it reports the contacting residues on each side and the residue pairs themselves (`residue_pairs`).
+`annotate_chain_interfaces()` finds every pair of residues on two different polymer chains with at least one pair of selected atoms within `distance_cutoff` angstroms. Side 1 is the chain that sorts first, and `distance` is the closest atom pair of the two residues.
 
 | Argument | Default | Meaning |
 |---|---|---|
@@ -81,79 +58,122 @@ every structure in a batch.
 | `ca` | CA atoms only | ATOM3D's 8 Å Cα default |
 
 !!! warning "Changed after 0.5.6: hydrogens no longer count"
-    Up to 0.5.6 every atom counted, including hydrogens, so structures that model H atoms got extra contacts. The default is now `atom_set="heavy"`. Layers record `atom_set` in `parameters`, so `reproduce_dataset()` rebuilds them exactly. Layers from older manifests record only `distance_cutoff` and are rebuilt with `heavy`; pass `atom_set="all"` yourself to match the old output.
+    Up to 0.5.6 every atom counted, including hydrogens, so structures that model H atoms got extra contacts. The default is now `atom_set="heavy"`; pass `atom_set="all"` to match the old output.
+
+[`extract_interface_records()`](datasets.md#reshape-into-flat-records) groups the rows into one record per chain pair.
 
 === "`library`"
 
     ```python
     from pandora.annotations import annotate_chain_interfaces
+    from pandora.datasets import extract_interface_records
 
-    interfaces = annotate_chain_interfaces(canonical, distance_cutoff=4.0)
-    print(len(interfaces.data["interfaces"]), "interfaces")
-    # 5 interfaces
-    for interface in interfaces.data["interfaces"][:2]:
-        print(
-            interface["chain_id_1"],
-            interface["chain_id_2"],
-            interface["contact_count"],
-        )
-    # A B 35
-    # A C 6
+    rows = annotate_chain_interfaces(canonical, distance_cutoff=4.0)
+    print(len(rows), "contacting residue pairs")
+    r = rows[0]
+    print(
+        r.chain_id_1,
+        r.seq_id_1,
+        r.comp_id_1,
+        "-",
+        r.chain_id_2,
+        r.seq_id_2,
+        r.comp_id_2,
+        r.distance,
+    )
+
+    records = extract_interface_records(rows, distance_cutoff=4.0, atom_set="heavy")
+    print(len(records), "interfaces")
+    for record in records[:2]:
+        print(record.chain_id_1, record.chain_id_2, record.contact_count)
+    ```
+
+    ```text
+    135 contacting residue pairs
+    A 31 ARG - B 122 PHE 2.961
+    5 interfaces
+    A B 35
+    A C 6
     ```
 
 === "`cli`"
 
     ```bash
-    pandora annotate compute --input-dir deduped/ --layers chain_interfaces --output-dir annotations/
-    # annotated 5 entries -> annotations/
+    pandora annotate compute --layer chain_interfaces --structures-dir curated/ \
+      --distance-cutoff 4.0 --atom-set heavy --output-dir annotations/interfaces
+    jq -c '.counts, .policy.parameters' annotations/interfaces/layer.json
     ```
 
-    `distance_cutoff`, `atom_set` and `polymer_types` aren't exposed as CLI flags. The CLI always uses `annotate_chain_interfaces()`'s defaults.
+    ```text
+    computed: 135 rows for 1 entries -> annotations/interfaces
+    {"entries":1,"rows":135}
+    {"distance_cutoff":4.0,"atom_set":"heavy","polymer_types":null}
+    ```
+
+    `--polymer-types` is repeatable (`--polymer-types "polypeptide(L)"`).
 
 ### Pair gate, then interface (Pinder-style)
 
-Pinder first keeps chain pairs with backbone atoms within 10 Å, then defines the interface with a tighter cutoff. That's two calls:
+Pinder first keeps chain pairs with backbone atoms within 10 Å, then defines the interface with a tighter cutoff. That's two layers:
 
 ```python
 gate = annotate_chain_interfaces(
     canonical, distance_cutoff=10.0, atom_set="backbone"
 )
-interfaces = annotate_chain_interfaces(canonical, distance_cutoff=4.0)
-
-gated = {(i["chain_id_1"], i["chain_id_2"]) for i in gate.data["interfaces"]}
-kept = [
-    i
-    for i in interfaces.data["interfaces"]
-    if (i["chain_id_1"], i["chain_id_2"]) in gated
-]
+gated = {
+    (r.entry_id, r.chain_id_1, r.chain_id_2)
+    for r in extract_interface_records(gate)
+}
+kept = [r for r in records if (r.entry_id, r.chain_id_1, r.chain_id_2) in gated]
 ```
 
 ## Ligand contacts
 
-`annotate_ligand_contacts()` finds polymer residues near each
-non-polymer ligand (set `include_waters=True` to treat waters as
-ligands too).
+`annotate_ligand_contacts()` finds polymer residues near each ligand. A ligand is a residue of a non-polymer chain; set `include_waters=True` to count waters too. A modified residue inside a polymer chain (selenomethionine, sulfotyrosine, ...) is not a ligand, even when the file writes it as `HETATM`: it counts on the polymer side.
+
+Side 1 is the polymer residue, side 2 the ligand, named by its author IDs (it has no `seq_id`), and `distance` the nearest atom pair. Because ligand rows have no `seq_id` on side 2, interface records skip them.
+
+!!! warning "Changed after 0.6.0: modified residues are no longer ligands"
+    Earlier versions counted every non-water `HETATM` residue as a ligand, including modified residues inside polymer chains.
 
 === "`library`"
 
     ```python
     from pandora.annotations import annotate_ligand_contacts
 
-    contacts = annotate_ligand_contacts(canonical, distance_cutoff=4.0)
-    print(len(contacts.data["ligands"]), "ligands")
-    # 4 ligands — one per heme group
+    rows = annotate_ligand_contacts(canonical, distance_cutoff=4.0)
+    ligands = {(r.chain_id_2, r.auth_seq_id_2) for r in rows}
+    print(len(rows), "contacts with", len(ligands), "ligands")
+    r = rows[0]
+    print(
+        r.chain_id_1,
+        r.seq_id_1,
+        r.comp_id_1,
+        "-",
+        r.auth_chain_id_2,
+        r.auth_seq_id_2,
+        r.comp_id_2,
+        r.distance,
+    )
+    ```
+
+    ```text
+    74 contacts with 4 ligands
+    A 32 MET - A 142 HEM 3.828
     ```
 
 === "`cli`"
 
     ```bash
-    pandora annotate compute --input-dir deduped/ --layers ligand_contacts --output-dir annotations/
-    # annotated 5 entries -> annotations/
+    pandora annotate compute --layer ligand_contacts --structures-dir curated/ \
+      --distance-cutoff 4.0 --output-dir annotations/ligands
     ```
 
-    `--layers` accepts several names at once (`--layers structure_counts
-    ligand_contacts chain_interfaces`) to compute them all in one pass —
-    it defaults to all three when omitted.
+    ```text
+    computed: 74 rows for 1 entries -> annotations/ligands
+    ```
+
+    `--include-waters` counts waters. A flag that belongs to the other layer (`--atom-set` here) is an error.
 
 ## Pairwise sequence identity
 
@@ -178,16 +198,7 @@ on a shifted reading frame), and reports the best-scoring pair.
 
 === "`cli`"
 
-    `--pairwise` computes this layer for every pair in the batch,
-    alongside whichever `--layers` you pick:
-
-    ```bash
-    pandora annotate compute --input-dir deduped/ --layers structure_counts --pairwise --output-dir annotations/
-    # annotated 5 entries -> annotations/
-    ```
-
-    Each pair's result is attached to both entries' entries in
-    `annotations/annotations.json`.
+    No CLI yet. Pairwise identity moves to the similarity layer in a later release.
 
 For a real alignment-based identity between *sequences* (not entities
 within structures) at dataset scale, see

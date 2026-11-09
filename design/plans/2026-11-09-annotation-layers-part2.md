@@ -114,34 +114,63 @@ this file, so the HETATM-in-polymer case needs a synthetic structure.
 ```python
 def test_residue_contact_row_reads_parquet_shapes():
     row = ResidueContactRow.model_validate(
-        {"entry_id": "1A2C", "chain_id_1": "A", "seq_id_1": 42.0,
-         "ins_code_1": "", "chain_id_2": "E", "seq_id_2": None,
-         "ins_code_2": "?", "distance": "3.5", "tool_score": 7}
+        {
+            "entry_id": "1A2C",
+            "chain_id_1": "A",
+            "seq_id_1": 42.0,
+            "ins_code_1": "",
+            "chain_id_2": "E",
+            "seq_id_2": None,
+            "ins_code_2": "?",
+            "distance": "3.5",
+            "tool_score": 7,
+        }
     )
     assert row.seq_id_1 == 42
     assert row.ins_code_1 is None and row.ins_code_2 is None
     assert row.distance == 3.5
     assert row.model_dump()["tool_score"] == 7
 
+
 def test_resolve_fills_comp_id():
     # 1a2c label A seq 1 is the first residue of author chain L.
     matched, _ = resolve_layer_rows(
-        [{"entry_id": "1A2C", "chain_id_1": "A", "seq_id_1": 1,
-          "chain_id_2": "B", "seq_id_2": 1}],
-        "residue_contacts", {"1A2C": _load("1a2c")},
+        [
+            {
+                "entry_id": "1A2C",
+                "chain_id_1": "A",
+                "seq_id_1": 1,
+                "chain_id_2": "B",
+                "seq_id_2": 1,
+            }
+        ],
+        "residue_contacts",
+        {"1A2C": _load("1a2c")},
     )
     expected = _load("1a2c")  # read the comp ids from the atoms
-    comp = {(a.label_asym_id, a.label_seq_id): a.label_comp_id
-            for a in expected.atoms}
+    comp = {
+        (a.label_asym_id, a.label_seq_id): a.label_comp_id
+        for a in expected.atoms
+    }
     assert matched[0]["comp_id_1"] == comp[("A", 1)]
     assert matched[0]["comp_id_2"] == comp[("B", 1)]
+
 
 @pytest.mark.parametrize("distance", ["near", True])
 def test_resolve_contacts_bad_distance(distance):
     _, unmatched = resolve_layer_rows(
-        [{"entry_id": "1A2C", "chain_id_1": "A", "seq_id_1": 1,
-          "chain_id_2": "B", "seq_id_2": 1, "distance": distance}],
-        "residue_contacts", {"1A2C": _load("1a2c")},
+        [
+            {
+                "entry_id": "1A2C",
+                "chain_id_1": "A",
+                "seq_id_1": 1,
+                "chain_id_2": "B",
+                "seq_id_2": 1,
+                "distance": distance,
+            }
+        ],
+        "residue_contacts",
+        {"1A2C": _load("1a2c")},
     )
     assert unmatched[0]["reason"] == "bad_value"
 ```
@@ -200,6 +229,7 @@ git commit -m "feat(annotations): ResidueContactRow; import fills comp_id, check
       atom_set: ContactAtomSet = "heavy",
       polymer_types: list[str] | None = None,
   ) -> list[ResidueContactRow]: ...
+
 
   def extract_interface_records(
       rows: Iterable[ResidueContactRow],
@@ -261,6 +291,7 @@ def test_chain_interfaces_rows_on_fixture():
     assert first.comp_id_1 and first.auth_seq_id_1
     assert all(0 < r.distance <= 4.0 for r in rows)
 
+
 def test_chain_interfaces_distance_is_closest_atom_pair():
     atoms = [
         _atom(id=1, label_asym_id="A", entity_id="1", x=0.0),
@@ -270,30 +301,48 @@ def test_chain_interfaces_distance_is_closest_atom_pair():
     rows = annotate_chain_interfaces(_two_chain_structure(atoms))
     assert [r.distance for r in rows] == [2.5]
 
+
 def test_interface_records_from_rows_match_fixture():
     rows = annotate_chain_interfaces(_load("1a2c"))
-    records = extract_interface_records(rows, distance_cutoff=4.0,
-                                        atom_set="heavy")
-    assert [(r.chain_id_1, r.chain_id_2, len(r.residue_pairs))
-            for r in records] == [("A", "B", 74), ("B", "C", 21),
-                                  ("B", "D", 25)]
+    records = extract_interface_records(
+        rows, distance_cutoff=4.0, atom_set="heavy"
+    )
+    assert [
+        (r.chain_id_1, r.chain_id_2, len(r.residue_pairs)) for r in records
+    ] == [("A", "B", 74), ("B", "C", 21), ("B", "D", 25)]
     assert records[0].distance_cutoff == 4.0
     assert records[0].atom_set == "heavy"
     assert records[0].contact_count == (
         len(records[0].interface_residues_chain_1)
-        + len(records[0].interface_residues_chain_2))
+        + len(records[0].interface_residues_chain_2)
+    )
+
 
 def test_interface_records_unordered_repeats_ligands_same_chain():
     base = {"entry_id": "X"}
     rows = [
-        ResidueContactRow(**base, chain_id_1="A", seq_id_1=5,
-                          chain_id_2="B", seq_id_2=7, contact_type="hbond"),
-        ResidueContactRow(**base, chain_id_1="B", seq_id_1=7,
-                          chain_id_2="A", seq_id_2=5, contact_type="hydrophobic"),
-        ResidueContactRow(**base, chain_id_1="A", seq_id_1=5,
-                          chain_id_2="E", seq_id_2=None),   # ligand
-        ResidueContactRow(**base, chain_id_1="A", seq_id_1=5,
-                          chain_id_2="A", seq_id_2=9),      # same chain
+        ResidueContactRow(
+            **base,
+            chain_id_1="A",
+            seq_id_1=5,
+            chain_id_2="B",
+            seq_id_2=7,
+            contact_type="hbond",
+        ),
+        ResidueContactRow(
+            **base,
+            chain_id_1="B",
+            seq_id_1=7,
+            chain_id_2="A",
+            seq_id_2=5,
+            contact_type="hydrophobic",
+        ),
+        ResidueContactRow(
+            **base, chain_id_1="A", seq_id_1=5, chain_id_2="E", seq_id_2=None
+        ),  # ligand
+        ResidueContactRow(
+            **base, chain_id_1="A", seq_id_1=5, chain_id_2="A", seq_id_2=9
+        ),  # same chain
     ]
     (record,) = extract_interface_records(rows)
     assert (record.chain_id_1, record.chain_id_2) == ("A", "B")
@@ -436,29 +485,53 @@ Rewrite `test_ligand_contacts_reports_nearest_polymer_residue` for rows
 ```python
 def test_ligand_contacts_fixture():
     rows = annotate_ligand_contacts(_load("1a2c"))
-    assert {(r.chain_id_2, r.auth_chain_id_2, r.auth_seq_id_2,
-             r.comp_id_2) for r in rows} == {("E", "H", "626", "NA")}
+    assert {
+        (r.chain_id_2, r.auth_chain_id_2, r.auth_seq_id_2, r.comp_id_2)
+        for r in rows
+    } == {("E", "H", "626", "NA")}
     assert len(rows) == 2
+
 
 def test_ligand_contacts_hetatm_in_polymer_chain_is_not_a_ligand():
     # A: polymer with a HETATM modified residue (MSE) at seq 2.
     # B: second polymer chain. C: a real ligand near A:2.
     atoms = [
         _atom(id=1, label_asym_id="A", label_seq_id=1, entity_id="1", x=0.0),
-        _atom(id=2, group_PDB="HETATM", label_asym_id="A", label_seq_id=2,
-              label_comp_id="MSE", entity_id="1", x=10.0),
+        _atom(
+            id=2,
+            group_PDB="HETATM",
+            label_asym_id="A",
+            label_seq_id=2,
+            label_comp_id="MSE",
+            entity_id="1",
+            x=10.0,
+        ),
         _atom(id=3, label_asym_id="B", label_seq_id=1, entity_id="2", x=11.0),
-        _atom(id=4, group_PDB="HETATM", label_asym_id="C", label_seq_id=None,
-              label_comp_id="ZN", auth_seq_id="101", entity_id="3", x=9.0),
+        _atom(
+            id=4,
+            group_PDB="HETATM",
+            label_asym_id="C",
+            label_seq_id=None,
+            label_comp_id="ZN",
+            auth_seq_id="101",
+            entity_id="3",
+            x=9.0,
+        ),
     ]
-    entities = [EntityRecord(id="1", type="polymer"),
-                EntityRecord(id="2", type="polymer"),
-                EntityRecord(id="3", type="non-polymer")]
-    asym_units = [AsymRecord(id=c, entity_id=e)
-                  for c, e in (("A", "1"), ("B", "2"), ("C", "3"))]
+    entities = [
+        EntityRecord(id="1", type="polymer"),
+        EntityRecord(id="2", type="polymer"),
+        EntityRecord(id="3", type="non-polymer"),
+    ]
+    asym_units = [
+        AsymRecord(id=c, entity_id=e)
+        for c, e in (("A", "1"), ("B", "2"), ("C", "3"))
+    ]
     rows = annotate_ligand_contacts(_structure(atoms, entities, asym_units))
-    assert {r.chain_id_2 for r in rows} == {"C"}            # MSE not a ligand
-    assert ("A", 2) in {(r.chain_id_1, r.seq_id_1) for r in rows}  # MSE as polymer
+    assert {r.chain_id_2 for r in rows} == {"C"}  # MSE not a ligand
+    assert ("A", 2) in {
+        (r.chain_id_1, r.seq_id_1) for r in rows
+    }  # MSE as polymer
     assert extract_interface_records(rows) == []
 ```
 
@@ -540,12 +613,25 @@ def _step_folder(tmp_path):
     shutil.copy(FIXTURES_DIR / "a2" / "1a2c.cif", structures / "1a2c.cif")
     return tmp_path / "curated"
 
+
 def test_annotate_compute_writes_contact_layer(tmp_path):
     out = tmp_path / "annotations" / "interfaces"
-    main(["annotate", "compute", "--layer", "chain_interfaces",
-          "--structures-dir", str(_step_folder(tmp_path)),
-          "--atom-set", "heavy", "--output-dir", str(out),
-          "--table-format", "jsonl"])
+    main(
+        [
+            "annotate",
+            "compute",
+            "--layer",
+            "chain_interfaces",
+            "--structures-dir",
+            str(_step_folder(tmp_path)),
+            "--atom-set",
+            "heavy",
+            "--output-dir",
+            str(out),
+            "--table-format",
+            "jsonl",
+        ]
+    )
     rows = read_records(out / "layer.jsonl", ResidueContactRow)
     assert len(rows) == 74 + 21 + 25
     summary = json.loads((out / "layer.json").read_text())
@@ -553,54 +639,114 @@ def test_annotate_compute_writes_contact_layer(tmp_path):
     assert summary["policy"]["template"] == "residue_contacts"
     assert summary["policy"]["tool"] == "pandora"
     assert summary["policy"]["parameters"] == {
-        "distance_cutoff": 4.0, "atom_set": "heavy", "polymer_types": None}
+        "distance_cutoff": 4.0,
+        "atom_set": "heavy",
+        "polymer_types": None,
+    }
     assert summary["counts"] == {"entries": 1, "rows": 120}
+
 
 def test_annotate_compute_rejects_flag_for_other_layer(tmp_path):
     out = tmp_path / "out"
     with pytest.raises(SystemExit, match="--include-waters"):
-        main(["annotate", "compute", "--layer", "chain_interfaces",
-              "--include-waters", "--structures-dir",
-              str(_step_folder(tmp_path)), "--output-dir", str(out)])
+        main(
+            [
+                "annotate",
+                "compute",
+                "--layer",
+                "chain_interfaces",
+                "--include-waters",
+                "--structures-dir",
+                str(_step_folder(tmp_path)),
+                "--output-dir",
+                str(out),
+            ]
+        )
     assert not out.exists()
 
+
 def test_annotate_compute_refuses_existing_layer(tmp_path):
-    args = ["annotate", "compute", "--layer", "ligand_contacts",
-            "--structures-dir", str(_step_folder(tmp_path)),
-            "--output-dir", str(tmp_path / "out"), "--table-format", "jsonl"]
+    args = [
+        "annotate",
+        "compute",
+        "--layer",
+        "ligand_contacts",
+        "--structures-dir",
+        str(_step_folder(tmp_path)),
+        "--output-dir",
+        str(tmp_path / "out"),
+        "--table-format",
+        "jsonl",
+    ]
     main(args)
     with pytest.raises(SystemExit):
         main(args)
     main([*args, "--overwrite"])
 
+
 def test_compute_and_import_give_same_interface_records(tmp_path):
     folder = _step_folder(tmp_path)
     computed = tmp_path / "computed"
-    main(["annotate", "compute", "--layer", "chain_interfaces",
-          "--structures-dir", str(folder), "--output-dir", str(computed),
-          "--table-format", "jsonl"])
+    main(
+        [
+            "annotate",
+            "compute",
+            "--layer",
+            "chain_interfaces",
+            "--structures-dir",
+            str(folder),
+            "--output-dir",
+            str(computed),
+            "--table-format",
+            "jsonl",
+        ]
+    )
     # Re-import the same contacts as a tool would give them: author naming
     # only, sides swapped.
     table = tmp_path / "tool.jsonl"
-    table.write_text("".join(
-        json.dumps({"entry_id": r.entry_id.lower(),
+    table.write_text(
+        "".join(
+            json.dumps(
+                {
+                    "entry_id": r.entry_id.lower(),
                     "auth_chain_id_1": r.auth_chain_id_2,
                     "auth_seq_id_1": r.auth_seq_id_2,
                     "ins_code_1": r.ins_code_2,
                     "auth_chain_id_2": r.auth_chain_id_1,
                     "auth_seq_id_2": r.auth_seq_id_1,
-                    "ins_code_2": r.ins_code_1}) + "\n"
-        for r in read_records(computed / "layer.jsonl", ResidueContactRow)))
+                    "ins_code_2": r.ins_code_1,
+                }
+            )
+            + "\n"
+            for r in read_records(computed / "layer.jsonl", ResidueContactRow)
+        )
+    )
     (tmp_path / "d.yaml").write_text(
-        "name: tool\ntemplate: residue_contacts\ntool: T\n")
+        "name: tool\ntemplate: residue_contacts\ntool: T\n"
+    )
     imported = tmp_path / "imported"
-    main(["annotate", "import", "--structures-dir", str(folder),
-          "--table", str(table), "--description", str(tmp_path / "d.yaml"),
-          "--output-dir", str(imported), "--table-format", "jsonl"])
+    main(
+        [
+            "annotate",
+            "import",
+            "--structures-dir",
+            str(folder),
+            "--table",
+            str(table),
+            "--description",
+            str(tmp_path / "d.yaml"),
+            "--output-dir",
+            str(imported),
+            "--table-format",
+            "jsonl",
+        ]
+    )
     a = extract_interface_records(
-        read_records(computed / "layer.jsonl", ResidueContactRow))
+        read_records(computed / "layer.jsonl", ResidueContactRow)
+    )
     b = extract_interface_records(
-        read_records(imported / "layer.jsonl", ResidueContactRow))
+        read_records(imported / "layer.jsonl", ResidueContactRow)
+    )
     assert a == b and len(a) == 3
 ```
 
@@ -659,34 +805,75 @@ git commit -m "feat(cli)!: annotate compute writes one contact layer folder"
 def test_cluster_reads_contact_layer(tmp_path, monkeypatch):
     folder = _step_folder(tmp_path)
     layer = tmp_path / "interfaces"
-    main(["annotate", "compute", "--layer", "chain_interfaces",
-          "--structures-dir", str(folder), "--output-dir", str(layer),
-          "--table-format", "jsonl"])
+    main(
+        [
+            "annotate",
+            "compute",
+            "--layer",
+            "chain_interfaces",
+            "--structures-dir",
+            str(folder),
+            "--output-dir",
+            str(layer),
+            "--table-format",
+            "jsonl",
+        ]
+    )
     captured = {}
+
     def fake_cluster(item_ids, search, hit_filter, interface_residues=None):
         captured["residues"] = interface_residues
         return [], ClusterProvenance(...)  # build the minimal valid one
-    monkeypatch.setattr("pandora.cli.similarity.cluster_similar_items",
-                        fake_cluster)
+
+    monkeypatch.setattr(
+        "pandora.cli.similarity.cluster_similar_items", fake_cluster
+    )
     input_dir, search = _cluster_inputs(tmp_path)
-    main(["cluster", "--input-dir", str(input_dir), "--search", str(search),
-          "--min-score", "0.5", "--contacts", str(layer),
-          "--structures-dir", str(folder),
-          "--output", str(tmp_path / "c.json")])
-    assert set(captured["residues"]) == {
-        "1A2C_A", "1A2C_B", "1A2C_C", "1A2C_D"}
+    main(
+        [
+            "cluster",
+            "--input-dir",
+            str(input_dir),
+            "--search",
+            str(search),
+            "--min-score",
+            "0.5",
+            "--contacts",
+            str(layer),
+            "--structures-dir",
+            str(folder),
+            "--output",
+            str(tmp_path / "c.json"),
+        ]
+    )
+    assert set(captured["residues"]) == {"1A2C_A", "1A2C_B", "1A2C_C", "1A2C_D"}
+
 
 def test_cluster_rejects_non_contact_layer(tmp_path):
     layer = tmp_path / "labels"
     layer.mkdir()
-    (layer / "layer.json").write_text(json.dumps(
-        {"policy": {"template": "chain_labels"}}))
+    (layer / "layer.json").write_text(
+        json.dumps({"policy": {"template": "chain_labels"}})
+    )
     input_dir, search = _cluster_inputs(tmp_path)
     with pytest.raises(SystemExit, match="residue_contacts"):
-        main(["cluster", "--input-dir", str(input_dir), "--search",
-              str(search), "--min-score", "0.5", "--contacts", str(layer),
-              "--structures-dir", str(tmp_path), "--output",
-              str(tmp_path / "c.json")])
+        main(
+            [
+                "cluster",
+                "--input-dir",
+                str(input_dir),
+                "--search",
+                str(search),
+                "--min-score",
+                "0.5",
+                "--contacts",
+                str(layer),
+                "--structures-dir",
+                str(tmp_path),
+                "--output",
+                str(tmp_path / "c.json"),
+            ]
+        )
 ```
 
 Use whatever provenance object `cluster_similar_items` returns today for

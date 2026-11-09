@@ -18,6 +18,7 @@ Every stage is a plain function: pass a `Structure` (or a typed record) in, get 
 This runs fully offline against a fixture already checked into the repo — sperm whale myoglobin bound to a heme ligand:
 
 ```python
+from collections import Counter
 from pathlib import Path
 from pandora.parsing import mmcif_to_structure
 from pandora.canonicalisation import canonicalise_structure
@@ -40,12 +41,7 @@ contacts = annotate_ligand_contacts(canonical)
 
 print(metadata.entry.title)
 # SPERM WHALE MYOGLOBIN N-BUTYL ISOCYANIDE AT PH 7.0
-print(
-    [
-        (l["ligand_comp_id"], l["contact_count"])
-        for l in contacts.data["ligands"]
-    ]
-)
+print(list(Counter(row.comp_id_2 for row in contacts).items()))
 # [('SO4', 4), ('HEM', 15), ('NBN', 4)]
 ```
 

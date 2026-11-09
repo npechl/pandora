@@ -140,6 +140,8 @@ This runs offline against a structure bundled in the repo (sperm whale
 myoglobin, `104m`):
 
 ```python
+from collections import Counter
+
 from pandora.annotations import annotate_ligand_contacts
 from pandora.canonicalisation import canonicalise_structure
 from pandora.datasets import extract_chain_records
@@ -161,12 +163,7 @@ print(metadata.quality.resolution, metadata.taxonomies[0].ncbi_taxon_id)
 # 1.71 9755
 
 contacts = annotate_ligand_contacts(canonical)
-print(
-    [
-        (l["ligand_comp_id"], l["contact_count"])
-        for l in contacts.data["ligands"]
-    ]
-)
+print(list(Counter(row.comp_id_2 for row in contacts).items()))
 # [('SO4', 4), ('HEM', 15), ('NBN', 4)]
 
 chains = extract_chain_records(canonical)

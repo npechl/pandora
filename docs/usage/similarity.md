@@ -157,7 +157,7 @@ Interface coverage is computed when the hit file is read, from each row's alignm
 
 #### Deriving `interface_residues` correctly
 
-`annotate_chain_interfaces()` reports residues as `label_asym_id:label_seq_id` strings (mmCIF's own numbering, gaps and all) — not Foldseek positions. Bridge the two with `export_chain_mmcif()` (writes one chain per file, removing the multi-chain ambiguity) and `interface_residues_from_annotation()` (converts `label_seq_id` to that file's actual residue order):
+A [`residue_contacts` layer](annotation.md#contacts-are-one-layer) names residues by `label_seq_id` (mmCIF's own numbering, gaps and all) — not Foldseek positions. Bridge the two with `export_chain_mmcif()` (writes one chain per file, removing the multi-chain ambiguity) and `interface_residues_from_annotation()` (converts `label_seq_id` to that file's actual residue order). Any contact layer works: Pandora's `annotate_chain_interfaces()` below, or another tool's contacts brought in with `pandora annotate import` (read its `layer.<fmt>` with `read_records(path, ResidueContactRow)`). Only contacts between polymer residues on different chains count:
 
 ```python
 from pandora.annotations import annotate_chain_interfaces
@@ -169,13 +169,12 @@ from pandora.similarity import (
     interface_residues_from_annotation,
 )
 
-interface_layers = {
-    entry_id: annotate_chain_interfaces(structure)
-    for entry_id, structure in structures.items()
-}
-interface_residues = interface_residues_from_annotation(
-    structures, interface_layers
-)
+contacts = [
+    row
+    for structure in structures.values()
+    for row in annotate_chain_interfaces(structure)
+]
+interface_residues = interface_residues_from_annotation(structures, contacts)
 
 paths = {}
 for entry_id, structure in structures.items():
@@ -196,21 +195,17 @@ clusters, provenance = cluster_similar_items(
 )
 ```
 
-The CLI's `pandora cluster --interface-residues` takes the same mapping as a JSON file — write `interface_residues` from the recipe above as `{item_id: [position, ...]}` (`json.dumps` needs lists, not sets), run `pandora similarity` with `--input-dir` pointed at the `chains/` directory `paths` was written into, then:
-
-```python
-import json
-
-output_dir.joinpath("interfaces.json").write_text(
-    json.dumps({k: sorted(v) for k, v in interface_residues.items()})
-)
-```
+On the command line, `pandora cluster --contacts` takes a `residue_contacts` layer folder (from `pandora annotate compute` or `pandora annotate import`) and `--structures-dir`, the step folder the layer refers to. `--input-dir` stays the `chains/` folder of per-chain files the search ran on; their `{entry}_{chain}` names match the item ids the layer's positions are keyed by.
 
 ```bash
+pandora annotate compute --layer chain_interfaces --structures-dir curated/ --output-dir annotations/interfaces
 pandora similarity --input-dir chains/ --engine foldseek --output chains.tsv
-pandora cluster --input-dir chains/ --search chains.tsv.search.json --hit-filter filter.yaml --interface-residues interfaces.json --output clusters.json
+pandora cluster --input-dir chains/ --search chains.tsv.search.json --hit-filter filter.yaml \
+  --contacts annotations/interfaces --structures-dir curated/ --output clusters.json
 # filter.yaml: min_interface_coverage: 0.5
 ```
+
+A layer folder whose template isn't `residue_contacts` is refused.
 
 ## Precomputed searches
 

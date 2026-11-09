@@ -84,7 +84,7 @@ pandora cluster --input-dir deduped/ --search mmseqs.tsv.search.json --min-score
 # 3 clusters from 4 edges -> clusters.json
 ```
 
-`--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score`/`--min-coverage` override its fields. One of the three is required — there is no default threshold.
+`--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score`/`--min-coverage` override its fields. One of the three is required — there is no default threshold. For `min_interface_coverage`, pass a contact layer folder with `--contacts` and the step folder it refers to with `--structures-dir` (see [interface coverage](similarity.md#deriving-interface_residues-correctly)).
 
 ## partition
 
@@ -97,16 +97,14 @@ pandora partition --clusters clusters.json --pct-train 0.6 --pct-val 0.2 --pct-t
 
 ## annotate compute
 
-Entry-level and/or pairwise annotation layers:
+One of Pandora's contact layers (`chain_interfaces` or `ligand_contacts`) for every structure of a step folder, written as a layer folder (see [Contacts are one layer](annotation.md#contacts-are-one-layer)):
 
 ```sh
-pandora annotate compute --input-dir deduped/ --layers structure_counts ligand_contacts --pairwise --output-dir annotations/
-# annotated 5 entries -> annotations/
+pandora annotate compute --layer chain_interfaces --structures-dir curated/ --distance-cutoff 4.0 --atom-set heavy --output-dir annotations/interfaces
+# computed: 135 rows for 1 entries -> annotations/interfaces
 ```
 
-`--layers` defaults to every entry-level annotator; list a subset to
-skip the rest. `--pairwise` additionally computes
-`annotate_pairwise_sequence_identity()` for every pair in the batch.
+It writes `layer.<fmt>` (`residue_contacts` rows) and `layer.json`, whose `parameters` record the settings used. Settings: `--distance-cutoff` (both layers), `--atom-set` and `--polymer-types` (repeatable; `chain_interfaces`), `--include-waters` (`ligand_contacts`). A flag that doesn't apply to the chosen `--layer` is an error. `--overwrite` and `--table-format` work as on `annotate import`.
 
 ## annotate import
 
@@ -137,7 +135,6 @@ pandora manifest \
   --cluster-provenance cluster_provenance.json \
   --partition-provenance partition_provenance.json \
   --splits splits.json \
-  --annotations annotations/annotations.json \
   --output manifest.json
 # manifest for 5 structures -> manifest.json
 ```
