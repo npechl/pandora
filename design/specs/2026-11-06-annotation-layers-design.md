@@ -2,8 +2,8 @@
 
 Roadmap sub-project 4 ("external tool outputs") from
 `2026-10-07-contacts-design.md`, now scoped as a project of its own.
-This document covers the whole project and its order. **Parts 1 and 2
-are specified in detail.** Parts 3–6 are each brainstormed and
+This document covers the whole project and its order. **Parts 1, 2
+and 3 are specified in detail.** Parts 4–6 are each brainstormed and
 specified separately when their turn comes.
 
 ## Intent
@@ -87,7 +87,7 @@ imported one apart from its recorded provenance. Extending Pandora for
 a new kind of information means adding a template, not subclassing.
 
 The existing similarity import (`pandora similarity --precomputed-hits`)
-is unchanged in parts 1 and 2.
+is unchanged in parts 1 and 2, and replaced in part 3.
 
 ## Part 1: foundation
 
@@ -529,7 +529,401 @@ Offline, with `datasets/dev/mmcif/` fixtures:
 - Module layout inside `pandora/annotations/` and
   `pandora/datasets/records.py`.
 
+## Part 3: similarity is a layer
+
+### Intent
+
+Similarity today is tied to two tools. `pandora similarity` runs
+MMseqs2 or Foldseek and keeps the raw hit TSV; `--precomputed-hits`
+accepts only a TSV with Pandora's exact MMseqs2/Foldseek columns; and
+`pandora cluster` reads only that TSV. A user who computed similarity
+another way (the motivating case: an R script that built an igraph
+graph) cannot cluster it with Pandora. The items being compared also
+vary: entries, chains, or interfaces.
+
+Part 3 makes similarity a layer like the others: a `similarity`
+template of item pairs. The built-in searches produce it, `pandora
+similarity import` brings in anyone else's edge list, and `pandora
+cluster` reads any similarity layer.
+
+Two constraints shape everything below:
+
+- **Whole-archive scale.** This must run on the whole PDBe archive:
+  about 240k entries and around 1M polymer chains (my estimates). An
+  all-vs-all search keeping up to 1,000 hits per query gives up to
+  about 10⁹ rows. Nothing may hold all rows in memory, build a Python
+  object per row, or parse every structure of the archive.
+- **Modularity (user's decision).** Each step reads what an earlier
+  step wrote and never recomputes it. Similarity import and clustering
+  get their list of valid items from an earlier step's table or layer,
+  never by parsing structures or detecting contacts again.
+
+### Scope
+
+In:
+- the `similarity` template and its description field `items`;
+- `pandora similarity search` and `pandora similarity import`, both
+  writing a layer folder;
+- `pandora cluster --similarity`, at any item level;
+- a tool-neutral `HitFilter`;
+- removing `annotate_pairwise_sequence_identity` (user's decision),
+  `--precomputed-hits`, `SimilaritySearch`, `load_similarity_search`,
+  the raw-TSV `iter_edges`, and `SimilarityRelationship` (unused).
+
+Out:
+- Running MMseqs2 or Foldseek at archive scale: that is the tool's job.
+  Pandora reads what it writes.
+- Parallel or sharded runs. One machine, one process, like the other
+  steps.
+- `partition` and `--pairs` / `pair_cluster_keys`: unchanged.
+- Export of layers (part 4), curation on layers (part 5).
+
+### The template
+
+`similarity`: one row per hit between two items.
+
+| Column | Type | Required |
+|---|---|---|
+| `item_id_1`, `item_id_2` | string | yes (keys) |
+| `score` | number | yes |
+| `identity` | number | recognised if present |
+| `coverage_1`, `coverage_2` | number | recognised if present (coverage of item 1 / item 2) |
+| `start_1`, `end_1`, `start_2`, `end_2` | integer | recognised if present (1-based alignment range on each item, used for interface coverage) |
+
+Any other column is kept as given, as in the other templates.
+
+**Item level.** Each layer holds one level, declared in the description
+YAML with a new `items` field. `LayerDescription` gains
+`items: Literal["entry", "chain", "interface"] | None`; it is required
+when `template: similarity` and rejected for every other template.
+
+```yaml
+name: my_r_graph
+template: similarity
+items: chain
+tool: R script
+tool_version: "4.4"
+parameters: {}
+```
+
+**Item IDs** are fixed-format strings, one format per level:
+
+| `items` | ID form | Example |
+|---|---|---|
+| `entry` | `{entry}` | `1ABC` |
+| `chain` | `{entry}_{chain}` | `1ABC_A` |
+| `interface` | `{entry}_{chain1}_{chain2}` | `1ABC_A_B` |
+
+- `chain` is Pandora's `label_asym_id` only. An ID string has nowhere to
+  say which naming it uses, and Pandora's per-chain files
+  (`export_chain_mmcif`, Foldseek's input) already use these (my call).
+- Split from the right: chain IDs never contain `_`, but extended PDB
+  entry IDs (`pdb_00001abc`) do.
+- The entry part matches case-insensitively, and stored IDs carry
+  Pandora's entry ID (as in part 1). Chain IDs are case-sensitive.
+- Interface IDs are stored with the two chains sorted, so `1ABC_B_A`
+  becomes `1ABC_A_B` and one interface has one ID (my call).
+- "Structure" in the user's sense is the same as entry: a step folder
+  holds one structure per entry (my assumption; if assemblies or
+  models become separate items, that's a new level).
+
+**Rows are not deduplicated or reordered.** A→B and B→A may both be
+present, and self-hits are kept. Clustering is unaffected by either,
+and deduplicating would mean holding every pair in memory (my call).
+This differs from part 1's `duplicate_key` rule for single-key
+templates, on purpose.
+
+`SimilarityRow` (in `pandora/schemas/annotation.py`, `extra="allow"`)
+describes the row and is used to check small tables and in tests. Bulk
+reading never builds one per row.
+
+### Where the item list comes from
+
+| `items` | Item list read from | Written by |
+|---|---|---|
+| `entry` | `--structures-dir <step folder>`: its `entries.<fmt>`, rows that have a structure | `canonicalise` / `curate` |
+| `chain` | `--structures-dir <step folder>`: its `chains.<fmt>` | `curate` |
+| `interface` | `--contacts <residue_contacts layer folder>`: its distinct unordered pairs of polymer chains | `annotate compute` / `annotate import` |
+
+- Only the tables are read, never the mmCIF files. A step folder
+  without the needed table (e.g. chain items on a `canonicalise` folder,
+  which writes no `chains` table) is an error that says which step
+  writes it.
+- Interface pairs use the same filter as `extract_interface_records`:
+  both sides polymer residues (`seq_id` present) on different chains.
+  The layer is read in one streaming pass over its entry and chain
+  columns; the resulting set (at most a few million pairs) fits in
+  memory. An interface is valid only if a contacts layer identified it
+  (user's decision): there is no interface table of its own, since the
+  contacts layer already lists the pairs (my call).
+- The flag not needed for the level is an error, as in `annotate
+  compute`.
+- `layer.json` records which item list was used: its path and that
+  folder's summary, alongside `previous_summary`.
+
+### The commands
+
+`pandora similarity` becomes a group, like `annotate`. The old flat
+form stops working, with no transition (Pandora is 0.x).
+
+**`pandora similarity search`** runs the tool and writes a layer
+folder:
+
+```sh
+pandora similarity search --engine mmseqs2 \
+  --structures-dir curated/ --output-dir similarity/seq
+pandora similarity search --engine foldseek \
+  --input-dir chains/ --structures-dir curated/ \
+  --output-dir similarity/struct
+```
+
+- MMseqs2 searches **chains** (`items: chain`), with sequences read
+  from the step folder's `chains.<fmt>`. Today's entry-level search
+  (each entry's longest chain, `entry_sequences`) goes away;
+  entry-level similarity can be imported (my call).
+- Foldseek searches the per-chain files in `--input-dir`, as today
+  (`items: chain`). `--structures-dir` gives the chain list the stems
+  are checked against.
+- Engine options as today: `--sensitivity`, `--max-seqs`,
+  `--alignment-type`, `--exhaustive-search`, `--mmseqs-bin`,
+  `--foldseek-bin`.
+- The tool's TSV is converted to `layer.parquet` in one streaming pass
+  and then deleted; the layer keeps every column. Column mapping:
+  `query`→`item_id_1`, `target`→`item_id_2`, `fident`→`identity`,
+  `qcov`→`coverage_1`, `tcov`→`coverage_2`, `qstart`/`qend`/`tstart`/
+  `tend`→`start_1`/`end_1`/`start_2`/`end_2`; `score` = `fident` for
+  MMseqs2 (today's behaviour) and `alntmscore` for Foldseek; `alnlen`,
+  `qtmscore`, `ttmscore` kept as extra columns.
+- Hits naming an item not in the item list go to `unmatched.parquet`,
+  as in `import`.
+- `layer.json`: `step: "similarity_search"`, `policy` a
+  `LayerDescription` with `template: similarity`, `items: chain`,
+  `tool` the engine, `tool_version` the tool's version, `parameters`
+  the settings. `counts`: rows in, matched, unmatched (per reason).
+- `--output-dir`, `--overwrite` as on `annotate`.
+
+**`pandora similarity import`** brings in any edge list:
+
+```sh
+pandora similarity import \
+  --table r_graph_edges.parquet --description r_graph.yaml \
+  --structures-dir curated/ --output-dir similarity/r_graph
+```
+
+- `--table`: Parquet, or TSV with a header row. A user's own MMseqs2 or
+  Foldseek TSV goes through here with its columns renamed into the
+  template; this replaces `--precomputed-hits`.
+- `--description`: the YAML above, with `items`.
+- `--structures-dir` or `--contacts` for the item list (see above).
+- `--source-files`, `--output-dir`, `--overwrite` as on `annotate
+  import`.
+- Writes `layer.parquet`, `unmatched.parquet` (with `reason`),
+  `source/`, and `layer.json` (`step: "similarity_import"`).
+- Unmatched reasons: `entry_not_found`, `chain_not_found`,
+  `interface_not_found`, `bad_item_id` (doesn't fit the level's form),
+  `bad_value` (a recognised column present but not a number). A missing
+  required column, or `items` missing from the description, stops the
+  command before anything is written, as in part 1.
+
+**Parquet only** (my call). Similarity layers are always Parquet and
+need pyarrow (the `export` extra). JSON Lines at 10⁹ rows isn't usable,
+and one code path is simpler. There is no `--table-format` on these
+commands; without the extra they stop with a message naming it.
+
+**`pandora cluster`**:
+
+```sh
+pandora cluster --similarity similarity/struct \
+  --structures-dir curated/ --min-score 0.5 --output clusters.json
+```
+
+- `--similarity <layer folder>` replaces `--search`. A layer whose
+  `layer.json` template is not `similarity` is an error.
+- The full item list comes from `--structures-dir` / `--contacts` as
+  above, so items with no hits are single-item clusters. `--input-dir`
+  and its `*.cif` listing go away.
+- Clusters are at the layer's item level, except for one roll-up
+  (user's decision): `--items entry` on a **chain** layer gives entry
+  clusters. Each chain is linked to its entry in the union-find, so two
+  entries share a cluster when any of their chains are similar. This is
+  stricter against leakage than today's longest-chain-per-entry search,
+  and needs only the one chain search. The entry list comes from
+  `--structures-dir` (its `entries` and `chains` tables). Any other
+  `--items` that differs from the layer's level is an error. The PPI
+  recipe (`docs/recipes/ppi-01.md`, `examples/ppi_dataset_pipeline.py`)
+  moves to a chain search plus this roll-up; its documented cluster
+  count is re-measured, not kept.
+- `cluster` may use a different item list from the one the layer was
+  matched against (my call: search the archive once, cluster many
+  curated subsets). Edges naming an item outside the list are dropped
+  and counted (`n_edges_unknown_ids`, as today). Links that ran through
+  a dropped item disappear.
+- **Symmetry copies** (`chains.<fmt>` rows with `copy_of` set) are
+  chain items, but `similarity search` leaves them out of the search:
+  identical copies would fill the per-query `--max-seqs` slots and push
+  out real homologues. `cluster`, with chain items, joins each copy to
+  its source chain's cluster using `copy_of` from the same table (my
+  call). An imported layer may name copies; they resolve like any chain.
+- For interface items, `--contacts` gives the item list. For chain
+  items, `--contacts` (with `--structures-dir`) still gives interface
+  residues for `min_interface_coverage`, as in part 2.
+- `--items entry|chain|interface`: optional, defaults to the layer's
+  level; only `entry` on a chain layer differs (see the roll-up above).
+- `--hit-filter`, `--min-score`, `--min-coverage`, `--pairs`,
+  `--output` unchanged.
+
+### Scaling
+
+- **Reading:** layers are read with pyarrow in record batches, only the
+  columns needed. The filter is applied to whole columns at once
+  (pyarrow compute), so only rows that pass reach Python.
+- **Clustering:** item IDs are mapped to integer indices and union-find
+  runs on integer arrays, so memory grows with the number of items
+  (about 1M), not edges. Expected minutes, not hours, for the archive;
+  this is a guess to measure on a real run, not a requirement the tests
+  check. `cluster_edges` keeps its contract (any iterable of id pairs).
+- **Import and search conversion:** one streaming pass, batch by batch
+  (pyarrow's streaming CSV reader for TSV); the item-ID check is a
+  column-wise lookup per batch against the item set. Matched and
+  unmatched rows are written batch by batch.
+- **Known ceiling:** `min_interface_coverage` still needs the step
+  folder's structures parsed to map `seq_id` to Foldseek positions
+  (part 2's `interface_residues_from_annotation`). That doesn't reach
+  archive scale; it is left as is until a real run needs it.
+
+### HitFilter becomes tool-neutral
+
+`HitFilter` applies to the template's columns, not to a tool's:
+
+- `min_score`, `min_identity`, `min_coverage`: unchanged meaning, on
+  `score`, `identity`, and coverage.
+- `coverage_of`: `both` / `side_1` / `side_2` / `either` (was `query` /
+  `target`).
+- `tm_normalisation` is replaced by `score_column: str = "score"`, the
+  column `min_score` tests. The built-in Foldseek layer keeps
+  `qtmscore`/`ttmscore`, so `score_column: qtmscore` gives what
+  `tm_normalisation: query` gave. The old `max` option is gone; add a
+  column before import if needed (my call).
+- A threshold on a column the layer doesn't have is an error before any
+  row is read, as `iter_edges` does today for engine mismatches.
+- `min_interface_coverage`: unchanged, needs `start_*`/`end_*` and
+  interface residues.
+- A NaN value fails every threshold, as today.
+
+Update `docs/policies/*.yaml` and `docs/reference/policies.md` for the
+changed fields.
+
+### Library side
+
+The commands are thin wrappers, as elsewhere. File reading and writing
+stay out of the plain functions where possible, but streaming means the
+similarity functions work on pyarrow record batches, not lists of rows.
+Builder's call on exact names and signatures, within:
+
+- a function that takes record batches of a user's table, the item
+  level and the item set, and yields (matched, unmatched) batches;
+- a function that takes record batches of a layer and a `HitFilter`
+  (plus interface residues) and yields edges for `cluster_edges`;
+- the MMseqs2/Foldseek search functions write the tool's TSV and
+  report its path and settings; converting that TSV into a layer goes
+  through the same column mapping and matching as import;
+- functions that build the item set from an entries table, a chains
+  table, or contact rows;
+- pyarrow imported inside the functions that need it.
+
+### Removed
+
+- `annotate_pairwise_sequence_identity` (`pandora/annotations/
+  pairwise.py`), its exports and docs (user's decision: an ungapped
+  all-against-all in Python can't reach archive scale, and MMseqs2 is
+  the built-in sequence route).
+- `SimilaritySearch`, `load_similarity_search`, `HIT_COLUMNS`-based
+  `iter_edges`, `cluster_similar_items` in its current form, and the
+  `--precomputed-hits` flag.
+- `SimilarityRelationship` and its provenance model (nothing uses
+  them).
+- `entry_sequences`, if nothing else needs it after the MMseqs2 search
+  moves to chains.
+- `reproduce` / `manifest`: they replay similarity through
+  `SimilaritySearch` and `entry_sequences`. Builder's call, smallest
+  change: drop the similarity step from their replay. They are likely
+  to be removed (part 2 decision). `ClusteringProvenance.search`
+  becomes the similarity layer's `layer.json` path or summary.
+
+### Docs and examples to update
+
+`docs/usage/similarity.md`, `docs/usage/cli.md`,
+`docs/usage/annotation.md`, `docs/usage/export.md`,
+`docs/usage/provenance.md`, `docs/getting-started/glossary.md`,
+`docs/contributing/architecture.md`, `docs/contributing/contribute.md`,
+`docs/reference/policies.md`, `docs/policies/*.yaml`,
+`pandora/cli/README.md`, `README.md`, and the scripts in `examples/`
+that call the changed functions. Regenerate the ERD
+(`docs/scripts/generate_erd.py`, which names the removed models).
+
+### Tests
+
+Offline, with `datasets/dev/mmcif/` fixtures and fake MMseqs2/Foldseek
+scripts as today:
+- import at each level: entry, chain, interface IDs resolve; each
+  unmatched reason is produced; interface IDs are sorted; the entry
+  part matches case-insensitively; an extended entry ID with `_`
+  parses;
+- interface items come from a contacts layer only: a chain pair present
+  in the step folder but not in the layer is `interface_not_found`;
+- `items` required for `similarity`, rejected for other templates; a
+  missing required column stops before writing;
+- `similarity search` with fake MMseqs2 (chain sequences from
+  `chains.<fmt>`) and Foldseek writes a layer with the column mapping
+  above, and the raw TSV is gone;
+- the same hits through `search` and through `import` (columns renamed)
+  give identical clusters;
+- `--items entry` on a chain layer: two entries linked only through a
+  non-longest chain end up in one cluster;
+- symmetry copies are left out of the fake search's input and land in
+  their source's cluster; edges to items outside a smaller item list
+  are dropped and counted;
+- `cluster --similarity` at each level, singletons included; a
+  non-similarity layer is rejected; the wrong item-list flag for the
+  level is rejected;
+- `HitFilter`: `score_column`, `coverage_of` sides, a threshold on an
+  absent column is an error, NaN fails, `min_interface_coverage` with
+  `--contacts`;
+- batching: a layer written in several small record batches clusters
+  the same as one batch (proves nothing depends on whole-table reads).
+
 ## Decisions
+
+The user decided (part 3):
+- Similarity input can come from any source (e.g. an R script's edge
+  list), so the template is generic: two items and a score.
+- Items can be entries, chains, or interfaces.
+- It must run on the whole PDBe archive.
+- Modularity: each step reads earlier outputs and never recomputes.
+  An interface item is valid only if a contacts layer identified it.
+- `annotate_pairwise_sequence_identity` is removed.
+- Entry clusters come from rolling a chain layer up to entries in
+  `cluster`; the longest-chain entry search goes.
+
+My calls (part 3), which the user can overturn:
+- One item level per layer, set by `items` in the description.
+- Fixed-format string IDs; Pandora chain IDs only; interface IDs
+  sorted at import.
+- No deduplication or reordering of rows; thresholds applied at
+  clustering, not import.
+- Item lists from step-folder tables and contact layers, never from
+  parsing structures; no interface table of its own.
+- `similarity` becomes a group (`search`, `import`); the raw TSV is
+  converted and deleted; `--precomputed-hits` and `SimilaritySearch`
+  go.
+- MMseqs2 searches chains, without symmetry copies; `cluster` puts
+  copies in their source's cluster.
+- `cluster` accepts a smaller item list than the layer was matched
+  against; edges outside it are dropped and counted.
+- Similarity layers are Parquet only (the `export` extra).
+- `HitFilter`: `score_column` replaces `tm_normalisation` (no `max`);
+  `coverage_of` uses sides.
+- `min_interface_coverage` keeps parsing structures (known ceiling).
 
 The user decided (part 2):
 - One layer per kind of information, not one per source. Built-ins
