@@ -70,9 +70,11 @@ accepted.
    import` (replacing `--precomputed-hits`), and by the built-in
    pairwise sequence identity; `pandora cluster` reads any similarity
    layer.
-4. **Export joins layers** onto chain/residue/interface records, so the
-   values reach the final dataset. Entry-level structure counts become
-   columns of an entry record here.
+4. **Layers are joined by the user.** Every layer can be joined onto
+   chain/residue/interface records on shared keys; the docs show how,
+   and Pandora adds no join step. Contact counts return as
+   `residue_values` / `chain_values` layers. (Re-scoped 2026-11-09:
+   was "export joins layers", with an entry record.)
 5. **Curation rules on layers**, e.g. drop chains with fewer than N
    contacts, or keep residues with a given label.
 6. **Split balancing on a label** from any label layer (issue #95).
@@ -483,7 +485,8 @@ No command builds interface records today; part 2 does not add one
 `annotate_structure_counts`, from `pandora.annotations`,
 `pandora.metadata`'s re-exports, `reproduce`'s replay table, and the
 docs and examples that call it. Per-chain counts already live on chain
-records; entry-level counts return as entry-record columns in part 4.
+records; part 4 brings contact counts back as layers (it was planned
+as entry-record columns; part 4 dropped the entry record).
 
 ### Docs and examples to update
 
@@ -892,7 +895,154 @@ scripts as today:
 - batching: a layer written in several small record batches clusters
   the same as one batch (proves nothing depends on whole-table reads).
 
+## Part 4: layers are joined by the user
+
+### Intent
+
+The roadmap line was "export joins layers onto records". Thinking as
+the people who use the output (ML engineers training structure models,
+structural biologists) changed that. They load one structure or one
+table at a time and pick the features they want. A wide table per
+level, whose columns change with every imported layer and which copies
+chain values onto every residue, helps neither. Layers are already
+Parquet tables keyed by the same IDs as the records, so joining is one
+line in pandas, polars or DuckDB, and the user chooses which layers
+to bring in.
+
+So part 4 makes sure every layer **can** be joined onto the records,
+and leaves the joining to the user. It also brings back the contact
+counts that part 2 dropped, as layers.
+
+### Scope
+
+In:
+- residue records gain the author keys they lack;
+- a built-in step that turns a `residue_contacts` layer into a count
+  layer;
+- docs that show the joins.
+
+Out:
+- no join command and no join function (user decision);
+- no entry record and no entry-level template (see "Entry level");
+- similarity: unchanged. Cluster IDs come from `cluster`, and hit
+  pairs stay their own layer.
+
+### Joinable keys
+
+Every template's key columns already match the records'
+(`entry_id`, `chain_id`, `seq_id`; `chain_id_1`/`chain_id_2` for
+interfaces), because import stores Pandora's naming. One gap:
+`ResidueRecord` has `auth_seq_id` but no author chain or insertion
+code, so a user who prefers author numbering can't join on it
+unambiguously. Add to `ResidueRecord`:
+
+- `auth_chain_id: str | None` (`auth_asym_id`)
+- `ins_code: str | None` (`pdbx_PDB_ins_code`, `None` for none, as
+  layers store it)
+
+Both come from the residue's atoms. `extract_residue_records` groups by
+`label_asym_id` + `label_seq_id` as now, and the new fields are read
+from the first atom (my call). Records written before this change load
+with both fields `None`.
+
+### Contact counts as layers
+
+A library function per level in `pandora/annotations/`, taking the
+rows of one `residue_contacts` layer and returning rows of a value
+layer. No file I/O, inputs not mutated.
+
+- `count_residue_contacts(rows) -> list[LayerRow]`: a
+  `residue_values` row per residue that appears on either side, with
+  `value` = the number of **distinct partner residues**. A pair given
+  several times (e.g. several contact types) counts once. The pair is
+  unordered, as everywhere downstream.
+- `count_chain_contacts(rows) -> list[LayerRow]`: a `chain_values`
+  row per chain, with `value` = the number of **distinct residues of
+  that chain** in contact.
+
+Rows carry both namings, copied from the contact rows, so a ligand
+residue (no `seq_id`) gets a row keyed by author naming, as part 1
+allows. Residues and chains with no contacts get **no row** (my call):
+the layer stays the size of the contact layer, and the docs show
+`fillna(0)` after the join.
+
+Command: `pandora annotate count-contacts --contacts <layer dir>
+--level residue|chain --output-dir <dir> [--overwrite]
+[--table-format]`. One layer per run, as `annotate compute`. It
+writes an ordinary layer folder (`layer.<fmt>`, `layer.json`):
+`StepSummary` with `step: "annotation_count"`, a `LayerDescription`
+(`name`: `contact_count`, `template`: `residue_values` or
+`chain_values`, `tool`: `pandora`, `parameters`: `level` and the
+source layer's name), `input` = the contacts layer folder,
+`previous_summary` = that folder's `layer.json`, `counts` = rows in
+and rows out. It reads only the layer, never structures. A layer whose
+template is not `residue_contacts` is an error before anything is
+written.
+
+### Entry level
+
+No entry record and no `entry_values` template for now (user decision,
+on my recommendation):
+- per-entry tool output can already be imported as a `free_form` layer
+  (only `entry_id` is required), which joins on `entry_id`;
+- entry totals are a one-line sum of the chain count layer, shown in
+  the docs.
+
+If the same per-entry shape keeps arriving as `free_form`, add an
+`entry_values` template then, by the rule part 1 set for free-form
+layers. Entry metadata (method, resolution) stays on
+`DatasetChainRecord`.
+
+### Docs
+
+A "Using layers in a dataset" section in `docs/usage/annotation.md`,
+with full code inline and tested output, as the other usage examples
+(library and CLI tabs where both exist):
+- residue values onto residue records, on Pandora keys and on author
+  keys;
+- chain counts onto `chains.<fmt>`, with `fillna(0)`;
+- interface labels onto interface records, matching the chain pair in
+  either order (labels keep the user's order, records don't promise
+  one);
+- an entry total by summing the chain count layer.
+
+`docs/usage/cli.md`, `pandora/cli/README.md`, `docs/usage/datasets.md`
+(new residue record fields), `docs/contributing/architecture.md`.
+Regenerate the ERD (`ResidueRecord` changes).
+
+### Tests
+
+Offline, with `datasets/dev/mmcif/` fixtures:
+- residue records carry `auth_chain_id` and `ins_code`; a fixture with
+  an insertion code shows it; old records without the fields still
+  load;
+- `count_residue_contacts`: a pair repeated with two contact types
+  counts once; (A,B) and (B,A) count once; both sides get a row; a
+  ligand side is keyed by author naming;
+- `count_chain_contacts`: distinct residues per chain;
+- the count layers pass `check_layer_columns` for their template;
+- `annotate count-contacts` on a layer from `annotate compute` writes
+  a layer folder whose summary links back; a non-contact layer is
+  rejected before writing;
+- inputs are not mutated.
+
 ## Decisions
+
+The user decided (part 4):
+- Export is general purpose, not shaped for one benchmark.
+- Layers stay separate files; users join them. No wide table per
+  level, no join command (and, following from that, no join function:
+  the docs show the pandas join).
+- Both per-residue values and contact counts are worth having.
+- No entry template or entry record for now (my recommendation,
+  accepted).
+
+My calls (part 4), which the user can overturn:
+- Counts are layers made by `annotate count-contacts`, one level per
+  run, not record columns.
+- Residue count = distinct partner residues; chain count = distinct
+  residues in contact; no rows for zero.
+- `ResidueRecord` gains `auth_chain_id` and `ins_code`.
 
 The user decided (part 3):
 - Similarity input can come from any source (e.g. an R script's edge
