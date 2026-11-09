@@ -296,6 +296,15 @@ def _chain_sequences(structures_dir: Path) -> dict[str, str]:
     }
 
 
+def _import_error(table: Path, exc: Exception) -> str:
+    """The import's error message, naming `table` once."""
+
+    message = str(exc)
+    if message.startswith(str(table)):
+        return f"cannot import {message}"
+    return f"cannot import {table}: {message}"
+
+
 def _cmd_import(args: argparse.Namespace) -> None:
     """Handle `similarity import`: link a user's edge list to the items
     of a step folder or contact layer, as a similarity layer folder."""
@@ -315,7 +324,7 @@ def _cmd_import(args: argparse.Namespace) -> None:
         if first is not None:
             check_similarity_columns(first.schema.names)
     except (ValueError, FileNotFoundError) as exc:
-        raise SystemExit(f"cannot import {table}: {exc}") from exc
+        raise SystemExit(_import_error(table, exc)) from exc
 
     structures_dir = Path(args.structures_dir) if args.structures_dir else None
     contacts = Path(args.contacts) if args.contacts else None
@@ -330,7 +339,7 @@ def _cmd_import(args: argparse.Namespace) -> None:
     try:
         counts = _write_layer(rest, items, out)
     except ValueError as exc:
-        raise SystemExit(f"cannot import {table}: {exc}") from exc
+        raise SystemExit(_import_error(table, exc)) from exc
     _write_summary(
         "similarity_import",
         description,
@@ -468,21 +477,20 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
     if level == "chain" and contacts is not None:
         interface_residues = _interface_residues(structures_dir, contacts)
     table = layer / "layer.parquet"
-    edges: Iterable[Any] = (
-        similarity_edges(
-            read_similarity_table(table),
-            hit_filter,
-            interface_residues=interface_residues,
-        )
-        if table.exists()
-        else iter(())
-    )
-    if items_level != level:
-        edges = entry_edges(edges)
-    elif level == "chain":
-        edges = itertools.chain(edges, _copy_links(structures_dir))
-
     try:
+        edges: Iterable[Any] = (
+            similarity_edges(
+                read_similarity_table(table),
+                hit_filter,
+                interface_residues=interface_residues,
+            )
+            if table.exists()
+            else iter(())
+        )
+        if items_level != level:
+            edges = entry_edges(edges)
+        elif level == "chain":
+            edges = itertools.chain(edges, _copy_links(structures_dir))
         clusters, prov = cluster_edges(sorted(set(items.ids.values())), edges)
     except ValueError as exc:
         raise SystemExit(f"cluster: {layer}: {exc}") from exc

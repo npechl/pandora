@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -352,7 +353,11 @@ def read_similarity_table(
     reader = _open_tsv(
         path,
         csv.ReadOptions(block_size=block_size),
-        csv.ConvertOptions(column_types=dict.fromkeys(text, pa.string())),
+        csv.ConvertOptions(
+            column_types=dict.fromkeys(text, pa.string()),
+            # Empty and NA cells are null, as in the other columns.
+            strings_can_be_null=True,
+        ),
     )
     return _batches(reader, path)
 
@@ -389,4 +394,16 @@ def _batches(reader: Any, path: Path) -> Iterator[pa.RecordBatch]:
     try:
         yield from reader
     except ArrowInvalid as exc:
-        raise ValueError(f"{path}: {exc}") from exc
+        raise ValueError(f"{path}: {_name_column(str(exc), reader)}") from exc
+
+
+def _name_column(message: str, reader: Any) -> str:
+    """pyarrow's message with its 0-based "CSV column #N" replaced by the
+    column's name."""
+
+    match = re.search(r"CSV column #(\d+)", message)
+    names = reader.schema.names
+    if match is None or int(match.group(1)) >= len(names):
+        return message
+    name = names[int(match.group(1))]
+    return message.replace(match.group(0), f"column {name!r}")

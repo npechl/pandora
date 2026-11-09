@@ -1494,3 +1494,15 @@ def test_similarity_import_missing_score_stops_before_writing(tmp_path):
             ]
         )
     assert not (tmp_path / "out").exists()
+
+
+def test_cluster_interface_filter_without_contacts_exits(tmp_path):
+    step, layer = _cluster_inputs(
+        tmp_path, _chain_rows(("104M_A", "112M_A")), items="chain"
+    )
+    hit_filter = tmp_path / "filter.yaml"
+    hit_filter.write_text("min_interface_coverage: 0.5\n")
+    with pytest.raises(SystemExit, match="interface_residues"):
+        _cluster(
+            step, layer, tmp_path / "c.json", "--hit-filter", str(hit_filter)
+        )

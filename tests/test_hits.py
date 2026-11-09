@@ -310,3 +310,28 @@ def test_read_similarity_table_bad_extra_column_names_file(tmp_path):
 def test_read_similarity_table_rejects_other_suffix(tmp_path):
     with pytest.raises(ValueError, match="parquet"):
         list(read_similarity_table(tmp_path / "edges.csv"))
+
+
+def test_read_similarity_table_bad_extra_column_is_named(tmp_path):
+    path = tmp_path / "edges.tsv"
+    lines = ["item_id_1\titem_id_2\tscore\tnote_num"]
+    lines += [f"104M_A\t112M_A\t0.5\t{i}" for i in range(20000)]
+    lines += ["104M_A\t112M_A\t0.5\tunknown"]
+    path.write_text("\n".join(lines) + "\n")
+
+    with pytest.raises(ValueError, match="'note_num'"):
+        list(read_similarity_table(path, block_size=1 << 12))
+
+
+def test_read_similarity_table_tsv_na_and_empty_are_null(tmp_path):
+    path = tmp_path / "edges.tsv"
+    path.write_text(
+        "item_id_1\titem_id_2\tscore\tidentity\tcoverage_1\n"
+        "104M\t112M\t0.5\tNA\t\n"
+    )
+
+    row = next(read_similarity_table(path)).to_pylist()[0]
+
+    assert row["identity"] is None
+    assert row["coverage_1"] is None
+    assert row["score"] == "0.5"
