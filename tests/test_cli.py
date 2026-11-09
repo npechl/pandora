@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from pandora.annotations import count_chain_contacts, count_residue_contacts
 from pandora.cli._io import read_structures_dir, write_structures_dir
 from pandora.cli.app import _build_parser, main
 from pandora.datasets import extract_interface_records
@@ -1506,3 +1507,72 @@ def test_cluster_interface_filter_without_contacts_exits(tmp_path):
         _cluster(
             step, layer, tmp_path / "c.json", "--hit-filter", str(hit_filter)
         )
+
+
+def _count(contacts, out, level):
+    main(
+        ["annotate", "count-contacts", "--contacts", str(contacts)]
+        + ["--level", level, "--output-dir", str(out)]
+        + ["--table-format", "jsonl"]
+    )
+
+
+@pytest.mark.parametrize(
+    "level, template, function",
+    [
+        ("residue", "residue_values", count_residue_contacts),
+        ("chain", "chain_values", count_chain_contacts),
+    ],
+)
+def test_annotate_count_contacts_writes_value_layer(
+    tmp_path, level, template, function
+):
+    contacts = tmp_path / "interfaces"
+    _compute(_step_folder(tmp_path), contacts, "--layer", "chain_interfaces")
+    out = tmp_path / f"counts_{level}"
+    _count(contacts, out, level)
+
+    rows = read_records(contacts / "layer.jsonl", ResidueContactRow)
+    written = read_records(out / "layer.jsonl", LayerRow)
+    assert written
+    assert [r.model_dump() for r in written] == [
+        r.model_dump() for r in function(rows)
+    ]
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["step"] == "annotation_count"
+    assert summary["policy"]["template"] == template
+    assert summary["policy"]["name"] == "contact_count"
+    assert summary["policy"]["tool"] == "pandora"
+    assert summary["policy"]["parameters"] == {
+        "level": level,
+        "contacts_layer": "chain_interfaces",
+    }
+    assert summary["counts"] == {
+        "rows_in": len(rows),
+        "rows_out": len(written),
+    }
+    assert summary["previous_summary"] == str(contacts / "layer.json")
+
+
+def test_annotate_count_contacts_rejects_non_contact_layer(tmp_path):
+    contacts = tmp_path / "interfaces"
+    _compute(_step_folder(tmp_path), contacts, "--layer", "chain_interfaces")
+    counts = tmp_path / "counts"
+    _count(contacts, counts, "chain")
+    out = tmp_path / "again"
+    with pytest.raises(SystemExit, match="needs residue_contacts"):
+        _count(counts, out, "chain")
+    assert not out.exists()
+
+
+def test_annotate_count_contacts_empty_layer(tmp_path):
+    contacts = tmp_path / "empty"
+    contacts.mkdir()
+    (contacts / "layer.json").write_text(
+        json.dumps({"policy": {"name": "x", "template": "residue_contacts"}})
+    )
+    out = tmp_path / "counts"
+    _count(contacts, out, "residue")
+    assert sorted(p.name for p in out.iterdir()) == ["layer.json"]
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["counts"] == {"rows_in": 0, "rows_out": 0}

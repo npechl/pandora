@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import inspect
+import json
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -15,13 +16,17 @@ from pandora.annotations import (
     annotate_chain_interfaces,
     annotate_ligand_contacts,
     check_layer_columns,
+    count_chain_contacts,
+    count_residue_contacts,
     resolve_layer_rows,
 )
 from pandora.annotations.entry import CONTACT_ATOM_SETS
 from pandora.cli._io import (
     TABLE_FORMATS,
+    check_contact_layer,
     check_table_format,
     copy_source,
+    find_table,
     prepare_output_dir,
     read_structures_dir,
     write_table,
@@ -29,7 +34,11 @@ from pandora.cli._io import (
 from pandora.export import read_records, write_json
 from pandora.ingestion import load_policy
 from pandora.provenance import build_step_summary
-from pandora.schemas.annotation import LayerDescription, LayerRow
+from pandora.schemas.annotation import (
+    LayerDescription,
+    LayerRow,
+    ResidueContactRow,
+)
 
 # Layer -> (function, its settings flags: CLI dest -> function argument).
 _COMPUTE = {
@@ -213,6 +222,54 @@ def _uniform_columns(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+# --level -> (count function, template of the layer it writes).
+_COUNT = {
+    "residue": (count_residue_contacts, "residue_values"),
+    "chain": (count_chain_contacts, "chain_values"),
+}
+
+
+def _cmd_count(args: argparse.Namespace) -> None:
+    """Handle `annotate count-contacts`: a contact layer's counts per
+    residue or chain, written as a value layer folder."""
+
+    started_at = now_iso()
+    check_table_format(args.table_format)
+    contacts = Path(args.contacts_dir)
+    check_contact_layer("annotate count-contacts", contacts)
+    source = json.loads((contacts / "layer.json").read_text())["policy"]
+    out = Path(args.output_dir)
+    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    table = find_table(contacts, "layer")
+    rows = read_records(table, ResidueContactRow) if table else []
+    function, template = _COUNT[args.level]
+    counted = function(rows)
+    write_table(counted, out, "layer", args.table_format)
+    description = LayerDescription(
+        name="contact_count",
+        template=template,
+        tool="pandora",
+        tool_version=__version__,
+        parameters={"level": args.level, "contacts_layer": source.get("name")},
+    )
+    write_json(
+        build_step_summary(
+            "annotation_count",
+            description,
+            input=contacts,
+            output=out,
+            started_at=started_at,
+            counts={"rows_in": len(rows), "rows_out": len(counted)},
+            previous_summary=contacts / "layer.json",
+        ),
+        out / "layer.json",
+    )
+    print(
+        f"counted: {len(counted)} {args.level} rows from {len(rows)} "
+        f"contacts -> {out}"
+    )
+
+
 def register(subparsers: argparse._SubParsersAction) -> None:
     """Add this module's subcommands to the `pandora` parser."""
 
@@ -256,3 +313,15 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--overwrite", action="store_true")
     p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet")
     p.set_defaults(func=_cmd_import)
+
+    p = commands.add_parser(
+        "count-contacts",
+        help="Count a contact layer's partners per residue, or residues "
+        "in contact per chain, as a value layer.",
+    )
+    p.add_argument("--contacts", dest="contacts_dir", required=True)
+    p.add_argument("--level", required=True, choices=list(_COUNT))
+    p.add_argument("--output-dir", required=True)
+    p.add_argument("--overwrite", action="store_true")
+    p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet")
+    p.set_defaults(func=_cmd_count)

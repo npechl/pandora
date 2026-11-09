@@ -110,6 +110,22 @@ def find_table(folder: Path, name: str) -> Path | None:
     return None
 
 
+def check_contact_layer(command: str, folder: Path) -> None:
+    """Exit unless `folder` is a `residue_contacts` layer folder."""
+
+    summary = folder / "layer.json"
+    if not summary.exists():
+        raise SystemExit(f"{command}: {folder} is not a layer folder")
+    template = (json.loads(summary.read_text()).get("policy") or {}).get(
+        "template"
+    )
+    if template != "residue_contacts":
+        raise SystemExit(
+            f"{command}: {folder} is a {template} layer, --contacts needs "
+            "residue_contacts"
+        )
+
+
 def read_columns(
     path: Path, columns: Sequence[str]
 ) -> Iterator[dict[str, Any]]:

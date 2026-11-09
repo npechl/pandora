@@ -13,6 +13,7 @@ from typing import Any
 from pandora._util import now_iso
 from pandora.cli._io import (
     ParquetSink,
+    check_contact_layer,
     copy_source,
     find_table,
     load_json_list,
@@ -105,18 +106,8 @@ def _step_table(command: str, folder: Path, name: str, writer: str) -> Path:
 def _contact_layer(command: str, folder: Path) -> Path:
     """The rows file of a `residue_contacts` layer folder."""
 
-    summary = folder / "layer.json"
-    if not summary.exists():
-        raise SystemExit(f"{command}: {folder} is not a layer folder")
-    template = (json.loads(summary.read_text()).get("policy") or {}).get(
-        "template"
-    )
-    if template != "residue_contacts":
-        raise SystemExit(
-            f"{command}: {folder} is a {template} layer, --contacts needs "
-            "residue_contacts"
-        )
-    return find_table(folder, "layer") or summary
+    check_contact_layer(command, folder)
+    return find_table(folder, "layer") or folder / "layer.json"
 
 
 def _item_set(
