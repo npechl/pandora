@@ -5,6 +5,10 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from pandora.annotations.counts import (
+    count_chain_contacts,
+    count_residue_contacts,
+)
 from pandora.annotations.entry import (
     annotate_chain_interfaces,
     annotate_ligand_contacts,
@@ -1027,3 +1031,94 @@ def test_similarity_row_coerces_int_score():
 def test_annotate_import_refuses_similarity_template():
     with pytest.raises(ValueError, match="pandora similarity import"):
         check_layer_columns({"item_id_1", "item_id_2", "score"}, "similarity")
+
+
+def _contact(c1, s1, c2, s2, **kw) -> ResidueContactRow:
+    fields = {"entry_id": "1abc"}
+    for side, chain, seq in (("1", c1, s1), ("2", c2, s2)):
+        fields |= {
+            f"chain_id_{side}": chain,
+            f"seq_id_{side}": seq,
+            f"auth_chain_id_{side}": chain,
+            f"auth_seq_id_{side}": str(seq),
+            f"comp_id_{side}": "ALA",
+        }
+    return ResidueContactRow(**(fields | kw))
+
+
+def test_count_residue_contacts_counts_distinct_partners():
+    rows = [
+        _contact("A", 1, "B", 5, contact_type="hbond"),
+        _contact("A", 1, "B", 5, contact_type="salt_bridge"),
+        _contact("B", 5, "A", 1),
+        _contact("A", 1, "B", 6),
+    ]
+    out = {
+        (r.chain_id, r.seq_id): r.value for r in count_residue_contacts(rows)
+    }
+    assert out == {("A", 1): 2, ("B", 5): 1, ("B", 6): 1}
+
+
+def test_count_residue_contacts_keeps_both_namings():
+    row = count_residue_contacts([_contact("A", 1, "B", 5)])[0]
+    assert row.model_dump() == {
+        "entry_id": "1abc",
+        "chain_id": "A",
+        "seq_id": 1,
+        "auth_chain_id": "A",
+        "auth_seq_id": "1",
+        "ins_code": None,
+        "comp_id": "ALA",
+        "value": 1,
+    }
+
+
+def test_count_residue_contacts_ligands_keyed_by_author_naming():
+    rows = [
+        _contact("A", 1, "C", None, auth_seq_id_2="301"),
+        _contact("A", 2, "C", None, auth_seq_id_2="302"),
+    ]
+    ligands = [r for r in count_residue_contacts(rows) if r.chain_id == "C"]
+    assert [(r.seq_id, r.auth_seq_id, r.value) for r in ligands] == [
+        (None, "301", 1),
+        (None, "302", 1),
+    ]
+
+
+def test_count_residue_contacts_self_pair_adds_nothing():
+    assert count_residue_contacts([_contact("A", 1, "A", 1)]) == []
+    assert count_chain_contacts([_contact("A", 1, "A", 1)]) == []
+
+
+def test_count_chain_contacts_counts_distinct_residues():
+    rows = [
+        _contact("A", 1, "B", 5),
+        _contact("A", 1, "B", 6),
+        _contact("A", 2, "B", 5),
+    ]
+    out = {r.chain_id: r.value for r in count_chain_contacts(rows)}
+    assert out == {"A": 2, "B": 2}
+    assert count_chain_contacts(rows)[0].model_dump() == {
+        "entry_id": "1abc",
+        "chain_id": "A",
+        "auth_chain_id": "A",
+        "value": 2,
+    }
+
+
+def test_count_layers_pass_their_template_check():
+    rows = [_contact("A", 1, "B", 5)]
+    check_layer_columns(
+        count_residue_contacts(rows)[0].model_dump(), "residue_values"
+    )
+    check_layer_columns(
+        count_chain_contacts(rows)[0].model_dump(), "chain_values"
+    )
+
+
+def test_count_functions_do_not_mutate_input():
+    rows = [_contact("A", 1, "B", 5)]
+    before = [r.model_copy(deep=True) for r in rows]
+    count_residue_contacts(rows)
+    count_chain_contacts(rows)
+    assert rows == before
