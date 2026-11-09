@@ -10,10 +10,11 @@ import pytest
 
 from pandora.cli._io import read_structures_dir, write_structures_dir
 from pandora.cli.app import _build_parser, main
+from pandora.datasets import extract_interface_records
 from pandora.export import read_records
 from pandora.ingestion import read_entry_paths
 from pandora.parsing import mmcif_to_structure
-from pandora.schemas.annotation import LayerRow
+from pandora.schemas.annotation import LayerRow, ResidueContactRow
 from pandora.schemas.provenance import CanonicalisationEntryRecord
 from pandora.schemas.similarity import SimilaritySearch
 from pandora.similarity.hits import HIT_COLUMNS
@@ -875,6 +876,133 @@ def test_curate_duplicate_check_ignores_case(tmp_path):
     )
     failures = _jsonl(out / "failures.jsonl")
     assert [f["error_type"] for f in failures] == ["DuplicateEntry"]
+
+
+def _step_folder(tmp_path):
+    """A step folder holding 1a2c; returns its path."""
+
+    structures = tmp_path / "curated" / "structures" / "a2"
+    structures.mkdir(parents=True)
+    shutil.copy(FIXTURES_DIR / "a2" / "1a2c.cif", structures / "1a2c.cif")
+    return tmp_path / "curated"
+
+
+def _compute(folder, out, *extra):
+    main(
+        ["annotate", "compute", "--structures-dir", str(folder)]
+        + ["--output-dir", str(out), "--table-format", "jsonl", *extra]
+    )
+
+
+def test_annotate_compute_writes_contact_layer(tmp_path):
+    out = tmp_path / "annotations" / "interfaces"
+    _compute(
+        _step_folder(tmp_path),
+        out,
+        "--layer",
+        "chain_interfaces",
+        "--atom-set",
+        "heavy",
+    )
+
+    rows = read_records(out / "layer.jsonl", ResidueContactRow)
+    assert len(rows) == 74 + 21 + 25
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["step"] == "annotation_compute"
+    assert summary["policy"]["template"] == "residue_contacts"
+    assert summary["policy"]["tool"] == "pandora"
+    assert summary["policy"]["parameters"] == {
+        "distance_cutoff": 4.0,
+        "atom_set": "heavy",
+        "polymer_types": None,
+    }
+    assert summary["counts"] == {"entries": 1, "rows": 120}
+
+
+def test_annotate_compute_ligand_layer_settings(tmp_path):
+    out = tmp_path / "ligands"
+    _compute(
+        _step_folder(tmp_path),
+        out,
+        "--layer",
+        "ligand_contacts",
+        "--distance-cutoff",
+        "5.0",
+        "--include-waters",
+    )
+
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["policy"]["parameters"] == {
+        "distance_cutoff": 5.0,
+        "include_waters": True,
+    }
+    assert read_records(out / "layer.jsonl", ResidueContactRow)
+
+
+def test_annotate_compute_rejects_flag_for_other_layer(tmp_path):
+    out = tmp_path / "out"
+    with pytest.raises(SystemExit, match="--include-waters"):
+        _compute(
+            _step_folder(tmp_path),
+            out,
+            "--layer",
+            "chain_interfaces",
+            "--include-waters",
+        )
+    assert not out.exists()
+
+
+def test_annotate_compute_refuses_existing_layer(tmp_path):
+    folder = _step_folder(tmp_path)
+    out = tmp_path / "out"
+    _compute(folder, out, "--layer", "ligand_contacts")
+    with pytest.raises(SystemExit):
+        _compute(folder, out, "--layer", "ligand_contacts")
+    _compute(folder, out, "--layer", "ligand_contacts", "--overwrite")
+
+
+def test_compute_and_import_give_same_interface_records(tmp_path):
+    folder = _step_folder(tmp_path)
+    computed = tmp_path / "computed"
+    _compute(folder, computed, "--layer", "chain_interfaces")
+    # The same contacts as a tool would give them: author naming only,
+    # lowercase entry id, sides swapped.
+    table = tmp_path / "tool.jsonl"
+    table.write_text(
+        "".join(
+            json.dumps(
+                {
+                    "entry_id": r.entry_id.lower(),
+                    "auth_chain_id_1": r.auth_chain_id_2,
+                    "auth_seq_id_1": r.auth_seq_id_2,
+                    "ins_code_1": r.ins_code_2,
+                    "auth_chain_id_2": r.auth_chain_id_1,
+                    "auth_seq_id_2": r.auth_seq_id_1,
+                    "ins_code_2": r.ins_code_1,
+                }
+            )
+            + "\n"
+            for r in read_records(computed / "layer.jsonl", ResidueContactRow)
+        )
+    )
+    (tmp_path / "d.yaml").write_text(
+        "name: tool\ntemplate: residue_contacts\ntool: T\n"
+    )
+    imported = tmp_path / "imported"
+    main(
+        ["annotate", "import", "--structures-dir", str(folder)]
+        + ["--table", str(table), "--description", str(tmp_path / "d.yaml")]
+        + ["--output-dir", str(imported), "--table-format", "jsonl"]
+    )
+
+    a = extract_interface_records(
+        read_records(computed / "layer.jsonl", ResidueContactRow)
+    )
+    b = extract_interface_records(
+        read_records(imported / "layer.jsonl", ResidueContactRow)
+    )
+    assert a == b
+    assert len(a) == 3
 
 
 def test_annotate_old_flat_form_is_gone(tmp_path):

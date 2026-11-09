@@ -1,21 +1,24 @@
-"""CLI `annotate`: entry-level and pairwise annotation layers."""
+"""CLI `annotate`: compute Pandora's own annotation layers, or import a
+tool's table as one."""
 
 from __future__ import annotations
 
 import argparse
-import json
+import inspect
 import shutil
 from collections import Counter
-from itertools import combinations
 from pathlib import Path
 from typing import Any
 
+from pandora import __version__
 from pandora._util import now_iso
 from pandora.annotations import (
-    annotate_pairwise_sequence_identity,
+    annotate_chain_interfaces,
+    annotate_ligand_contacts,
     check_layer_columns,
     resolve_layer_rows,
 )
+from pandora.annotations.entry import CONTACT_ATOM_SETS
 from pandora.cli._io import (
     TABLE_FORMATS,
     check_table_format,
@@ -26,51 +29,93 @@ from pandora.cli._io import (
 from pandora.export import read_records, write_json
 from pandora.ingestion import load_policy
 from pandora.provenance import build_step_summary
-from pandora.schemas.annotation import (
-    AnnotationLayer,
-    LayerDescription,
-    LayerRow,
-)
+from pandora.schemas.annotation import LayerDescription, LayerRow
 
-# Emptied in part 2; `annotate compute` is rewritten to write layer folders.
-_ENTRY_ANNOTATORS: dict = {}
+# Layer -> (function, its settings flags: CLI dest -> function argument).
+_COMPUTE = {
+    "chain_interfaces": (
+        annotate_chain_interfaces,
+        ("distance_cutoff", "atom_set", "polymer_types"),
+    ),
+    "ligand_contacts": (
+        annotate_ligand_contacts,
+        ("distance_cutoff", "include_waters"),
+    ),
+}
+_SETTINGS = {
+    "distance_cutoff": "--distance-cutoff",
+    "atom_set": "--atom-set",
+    "polymer_types": "--polymer-types",
+    "include_waters": "--include-waters",
+}
 
 
 def _cmd_compute(args: argparse.Namespace) -> None:
-    """Handle `annotate compute`: compute entry-level and/or pairwise
-    annotation layers."""
+    """Handle `annotate compute`: one built-in contact layer for every
+    structure, written as a layer folder."""
 
-    output_dir = Path(args.output_dir)
-    structures = read_structures_dir(Path(args.input_dir))
-
-    layers_by_entry: dict[str, list[AnnotationLayer]] = {
-        entry_id: [] for entry_id in structures
-    }
-    for layer_name in args.layers:
-        annotator = _ENTRY_ANNOTATORS[layer_name]
-        for entry_id, structure in structures.items():
-            layers_by_entry[entry_id].append(annotator(structure))
-
-    if args.pairwise:
-        for left_id, right_id in combinations(sorted(structures), 2):
-            layer = annotate_pairwise_sequence_identity(
-                structures[left_id], structures[right_id]
+    started_at = now_iso()
+    check_table_format(args.table_format)
+    function, accepted = _COMPUTE[args.layer]
+    for dest, flag in _SETTINGS.items():
+        if dest not in accepted and getattr(args, dest) is not None:
+            raise SystemExit(
+                f"annotate compute: {flag} does not apply to --layer "
+                f"{args.layer}"
             )
-            layers_by_entry[left_id].append(layer)
-            layers_by_entry[right_id].append(layer)
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "annotations.json").write_text(
-        json.dumps(
-            {
-                entry_id: [layer.model_dump() for layer in layers]
-                for entry_id, layers in layers_by_entry.items()
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
+    settings = {
+        dest: getattr(args, dest)
+        for dest in accepted
+        if getattr(args, dest) is not None
+    }
+    out = Path(args.output_dir)
+    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    structures_dir = Path(args.structures_dir)
+    structures = read_structures_dir(structures_dir)
+    rows = [
+        row
+        for _, structure in sorted(structures.items())
+        for row in function(structure, **settings)
+    ]
+    write_table(rows, out, "layer", args.table_format)
+    defaults = {
+        name: param.default
+        for name, param in inspect.signature(function).parameters.items()
+        if name in accepted
+    }
+    description = LayerDescription(
+        name=args.layer,
+        template="residue_contacts",
+        tool="pandora",
+        tool_version=__version__,
+        parameters={**defaults, **settings},
     )
-    print(f"annotated {len(structures)} entries -> {output_dir}")
+    write_json(
+        build_step_summary(
+            "annotation_compute",
+            description,
+            input=structures_dir,
+            output=out,
+            started_at=started_at,
+            counts={"entries": len(structures), "rows": len(rows)},
+            previous_summary=_previous_summary(structures_dir),
+        ),
+        out / "layer.json",
+    )
+    print(f"computed: {len(rows)} rows for {len(structures)} entries -> {out}")
+
+
+def _previous_summary(structures_dir: Path) -> Path | None:
+    """The step summary in `structures_dir`, if it has one."""
+
+    return next(
+        (
+            structures_dir / name
+            for name in _PREVIOUS_SUMMARIES
+            if (structures_dir / name).exists()
+        ),
+        None,
+    )
 
 
 # What `annotate import` writes: cleared by --overwrite.
@@ -121,14 +166,7 @@ def _cmd_import(args: argparse.Namespace) -> None:
         rows_unmatched=len(unmatched),
     )
     counts.update(f"unmatched:{r['reason']}" for r in unmatched)
-    previous = next(
-        (
-            structures_dir / name
-            for name in _PREVIOUS_SUMMARIES
-            if (structures_dir / name).exists()
-        ),
-        None,
-    )
+    previous = _previous_summary(structures_dir)
     write_json(
         build_step_summary(
             "annotation_import",
@@ -191,17 +229,26 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     )
     commands = annotate.add_subparsers(dest="annotate_command", required=True)
     p = commands.add_parser(
-        "compute", help="Entry-level and/or pairwise annotation layers."
+        "compute",
+        help="Compute one of Pandora's contact layers (residue_contacts) "
+        "for a step folder's structures.",
     )
-    p.add_argument("--input-dir", required=True)
-    p.add_argument(
-        "--layers",
-        nargs="+",
-        choices=list(_ENTRY_ANNOTATORS),
-        default=list(_ENTRY_ANNOTATORS),
-    )
-    p.add_argument("--pairwise", action="store_true")
+    p.add_argument("--layer", required=True, choices=list(_COMPUTE))
+    p.add_argument("--structures-dir", required=True)
     p.add_argument("--output-dir", required=True)
+    p.add_argument("--distance-cutoff", type=float)
+    p.add_argument("--atom-set", choices=sorted(CONTACT_ATOM_SETS))
+    p.add_argument(
+        "--polymer-types",
+        action="append",
+        help="chain_interfaces: keep chains of this entity polymer type "
+        "(repeatable), e.g. polypeptide(L)",
+    )
+    p.add_argument(
+        "--include-waters", action="store_const", const=True, default=None
+    )
+    p.add_argument("--overwrite", action="store_true")
+    p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet")
     p.set_defaults(func=_cmd_compute)
 
     p = commands.add_parser(
