@@ -75,8 +75,10 @@ accepted.
    and Pandora adds no join step. Contact counts return as
    `residue_values` / `chain_values` layers. (Re-scoped 2026-11-09:
    was "export joins layers", with an entry record.)
-5. **Curation rules on layers**, e.g. drop chains with fewer than N
-   contacts, or keep residues with a given label.
+5. **Interfaces are dropped by label.** A contact layer is filtered
+   by an `interface_labels` layer into a new contact layer. (Re-scoped
+   2026-11-09: was "curation rules on layers", e.g. drop chains with
+   fewer than N contacts.)
 6. **Split balancing on a label** from any label layer (issue #95).
 
 The guiding idea, confirmed in part 2's brainstorm: there is **one
@@ -1026,7 +1028,182 @@ Offline, with `datasets/dev/mmcif/` fixtures:
   rejected before writing;
 - inputs are not mutated.
 
+## Part 5: interfaces are dropped by label
+
+### Intent
+
+The real case: a user imports COCaDA contacts, judges each interface
+on its physicochemical properties (e.g. too few hydrogen bonds, too
+hydrophobic) and wants the failing interfaces gone from everything
+downstream: interface records, `cluster --contacts`, the split.
+
+Following part 4, the user makes the judgement in pandas; Pandora
+neither computes "H-bonds per interface" nor offers a rule language.
+Pandora's job is to apply the verdict and record it. Every downstream
+consumer already reads any `residue_contacts` layer, so the verdict is
+applied there: the output is a **new contact layer** without the
+dropped interfaces' rows. Interface records built from it, and
+clustering, follow for free. The original layer is untouched.
+
+The verdict itself is a layer, not a loose table (user decision): an
+`interface_labels` layer (part 1 template) the user writes in pandas and
+brings in with `annotate import`. So both inputs carry provenance.
+
+**One label per interface** (user decision): import already rejects a
+second label row for the same interface (`interface_labels` is unique
+per key), and part 5 does not change that. A labels layer can still
+use several values across interfaces (`ok`, `low_hbond`,
+`too_hydrophobic`) to pick from per run. Several criteria for the same
+interface are either folded into one label in pandas, or written as
+one labels layer per criterion and applied by running
+`filter-contacts` once per layer, each output feeding the next; each
+run records its parent, so the chain stays readable.
+
+### Scope
+
+In:
+- a library function that drops labelled interfaces from contact rows;
+- `pandora annotate filter-contacts`, writing a new contact layer;
+- docs and tests.
+
+Out (my call; add each the same way when a real need appears):
+- dropping chains or residues by label (`chain_labels`,
+  `residue_labels`), or whole entries;
+- thresholds on value layers (`chain_values` above N);
+- filtering interface records directly, or modifying structures.
+
+### Matching
+
+- An interface is `(entry_id, unordered chain pair)` on Pandora chain
+  IDs (`chain_id_1`, `chain_id_2`), which import stores for both
+  layers. A label on 1abc B–A drops contact rows written A–B.
+- Matching is exactly that, with no special cases: ligand contact rows
+  match a label on (polymer chain, ligand chain); intra-chain rows
+  match only a label on (A, A). (My call: simpler than excluding them,
+  and a label on (A, A) is the user asking for it.)
+- Import keeps one label row per interface, but its duplicate check
+  is on the chain pair in the order given, so A–B and B–A can both
+  slip through. If they do, the interface is dropped if **any** of its
+  label rows carries a `--drop` label (my call; no error).
+- **Unlabelled interfaces are kept** (user decision): the filter
+  drops only what was named. The count of unlabelled interfaces is
+  reported so a typo or a labels layer from another run is visible.
+- A `--drop` value found on no row of the labels layer is an error
+  before anything is written (my call: almost always a typo).
+
+### Library side
+
+In `pandora/annotations/`, exported:
+
+`drop_labelled_interfaces(contacts, labels, drop) -> list[ResidueContactRow]`
+- `contacts`: rows of a `residue_contacts` layer;
+- `labels`: rows of an `interface_labels` layer (`LayerRow`, no typed
+  row model needed);
+- `drop`: the label values that mean drop;
+- returns the kept contact rows in input order. No file I/O, inputs not
+  mutated. Raises `ValueError` for a `drop` value absent from `labels`.
+
+The counts for the summary are the builder's choice of shape (a second
+small function or computed in the CLI).
+
+### The command
+
+`pandora annotate filter-contacts --contacts <layer dir> --labels
+<layer dir> --drop <label> [--drop <label> ...] --output-dir <dir>
+[--overwrite] [--table-format]`
+
+- `--contacts` must be a `residue_contacts` layer
+  (`check_contact_layer`), `--labels` an `interface_labels` layer;
+  otherwise an error before anything is written. `--output-dir` may
+  not be either input folder (as `count-contacts`).
+- Reads only the two layers, never structures.
+- **Both layers must come from the same structures folder** (user
+  decision): chain IDs can change between step folders (e.g. raw vs
+  canonicalised), and a label on A–B would then silently drop a
+  different interface. Each layer's origin is found by following
+  `previous_summary` back through `layer.json` files until it reaches
+  something that is not a layer summary: for an imported layer, the
+  structures folder's step summary (`curation.json` /
+  `canonicalisation.json`); for a layer from `annotate compute`, its
+  `input` (the structures folder). Compare resolved folders. Different
+  origins are an error before anything is written. If an origin cannot
+  be found (an import against a folder with no step summary records
+  none today), print a warning and carry on (my call: refusing would
+  block raw-folder layers outright). The library function does no such
+  check; it sees only rows.
+- Writes an ordinary layer folder (`layer.<fmt>`, `layer.json`), as
+  `count-contacts` does: `StepSummary` with `step:
+  "annotation_filter"`, a `LayerDescription` (`name`:
+  `filtered_contacts`, `template`: `residue_contacts`, `tool`:
+  `pandora`, `parameters`: the contacts layer's name, the labels
+  layer's name and folder, the `drop` labels), `input` = the contacts
+  folder, `previous_summary` = the contacts folder's `layer.json`
+  (which chains back to the original import).
+- `counts`: `rows_in`, `rows_out`, `interfaces_in`,
+  `interfaces_dropped`, `interfaces_unlabelled`, and
+  `labels_unmatched` (labelled interfaces not in the contact layer).
+- Prints one line: interfaces dropped, kept, unlabelled.
+
+### Docs
+
+In `docs/usage/annotation.md`, after "Using layers in a dataset": the
+COCaDA-style flow end to end, full code inline with tested output,
+library and CLI tabs: count a contact type per interface in pandas,
+write the labels table, `annotate import` it as `interface_labels`,
+`annotate filter-contacts`, then build interface records / `cluster
+--contacts` from the new layer. Contact types in the fixture rows are
+written by hand (the built-in layers leave `contact_type` empty). Also
+`docs/usage/cli.md`, `pandora/cli/README.md`,
+`docs/contributing/architecture.md`.
+
+### Tests
+
+Offline, with `datasets/dev/mmcif/` fixtures:
+- a labelled interface's rows go, in both chain orders; other rows stay
+  in order;
+- unlabelled interfaces are kept; label rows written as both A–B and
+  B–A, one dropping and one keeping, drop the interface;
+- a ligand interface and an (A, A) label match as described;
+- an unknown `--drop` label raises before writing;
+- CLI: layers traced to different structures folders are rejected
+  before writing; an untraceable origin warns and runs;
+- inputs are not mutated;
+- CLI: on a layer from `annotate compute` plus an imported labels
+  layer, writes a layer folder whose summary links back and whose
+  counts are right; wrong templates and `--output-dir` equal to an
+  input are rejected before writing; `cluster --contacts` accepts the
+  output.
+
 ## Decisions
+
+The user decided (part 5):
+- The real need is dropping interfaces on their physicochemical
+  properties (e.g. from COCaDA contact types), not chains or entries.
+- The drop applies to the contact layer, producing a new layer, so
+  every downstream consumer follows (my recommendation, accepted over
+  filtering interface records).
+- A filter step that records its parent layers, rather than "filter in
+  pandas and re-import".
+- The verdict comes in as an `interface_labels` layer, not a plain
+  table.
+- Interfaces without a label are kept, and their count reported (my
+  recommendation, accepted).
+- One label per interface; import is unchanged. Several criteria are
+  folded in pandas or applied by chained runs (my recommendation,
+  accepted).
+- The two layers must trace back to the same structures folder, or
+  the command refuses (my recommendation, accepted).
+
+My calls (part 5), which the user can overturn:
+- Command name `annotate filter-contacts`, `--drop` repeatable.
+- No special case for intra-chain or ligand rows.
+- A–B and B–A label rows that both slip past import: any `--drop`
+  label drops the interface.
+- An untraceable layer origin warns rather than refuses.
+- An unknown `--drop` label is an error.
+- Output described as `tool: pandora`, `name: filtered_contacts`, as
+  `count-contacts` does.
+- Chains, residues, entries and value thresholds are out of scope.
 
 The user decided (part 4):
 - Export is general purpose, not shaped for one benchmark.
