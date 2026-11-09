@@ -1,14 +1,13 @@
 from __future__ import annotations
 
+import pyarrow as pa
 import pytest
 
-from pandora.schemas.similarity import Edge, HitFilter, SimilaritySearch
+from pandora.schemas.similarity import Edge, HitFilter
 from pandora.similarity.hits import (
-    HIT_COLUMNS,
-    iter_edges,
-    load_similarity_search,
     read_hit_tsv,
     read_similarity_table,
+    similarity_edges,
 )
 
 
@@ -45,30 +44,29 @@ def _foldseek_row(
     return "\t".join(str(value) for value in values)
 
 
-def _search(tmp_path, rows, engine="Foldseek", newline="\n"):
+def _batches(tmp_path, rows, engine="Foldseek"):
     path = tmp_path / "hits.tsv"
-    path.write_text("".join(row + newline for row in rows), newline="")
-    return SimilaritySearch(
-        engine=engine, hits_path=str(path), columns=list(HIT_COLUMNS[engine])
-    )
+    path.write_text("".join(row + "\n" for row in rows))
+    return list(read_hit_tsv(path, engine))
 
 
-def test_iter_edges_sorts_pair_and_skips_self_hits(tmp_path):
-    search = _search(
-        tmp_path, [_foldseek_row("b", "a"), _foldseek_row("a", "a")]
-    )
+def _edges(tmp_path, rows, hit_filter=None, **kwargs):
+    batches = _batches(tmp_path, rows)
+    return list(similarity_edges(batches, hit_filter or HitFilter(), **kwargs))
 
-    edges = list(iter_edges(search, HitFilter()))
+
+def _table(**columns):
+    return pa.RecordBatch.from_pydict(columns)
+
+
+def test_similarity_edges_sorts_pair_and_skips_self_hits(tmp_path):
+    edges = _edges(tmp_path, [_foldseek_row("b", "a"), _foldseek_row("a", "a")])
 
     assert edges == [Edge("a", "b", 0.6, 0.5, 0.9, None)]
 
 
-def test_iter_edges_keeps_every_passing_row(tmp_path):
-    search = _search(
-        tmp_path, [_foldseek_row("a", "b"), _foldseek_row("b", "a")]
-    )
-
-    edges = list(iter_edges(search, HitFilter()))
+def test_similarity_edges_keeps_every_passing_row(tmp_path):
+    edges = _edges(tmp_path, [_foldseek_row("a", "b"), _foldseek_row("b", "a")])
 
     assert [(e.source_id, e.target_id) for e in edges] == [
         ("a", "b"),
@@ -84,81 +82,69 @@ def test_iter_edges_keeps_every_passing_row(tmp_path):
         ("min_coverage", {"qcov": 0.6, "tcov": 0.6}),
     ],
 )
-def test_iter_edges_thresholds_are_inclusive(tmp_path, field, row_kwargs):
-    search = _search(tmp_path, [_foldseek_row("a", "b", **row_kwargs)])
+def test_similarity_edges_thresholds_are_inclusive(tmp_path, field, row_kwargs):
+    rows = [_foldseek_row("a", "b", **row_kwargs)]
 
-    kept = list(iter_edges(search, HitFilter(**{field: 0.6})))
-    dropped = list(iter_edges(search, HitFilter(**{field: 0.61})))
+    kept = _edges(tmp_path, rows, HitFilter(**{field: 0.6}))
+    dropped = _edges(tmp_path, rows, HitFilter(**{field: 0.61}))
 
     assert len(kept) == 1
     assert dropped == []
 
 
-def test_iter_edges_any_passing_row_makes_an_edge(tmp_path):
+def test_similarity_edges_any_passing_row_makes_an_edge(tmp_path):
     # Best-scoring alignment fails coverage; a second alignment passes.
-    search = _search(
-        tmp_path,
-        [
-            _foldseek_row("a", "b", alntm=0.9, qcov=0.5, tcov=0.5),
-            _foldseek_row("a", "b", alntm=0.55, qcov=0.85, tcov=0.85),
-        ],
-    )
+    rows = [
+        _foldseek_row("a", "b", alntm=0.9, qcov=0.5, tcov=0.5),
+        _foldseek_row("a", "b", alntm=0.55, qcov=0.85, tcov=0.85),
+    ]
 
-    edges = list(iter_edges(search, HitFilter(min_score=0.5, min_coverage=0.8)))
+    edges = _edges(tmp_path, rows, HitFilter(min_score=0.5, min_coverage=0.8))
 
     assert [e.score for e in edges] == [0.55]
 
 
 @pytest.mark.parametrize(
     ("coverage_of", "expected"),
-    [("both", 0.5), ("query", 0.9), ("target", 0.5), ("either", 0.9)],
+    [("both", 0.4), ("side_1", 0.9), ("side_2", 0.4), ("either", 0.9)],
 )
-def test_iter_edges_coverage_of(tmp_path, coverage_of, expected):
-    search = _search(tmp_path, [_foldseek_row("a", "b", qcov=0.9, tcov=0.5)])
+def test_similarity_edges_coverage_of(tmp_path, coverage_of, expected):
+    rows = [_foldseek_row("a", "b", qcov=0.9, tcov=0.4)]
 
-    (edge,) = iter_edges(search, HitFilter(coverage_of=coverage_of))
+    (edge,) = _edges(tmp_path, rows, HitFilter(coverage_of=coverage_of))
 
     assert edge.coverage == expected
 
 
-@pytest.mark.parametrize(
-    ("normalisation", "expected"),
-    [("alignment", 0.5), ("query", 0.7), ("target", 0.6), ("max", 0.7)],
-)
-def test_iter_edges_tm_normalisation(tmp_path, normalisation, expected):
-    search = _search(
-        tmp_path, [_foldseek_row("a", "b", alntm=0.5, qtm=0.7, ttm=0.6)]
+def test_similarity_edges_score_column(tmp_path):
+    rows = [_foldseek_row("a", "b", alntm=0.1, qtm=0.7)]
+
+    (edge,) = _edges(
+        tmp_path, rows, HitFilter(min_score=0.6, score_column="qtmscore")
     )
 
-    (edge,) = iter_edges(search, HitFilter(tm_normalisation=normalisation))
-
-    assert edge.score == expected
+    assert edge.score == 0.7
 
 
-def test_iter_edges_interface_coverage_at_read_time(tmp_path):
-    search = _search(
-        tmp_path,
-        [
-            _foldseek_row("a", "b", qstart=1, qend=15, tstart=1, tend=10),
-            _foldseek_row("a", "c"),
-        ],
-    )
+def test_similarity_edges_interface_coverage(tmp_path):
+    rows = [
+        _foldseek_row("a", "b", qstart=1, qend=15, tstart=1, tend=10),
+        _foldseek_row("a", "c"),
+    ]
     interfaces = {"a": {10, 20}, "b": {5}}
 
-    every = list(iter_edges(search, HitFilter(), interface_residues=interfaces))
-    kept = list(
-        iter_edges(
-            search,
-            HitFilter(min_interface_coverage=0.5),
-            interface_residues=interfaces,
-        )
+    every = _edges(tmp_path, rows, interface_residues=interfaces)
+    kept = _edges(
+        tmp_path,
+        rows,
+        HitFilter(min_interface_coverage=0.5),
+        interface_residues=interfaces,
     )
-    dropped = list(
-        iter_edges(
-            search,
-            HitFilter(min_interface_coverage=0.6),
-            interface_residues=interfaces,
-        )
+    dropped = _edges(
+        tmp_path,
+        rows,
+        HitFilter(min_interface_coverage=0.6),
+        interface_residues=interfaces,
     )
 
     # a covers 1 of {10, 20} -> 0.5; b covers {5} -> 1.0; min -> 0.5.
@@ -167,129 +153,102 @@ def test_iter_edges_interface_coverage_at_read_time(tmp_path):
     assert dropped == []
 
 
-def test_iter_edges_mmseqs_score_is_identity(tmp_path):
-    search = _search(tmp_path, ["a\tb\t0.95\t100\t0.9\t0.8"], engine="MMseqs2")
+def test_similarity_edges_minimal_layer():
+    batch = _table(item_id_1=["b"], item_id_2=["a"], score=[0.9])
 
-    edges = list(iter_edges(search, HitFilter()))
+    edges = list(similarity_edges([batch], HitFilter(min_score=0.5)))
 
-    assert edges == [Edge("a", "b", 0.95, 0.95, 0.8, None)]
+    assert edges == [Edge("a", "b", 0.9, None, None, None)]
 
 
-def test_iter_edges_reads_crlf_and_blank_lines(tmp_path):
-    search = _search(
-        tmp_path,
-        [_foldseek_row("a", "b"), "", _foldseek_row("c", "d")],
-        newline="\r\n",
+def test_similarity_edges_null_coverage_fails_threshold():
+    batch = _table(
+        item_id_1=["a", "a"],
+        item_id_2=["b", "c"],
+        score=[0.9, 0.9],
+        coverage_1=pa.array([None, 0.5], pa.float64()),
+        coverage_2=[0.5, 0.5],
     )
 
-    edges = list(iter_edges(search, HitFilter()))
+    edges = list(similarity_edges([batch], HitFilter(min_coverage=0.1)))
 
-    assert [(e.source_id, e.target_id) for e in edges] == [
-        ("a", "b"),
-        ("c", "d"),
-    ]
-
-
-def test_iter_edges_reports_wrong_column_count_with_line(tmp_path):
-    search = _search(tmp_path, [_foldseek_row("a", "b"), "a\tb\t0.5"])
-
-    with pytest.raises(ValueError, match=r"hits\.tsv:2: expected 13 columns"):
-        list(iter_edges(search, HitFilter()))
-
-
-def test_iter_edges_reports_bad_number_with_line(tmp_path):
-    search = _search(tmp_path, [_foldseek_row("a", "b", qcov="n/a")])
-
-    with pytest.raises(ValueError, match=r"hits\.tsv:1:"):
-        list(iter_edges(search, HitFilter()))
-
-
-def test_iter_edges_rejects_tm_normalisation_on_mmseqs(tmp_path):
-    search = _search(tmp_path, [], engine="MMseqs2")
-
-    with pytest.raises(ValueError, match="tm_normalisation"):
-        iter_edges(search, HitFilter(tm_normalisation="query"))
-
-
-def test_iter_edges_rejects_interface_filter_without_residues(tmp_path):
-    search = _search(tmp_path, [])
-
-    with pytest.raises(ValueError, match="interface_residues"):
-        iter_edges(search, HitFilter(min_interface_coverage=0.5))
-
-
-def test_iter_edges_rejects_interface_residues_on_mmseqs(tmp_path):
-    search = _search(tmp_path, [], engine="MMseqs2")
-
-    with pytest.raises(ValueError, match="Foldseek"):
-        iter_edges(search, HitFilter(), interface_residues={"a": {1}})
-
-
-def test_load_similarity_search_wraps_existing_file(tmp_path):
-    path = tmp_path / "hits.tsv"
-    path.write_text("a\tb\t0.95\t100\t0.9\t0.8\n")
-    parameters = {"max_seqs": 300}
-
-    search = load_similarity_search(
-        path, "MMseqs2", version="18.8cc5c", parameters=parameters
-    )
-    parameters["max_seqs"] = 1  # caller's dict must not be aliased
-
-    assert search.origin == "precomputed"
-    assert search.hits_path == str(path)
-    assert search.columns == HIT_COLUMNS["MMseqs2"]
-    assert search.version == "18.8cc5c"
-    assert search.parameters == {"max_seqs": 300}
-
-
-def test_load_similarity_search_accepts_empty_file(tmp_path):
-    path = tmp_path / "hits.tsv"
-    path.write_text("")
-
-    assert (
-        load_similarity_search(path, "Foldseek").columns
-        == (HIT_COLUMNS["Foldseek"])
-    )
-
-
-def test_load_similarity_search_rejects_wrong_columns(tmp_path):
-    path = tmp_path / "hits.tsv"
-    path.write_text("a\tb\t0.95\n")
-
-    with pytest.raises(ValueError, match=r"hits\.tsv:1: expected 6 columns"):
-        load_similarity_search(path, "MMseqs2")
-
-
-def test_load_similarity_search_rejects_unknown_engine(tmp_path):
-    path = tmp_path / "hits.tsv"
-    path.write_text("")
-
-    with pytest.raises(ValueError, match="engine"):
-        load_similarity_search(path, "BLAST")
+    assert [e.target_id for e in edges] == ["c"]
 
 
 @pytest.mark.parametrize(
-    ("field", "row_kwargs"),
+    ("hit_filter", "missing"),
     [
-        ("min_score", {"alntm": "nan"}),
-        ("min_identity", {"fident": "nan"}),
-        ("min_coverage", {"qcov": "nan"}),
+        (HitFilter(min_identity=0.1), "identity"),
+        (HitFilter(min_coverage=0.1), "coverage_1"),
+        (HitFilter(min_coverage=0.1, coverage_of="side_2"), "coverage_2"),
+        (HitFilter(min_score=0.1, score_column="qtmscore"), "qtmscore"),
     ],
 )
-def test_iter_edges_nan_fails_threshold(tmp_path, field, row_kwargs):
-    search = _search(tmp_path, [_foldseek_row("a", "b", **row_kwargs)])
+def test_similarity_edges_threshold_on_absent_column_raises(
+    hit_filter, missing
+):
+    batch = _table(item_id_1=["a"], item_id_2=["b"], score=[0.9])
 
-    assert list(iter_edges(search, HitFilter(**{field: 0.1}))) == []
+    with pytest.raises(ValueError, match=missing):
+        next(similarity_edges([batch], hit_filter))
 
 
-def test_iter_edges_rejects_search_missing_columns(tmp_path):
-    search = _search(tmp_path, [_foldseek_row("a", "b")])
-    search = search.model_copy(
-        update={"columns": [c for c in search.columns if c != "qcov"]}
+def test_similarity_edges_interface_filter_without_residues_raises(tmp_path):
+    batches = _batches(tmp_path, [_foldseek_row("a", "b")])
+
+    with pytest.raises(ValueError, match="interface_residues"):
+        next(similarity_edges(batches, HitFilter(min_interface_coverage=0.5)))
+
+
+def test_similarity_edges_interface_residues_need_ranges():
+    batch = _table(item_id_1=["a"], item_id_2=["b"], score=[0.9])
+
+    with pytest.raises(ValueError, match="start_1"):
+        next(
+            similarity_edges(
+                [batch], HitFilter(), interface_residues={"a": {1}}
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "column"),
+    [
+        ("min_score", "score"),
+        ("min_identity", "identity"),
+        ("min_coverage", "coverage_1"),
+    ],
+)
+def test_similarity_edges_nan_fails_threshold(field, column):
+    columns = dict(
+        item_id_1=["a"],
+        item_id_2=["b"],
+        score=[0.9],
+        identity=[0.9],
+        coverage_1=[0.9],
+        coverage_2=[0.9],
+    )
+    columns[column] = [float("nan")]
+
+    edges = list(
+        similarity_edges([_table(**columns)], HitFilter(**{field: 0.1}))
     )
 
-    with pytest.raises(ValueError, match="qcov"):
-        iter_edges(search, HitFilter())
+    assert edges == []
+
+
+def test_similarity_edges_batching_does_not_change_edges(tmp_path):
+    rows = [_foldseek_row(f"q{i}", f"t{i}", alntm=i / 10) for i in range(9)]
+    hit_filter = HitFilter(min_score=0.3)
+    one = list(similarity_edges(_batches(tmp_path, rows), hit_filter))
+    table = pa.Table.from_batches(_batches(tmp_path, rows))
+
+    three = list(
+        similarity_edges(table.to_batches(max_chunksize=3), hit_filter)
+    )
+
+    assert one == three
+    assert len(one) == 6
 
 
 def test_read_hit_tsv_maps_foldseek_columns(tmp_path):

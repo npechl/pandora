@@ -22,7 +22,7 @@ from pandora.schemas.dataset import (
     ResidueRecord,
 )
 from pandora.schemas.provenance import DatasetManifest
-from pandora.schemas.similarity import SimilarityCluster, SimilarityRelationship
+from pandora.schemas.similarity import SimilarityCluster
 from pandora.schemas.structure import Structure
 
 OUTPUT_DIR = Path(__file__).parent.parent / "assets" / "diagrams"
@@ -40,7 +40,6 @@ def main() -> None:
     erd.create(DatasetCurationPolicy).draw(OUTPUT_DIR / "curation-policy.svg")
     erd.create(
         DatasetManifest,
-        SimilarityRelationship,
         SimilarityCluster,
         terminal_models=[canonicalisationPolicy, DatasetCurationPolicy],
     ).draw(OUTPUT_DIR / "provenance-manifest.svg")

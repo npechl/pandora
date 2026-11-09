@@ -1,16 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from typing import Any
 
 from pandora._util import now_iso
-from pandora.schemas.similarity import (
-    ClusteringProvenance,
-    HitFilter,
-    SimilarityCluster,
-    SimilaritySearch,
-)
-from pandora.similarity.hits import iter_edges
+from pandora.schemas.similarity import ClusteringProvenance, SimilarityCluster
+from pandora.similarity.layer import parse_item_id
 
 
 def cluster_edges(
@@ -26,16 +21,18 @@ def cluster_edges(
 
     Args:
         item_ids: Every item id to place into a cluster.
-        edges: Pairs of item ids, as `Edge`s from `iter_edges()` or any
+        edges: Pairs of item ids, as `Edge`s from `similarity_edges()` or any
             tuples whose first two items are the ids. Duplicates are
             harmless.
 
     Returns:
         `(clusters, provenance)` — the clusters (sorted by their
         smallest member), and the edge and cluster counts.
-        `provenance.hit_filter` and `.search` are None.
+        `provenance.hit_filter` and `.similarity_layer` are None.
     """
 
+    # ponytail: dict union-find on string ids; integer arrays if memory
+    # bites at archive scale (~1M items is a few hundred MB here).
     parent = {item_id: item_id for item_id in item_ids}
 
     def find(item_id: str) -> str:
@@ -75,42 +72,29 @@ def cluster_edges(
     return clusters, provenance
 
 
-def cluster_similar_items(
-    item_ids: list[str],
-    search: SimilaritySearch,
-    hit_filter: HitFilter,
-    *,
-    interface_residues: dict[str, set[int]] | None = None,
-) -> tuple[list[SimilarityCluster], ClusteringProvenance]:
-    """Cluster item ids from a search's hit file, filtered by a policy.
+def entry_edges(edges: Iterable[Sequence[Any]]) -> Iterator[tuple[str, str]]:
+    """Roll chain-item edges up to entry-item edges.
 
-    Streams `search`'s hit file through `hit_filter` (`iter_edges()`)
-    into `cluster_edges()`; memory is bounded by the number of items,
-    not hits.
+    Each edge between two chains becomes an edge between their entries,
+    so clustering the result puts two entries together when any of their
+    chains are similar. Edges within one entry are dropped.
 
     Args:
-        item_ids: Every item id to place into a cluster.
-        search: The search whose hit file to read.
-        hit_filter: Which hit rows become edges.
-        interface_residues: Item id -> interface residue positions,
-            needed when `hit_filter.min_interface_coverage` is set.
+        edges: Pairs of chain item ids (`{entry}_{chain}`), as `Edge`s
+            or any tuples whose first two items are the ids.
 
     Returns:
-        `(clusters, provenance)`, with `provenance.hit_filter` and
-        `.search` recorded so the clustering can be reproduced.
+        An iterator of `(entry_id_1, entry_id_2)` pairs.
 
     Raises:
-        ValueError: The filter can't apply to the search, or the hit
-            file is malformed (see `iter_edges()`).
+        ValueError: An id is not a chain item id (while iterating).
     """
 
-    clusters, provenance = cluster_edges(
-        item_ids,
-        iter_edges(search, hit_filter, interface_residues=interface_residues),
-    )
-    return clusters, provenance.model_copy(
-        update={"hit_filter": hit_filter, "search": search}
-    )
+    for edge in edges:
+        entry_1 = parse_item_id("chain", edge[0])[0]
+        entry_2 = parse_item_id("chain", edge[1])[0]
+        if entry_1 != entry_2:
+            yield entry_1, entry_2
 
 
 def pair_cluster_keys(
@@ -128,7 +112,7 @@ def pair_cluster_keys(
         pairs: `(item_id_1, item_id_2)` tuples — e.g. the two chain ids
             of a PPI pair. Both ids must appear in `clusters`.
         clusters: Item-level clusters, as returned by
-            `cluster_similar_items()`.
+            `cluster_edges()`.
 
     Returns:
         `{(item_id_1, item_id_2): (cluster_id_1, cluster_id_2)}`, one

@@ -138,7 +138,7 @@ def build_dataset_manifest(
         excluded: `ExclusionRecord`s returned by `curate_structure`/
             `deduplicate_structures` for every structure left out.
         deduplication: Provenance from `deduplicate_structures`, if run.
-        clustering: Provenance from `cluster_similar_items`, if run.
+        clustering: Provenance from a clustering run (`pandora cluster`), if any.
         partition: Provenance from `partition_dataset`, if run.
         splits: The split assignment returned by `partition_dataset`,
             if run.

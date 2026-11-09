@@ -6,7 +6,7 @@ import argparse
 import itertools
 import json
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +16,6 @@ from pandora.cli._io import (
     copy_source,
     find_table,
     load_json_list,
-    load_json_model,
     load_pairs,
     load_yaml_model,
     prepare_output_dir,
@@ -34,17 +33,21 @@ from pandora.schemas.annotation import (
 from pandora.schemas.similarity import (
     HitFilter,
     SimilarityCluster,
-    SimilaritySearch,
 )
 from pandora.similarity import (
-    cluster_similar_items,
+    cluster_edges,
     compute_sequence_similarity,
     compute_structure_similarity,
+    entry_edges,
     interface_residues_from_annotation,
     pair_cluster_keys,
     partition_dataset,
 )
-from pandora.similarity.hits import read_hit_tsv, read_similarity_table
+from pandora.similarity.hits import (
+    read_hit_tsv,
+    read_similarity_table,
+    similarity_edges,
+)
 from pandora.similarity.layer import (
     ItemSet,
     chain_items,
@@ -343,53 +346,9 @@ def _cmd_import(args: argparse.Namespace) -> None:
     )
 
 
-def _interface_residues(
-    args: argparse.Namespace,
-) -> dict[str, set[int]] | None:
-    """Interface residue positions from `--contacts`, or None without it."""
-
-    if (args.contacts is None) != (args.structures_dir is None):
-        missing = "--structures-dir" if args.contacts else "--contacts"
-        raise SystemExit(
-            "cluster: --contacts and --structures-dir go together; "
-            f"{missing} is missing"
-        )
-    if args.contacts is None:
-        return None
-    rows = _read_contact_layer(Path(args.contacts))
-    structures = read_structures_dir(Path(args.structures_dir))
-    try:
-        return interface_residues_from_annotation(structures, rows)
-    except KeyError as exc:
-        raise SystemExit(
-            f"cluster: {args.contacts} names an entry missing from "
-            f"{args.structures_dir}: {exc}"
-        ) from exc
-
-
-def _read_contact_layer(folder: Path) -> list[ResidueContactRow]:
-    """The rows of a `residue_contacts` layer folder."""
-
-    summary = folder / "layer.json"
-    if not summary.exists():
-        raise SystemExit(
-            f"cluster: {folder} is not a layer folder (no layer.json)"
-        )
-    template = json.loads(summary.read_text()).get("policy", {}).get("template")
-    if template != "residue_contacts":
-        raise SystemExit(
-            f"cluster: {folder} is a {template} layer, --contacts needs "
-            "residue_contacts"
-        )
-    for name in ("layer.parquet", "layer.jsonl"):
-        if (folder / name).exists():
-            return read_records(folder / name, ResidueContactRow)
-    return []
-
-
-def _cmd_cluster(args: argparse.Namespace) -> None:
-    """Handle the `cluster` subcommand: connected-component clustering
-    of a relationship network."""
+def _hit_filter(args: argparse.Namespace) -> HitFilter:
+    """The HitFilter from --hit-filter, with --min-score / --min-coverage
+    overriding it; exits if no threshold is set."""
 
     if (
         args.hit_filter is None
@@ -402,8 +361,6 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
             "cluster: set --min-score, --min-coverage or --hit-filter; "
             "with no threshold every reported hit becomes an edge"
         )
-    input_dir = Path(args.input_dir)
-    search = load_json_model(SimilaritySearch, Path(args.search))
     hit_filter = (
         load_yaml_model(HitFilter, Path(args.hit_filter))
         if args.hit_filter
@@ -417,13 +374,123 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
         )
         if value is not None
     }
-    if overrides:
-        hit_filter = hit_filter.model_copy(update=overrides)
-    interface_residues = _interface_residues(args)
-    item_ids = sorted(path.stem.upper() for path in input_dir.glob("*.cif"))
+    return hit_filter.model_copy(update=overrides)
 
-    clusters, prov = cluster_similar_items(
-        item_ids, search, hit_filter, interface_residues=interface_residues
+
+def _similarity_level(folder: Path) -> SimilarityItems:
+    """The item level of a similarity layer folder."""
+
+    summary = folder / "layer.json"
+    if not summary.exists():
+        raise SystemExit(
+            f"cluster: {folder} is not a layer folder (no layer.json)"
+        )
+    policy = json.loads(summary.read_text()).get("policy") or {}
+    if policy.get("template") != "similarity":
+        raise SystemExit(
+            f"cluster: {folder} is a {policy.get('template')} layer, "
+            "--similarity needs a similarity layer"
+        )
+    return policy["items"]
+
+
+def _cluster_level(
+    args: argparse.Namespace, level: SimilarityItems
+) -> SimilarityItems:
+    """The level to cluster at: the layer's, or entries from chains."""
+
+    items = args.items or level
+    if items != level and not (items == "entry" and level == "chain"):
+        raise SystemExit(
+            f"cluster: --items {items} does not fit a {level} layer; only "
+            "--items entry on a chain layer rolls up"
+        )
+    if level == "interface" and args.structures_dir is not None:
+        raise SystemExit(
+            "cluster: interface items come from --contacts; "
+            "--structures-dir does not apply"
+        )
+    if level == "entry" and args.contacts is not None:
+        raise SystemExit("cluster: --contacts does not apply to an entry layer")
+    return items
+
+
+def _interface_residues(
+    structures_dir: Path, contacts: Path
+) -> dict[str, set[int]]:
+    """Interface residue positions per chain item, from a contact layer
+    and the structures it refers to."""
+
+    rows_file = _contact_layer("cluster", contacts)
+    rows = (
+        read_records(rows_file, ResidueContactRow)
+        if rows_file.name != "layer.json"
+        else []
+    )
+    # ponytail: parses every structure; fine per dataset, not per archive.
+    structures = read_structures_dir(structures_dir)
+    try:
+        return interface_residues_from_annotation(structures, rows)
+    except KeyError as exc:
+        raise SystemExit(
+            f"cluster: {contacts} names an entry missing from "
+            f"{structures_dir}: {exc}"
+        ) from exc
+
+
+def _copy_links(structures_dir: Path) -> Iterator[tuple[str, str]]:
+    """(copy, source) chain item pairs from the step folder's chains
+    table, so symmetry copies join their source chain's cluster."""
+
+    table = _step_table("cluster", structures_dir, "chains", "pandora curate")
+    for row in read_columns(table, ("entry_id", "chain_id", "copy_of")):
+        if row["copy_of"]:
+            yield (
+                item_id("chain", row["entry_id"], row["chain_id"]),
+                item_id("chain", row["entry_id"], row["copy_of"]),
+            )
+
+
+def _cmd_cluster(args: argparse.Namespace) -> None:
+    """Handle the `cluster` subcommand: connected-component clustering
+    of a similarity layer."""
+
+    hit_filter = _hit_filter(args)
+    _require_pyarrow("cluster")
+    layer = Path(args.similarity)
+    level = _similarity_level(layer)
+    items_level = _cluster_level(args, level)
+    structures_dir = Path(args.structures_dir) if args.structures_dir else None
+    contacts = Path(args.contacts) if args.contacts else None
+    items, _ = _item_set("cluster", items_level, structures_dir, contacts)
+
+    interface_residues = None
+    if level == "chain" and contacts is not None:
+        interface_residues = _interface_residues(structures_dir, contacts)
+    table = layer / "layer.parquet"
+    edges: Iterable[Any] = (
+        similarity_edges(
+            read_similarity_table(table),
+            hit_filter,
+            interface_residues=interface_residues,
+        )
+        if table.exists()
+        else iter(())
+    )
+    if items_level != level:
+        edges = entry_edges(edges)
+    elif level == "chain":
+        edges = itertools.chain(edges, _copy_links(structures_dir))
+
+    try:
+        clusters, prov = cluster_edges(sorted(set(items.ids.values())), edges)
+    except ValueError as exc:
+        raise SystemExit(f"cluster: {layer}: {exc}") from exc
+    prov = prov.model_copy(
+        update={
+            "hit_filter": hit_filter,
+            "similarity_layer": str(layer / "layer.json"),
+        }
     )
 
     output = Path(args.output)
@@ -539,15 +606,18 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
     p = subparsers.add_parser(
         "cluster",
-        help="Connected-component clustering of a relationship network.",
+        help="Connected-component clustering of a similarity layer.",
     )
     p.add_argument(
-        "--input-dir", required=True, help="dir of the clustered *.cif"
-    )
-    p.add_argument(
-        "--search",
+        "--similarity",
         required=True,
-        help="<hits>.search.json written by `pandora similarity`",
+        help="a similarity layer folder (similarity search/import)",
+    )
+    p.add_argument(
+        "--items",
+        choices=["entry", "chain", "interface"],
+        help="cluster at this level (default: the layer's); entry on a "
+        "chain layer rolls chains up to their entries",
     )
     p.add_argument("--hit-filter", help="HitFilter YAML (thresholds)")
     p.add_argument(
@@ -565,13 +635,14 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument(
         "--contacts",
         help=(
-            "a residue_contacts layer folder (annotate compute/import), "
-            "for min_interface_coverage (Foldseek searches only)"
+            "a residue_contacts layer folder: the items of an interface "
+            "layer, or interface residues for min_interface_coverage on a "
+            "chain layer"
         ),
     )
     p.add_argument(
         "--structures-dir",
-        help="the step folder the --contacts layer refers to",
+        help="the step folder whose entries/chains are the items",
     )
     p.add_argument(
         "--pairs",

@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from pandora.similarity.clustering import (
     cluster_edges,
-    cluster_similar_items,
+    entry_edges,
     pair_cluster_keys,
 )
-from pandora.similarity.hits import iter_edges, load_similarity_search
+from pandora.similarity.hits import (
+    read_hit_tsv,
+    read_similarity_table,
+    similarity_edges,
+)
 from pandora.similarity.layer import (
     ItemSet,
     chain_items,
@@ -36,12 +40,13 @@ __all__ = [
     "parse_item_id",
     "chain_item_id",
     "cluster_edges",
-    "cluster_similar_items",
+    "entry_edges",
     "compute_sequence_similarity",
     "compute_structure_similarity",
     "interface_residues_from_annotation",
-    "iter_edges",
-    "load_similarity_search",
+    "read_hit_tsv",
+    "read_similarity_table",
+    "similarity_edges",
     "pair_cluster_keys",
     "partition_dataset",
     "residue_positions",

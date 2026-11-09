@@ -22,7 +22,7 @@ def partition_dataset(
 
     Args:
         clusters: The similarity clusters to assign, as returned by
-            `cluster_similar_items`.
+            `cluster_edges`.
         pct_train: Target fraction of items assigned to the train split.
         pct_val: Target fraction of items assigned to the val split.
         pct_test: Target fraction of items assigned to the test split.

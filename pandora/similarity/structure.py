@@ -86,7 +86,7 @@ def interface_residues_from_annotation(
     rows: Iterable[ResidueContactRow],
 ) -> dict[str, set[int]]:
     """Bridge a `residue_contacts` layer into the `interface_residues`
-    mapping `iter_edges()` expects, for one exported file per chain
+    mapping `similarity_edges()` expects, for one exported file per chain
     (`export_chain_mmcif()`).
 
     Works on any contact layer, Pandora's own
@@ -105,7 +105,7 @@ def interface_residues_from_annotation(
     Returns:
         `{chain_item_id(entry_id, chain_id): {positions...}}` — one
         entry per chain that appears in at least one interface. Pass
-        this to `iter_edges()` / `cluster_similar_items()` as
+        this to `similarity_edges()` as
         `interface_residues`, for a search run on files written by
         `export_chain_mmcif()` with the same ids.
 
@@ -152,7 +152,7 @@ def compute_structure_similarity(
     `HIT_COLUMNS["Foldseek"]` (including `qtmscore`/`ttmscore` and the
     alignment ranges) and keeps it there; nothing is loaded into
     memory. Interface-restricted coverage is computed when reading,
-    with `iter_edges(..., interface_residues=...)`.
+    with `similarity_edges(..., interface_residues=...)`.
 
     Args:
         structures: Mapping of item id -> structure file path (PDB/mmCIF,

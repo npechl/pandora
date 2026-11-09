@@ -16,8 +16,6 @@ from pandora.ingestion import read_entry_paths
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.annotation import LayerRow, ResidueContactRow
 from pandora.schemas.provenance import CanonicalisationEntryRecord
-from pandora.schemas.similarity import SimilaritySearch
-from pandora.similarity.hits import HIT_COLUMNS
 
 FIXTURES_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
 CANON_POLICY = (
@@ -276,45 +274,72 @@ def test_canonicalise_curate_dedup_export_chain(tmp_path):
     assert json.loads(exported.read_text())["entry_id"] == "104M"
 
 
-def _cluster_inputs(tmp_path):
-    input_dir = tmp_path / "clustered"
-    input_dir.mkdir()
-    for name in ("104m", "112m", "118l"):
-        (input_dir / f"{name}.cif").touch()
-    hits = tmp_path / "hits.tsv"
-    hits.write_text("104M\t112M\t0.95\t100\t0.95\t0.95\n")
-    search = tmp_path / "hits.tsv.search.json"
-    search.write_text(
-        SimilaritySearch(
-            engine="MMseqs2",
-            hits_path=str(hits),
-            columns=list(HIT_COLUMNS["MMseqs2"]),
-        ).model_dump_json()
+def _similarity_layer(folder, rows, items):
+    """A similarity layer folder holding `rows` (None: no matched rows)."""
+
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    folder.mkdir(parents=True)
+    if rows:
+        pq.write_table(pa.Table.from_pylist(rows), folder / "layer.parquet")
+    (folder / "layer.json").write_text(
+        json.dumps({"policy": {"template": "similarity", "items": items}})
     )
-    return input_dir, search
+    return folder
+
+
+def _cluster_inputs(tmp_path, rows=None, items="entry"):
+    """A tables-only step folder (entries 104M, 112M, 118L; chains 104M_A,
+    112M_A, 112M_B copy of A, 118L_A) and a similarity layer."""
+
+    step = tmp_path / "step"
+    step.mkdir()
+    _write_jsonl(
+        step / "entries.jsonl",
+        [
+            {"entry_id": e, "structure_path": f"{e}.cif"}
+            for e in ("104M", "112M", "118L")
+        ],
+    )
+    _write_jsonl(
+        step / "chains.jsonl",
+        [
+            {"entry_id": "104M", "chain_id": "A"},
+            {"entry_id": "112M", "chain_id": "A"},
+            {"entry_id": "112M", "chain_id": "B", "copy_of": "A"},
+            {"entry_id": "118L", "chain_id": "A"},
+        ],
+    )
+    if rows is None:
+        rows = [
+            {
+                "item_id_1": "104M",
+                "item_id_2": "112M",
+                "score": 0.95,
+                "coverage_1": 0.95,
+                "coverage_2": 0.95,
+            }
+        ]
+    layer = _similarity_layer(tmp_path / "layer", rows, items)
+    return step, layer
+
+
+def _cluster(step, layer, output, *extra):
+    main(
+        ["cluster", "--similarity", str(layer), "--structures-dir", str(step)]
+        + ["--output", str(output), *extra]
+    )
+    return [c["components"] for c in json.loads(output.read_text())]
 
 
 def test_cluster_with_pairs(tmp_path):
-    input_dir, search = _cluster_inputs(tmp_path)
+    step, layer = _cluster_inputs(tmp_path)
     pairs = tmp_path / "pairs.json"
     pairs.write_text(json.dumps([["104M", "112M"], ["104M", "118L"]]))
     output = tmp_path / "clusters.json"
 
-    main(
-        [
-            "cluster",
-            "--input-dir",
-            str(input_dir),
-            "--search",
-            str(search),
-            "--min-score",
-            "0.9",
-            "--pairs",
-            str(pairs),
-            "--output",
-            str(output),
-        ]
-    )
+    _cluster(step, layer, output, "--min-score", "0.9", "--pairs", str(pairs))
 
     cluster_pairs = json.loads(
         (output.parent / "cluster_pairs.json").read_text()
@@ -327,75 +352,124 @@ def test_cluster_with_pairs(tmp_path):
 
 
 def test_cluster_reads_hit_filter_yaml_and_records_it(tmp_path):
-    input_dir, search = _cluster_inputs(tmp_path)
+    step, layer = _cluster_inputs(tmp_path)
     hit_filter = tmp_path / "filter.yaml"
     hit_filter.write_text("min_score: 0.99\nmin_coverage: 0.5\n")
     output = tmp_path / "clusters.json"
 
-    main(
-        [
-            "cluster",
-            "--input-dir",
-            str(input_dir),
-            "--search",
-            str(search),
-            "--hit-filter",
-            str(hit_filter),
-            "--output",
-            str(output),
-        ]
-    )
+    clusters = _cluster(step, layer, output, "--hit-filter", str(hit_filter))
 
-    clusters = json.loads(output.read_text())
-    assert all(c["n_components"] == 1 for c in clusters)  # 0.95 < 0.99
+    assert clusters == [["104M"], ["112M"], ["118L"]]  # 0.95 < 0.99
     provenance = json.loads(
         (output.parent / "cluster_provenance.json").read_text()
     )
     assert provenance["hit_filter"]["min_score"] == 0.99
     assert provenance["hit_filter"]["min_coverage"] == 0.5
-    assert provenance["search"]["engine"] == "MMseqs2"
+    assert provenance["similarity_layer"] == str(layer / "layer.json")
+    assert "search" not in provenance
 
 
 def test_cluster_flag_overrides_hit_filter_yaml(tmp_path):
-    input_dir, search = _cluster_inputs(tmp_path)
+    step, layer = _cluster_inputs(tmp_path)
     hit_filter = tmp_path / "filter.yaml"
     hit_filter.write_text("min_score: 0.99\n")
-    output = tmp_path / "clusters.json"
 
-    main(
-        [
-            "cluster",
-            "--input-dir",
-            str(input_dir),
-            "--search",
-            str(search),
-            "--hit-filter",
-            str(hit_filter),
-            "--min-score",
-            "0.9",
-            "--output",
-            str(output),
-        ]
+    clusters = _cluster(
+        step,
+        layer,
+        tmp_path / "clusters.json",
+        "--hit-filter",
+        str(hit_filter),
+        "--min-score",
+        "0.9",
     )
 
-    clusters = json.loads(output.read_text())
-    assert ["104M", "112M"] in [c["components"] for c in clusters]
+    assert ["104M", "112M"] in clusters
 
 
 def test_cluster_requires_a_threshold(tmp_path):
-    input_dir, search = _cluster_inputs(tmp_path)
+    step, layer = _cluster_inputs(tmp_path)
 
     with pytest.raises(SystemExit, match="--min-score"):
-        main(
-            [
-                "cluster",
-                "--input-dir",
-                str(input_dir),
-                "--search",
-                str(search),
-                "--output",
-                str(tmp_path / "clusters.json"),
-            ]
+        _cluster(step, layer, tmp_path / "clusters.json")
+
+
+def _chain_rows(*pairs):
+    return [{"item_id_1": a, "item_id_2": b, "score": 0.9} for a, b in pairs]
+
+
+def test_cluster_chain_layer_with_copies_and_singletons(tmp_path):
+    step, layer = _cluster_inputs(
+        tmp_path, _chain_rows(("104M_A", "112M_A")), items="chain"
+    )
+
+    clusters = _cluster(step, layer, tmp_path / "c.json", "--min-score", "0.5")
+
+    assert clusters == [["104M_A", "112M_A", "112M_B"], ["118L_A"]]
+
+
+def test_cluster_rolls_chain_layer_up_to_entries(tmp_path):
+    step, layer = _cluster_inputs(
+        tmp_path, _chain_rows(("112M_B", "118L_A")), items="chain"
+    )
+
+    clusters = _cluster(
+        step,
+        layer,
+        tmp_path / "c.json",
+        "--min-score",
+        "0.5",
+        "--items",
+        "entry",
+    )
+
+    assert clusters == [["104M"], ["112M", "118L"]]
+
+
+def test_cluster_layer_with_no_matched_rows_gives_singletons(tmp_path):
+    step, layer = _cluster_inputs(tmp_path, rows=[], items="entry")
+
+    clusters = _cluster(step, layer, tmp_path / "c.json", "--min-score", "0.5")
+
+    assert clusters == [["104M"], ["112M"], ["118L"]]
+
+
+def test_cluster_drops_edges_outside_smaller_item_list(tmp_path):
+    step, layer = _cluster_inputs(
+        tmp_path,
+        [{"item_id_1": "104M", "item_id_2": "999X", "score": 0.9}],
+    )
+    output = tmp_path / "c.json"
+
+    _cluster(step, layer, output, "--min-score", "0.5")
+
+    provenance = json.loads((tmp_path / "cluster_provenance.json").read_text())
+    assert provenance["n_edges_unknown_ids"] == 1
+
+
+def test_cluster_rejects_non_similarity_layer(tmp_path):
+    step, _ = _cluster_inputs(tmp_path)
+    labels = tmp_path / "labels"
+    labels.mkdir()
+    (labels / "layer.json").write_text(
+        json.dumps({"policy": {"template": "chain_labels"}})
+    )
+    with pytest.raises(SystemExit, match="similarity"):
+        _cluster(step, labels, tmp_path / "c.json", "--min-score", "0.5")
+
+
+@pytest.mark.parametrize("items", ["interface", "chain"])
+def test_cluster_rejects_items_other_than_entry_rollup(tmp_path, items):
+    step, layer = _cluster_inputs(tmp_path)  # an entry layer
+    with pytest.raises(SystemExit, match="--items"):
+        _cluster(
+            step,
+            layer,
+            tmp_path / "c.json",
+            "--min-score",
+            "0.5",
+            "--items",
+            items,
         )
 
 
@@ -892,23 +966,33 @@ class _Captured(Exception):
 
 def test_cluster_reads_contact_layer(tmp_path, monkeypatch):
     folder = _step_folder(tmp_path)
-    layer = tmp_path / "interfaces"
-    _compute(folder, layer, "--layer", "chain_interfaces")
+    _write_jsonl(
+        folder / "chains.jsonl",
+        [{"entry_id": "1A2C", "chain_id": c} for c in "ABCD"],
+    )
+    contacts = tmp_path / "interfaces"
+    _compute(folder, contacts, "--layer", "chain_interfaces")
+    row = {
+        "item_id_1": "1A2C_A",
+        "item_id_2": "1A2C_B",
+        "score": 0.9,
+        "start_1": 1,
+        "end_1": 50,
+        "start_2": 1,
+        "end_2": 50,
+    }
+    layer = _similarity_layer(tmp_path / "struct", [row], "chain")
     captured = {}
 
-    def fake_cluster(item_ids, search, hit_filter, interface_residues=None):
+    def fake_edges(batches, hit_filter, interface_residues=None):
         captured["residues"] = interface_residues
         raise _Captured
 
-    monkeypatch.setattr(
-        "pandora.cli.similarity.cluster_similar_items", fake_cluster
-    )
-    input_dir, search = _cluster_inputs(tmp_path)
+    monkeypatch.setattr("pandora.cli.similarity.similarity_edges", fake_edges)
     with pytest.raises(_Captured):
         main(
-            ["cluster", "--input-dir", str(input_dir), "--search", str(search)]
-            + ["--min-score", "0.5", "--contacts", str(layer)]
-            + ["--structures-dir", str(folder)]
+            ["cluster", "--similarity", str(layer), "--min-score", "0.5"]
+            + ["--contacts", str(contacts), "--structures-dir", str(folder)]
             + ["--output", str(tmp_path / "c.json")]
         )
 
@@ -917,28 +1001,59 @@ def test_cluster_reads_contact_layer(tmp_path, monkeypatch):
     assert all(residues.values())
 
 
+def test_cluster_interface_layer_takes_items_from_contacts(tmp_path):
+    contacts = tmp_path / "contacts"
+    contacts.mkdir()
+    _write_jsonl(
+        contacts / "layer.jsonl",
+        [
+            {"entry_id": "1A2C", "chain_id_1": a, "chain_id_2": b}
+            | {"seq_id_1": 1, "seq_id_2": 2}
+            for a, b in (("A", "B"), ("B", "C"), ("B", "D"))
+        ],
+    )
+    (contacts / "layer.json").write_text(
+        json.dumps({"policy": {"template": "residue_contacts"}})
+    )
+    layer = _similarity_layer(
+        tmp_path / "ifaces",
+        [{"item_id_1": "1A2C_A_B", "item_id_2": "1A2C_B_C", "score": 0.9}],
+        "interface",
+    )
+    output = tmp_path / "c.json"
+    main(
+        ["cluster", "--similarity", str(layer), "--min-score", "0.5"]
+        + ["--contacts", str(contacts), "--output", str(output)]
+    )
+
+    clusters = [c["components"] for c in json.loads(output.read_text())]
+    assert clusters == [["1A2C_A_B", "1A2C_B_C"], ["1A2C_B_D"]]
+
+
 def test_cluster_rejects_non_contact_layer(tmp_path):
-    layer = tmp_path / "labels"
-    layer.mkdir()
-    (layer / "layer.json").write_text(
+    step, layer = _cluster_inputs(tmp_path, _chain_rows(), items="chain")
+    labels = tmp_path / "labels"
+    labels.mkdir()
+    (labels / "layer.json").write_text(
         json.dumps({"policy": {"template": "chain_labels"}})
     )
-    input_dir, search = _cluster_inputs(tmp_path)
     with pytest.raises(SystemExit, match="residue_contacts"):
-        main(
-            ["cluster", "--input-dir", str(input_dir), "--search", str(search)]
-            + ["--min-score", "0.5", "--contacts", str(layer)]
-            + ["--structures-dir", str(tmp_path)]
-            + ["--output", str(tmp_path / "c.json")]
+        _cluster(
+            step,
+            layer,
+            tmp_path / "c.json",
+            "--min-score",
+            "0.5",
+            "--contacts",
+            str(labels),
         )
 
 
-def test_cluster_contacts_needs_structures_dir(tmp_path):
-    input_dir, search = _cluster_inputs(tmp_path)
+def test_cluster_entry_layer_needs_structures_dir(tmp_path):
+    _, layer = _cluster_inputs(tmp_path)
     with pytest.raises(SystemExit, match="--structures-dir"):
         main(
-            ["cluster", "--input-dir", str(input_dir), "--search", str(search)]
-            + ["--min-score", "0.5", "--contacts", str(tmp_path)]
+            ["cluster", "--similarity", str(layer), "--min-score", "0.5"]
             + ["--output", str(tmp_path / "c.json")]
         )
 
