@@ -17,6 +17,7 @@ from pandora.similarity.layer import (
     entry_items,
     interface_items,
     item_id,
+    item_labels,
     match_similarity_batches,
     parse_item_id,
 )
@@ -36,6 +37,7 @@ __all__ = [
     "entry_items",
     "interface_items",
     "item_id",
+    "item_labels",
     "match_similarity_batches",
     "parse_item_id",
     "chain_item_id",

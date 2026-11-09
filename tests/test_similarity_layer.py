@@ -1,12 +1,14 @@
 import pyarrow as pa
 import pytest
 
+from pandora.schemas.annotation import LayerRow
 from pandora.similarity.layer import (
     chain_items,
     check_similarity_columns,
     entry_items,
     interface_items,
     item_id,
+    item_labels,
     match_similarity_batches,
     parse_item_id,
 )
@@ -144,3 +146,44 @@ def test_check_similarity_columns_names_missing():
     with pytest.raises(ValueError, match="score"):
         check_similarity_columns({"item_id_1", "item_id_2"})
     check_similarity_columns({"item_id_1", "item_id_2", "score", "x"})
+
+
+def _chain_label(entry, chain, label):
+    return LayerRow(entry_id=entry, chain_id=chain, label=label)
+
+
+def _interface_label(entry, chain_1, chain_2, label):
+    return LayerRow(
+        entry_id=entry, chain_id_1=chain_1, chain_id_2=chain_2, label=label
+    )
+
+
+def test_item_labels_chains():
+    rows = [_chain_label("1ABC", "A", "x"), _chain_label("1ABC", "B", "y")]
+    assert item_labels(rows, "chain_labels") == {"1ABC_A": "x", "1ABC_B": "y"}
+
+
+def test_item_labels_interface_order():
+    rows = [_interface_label("1ABC", "B", "A", "het")]
+    assert item_labels(rows, "interface_labels") == {"1ABC_A_B": "het"}
+
+
+def test_item_labels_extended_entry():
+    rows = [{"entry_id": "pdb_00001abc", "chain_id": "A", "label": "x"}]
+    assert item_labels(rows, "chain_labels") == {"pdb_00001abc_A": "x"}
+
+
+def test_item_labels_conflict_raises():
+    rows = [
+        _interface_label("1ABC", "B", "A", "x"),
+        _interface_label("1ABC", "A", "B", "y"),
+        _interface_label("1ABC", "A", "C", "y"),
+        _interface_label("1ABC", "A", "C", "y"),
+    ]
+    with pytest.raises(ValueError, match="1ABC_A_B"):
+        item_labels(rows, "interface_labels")
+
+
+def test_item_labels_wrong_template_raises():
+    with pytest.raises(ValueError, match="residue_labels"):
+        item_labels([], "residue_labels")

@@ -12,7 +12,7 @@ from collections.abc import Collection, Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from pandora.schemas.annotation import SimilarityItems
+from pandora.schemas.annotation import LayerRow, SimilarityItems
 
 if TYPE_CHECKING:
     import pyarrow as pa
@@ -68,6 +68,52 @@ def item_id(level: SimilarityItems, entry_id: str, *chain_ids: str) -> str:
     if level == "interface":
         chain_ids = tuple(sorted(chain_ids))
     return "_".join((entry_id, *chain_ids))
+
+
+_LABEL_LEVELS: dict[str, tuple[SimilarityItems, tuple[str, ...]]] = {
+    "chain_labels": ("chain", ("chain_id",)),
+    "interface_labels": ("interface", ("chain_id_1", "chain_id_2")),
+}
+
+
+def item_labels(
+    rows: Iterable[Mapping[str, Any] | LayerRow], template: str
+) -> dict[str, str]:
+    """Map a label layer's rows to item IDs, e.g. for `partition_dataset`.
+
+    A `chain_labels` row labels the chain item `E_C`, an
+    `interface_labels` row the interface item `E_C1_C2` (chains sorted,
+    so a label on B–A labels `E_A_B`).
+
+    Args:
+        rows: The rows of one `chain_labels` or `interface_labels` layer,
+            as `LayerRow`s or dicts.
+        template: The layer's template.
+
+    Returns:
+        Item ID -> label.
+
+    Raises:
+        ValueError: `template` is not `chain_labels` or
+            `interface_labels`, or one item is given two different
+            labels.
+    """
+
+    if template not in _LABEL_LEVELS:
+        raise ValueError(
+            f"a {template} layer can't label items; use chain_labels or "
+            "interface_labels"
+        )
+    level, columns = _LABEL_LEVELS[template]
+    found: dict[str, str] = {}
+    for row in rows:
+        r = dict(row)  # a LayerRow or a dict
+        item = item_id(level, r["entry_id"], *(r[c] for c in columns))
+        if found.setdefault(item, r["label"]) != r["label"]:
+            raise ValueError(
+                f"{item} has two labels: {found[item]!r} and {r['label']!r}"
+            )
+    return found
 
 
 def parse_item_id(level: SimilarityItems, item: str) -> tuple[str, ...]:
