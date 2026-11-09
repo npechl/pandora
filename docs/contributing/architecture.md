@@ -104,7 +104,8 @@ The contact functions return the same `ResidueContactRow` rows that `annotate im
 | `similarity_edges()` | record batches of a similarity layer, `HitFilter` | `Iterator[Edge]`: streamed, filtered rows |
 | `entry_edges()` | chain-item edges | `Iterator[(entry_id, entry_id)]`: the roll-up to entries |
 | `cluster_edges()` | `item_ids`, any iterable of `(id, id)` pairs | `(list[SimilarityCluster], ClusteringProvenance)` |
-| `partition_dataset()` | `list[SimilarityCluster]` | `(dict[str, list[str]], PartitionProvenance)` — the `train`/`val`/`test` split, whole clusters per side |
+| `item_labels()` | rows of a `chain_labels` / `interface_labels` layer, the template | `dict[str, str]`: item ID → label |
+| `partition_dataset()` | `list[SimilarityCluster]`, optional `labels` (item ID → label) | `(dict[str, list[str]], PartitionProvenance)` — the `train`/`val`/`test` split, whole clusters per side; with `labels`, per-split label counts and the labels missing from a split |
 
 ### Provenance
 

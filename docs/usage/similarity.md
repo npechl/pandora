@@ -435,3 +435,81 @@ Up to this release the searches kept a raw hit TSV with a `SimilaritySearch` rec
     ```
 
     `--no-keep-similar-items` is the CLI form of `keep_similar_items=False`.
+
+### Every kind in every split
+
+Splitting by size alone can leave a kind of item (heteromer interfaces, say) out of a split entirely, and a test set without heteromers tells you nothing about them. Give the split a label per item, from a `chain_labels` or `interface_labels` [layer](annotation.md), and clusters are placed so that every label reaches every split: the rarest labels go first, each using its smallest clusters, then the remaining clusters are placed by size as before. Clusters are still never split, so this is best effort: a label in fewer clusters than there are splits can't reach them all. The partition goes ahead anyway and reports which labels are missing from which splits. Items with no label count as the label `unlabelled`.
+
+Here a labels table, written in pandas, sorts the five chains into two made-up kinds:
+
+```python
+import pandas as pd
+
+labels = pd.DataFrame(
+    {
+        "entry_id": ["104M", "112M", "118L", "138L", "1AYI"],
+        "chain_id": ["A", "A", "A", "A", "A"],
+        "label": ["kind_a", "kind_b", "kind_a", "kind_b", "kind_a"],
+    }
+)
+labels.to_parquet("kinds.parquet")
+```
+
+```yaml
+# kinds.yaml
+name: kinds
+template: chain_labels
+tool: pandas
+tool_version: "2.2"
+parameters: {}
+```
+
+Symmetry copies sit in their source chain's cluster as items of their own, so label them too (e.g. copy the source chain's label, using the `copy_of` column of the step folder's `chains` table); an unlabelled copy counts as `unlabelled`.
+
+=== "`cli`"
+
+    ```bash
+    pandora annotate import --structures-dir curated/ --table kinds.parquet \
+      --description kinds.yaml --output-dir annotations/kinds
+    pandora partition --clusters clusters/chains.json \
+      --labels annotations/kinds --output splits.json
+    jq -c '.label_counts, .missing_labels' partition_provenance.json
+    ```
+
+    ```text
+    imported: 5 rows, 0 unmatched -> annotations/kinds
+    split sizes: {'train': 2, 'val': 2, 'test': 1} -> splits.json
+    unlabelled items: 0 of 5
+    partition: warning: test has no item labelled kind_b
+    {"train":{"kind_a":1,"kind_b":1},"val":{"kind_a":1,"kind_b":1},"test":{"kind_a":1}}
+    {"test":["kind_b"]}
+    ```
+
+    Without `--labels`, the same clusters split as `{'train': 4, 'val': 1, 'test': 0}`: test gets nothing. With labels, `kind_b` sits in two clusters, so it reaches only two splits; the warning and `missing_labels` say which split it misses. `--labels` can't be combined with `--no-keep-similar-items`. A clusters file of another level than the labels (chain clusters, interface labels) runs with every item unlabelled, and the `unlabelled items` line shows it.
+
+=== "`library`"
+
+    ```python
+    import json
+
+    from pandora.export import read_records
+    from pandora.schemas.annotation import LayerRow
+    from pandora.schemas.similarity import SimilarityCluster
+    from pandora.similarity import item_labels, partition_dataset
+
+    clusters = [
+        SimilarityCluster(**c) for c in json.load(open("clusters/chains.json"))
+    ]
+    rows = read_records("annotations/kinds/layer.parquet", LayerRow)
+    labels = item_labels(rows, "chain_labels")
+    splits, provenance = partition_dataset(clusters, labels=labels)
+    print(splits)
+    print(provenance.missing_labels)
+    ```
+
+    ```text
+    {'train': ['104M_A', '112M_A'], 'val': ['118L_A', '138L_A'], 'test': ['1AYI_A']}
+    {'test': ['kind_b']}
+    ```
+
+    `item_labels()` turns a `chain_labels` or `interface_labels` layer into item IDs (`1ABC_A`, `1ABC_A_B`; a label on B–A labels `1ABC_A_B`) and raises `ValueError` if one item has two different labels. `partition_dataset(labels=...)` raises `ValueError` with `keep_similar_items=False`.

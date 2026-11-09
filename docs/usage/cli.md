@@ -99,6 +99,8 @@ pandora partition --clusters clusters.json --pct-train 0.6 --pct-val 0.2 --pct-t
 # split sizes: {'train': 4, 'val': 1, 'test': 0} -> splits.json
 ```
 
+`--labels <layer folder>` takes a `chain_labels` or `interface_labels` layer and places clusters so every label reaches every split where keeping clusters whole allows. `partition_provenance.json` then records `label_counts`, `missing_labels` and `labels_layer`; the command prints how many items were unlabelled and warns for each split missing a label (see [Every kind in every split](similarity.md#every-kind-in-every-split)).
+
 ## annotate compute
 
 One of Pandora's contact layers (`chain_interfaces` or `ligand_contacts`) for every structure of a step folder, written as a layer folder (see [Contacts are one layer](annotation.md#contacts-are-one-layer)):
