@@ -7,7 +7,6 @@ import json
 from pathlib import Path
 
 from pandora.cli._io import (
-    load_interface_residues,
     load_json_list,
     load_json_model,
     load_pairs,
@@ -17,7 +16,8 @@ from pandora.cli._io import (
 from pandora.datasets import (
     entry_sequences,
 )
-from pandora.export import write_json, write_records
+from pandora.export import read_records, write_json, write_records
+from pandora.schemas.annotation import ResidueContactRow
 from pandora.schemas.similarity import (
     HitFilter,
     SimilarityCluster,
@@ -27,6 +27,7 @@ from pandora.similarity import (
     cluster_similar_items,
     compute_sequence_similarity,
     compute_structure_similarity,
+    interface_residues_from_annotation,
     load_similarity_search,
     pair_cluster_keys,
     partition_dataset,
@@ -91,6 +92,50 @@ def _cmd_similarity(args: argparse.Namespace) -> None:
     print(f"hits -> {search.hits_path}; search record -> {record}")
 
 
+def _interface_residues(
+    args: argparse.Namespace,
+) -> dict[str, set[int]] | None:
+    """Interface residue positions from `--contacts`, or None without it."""
+
+    if (args.contacts is None) != (args.structures_dir is None):
+        missing = "--structures-dir" if args.contacts else "--contacts"
+        raise SystemExit(
+            "cluster: --contacts and --structures-dir go together; "
+            f"{missing} is missing"
+        )
+    if args.contacts is None:
+        return None
+    rows = _read_contact_layer(Path(args.contacts))
+    structures = read_structures_dir(Path(args.structures_dir))
+    try:
+        return interface_residues_from_annotation(structures, rows)
+    except KeyError as exc:
+        raise SystemExit(
+            f"cluster: {args.contacts} names an entry missing from "
+            f"{args.structures_dir}: {exc}"
+        ) from exc
+
+
+def _read_contact_layer(folder: Path) -> list[ResidueContactRow]:
+    """The rows of a `residue_contacts` layer folder."""
+
+    summary = folder / "layer.json"
+    if not summary.exists():
+        raise SystemExit(
+            f"cluster: {folder} is not a layer folder (no layer.json)"
+        )
+    template = json.loads(summary.read_text()).get("policy", {}).get("template")
+    if template != "residue_contacts":
+        raise SystemExit(
+            f"cluster: {folder} is a {template} layer, --contacts needs "
+            "residue_contacts"
+        )
+    for name in ("layer.parquet", "layer.jsonl"):
+        if (folder / name).exists():
+            return read_records(folder / name, ResidueContactRow)
+    return []
+
+
 def _cmd_cluster(args: argparse.Namespace) -> None:
     """Handle the `cluster` subcommand: connected-component clustering
     of a relationship network."""
@@ -123,11 +168,7 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
     }
     if overrides:
         hit_filter = hit_filter.model_copy(update=overrides)
-    interface_residues = (
-        load_interface_residues(Path(args.interface_residues))
-        if args.interface_residues
-        else None
-    )
+    interface_residues = _interface_residues(args)
     item_ids = sorted(path.stem.upper() for path in input_dir.glob("*.cif"))
 
     clusters, prov = cluster_similar_items(
@@ -248,11 +289,15 @@ def register(subparsers: argparse._SubParsersAction) -> None:
         help="overrides --hit-filter's min_coverage",
     )
     p.add_argument(
-        "--interface-residues",
+        "--contacts",
         help=(
-            "JSON file of {item_id: [residue position, ...]} for "
-            "min_interface_coverage (Foldseek searches only)"
+            "a residue_contacts layer folder (annotate compute/import), "
+            "for min_interface_coverage (Foldseek searches only)"
         ),
+    )
+    p.add_argument(
+        "--structures-dir",
+        help="the step folder the --contacts layer refers to",
     )
     p.add_argument(
         "--pairs",

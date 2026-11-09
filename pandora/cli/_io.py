@@ -195,14 +195,6 @@ def load_yaml_model(model_cls: type[BaseModel], path: Path) -> BaseModel:
     return model_cls.model_validate(data)
 
 
-def load_interface_residues(path: Path) -> dict[str, set[int]]:
-    """Load a JSON object of item_id -> [residue position, ...] as
-    `compute_structure_similarity(interface_residues=...)` expects."""
-
-    data = json.loads(path.read_text())
-    return {item_id: set(positions) for item_id, positions in data.items()}
-
-
 def load_pairs(path: Path) -> list[tuple[str, str]]:
     """Load a JSON array of [item_id_1, item_id_2] pairs."""
 

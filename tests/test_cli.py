@@ -1005,6 +1005,63 @@ def test_compute_and_import_give_same_interface_records(tmp_path):
     assert len(a) == 3
 
 
+class _Captured(Exception):
+    pass
+
+
+def test_cluster_reads_contact_layer(tmp_path, monkeypatch):
+    folder = _step_folder(tmp_path)
+    layer = tmp_path / "interfaces"
+    _compute(folder, layer, "--layer", "chain_interfaces")
+    captured = {}
+
+    def fake_cluster(item_ids, search, hit_filter, interface_residues=None):
+        captured["residues"] = interface_residues
+        raise _Captured
+
+    monkeypatch.setattr(
+        "pandora.cli.similarity.cluster_similar_items", fake_cluster
+    )
+    input_dir, search = _cluster_inputs(tmp_path)
+    with pytest.raises(_Captured):
+        main(
+            ["cluster", "--input-dir", str(input_dir), "--search", str(search)]
+            + ["--min-score", "0.5", "--contacts", str(layer)]
+            + ["--structures-dir", str(folder)]
+            + ["--output", str(tmp_path / "c.json")]
+        )
+
+    residues = captured["residues"]
+    assert set(residues) == {"1A2C_A", "1A2C_B", "1A2C_C", "1A2C_D"}
+    assert all(residues.values())
+
+
+def test_cluster_rejects_non_contact_layer(tmp_path):
+    layer = tmp_path / "labels"
+    layer.mkdir()
+    (layer / "layer.json").write_text(
+        json.dumps({"policy": {"template": "chain_labels"}})
+    )
+    input_dir, search = _cluster_inputs(tmp_path)
+    with pytest.raises(SystemExit, match="residue_contacts"):
+        main(
+            ["cluster", "--input-dir", str(input_dir), "--search", str(search)]
+            + ["--min-score", "0.5", "--contacts", str(layer)]
+            + ["--structures-dir", str(tmp_path)]
+            + ["--output", str(tmp_path / "c.json")]
+        )
+
+
+def test_cluster_contacts_needs_structures_dir(tmp_path):
+    input_dir, search = _cluster_inputs(tmp_path)
+    with pytest.raises(SystemExit, match="--structures-dir"):
+        main(
+            ["cluster", "--input-dir", str(input_dir), "--search", str(search)]
+            + ["--min-score", "0.5", "--contacts", str(tmp_path)]
+            + ["--output", str(tmp_path / "c.json")]
+        )
+
+
 def test_annotate_old_flat_form_is_gone(tmp_path):
     with pytest.raises(SystemExit):
         main(
