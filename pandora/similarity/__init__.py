@@ -6,6 +6,16 @@ from pandora.similarity.clustering import (
     pair_cluster_keys,
 )
 from pandora.similarity.hits import iter_edges, load_similarity_search
+from pandora.similarity.layer import (
+    ItemSet,
+    chain_items,
+    check_similarity_columns,
+    entry_items,
+    interface_items,
+    item_id,
+    match_similarity_batches,
+    parse_item_id,
+)
 from pandora.similarity.partition import partition_dataset
 from pandora.similarity.sequence import compute_sequence_similarity
 from pandora.similarity.structure import (
@@ -16,6 +26,14 @@ from pandora.similarity.structure import (
 )
 
 __all__ = [
+    "ItemSet",
+    "chain_items",
+    "check_similarity_columns",
+    "entry_items",
+    "interface_items",
+    "item_id",
+    "match_similarity_batches",
+    "parse_item_id",
     "chain_item_id",
     "cluster_edges",
     "cluster_similar_items",
