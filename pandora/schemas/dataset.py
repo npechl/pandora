@@ -70,6 +70,8 @@ class ResidueRecord(BaseModel):
         chain_id: The residue's `label_asym_id`.
         seq_id: The residue's `label_seq_id`, if polymeric.
         auth_seq_id: The residue's `auth_seq_id`.
+        auth_chain_id: The residue's `auth_asym_id`, if known.
+        ins_code: The residue's insertion code, None for none.
         comp_id: The residue's component id (e.g. "ALA").
         atoms: Every atom belonging to this residue.
     """
@@ -78,6 +80,8 @@ class ResidueRecord(BaseModel):
     chain_id: str  # label_asym_id
     seq_id: int | None = None
     auth_seq_id: str | None = None
+    auth_chain_id: str | None = None
+    ins_code: str | None = None
     comp_id: str
     atoms: list[AtomSiteRecord]
     # Coordinates/B-factor live on each AtomSiteRecord — this record is a

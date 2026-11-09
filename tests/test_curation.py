@@ -6,6 +6,7 @@ from pandora.datasets import (
     dataset_chain_records,
     deduplicate_structures,
     extract_chain_records,
+    extract_residue_records,
 )
 from pandora.export import structure_to_mmcif
 from pandora.metadata import collect_metadata
@@ -21,6 +22,7 @@ from pandora.schemas.dataset import (
     DeduplicationRules,
     OrganismRules,
     QualityRules,
+    ResidueRecord,
 )
 from pandora.schemas.metadata import MetadataRecord, QualityRecord
 
@@ -803,3 +805,22 @@ def test_curating_reread_canonical_mmcif_matches_in_memory(tmp_path):
     assert dataset_chain_records(
         a[0], collect_metadata(canon)
     ) == dataset_chain_records(b[0], collect_metadata(reread))
+
+
+def test_residue_records_carry_author_keys():
+    records = extract_residue_records(_load("1a2c"))
+    by_seq = {(r.chain_id, r.seq_id): r for r in records}
+    assert by_seq[("A", 1)].auth_chain_id == "L"
+    assert by_seq[("A", 1)].auth_seq_id == "1"
+    assert by_seq[("A", 1)].ins_code == "H"
+    codes = [by_seq[("A", s)].ins_code for s in (23, 24, 25)]
+    assert codes == ["A", "B", "C"]
+    assert all(by_seq[("A", s)].auth_seq_id == "14" for s in (23, 24, 25))
+    assert any(r.ins_code is None for r in records)
+
+
+def test_residue_record_without_author_keys_still_loads():
+    record = ResidueRecord(
+        entry_id="1abc", chain_id="A", seq_id=1, comp_id="ALA", atoms=[]
+    )
+    assert record.auth_chain_id is None and record.ins_code is None

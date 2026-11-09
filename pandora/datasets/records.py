@@ -6,7 +6,11 @@ from pathlib import Path
 
 from pandora.annotations.entry import atoms_by_asym_id, polymer_asym_ids
 from pandora.datasets.completeness import chain_completeness
-from pandora.schemas.annotation import ContactAtomSet, ResidueContactRow
+from pandora.schemas.annotation import (
+    _NO_INS_CODE,
+    ContactAtomSet,
+    ResidueContactRow,
+)
 from pandora.schemas.dataset import (
     ChainRecord,
     DatasetChainRecord,
@@ -107,6 +111,8 @@ def extract_residue_records(structure: Structure) -> list[ResidueRecord]:
             chain_id=chain_id,
             seq_id=seq_id,
             auth_seq_id=auth_seq_id,
+            auth_chain_id=atoms[0].auth_asym_id,
+            ins_code=_ins_code(atoms[0].pdbx_PDB_ins_code),
             comp_id=comp_id,
             atoms=atoms,
         )
@@ -250,3 +256,9 @@ def dataset_chain_records(
             )
         )
     return rows
+
+
+def _ins_code(value: str | None) -> str | None:
+    """An atom's insertion code, None for none."""
+
+    return None if value is None or value in _NO_INS_CODE else value
