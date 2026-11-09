@@ -196,25 +196,40 @@ def annotate_chain_interfaces(
     return rows
 
 
-def _residue_key(atom: AtomSiteRecord) -> tuple[str, int | None, str | None]:
-    """An atom's residue: (label_asym_id, label_seq_id, auth_seq_id)."""
+def _residue_key(
+    atom: AtomSiteRecord,
+) -> tuple[str, int | None, str | None, str]:
+    """An atom's residue: (label_asym_id, label_seq_id, auth_seq_id,
+    insertion code or "")."""
 
-    return (atom.label_asym_id, atom.label_seq_id, atom.auth_seq_id)
+    return (
+        atom.label_asym_id,
+        atom.label_seq_id,
+        atom.auth_seq_id,
+        _ins_code(atom),
+    )
+
+
+def _ins_code(atom: AtomSiteRecord) -> str:
+    """An atom's insertion code, "" for none ("?" and "." included)."""
+
+    ins = (atom.pdbx_PDB_ins_code or "").strip()
+    return "" if ins in {"?", "."} else ins
 
 
 def _sort_key(pair: tuple[tuple, tuple]) -> tuple:
     """Sort residue pairs by chain, then residue number (None first)."""
 
     return tuple(
-        (chain, seq is not None, seq or 0, auth or "")
-        for chain, seq, auth in pair
+        (chain, seq is not None, seq or 0, auth or "", ins)
+        for chain, seq, auth, ins in pair
     )
 
 
 def _side(atom: AtomSiteRecord, side: str) -> dict[str, Any]:
     """Both namings of atom's residue, as `ResidueContactRow` side fields."""
 
-    ins = (atom.pdbx_PDB_ins_code or "").strip()
+    ins = _ins_code(atom)
     return {
         f"chain_id{side}": atom.label_asym_id,
         f"seq_id{side}": atom.label_seq_id,

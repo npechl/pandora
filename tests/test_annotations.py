@@ -893,3 +893,106 @@ def test_resolve_contacts_bad_distance(distance):
         S,
     )
     assert unmatched[0]["reason"] == "bad_value"
+
+
+def test_resolve_microheterogeneity_is_one_residue():
+    # A:5 has altloc A = SER and altloc B = THR at one position.
+    atoms = [
+        _atom(
+            id=1,
+            label_asym_id="A",
+            label_seq_id=5,
+            auth_seq_id="5",
+            label_comp_id="SER",
+            alt_id="A",
+            entity_id="1",
+        ),
+        _atom(
+            id=2,
+            label_asym_id="A",
+            label_seq_id=5,
+            auth_seq_id="5",
+            label_comp_id="THR",
+            alt_id="B",
+            entity_id="1",
+        ),
+        _atom(
+            id=3,
+            label_asym_id="B",
+            label_seq_id=7,
+            auth_seq_id="7",
+            entity_id="2",
+            x=3.0,
+        ),
+    ]
+    structure = _structure(
+        atoms,
+        [
+            EntityRecord(id="1", type="polymer"),
+            EntityRecord(id="2", type="polymer"),
+        ],
+        [
+            AsymRecord(id="A", entity_id="1", auth_id="A"),
+            AsymRecord(id="B", entity_id="2", auth_id="B"),
+        ],
+    )
+    row = {
+        "entry_id": "test",
+        "auth_chain_id_1": "A",
+        "auth_seq_id_1": "5",
+        "auth_chain_id_2": "B",
+        "auth_seq_id_2": "7",
+    }
+
+    matched, unmatched = resolve_layer_rows(
+        [row], "residue_contacts", {"test": structure}
+    )
+
+    assert unmatched == []
+    assert matched[0]["comp_id_1"] == "SER"  # first atom, as the built-ins
+    (built_in,) = annotate_chain_interfaces(structure)
+    assert built_in.comp_id_1 == "SER"
+
+
+def test_ligand_contacts_keep_insertion_codes_apart():
+    # Waters 301 and 301A in one chain, each near a different residue.
+    atoms = [
+        _atom(id=1, label_asym_id="A", label_seq_id=1, entity_id="1", x=0.0),
+        _atom(id=2, label_asym_id="A", label_seq_id=2, entity_id="1", x=50.0),
+        _atom(
+            id=3,
+            group_PDB="HETATM",
+            label_asym_id="W",
+            label_seq_id=None,
+            label_comp_id="HOH",
+            auth_seq_id="301",
+            entity_id="2",
+            x=1.0,
+        ),
+        _atom(
+            id=4,
+            group_PDB="HETATM",
+            label_asym_id="W",
+            label_seq_id=None,
+            label_comp_id="HOH",
+            auth_seq_id="301",
+            entity_id="2",
+            x=51.0,
+        ),
+    ]
+    atoms[3] = atoms[3].model_copy(update={"pdbx_PDB_ins_code": "A"})
+    structure = _structure(
+        atoms,
+        [
+            EntityRecord(id="1", type="polymer"),
+            EntityRecord(id="2", type="water"),
+        ],
+        [AsymRecord(id="A", entity_id="1"), AsymRecord(id="W", entity_id="2")],
+    )
+
+    rows = annotate_ligand_contacts(structure, include_waters=True)
+
+    assert {(r.seq_id_1, r.auth_seq_id_2, r.ins_code_2) for r in rows} == {
+        (1, "301", None),
+        (2, "301", "A"),
+    }

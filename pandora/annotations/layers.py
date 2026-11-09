@@ -104,9 +104,8 @@ def check_layer_columns(
         )
 
 
-# A residue: (chain_id, seq_id, auth_chain_id, auth_seq_id, ins_code,
-# comp_id).
-_Residue = tuple[str, int | None, str | None, str | None, str | None, str]
+# A residue: (chain_id, seq_id, auth_chain_id, auth_seq_id, ins_code).
+_Residue = tuple[str, int | None, str | None, str | None, str | None]
 _NO_INS = ("", "?", ".")
 
 
@@ -166,6 +165,9 @@ class _Index:
     )
     unobserved_label: set[tuple[str, int]] = field(default_factory=set)
     unobserved_auth: set[tuple[str, str, str]] = field(default_factory=set)
+    # A residue's name, from its first atom (microheterogeneity: one
+    # residue, several altloc residue names).
+    comp_of: dict[_Residue, str] = field(default_factory=dict)
 
 
 def _build_index(structure: Structure) -> _Index:
@@ -188,11 +190,11 @@ def _build_index(structure: Structure) -> _Index:
             atom.auth_asym_id,
             atom.auth_seq_id,
             ins or None,
-            atom.label_comp_id,
         )
         if residue in seen:
             continue
         seen.add(residue)
+        index.comp_of[residue] = atom.label_comp_id
         if atom.label_seq_id is not None:
             index.by_label[(atom.label_asym_id, atom.label_seq_id)] = residue
         if atom.auth_asym_id is not None and atom.auth_seq_id is not None:
@@ -282,14 +284,14 @@ def _resolve_residue(
             return result
     if len(set(found)) > 1:
         return "naming_conflict"
-    chain_id, seq_id, auth_chain_id, auth_seq_id, ins_code, comp_id = found[0]
+    chain_id, seq_id, auth_chain_id, auth_seq_id, ins_code = found[0]
     return {
         f"chain_id{side}": chain_id,
         f"seq_id{side}": seq_id,
         f"auth_chain_id{side}": auth_chain_id,
         f"auth_seq_id{side}": auth_seq_id,
         f"ins_code{side}": ins_code,
-        f"comp_id{side}": comp_id,
+        f"comp_id{side}": index.comp_of[found[0]],
     }
 
 
