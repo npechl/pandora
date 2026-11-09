@@ -12,7 +12,11 @@ from pandora.annotations.entry import (
 from pandora.annotations.layers import check_layer_columns, resolve_layer_rows
 from pandora.datasets import extract_interface_records
 from pandora.parsing import mmcif_to_structure
-from pandora.schemas.annotation import LayerDescription, LayerRow
+from pandora.schemas.annotation import (
+    LayerDescription,
+    LayerRow,
+    ResidueContactRow,
+)
 from pandora.schemas.dataset import InterfaceRecord
 from pandora.schemas.structure import (
     AsymRecord,
@@ -542,6 +546,7 @@ def test_resolve_author_naming_fills_pandora_keys():
             "auth_chain_id": "L",
             "auth_seq_id": "1",
             "ins_code": "G",
+            "comp_id": "PHE",
             "value": 0.5,
         }
     ]
@@ -554,11 +559,12 @@ def test_resolve_pandora_naming_fills_author_keys():
         S,
     )
     row = m[0]
-    assert (row["auth_chain_id"], row["auth_seq_id"], row["ins_code"]) == (
-        "L",
-        "1",
-        "H",
-    )
+    assert (
+        row["auth_chain_id"],
+        row["auth_seq_id"],
+        row["ins_code"],
+        row["comp_id"],
+    ) == ("L", "1", "H", "THR")
 
 
 def test_resolve_parquet_floats_and_ins_code_spellings():
@@ -762,3 +768,62 @@ def test_resolve_no_coordinates_without_poly_seq_scheme():
         {"1A2C": s},
     )
     assert u[0]["reason"] == "no_coordinates"
+
+
+def test_residue_contact_row_reads_parquet_shapes():
+    row = ResidueContactRow.model_validate(
+        {
+            "entry_id": "1A2C",
+            "chain_id_1": "A",
+            "seq_id_1": 42.0,
+            "ins_code_1": "",
+            "chain_id_2": "E",
+            "seq_id_2": None,
+            "ins_code_2": "?",
+            "distance": "3.5",
+            "tool_score": 7,
+        }
+    )
+    assert row.seq_id_1 == 42
+    assert row.ins_code_1 is None and row.ins_code_2 is None
+    assert row.distance == 3.5
+    assert row.model_dump()["tool_score"] == 7
+
+
+def test_resolve_fills_comp_id():
+    matched, _ = resolve_layer_rows(
+        [
+            {
+                "entry_id": "1A2C",
+                "chain_id_1": "A",
+                "seq_id_1": 1,
+                "chain_id_2": "B",
+                "seq_id_2": 1,
+            }
+        ],
+        "residue_contacts",
+        S,
+    )
+    assert (matched[0]["comp_id_1"], matched[0]["comp_id_2"]) == (
+        "THR",
+        "ILE",
+    )
+
+
+@pytest.mark.parametrize("distance", ["near", True])
+def test_resolve_contacts_bad_distance(distance):
+    _, unmatched = resolve_layer_rows(
+        [
+            {
+                "entry_id": "1A2C",
+                "chain_id_1": "A",
+                "seq_id_1": 1,
+                "chain_id_2": "B",
+                "seq_id_2": 1,
+                "distance": distance,
+            }
+        ],
+        "residue_contacts",
+        S,
+    )
+    assert unmatched[0]["reason"] == "bad_value"

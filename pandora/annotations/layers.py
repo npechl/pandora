@@ -104,8 +104,9 @@ def check_layer_columns(
         )
 
 
-# A residue: (chain_id, seq_id, auth_chain_id, auth_seq_id, ins_code).
-_Residue = tuple[str, int | None, str | None, str | None, str | None]
+# A residue: (chain_id, seq_id, auth_chain_id, auth_seq_id, ins_code,
+# comp_id).
+_Residue = tuple[str, int | None, str | None, str | None, str | None, str]
 _NO_INS = ("", "?", ".")
 
 
@@ -187,6 +188,7 @@ def _build_index(structure: Structure) -> _Index:
             atom.auth_asym_id,
             atom.auth_seq_id,
             ins or None,
+            atom.label_comp_id,
         )
         if residue in seen:
             continue
@@ -280,13 +282,14 @@ def _resolve_residue(
             return result
     if len(set(found)) > 1:
         return "naming_conflict"
-    chain_id, seq_id, auth_chain_id, auth_seq_id, ins_code = found[0]
+    chain_id, seq_id, auth_chain_id, auth_seq_id, ins_code, comp_id = found[0]
     return {
         f"chain_id{side}": chain_id,
         f"seq_id{side}": seq_id,
         f"auth_chain_id{side}": auth_chain_id,
         f"auth_seq_id{side}": auth_seq_id,
         f"ins_code{side}": ins_code,
+        f"comp_id{side}": comp_id,
     }
 
 
@@ -337,7 +340,23 @@ def _bad_value(row: Mapping[str, Any], template: LayerTemplate) -> bool:
         )
     if required == "label":
         return not isinstance(value, str) or not value
+    if template == "residue_contacts" and _present(row.get("distance")):
+        return not _is_number(row["distance"])
     return False
+
+
+def _is_number(value: Any) -> bool:
+    """Whether value is a number or a string holding one (not a bool)."""
+
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int | float):
+        return True
+    try:
+        float(str(value))
+    except ValueError:
+        return False
+    return True
 
 
 def resolve_layer_rows(

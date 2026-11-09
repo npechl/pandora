@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 AnnotationScope = Literal[
     "entry",
@@ -104,3 +104,70 @@ class LayerRow(BaseModel):
     """One row of an imported layer table: any columns, kept as given."""
 
     model_config = ConfigDict(extra="allow")
+
+
+_NO_INS_CODE = {"", "?", "."}
+
+
+class ResidueContactRow(BaseModel):
+    """One row of a `residue_contacts` layer: two residues in contact.
+
+    Built-in contact annotations return these, and `annotate import`
+    stores them, so any consumer works on either. Each side names its
+    residue in both Pandora's naming (`chain_id_s` = `label_asym_id`,
+    `seq_id_s` = `label_seq_id`, None for non-polymer residues) and the
+    author's (`auth_chain_id_s`, `auth_seq_id_s`, `ins_code_s`).
+
+    Attributes:
+        entry_id: The structure's entry id.
+        chain_id_1: Side 1 chain (`label_asym_id`).
+        seq_id_1: Side 1 residue (`label_seq_id`), None if non-polymer.
+        auth_chain_id_1: Side 1 author chain id.
+        auth_seq_id_1: Side 1 author residue number.
+        ins_code_1: Side 1 insertion code, None for none.
+        comp_id_1: Side 1 residue name (e.g. "ALA").
+        chain_id_2: Side 2 chain (`label_asym_id`).
+        seq_id_2: Side 2 residue (`label_seq_id`), None if non-polymer.
+        auth_chain_id_2: Side 2 author chain id.
+        auth_seq_id_2: Side 2 author residue number.
+        ins_code_2: Side 2 insertion code, None for none.
+        comp_id_2: Side 2 residue name.
+        contact_type: The kind of contact, if the tool reports one.
+        distance: The contact distance in angstroms, if known.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    entry_id: str
+    chain_id_1: str
+    seq_id_1: int | None = None
+    auth_chain_id_1: str | None = None
+    auth_seq_id_1: str | None = None
+    ins_code_1: str | None = None
+    comp_id_1: str | None = None
+    chain_id_2: str
+    seq_id_2: int | None = None
+    auth_chain_id_2: str | None = None
+    auth_seq_id_2: str | None = None
+    ins_code_2: str | None = None
+    comp_id_2: str | None = None
+    contact_type: str | None = None
+    distance: float | None = None
+
+    @field_validator("seq_id_1", "seq_id_2", mode="before")
+    @classmethod
+    def _whole_float_seq_id(cls, value: Any) -> Any:
+        """Parquet stores a nullable int column as float (42.0)."""
+
+        if isinstance(value, float) and value.is_integer():
+            return int(value)
+        return value
+
+    @field_validator("ins_code_1", "ins_code_2", mode="before")
+    @classmethod
+    def _no_ins_code(cls, value: Any) -> Any:
+        """ "", "?" and "." all mean no insertion code."""
+
+        if isinstance(value, str) and value.strip() in _NO_INS_CODE:
+            return None
+        return value
