@@ -313,22 +313,22 @@ When a missing-fraction rule is set, a chain whose completeness can't be measure
 
 ## Similarity hit filter
 
-`HitFilter` (`pandora.schemas.similarity.HitFilter`) decides which MMseqs2/Foldseek hit rows become similarity edges when clustering (`iter_edges()`, `cluster_similar_items()`). A pair of items is an edge if any single hit row passes every threshold. `None` thresholds aren't applied; the others are inclusive (`>=`). See [Similarity](../usage/similarity.md#filtering-hits-hitfilter) for usage.
+`HitFilter` (`pandora.schemas.similarity.HitFilter`) decides which rows of a [similarity layer](../usage/similarity.md#the-similarity-layer) become edges when clustering (`pandora cluster`, `similarity_edges()`). A pair of items is an edge if any single row passes every threshold. `None` thresholds aren't applied; the others are inclusive (`>=`). A null or NaN value fails. A threshold on a column the layer doesn't have raises `ValueError` before any row is read. See [Similarity](../usage/similarity.md#filtering-hits-hitfilter) for usage.
 
 | Field | Default | Description |
 |---|---|---|
-| `min_score` | `None` | Minimum score: TM-score for Foldseek (see `tm_normalisation`), identity for MMseqs2. |
-| `min_identity` | `None` | Minimum fraction of identical aligned residues. |
+| `min_score` | `None` | Minimum value of `score_column`. |
+| `score_column` | `score` | The column `min_score` tests: `score` (identity for Pandora's MMseqs2 layers, alignment TM-score for its Foldseek layers), or any other number column of the layer, e.g. `qtmscore` / `ttmscore` in a Foldseek layer. |
+| `min_identity` | `None` | Minimum `identity` (fraction of identical aligned residues). |
 | `min_coverage` | `None` | Minimum alignment coverage (see `coverage_of`). |
-| `coverage_of` | `both` | Which coverage is tested: `both` (the smaller of query and target), `query`, `target`, or `either` (the larger). |
-| `min_interface_coverage` | `None` | Minimum fraction of each side's interface residues inside the alignment. Foldseek only; needs `interface_residues`, otherwise `iter_edges()` raises `ValueError`. |
-| `tm_normalisation` | `alignment` | Foldseek TM-score used as the score: `alignment` (`alntmscore`), `query` (`qtmscore`), `target` (`ttmscore`), or `max` (the larger of the two). Must be `alignment` for MMseqs2 searches. |
+| `coverage_of` | `both` | Which coverage is tested: `both` (the smaller of `coverage_1` and `coverage_2`), `side_1`, `side_2`, or `either` (the larger). |
+| `min_interface_coverage` | `None` | Minimum fraction of each side's interface residues inside the alignment. Needs the alignment ranges (`start_1`, `end_1`, `start_2`, `end_2`) and interface residues (`pandora cluster --contacts`), otherwise `similarity_edges()` raises `ValueError`. |
 
 ```yaml
 min_score: 0.5
+score_column: qtmscore
 min_coverage: 0.8
 coverage_of: both
-tm_normalisation: max
 ```
 
 ## Provenance

@@ -41,7 +41,7 @@ showing an empty tab.
 | [Ingestion](ingestion.md) | Fetch mmCIF files from PDBe/PDB (with on-disk caching), load a canonicalisation policy YAML |
 | [Canonicalisation](canonicalisation.md) | Normalize a parsed `Structure` against a policy — chain IDs, altlocs, entities, ligands, and more |
 | [Metadata](metadata.md) | Extract source-backed entry/quality/taxonomy/entity/ligand/UniProt records — library-only, no CLI subcommand |
-| [Annotation](annotation.md) | Derived per-entry/pairwise layers: structure counts, ligand contacts, chain interfaces, sequence identity |
+| [Annotation](annotation.md) | Derived layers: ligand contacts, chain interfaces, and layers imported from other tools |
 | [Datasets](datasets.md) | Curate and deduplicate a batch, reshape a canonical `Structure` into flat Chain/Residue/Interface records |
 | [Similarity](similarity.md) | All-vs-all sequence/structure similarity, connected-component clustering, leakage-safe train/val/test partitioning |
 | [Export](export.md) | Write a `Structure` (or the records from Datasets) back to mmCIF, JSON, or Parquet |

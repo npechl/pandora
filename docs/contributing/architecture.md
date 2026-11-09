@@ -71,9 +71,8 @@ only need one piece. See [Metadata](../usage/metadata.md).
 |---|---|---|
 | `annotate_ligand_contacts()` | `Structure` | `list[ResidueContactRow]` (a `residue_contacts` layer) |
 | `annotate_chain_interfaces()` | `Structure` | `list[ResidueContactRow]` (a `residue_contacts` layer) |
-| `annotate_pairwise_sequence_identity()` | two `Structure`s | `AnnotationLayer` (`type="pairwise_sequence_identity"`) |
 
-The contact functions return the same `ResidueContactRow` rows that `annotate import` stores for another tool's contacts, so everything that reads contacts takes either; see [Annotation](../usage/annotation.md#contacts-are-one-layer). Pairwise identity still returns the older `AnnotationLayer` envelope, whose `layer.data` holds the result.
+The contact functions return the same `ResidueContactRow` rows that `annotate import` stores for another tool's contacts, so everything that reads contacts takes either; see [Annotation](../usage/annotation.md#contacts-are-one-layer).
 
 ### Datasets
 
@@ -87,18 +86,20 @@ The contact functions return the same `ResidueContactRow` rows that `annotate im
 | `extract_residue_records()` | `Structure` | `list[ResidueRecord]` |
 | `extract_interface_records()` | `Iterable[ResidueContactRow]`, `distance_cutoff`, `atom_set` | `list[InterfaceRecord]` — one per polymer chain pair in any `residue_contacts` layer |
 | `interface_residue_pairs()` | `Iterable[ResidueContactRow]` | `dict[(entry_id, chain_1, chain_2), set[(res_1, res_2)]]` — the polymer–polymer pairs behind `extract_interface_records()` |
-| `entry_sequences()` | `dict[str, Structure]` | `dict[str, str]` — one representative sequence per entry, feeds `compute_sequence_similarity()` |
 
 ### Similarity
 
 | Function | Takes | Returns |
 |---|---|---|
-| `compute_sequence_similarity()` | sequences (`dict[str, str]`, `list[ChainRecord]`, or a FASTA directory), `hits_path` | `SimilaritySearch` — MMseqs2's hit TSV kept at `hits_path` |
-| `compute_structure_similarity()` | structure file paths, `hits_path` | `SimilaritySearch` — Foldseek's hit TSV kept at `hits_path` |
-| `load_similarity_search()` | an existing hit TSV, `engine` | `SimilaritySearch` (`origin="precomputed"`) |
-| `iter_edges()` | `SimilaritySearch`, `HitFilter` | `Iterator[Edge]` — streamed, filtered hit rows |
+| `compute_sequence_similarity()` | sequences (`dict[str, str]`, `list[ChainRecord]`, or a FASTA directory), `hits_path` | `LayerDescription` of the chain-level similarity layer; MMseqs2's hit TSV is written to `hits_path` |
+| `compute_structure_similarity()` | structure file paths, `hits_path` | `LayerDescription`; Foldseek's hit TSV is written to `hits_path` |
+| `read_hit_tsv()` | a tool's hit TSV, `engine` | `Iterator[pyarrow.RecordBatch]` in the `similarity` template's columns |
+| `read_similarity_table()` | a Parquet or TSV similarity table | `Iterator[pyarrow.RecordBatch]` |
+| `entry_items()` / `chain_items()` / `interface_items()` | entry IDs / `(entry, chain)` pairs / contact rows | `ItemSet`: the items a layer may name |
+| `match_similarity_batches()` | record batches, `ItemSet` | `Iterator[(matched, unmatched)]` record batches |
+| `similarity_edges()` | record batches of a similarity layer, `HitFilter` | `Iterator[Edge]`: streamed, filtered rows |
+| `entry_edges()` | chain-item edges | `Iterator[(entry_id, entry_id)]`: the roll-up to entries |
 | `cluster_edges()` | `item_ids`, any iterable of `(id, id)` pairs | `(list[SimilarityCluster], ClusteringProvenance)` |
-| `cluster_similar_items()` | `item_ids`, `SimilaritySearch`, `HitFilter` | `(list[SimilarityCluster], ClusteringProvenance)` — streams `iter_edges()` into `cluster_edges()` |
 | `partition_dataset()` | `list[SimilarityCluster]` | `(dict[str, list[str]], PartitionProvenance)` — the `train`/`val`/`test` split, whole clusters per side |
 
 ### Provenance

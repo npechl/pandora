@@ -19,7 +19,7 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
     from pandora.datasets import (
         curate_structure,
         deduplicate_structures,
-        entry_sequences,
+        extract_chain_records,
         extract_interface_records,
     )
     from pandora.export import write_json, write_records
@@ -30,9 +30,12 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
     from pandora.schemas.similarity import HitFilter
     from pandora.schemas.structure import Structure
     from pandora.similarity import (
-        cluster_similar_items,
+        cluster_edges,
         compute_sequence_similarity,
+        entry_edges,
         partition_dataset,
+        read_hit_tsv,
+        similarity_edges,
     )
 
     MMCIF_DIR = Path("./datasets/dev/mmcif")
@@ -108,14 +111,17 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
         f"{len(interfaces)} chain-chain interfaces"
     )
 
-    # 3. Entry-level sequence identity -> similarity network -> clusters.
-    sequences = entry_sequences(structures)
+    # 3. Chain-level sequence identity, rolled up to entries -> clusters.
+    #    Two entries share a cluster when any of their chains are similar.
+    chains = [c for s in structures.values() for c in extract_chain_records(s)]
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    search = compute_sequence_similarity(sequences, OUTPUT_DIR / "hits.tsv")
-    item_ids = sorted(sequences)  # same ids compute_sequence_similarity used
-    clusters, cluster_prov = cluster_similar_items(
-        item_ids, search, HitFilter(min_score=IDENTITY_THRESHOLD)
+    compute_sequence_similarity(chains, OUTPUT_DIR / "hits.tsv")
+    hit_filter = HitFilter(min_score=IDENTITY_THRESHOLD)
+    edges = similarity_edges(
+        read_hit_tsv(OUTPUT_DIR / "hits.tsv", "MMseqs2"), hit_filter
     )
+    clusters, cluster_prov = cluster_edges(sorted(structures), entry_edges(edges))
+    cluster_prov = cluster_prov.model_copy(update={"hit_filter": hit_filter})
     print(
         f"{len(clusters)} sequence-identity cluster(s) at {IDENTITY_THRESHOLD:.0%}"
     )
@@ -246,14 +252,17 @@ structures = heteromeric
 
 ### 4. Cluster and split, leakage-safe
 
-Entry-level sequence identity (via `entry_sequences()` — one representative sequence per entry) feeds [`compute_sequence_similarity()`](../usage/similarity.md#sequence-similarity-mmseqs2), whose hit file (kept on disk) is filtered by a [`HitFilter`](../usage/similarity.md#filtering-hits-hitfilter) and clustered by [`cluster_similar_items()`](../usage/similarity.md#clustering) at ATOM3D PIP's own 30% identity threshold. [`partition_dataset()`](../usage/similarity.md#leakage-safe-partitioning) then moves whole clusters together, so no two complexes above that threshold end up split across train/val/test:
+Every polymer chain's sequence goes into one all-vs-all [`compute_sequence_similarity()`](../usage/similarity.md#sequence-similarity-mmseqs2) search. Its hits are filtered by a [`HitFilter`](../usage/similarity.md#filtering-hits-hitfilter) at ATOM3D PIP's own 30% identity threshold and [rolled up to entries](../usage/similarity.md#clustering-entries-from-a-chain-layer) with `entry_edges()`, so two complexes share a cluster when any of their chains are similar. `cluster_edges()` then clusters the entries. [`partition_dataset()`](../usage/similarity.md#leakage-safe-partitioning) then moves whole clusters together, so no two complexes above that threshold end up split across train/val/test:
 
 ```python linenums="1"
-sequences = entry_sequences(structures)
-search = compute_sequence_similarity(sequences, OUTPUT_DIR / "hits.tsv")
-clusters, cluster_prov = cluster_similar_items(
-    sorted(sequences), search, HitFilter(min_score=IDENTITY_THRESHOLD)
+chains = [c for s in structures.values() for c in extract_chain_records(s)]
+compute_sequence_similarity(chains, OUTPUT_DIR / "hits.tsv")
+hit_filter = HitFilter(min_score=IDENTITY_THRESHOLD)
+edges = similarity_edges(
+    read_hit_tsv(OUTPUT_DIR / "hits.tsv", "MMseqs2"), hit_filter
 )
+clusters, cluster_prov = cluster_edges(sorted(structures), entry_edges(edges))
+cluster_prov = cluster_prov.model_copy(update={"hit_filter": hit_filter})
 splits, partition_prov = partition_dataset(
     clusters, pct_train=0.7, pct_val=0.15, pct_test=0.15
 )
@@ -408,37 +417,17 @@ datasets/output/ppi/
         "duplicates_found": 0
     },
     "clustering": {
-        "clustered_at": "2026-10-07T19:28:23.898995+00:00",
+        "clustered_at": "2026-11-09T16:12:43.663850+00:00",
         "hit_filter": {
             "min_score": 0.3,
+            "score_column": "score",
             "min_identity": null,
             "min_coverage": null,
             "coverage_of": "both",
-            "min_interface_coverage": null,
-            "tm_normalisation": "alignment"
+            "min_interface_coverage": null
         },
-        "search": {
-            "engine": "MMseqs2",
-            "version": "18.8cc5c",
-            "hits_path": "datasets/output/ppi/hits.tsv",
-            "columns": [
-                "query",
-                "target",
-                "fident",
-                "alnlen",
-                "qcov",
-                "tcov"
-            ],
-            "parameters": {
-                "mmseqs_bin": "mmseqs",
-                "sensitivity": 5.7,
-                "max_seqs": 300,
-                "mmseqs_options": []
-            },
-            "origin": "computed",
-            "searched_at": "2026-10-07T19:28:23.898396+00:00"
-        },
-        "n_edges": 38,
+        "similarity_layer": null,
+        "n_edges": 398,
         "n_edges_unknown_ids": 0,
         "n_clusters": 35
     },

@@ -1,6 +1,6 @@
 # Datasets
 
-`pandora.datasets` filters structures for inclusion (`curate_structure`, `deduplicate_structures`), measures chain completeness (`chain_completeness`), and reshapes a canonical `Structure` into flat, ML-friendlier records (`extract_*_records`, `entry_sequences`). See [Functions](../reference/functions.md#pandora.datasets) for full signatures.
+`pandora.datasets` filters structures for inclusion (`curate_structure`, `deduplicate_structures`), measures chain completeness (`chain_completeness`), and reshapes a canonical `Structure` into flat, ML-friendlier records (`extract_*_records`). See [Functions](../reference/functions.md#pandora.datasets) for full signatures.
 
 Each curation section applies one kind of rule to fixtures from `datasets/dev/mmcif/`. The `library` tab is the Python code and what it prints; the `cli` tab does the same with `pandora curate`, writing the policy as YAML and reading `exclusions.jsonl` with [`jq`](https://jqlang.org/). Run the CLI examples from the repository root. The test suite runs every example on this page and checks it still prints what is shown. The [curation policy reference](../reference/policies.md#curation) lists every field.
 
@@ -816,17 +816,10 @@ this reshaping step.
 ```python
 from pandora.annotations import annotate_chain_interfaces
 from pandora.datasets import (
-    entry_sequences,
     extract_chain_records,
     extract_residue_records,
     extract_interface_records,
 )
-
-# One representative sequence per entry (its longest polymer chain) —
-# what compute_sequence_similarity()/entry-keyed clustering expect.
-sequences = entry_sequences({canonical.entry_id: canonical})
-print(sequences)
-# {'104M': 'MVLSEGEWQLVLHVWAKVEAD...'}  (157 residues)
 
 chains = extract_chain_records(canonical)
 print([(c.chain_id, c.residue_count) for c in chains])

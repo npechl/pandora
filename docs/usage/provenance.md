@@ -16,7 +16,6 @@ from pandora.ingestion import fetch_mmcif
 from pandora.parsing import mmcif_to_structure
 from pandora.canonicalisation import canonicalise_structure
 from pandora.metadata import collect_metadata
-from pandora.annotations import annotate_pairwise_sequence_identity
 from pandora.schemas.canonicalisation import canonicalisationPolicy
 from pandora.schemas.dataset import DatasetCurationPolicy
 
@@ -69,18 +68,14 @@ below.
 ```python
 from pandora.provenance import build_provenance_bundle
 
-identity = annotate_pairwise_sequence_identity(
-    structures["104M"], structures["112M"]
-)
 bundle = build_provenance_bundle(
     structures["104M"],
     ingestion=ingestion_prov["104M"],
     canonicalisation=canon_prov["104M"],
     metadata=metadata,
-    annotations=[identity],
 )
-print(bundle.entry_id, bundle.ingestion is not None, len(bundle.annotations))
-# 104M True 1
+print(bundle.entry_id, bundle.ingestion is not None)
+# 104M True
 ```
 
 ## Assemble a dataset manifest
@@ -148,10 +143,7 @@ into one `DatasetManifest`.
 ## Replay a manifest from scratch
 
 `reproduce_dataset()` re-fetches every structure via its bundle's
-`ingestion` provenance, then replays canonicalisation, curation, dedup,
-similarity/clustering, partitioning, and pairwise sequence identity
-annotations exactly as the manifest recorded them. Contact layers
-(`residue_contacts`) are not `AnnotationLayer`s and are not replayed.
+`ingestion` provenance, then replays canonicalisation, curation and dedup as the manifest recorded them. Similarity, clustering, partitioning and annotation layers are not replayed: the reproduced manifest has no `clustering`, `partition` or `splits`.
 
 === "`library`"
 
@@ -174,4 +166,4 @@ annotations exactly as the manifest recorded them. Contact layers
 
     `--no-cache` skips the ingestion cache and always re-downloads.
 
-It's a best-effort re-run, not a guaranteed byte-identical rebuild — diff the reproduced manifest against the input to see what changed. Two hard requirements, both raising `ValueError` if unmet: every structure's bundle needs `ingestion` provenance (this is why the walkthrough above fetches for real, unlike the other usage pages), and reproducing `clustering` needs `ClusteringProvenance.search` and `.hit_filter` set (a precomputed hit file is re-used only if it still exists; interface coverage filters can't be reproduced automatically).
+It's a best-effort re-run, not a guaranteed byte-identical rebuild — diff the reproduced manifest against the input to see what changed. Every structure's bundle needs `ingestion` provenance, otherwise it raises `ValueError` (this is why the walkthrough above fetches for real, unlike the other usage pages).

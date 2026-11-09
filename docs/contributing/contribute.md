@@ -102,12 +102,7 @@ logic in `pandora/<package>/`** (see [Architecture](architecture.md)).
 
 ## Add a new annotation
 
-Entry-level annotations live in `pandora/annotations/entry.py`,
-pairwise ones in `pandora/annotations/pairwise.py`. Both follow the
-same shape as the existing `annotate_*()` functions: take a
-`Structure` (or two), return an `AnnotationLayer`
-(`pandora/schemas/annotation.py`). Register it in
-`pandora/annotations/__init__.py`'s `__all__`.
+Built-in annotations live in `pandora/annotations/entry.py`. They follow the same shape as `annotate_chain_interfaces()`: take a `Structure` and return rows of a layer template (e.g. `list[ResidueContactRow]`, `pandora/schemas/annotation.py`), the same rows `annotate import` stores for another tool. Register the function in `pandora/annotations/__init__.py`'s `__all__`. A new kind of information is a new template, not a new class.
 
 There's no formal plugin-registration system yet. If you want a plugin protocol that lets
 annotations be registered/discovered instead of hand-imported, that's

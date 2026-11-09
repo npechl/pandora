@@ -175,34 +175,9 @@ Side 1 is the polymer residue, side 2 the ligand, named by its author IDs (it ha
 
     `--include-waters` counts waters. A flag that belongs to the other layer (`--atom-set` here) is an error.
 
-## Pairwise sequence identity
+## Sequence similarity
 
-`annotate_pairwise_sequence_identity()` compares every polymer entity
-in one structure against every polymer entity in another with a
-simple ungapped, position-wise comparison (no alignment step — see
-`examples/dataset_pipeline.py` for where this genuinely fools itself
-on a shifted reading frame), and reports the best-scoring pair.
-
-=== "`library`"
-
-    ```python
-    from pandora.annotations import annotate_pairwise_sequence_identity
-
-    s2, _, _ = mmcif_to_structure("datasets/dev/mmcif/04/104m.cif")
-    c2, _, _ = canonicalise_structure(s2, policy)
-
-    identity = annotate_pairwise_sequence_identity(canonical, c2)
-    print(identity.data["best_identity"])
-    # 0.168 — 1a3n (hemoglobin) and 104m (myoglobin) are only distantly related
-    ```
-
-=== "`cli`"
-
-    No CLI yet. Pairwise identity moves to the similarity layer in a later release.
-
-For a real alignment-based identity between *sequences* (not entities
-within structures) at dataset scale, see
-[`compute_sequence_similarity()`](similarity.md#sequence-similarity-mmseqs2).
+Pairwise sequence identity is no longer an annotation: similarity is its own [layer](similarity.md#the-similarity-layer), computed with MMseqs2 (`pandora similarity search`) or imported from any other source (`pandora similarity import`).
 
 ## Importing a layer from another tool
 

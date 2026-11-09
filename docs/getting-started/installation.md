@@ -89,7 +89,7 @@ python -m pip show pandora
 | `pip install -e ".[ingestion]"` | **ingestion** — fetch mmCIF files from PDBe/RCSB myself | `httpx`, for `fetch_mmcif()` / `fetch_list_mmcif()` |
 | `pip install -e .` | **canonicalisation** — apply a policy to normalize chain IDs, altlocs, entities, ligands, etc. via `canonicalise_structure()` | nothing |
 | `pip install -e .` | **metadata** — collect source-backed entry/quality/taxonomy/entity/ligand/UniProt-mapping records via `collect_metadata()` | nothing |
-| `pip install -e .` | **annotations** — derived per-entry/pairwise layers: structure counts, ligand contacts, chain interfaces, sequence identity | nothing |
+| `pip install -e .` | **annotations** — derived layers: ligand contacts, chain interfaces, and layers imported from other tools | nothing |
 | `pip install -e .` | **datasets** — reshape a canonical `Structure` into Chain/Residue/Interface records via `extract_*_records()`, and curate/deduplicate a dataset via `curate_structure()` / `deduplicate_structures()` | nothing |
 | `pip install -e ".[similarity]"` + `mmseqs2`/`foldseek` on `PATH` | **similarity** — compute sequence/structure similarity | nothing pip-managed — see below |
 | `pip install -e .` | **provenance** — build a per-structure `ProvenanceBundle` (ingestion/canonicalisation/metadata/annotation provenance) via `build_provenance_bundle()` | nothing |

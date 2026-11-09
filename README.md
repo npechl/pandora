@@ -34,7 +34,7 @@ Use the components you need, in the order you need them.
 | `pandora.parsing` | Parse mmCIF into a typed `Structure` (via gemmi), keeping unknown categories |
 | `pandora.canonicalisation` | Policy-driven normalisation: chain IDs, residue numbering, assemblies, altlocs, missing data, entities, ligands, validation |
 | `pandora.metadata` | Entry, quality, taxonomy, entity, ligand, and UniProt-mapping records |
-| `pandora.annotations` | Derived layers: structure counts, ligand contacts, chain interfaces, pairwise sequence identity |
+| `pandora.annotations` | Derived layers: ligand contacts, chain interfaces, and layers imported from other tools |
 | `pandora.datasets` | Chain/residue/interface records; policy-driven curation and deduplication |
 | `pandora.similarity` | MMseqs2/Foldseek similarity, clustering, and leakage-safe train/val/test splits |
 | `pandora.provenance` | Per-structure provenance bundles, dataset manifests, and `reproduce_dataset()` |

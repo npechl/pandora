@@ -179,17 +179,26 @@ git commit -am "refactor!: remove pairwise sequence identity and reproduce's sim
 def test_similarity_description_needs_items():
     with pytest.raises(ValidationError, match="items"):
         LayerDescription(name="g", template="similarity", tool="R")
-    d = LayerDescription(name="g", template="similarity", tool="R", items="chain")
+    d = LayerDescription(
+        name="g", template="similarity", tool="R", items="chain"
+    )
     assert d.items == "chain"
+
 
 def test_items_rejected_for_other_templates():
     with pytest.raises(ValidationError, match="items"):
-        LayerDescription(name="c", template="residue_contacts", tool="x", items="chain")
+        LayerDescription(
+            name="c", template="residue_contacts", tool="x", items="chain"
+        )
+
 
 def test_similarity_row_coerces_int_score():
-    row = SimilarityRow(item_id_1="1ABC_A", item_id_2="2XYZ_B", score=3, extra_col="k")
+    row = SimilarityRow(
+        item_id_1="1ABC_A", item_id_2="2XYZ_B", score=3, extra_col="k"
+    )
     assert row.score == 3.0 and isinstance(row.score, float)
     assert row.model_dump()["extra_col"] == "k"
+
 
 def test_annotate_import_refuses_similarity_template():
     with pytest.raises(ValueError, match="pandora similarity import"):
@@ -281,42 +290,78 @@ def test_item_id_round_trip_and_interface_sorted():
     with pytest.raises(ValueError):
         parse_item_id("interface", "1ABC_A")
 
+
 def _batch(**cols):
     return pa.RecordBatch.from_pydict(cols)
 
+
 def test_chain_match_is_case_insensitive_on_entry_only():
     items = chain_items([("104M", "A"), ("112M", "A")])
-    batch = _batch(item_id_1=["104m_A", "104M_a", "999X_A", "112M"],
-                   item_id_2=["112M_A"] * 4, score=[1, 1, 1, 1])
+    batch = _batch(
+        item_id_1=["104m_A", "104M_a", "999X_A", "112M"],
+        item_id_2=["112M_A"] * 4,
+        score=[1, 1, 1, 1],
+    )
     matched, unmatched = next(match_similarity_batches([batch], items))
     assert matched.column("item_id_1").to_pylist() == ["104M_A"]
     assert matched.schema.field("score").type == pa.float64()
     assert unmatched.column("reason").to_pylist() == [
-        "chain_not_found", "entry_not_found", "bad_item_id"]
+        "chain_not_found",
+        "entry_not_found",
+        "bad_item_id",
+    ]
+
 
 def test_interface_items_come_from_contacts_only():
-    rows = [dict(entry_id="1A2C", chain_id_1="B", chain_id_2="A", seq_id_1=5, seq_id_2=7),
-            dict(entry_id="1A2C", chain_id_1="B", chain_id_2="E", seq_id_1=5, seq_id_2=None)]
+    rows = [
+        dict(
+            entry_id="1A2C",
+            chain_id_1="B",
+            chain_id_2="A",
+            seq_id_1=5,
+            seq_id_2=7,
+        ),
+        dict(
+            entry_id="1A2C",
+            chain_id_1="B",
+            chain_id_2="E",
+            seq_id_1=5,
+            seq_id_2=None,
+        ),
+    ]
     items = interface_items(rows)
-    batch = _batch(item_id_1=["1A2C_B_A", "1A2C_B_C"], item_id_2=["1A2C_A_B", "1A2C_A_B"], score=[0.9, 0.9])
+    batch = _batch(
+        item_id_1=["1A2C_B_A", "1A2C_B_C"],
+        item_id_2=["1A2C_A_B", "1A2C_A_B"],
+        score=[0.9, 0.9],
+    )
     matched, unmatched = next(match_similarity_batches([batch], items))
     assert matched.column("item_id_1").to_pylist() == ["1A2C_A_B"]
     assert unmatched.column("reason").to_pylist() == ["interface_not_found"]
 
+
 def test_entry_items_and_bad_value():
     items = entry_items(["104M", "112M"])
-    batch = _batch(item_id_1=["104M", "104M"], item_id_2=["112M", "112M"],
-                   score=["0.5", "x"], keep=["a", "b"])
+    batch = _batch(
+        item_id_1=["104M", "104M"],
+        item_id_2=["112M", "112M"],
+        score=["0.5", "x"],
+        keep=["a", "b"],
+    )
     matched, unmatched = next(match_similarity_batches([batch], items))
     assert matched.column("score").to_pylist() == [0.5]
     assert matched.column("keep").to_pylist() == ["a"]
     assert unmatched.column("reason").to_pylist() == ["bad_value"]
 
+
 def test_self_hits_and_repeats_are_kept():
     items = chain_items([("104M", "A")])
-    batch = _batch(item_id_1=["104M_A"] * 2, item_id_2=["104M_A"] * 2, score=[1.0, 1.0])
+    batch = _batch(
+        item_id_1=["104M_A"] * 2, item_id_2=["104M_A"] * 2, score=[1.0, 1.0]
+    )
     matched, _ = next(match_similarity_batches([batch], items))
     assert matched.num_rows == 2
+
 
 def test_check_similarity_columns_names_missing():
     with pytest.raises(ValueError, match="score"):
@@ -425,10 +470,13 @@ def test_read_hit_tsv_maps_foldseek_columns(tmp_path):
     assert row["item_id_1"] == "a_A" and row["score"] == row["alntmscore"]
     assert {"coverage_1", "start_2", "qtmscore"} <= set(row)
 
+
 def test_read_similarity_table_bad_extra_column_names_file(tmp_path):
     path = tmp_path / "edges.tsv"
     lines = ["item_id_1\titem_id_2\tscore\tnote_num"]
-    lines += [f"104M_A\t112M_A\t0.5\t{i}" for i in range(5000)] + ["104M_A\t112M_A\t0.5\tn/a"]
+    lines += [f"104M_A\t112M_A\t0.5\t{i}" for i in range(5000)] + [
+        "104M_A\t112M_A\t0.5\tn/a"
+    ]
     path.write_text("\n".join(lines) + "\n")
     with pytest.raises(ValueError, match="edges.tsv"):
         list(read_similarity_table(path))
@@ -456,32 +504,47 @@ def _similarity_step(tmp_path):
     """Step folder with tables only: entries 104M, 112M; chains 104M_A, 112M_A, 112M_B (copy of A)."""
     ...  # entries.jsonl, chains.jsonl (with sequence, copy_of), curation.json
 
+
 def test_similarity_search_mmseqs_writes_layer_without_copies(tmp_path):
     # fake mmseqs: records the query FASTA, writes rows 104M_A->112M_A and 104M_A->999X_A
     ...
     assert ">112M_B" not in query_fasta
     rows = pq.read_table(out / "layer.parquet").to_pylist()
-    assert [(r["item_id_1"], r["item_id_2"]) for r in rows] == [("104M_A", "112M_A")]
-    assert pq.read_table(out / "unmatched.parquet").column("reason").to_pylist() == ["entry_not_found"]
+    assert [(r["item_id_1"], r["item_id_2"]) for r in rows] == [
+        ("104M_A", "112M_A")
+    ]
+    assert pq.read_table(out / "unmatched.parquet").column(
+        "reason"
+    ).to_pylist() == ["entry_not_found"]
     assert not (out / "hits.tsv").exists()
     summary = json.loads((out / "layer.json").read_text())
     assert summary["step"] == "similarity_search"
     assert summary["policy"]["items"] == "chain"
     assert summary["previous_summary"].endswith("curation.json")
 
-def test_similarity_import_tsv_entry_level(tmp_path): ...
+
+def test_similarity_import_tsv_entry_level(tmp_path):
+    ...
     # description items: entry; rows 104m->112M, 104M->999X; layer has 104M/112M, unmatched entry_not_found
 
-def test_similarity_import_interface_level_needs_contacts(tmp_path): ...
+
+def test_similarity_import_interface_level_needs_contacts(tmp_path):
+    ...
     # --structures-dir with items: interface -> SystemExit mentioning --contacts
 
-def test_similarity_import_chain_level_on_canonicalise_folder(tmp_path): ...
+
+def test_similarity_import_chain_level_on_canonicalise_folder(tmp_path):
+    ...
     # folder without chains table -> SystemExit mentioning "pandora curate"
 
-def test_similarity_import_missing_items_stops_before_writing(tmp_path): ...
+
+def test_similarity_import_missing_items_stops_before_writing(tmp_path):
+    ...
     # description without items -> SystemExit, output dir has no layer.json
 
-def test_similarity_search_refuses_existing_layer(tmp_path): ...
+
+def test_similarity_search_refuses_existing_layer(tmp_path):
+    ...
     # second run without --overwrite -> SystemExit
 ```
 
@@ -588,19 +651,30 @@ their cases: inclusive thresholds, any passing row makes an edge, NaN
 fails, interface coverage, self-hits skipped. Add:
 
 ```python
-def test_similarity_edges_score_column(): ...
+def test_similarity_edges_score_column():
+    ...
     # HitFilter(min_score=0.6, score_column="qtmscore") keeps a row with score 0.1, qtmscore 0.7
 
-@pytest.mark.parametrize("coverage_of, expected", [("both", 0.4), ("side_1", 0.9), ("side_2", 0.4), ("either", 0.9)])
+
+@pytest.mark.parametrize(
+    "coverage_of, expected",
+    [("both", 0.4), ("side_1", 0.9), ("side_2", 0.4), ("either", 0.9)],
+)
 def test_similarity_edges_coverage_of(coverage_of, expected): ...
 
-def test_similarity_edges_null_coverage_fails_threshold(): ...
+
+def test_similarity_edges_null_coverage_fails_threshold():
+    ...
     # coverage_1=None with min_coverage=0.1 -> no edge, no error
 
-def test_similarity_edges_threshold_on_absent_column_raises(): ...
+
+def test_similarity_edges_threshold_on_absent_column_raises():
+    ...
     # min_identity set, no identity column -> ValueError before iteration yields
 
-def test_similarity_edges_batching_does_not_change_edges(): ...
+
+def test_similarity_edges_batching_does_not_change_edges():
+    ...
     # same rows as one batch vs three batches -> identical edge lists
 ```
 

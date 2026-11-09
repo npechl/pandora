@@ -61,30 +61,34 @@ pandora dedup --input-dir curated/ --output-dir deduped/
 
 ## similarity
 
-All-vs-all sequence or structure similarity (requires `mmseqs`/`foldseek` on `PATH`). The tool's hits are kept in `--output`, and the `SimilaritySearch` record that `cluster` reads goes next to it as `<output>.search.json`:
+`similarity search` runs an all-vs-all search (requires `mmseqs`/`foldseek` on `PATH`) over a step folder's chains and writes the hits as a [similarity layer](similarity.md#the-similarity-layer) folder: `layer.parquet`, `unmatched.parquet` and `layer.json`. MMseqs2 reads the chain sequences from `--structures-dir`'s `chains` table (written by `curate`), leaving symmetry copies out; Foldseek searches the per-chain files in `--input-dir`, named `{entry}_{chain}.cif`. Similarity layers are Parquet and need the `export` extra.
 
 ```sh
-pandora similarity --input-dir deduped/ --engine mmseqs2 --max-seqs 300 --output mmseqs.tsv
-# hits -> mmseqs.tsv; search record -> mmseqs.tsv.search.json
+pandora similarity search --engine mmseqs2 --structures-dir curated/ --max-seqs 300 --output-dir similarity/seq
+# searched: 9 hits, 0 unmatched -> similarity/seq
 ```
 
-`--max-seqs` (and `--exhaustive-search` for Foldseek) control how many hits each query keeps; see the [`max_seqs` warning](similarity.md#sequence-similarity-mmseqs2). `--precomputed-hits <tsv>` wraps a hit file you ran yourself instead of searching ([Precomputed searches](similarity.md#precomputed-searches)).
+`--max-seqs` (and `--exhaustive-search` for Foldseek) control how many hits each query keeps; see the [`max_seqs` warning](similarity.md#sequence-similarity-mmseqs2).
 
-`--engine foldseek` works the same way. When chaining `similarity
---engine foldseek` into `cluster` below, keep to this exact
-`similarity` → `cluster` order on the *same* directory — see
-[Keep ids consistent between stages](similarity.md#keep-ids-consistent-between-stages).
+`similarity import` brings in an edge list computed any other way (Parquet, or TSV with a header row), described by a YAML with `template: similarity` and `items: entry | chain | interface`. Entry and chain items are checked against `--structures-dir`'s tables, interface items against a contact layer given with `--contacts`. See [Importing an edge list](similarity.md#importing-an-edge-list).
+
+```sh
+pandora similarity import --table r_graph_edges.tsv --description r_graph.yaml --structures-dir curated/ --output-dir similarity/r_graph
+# imported: 2 rows, 1 unmatched -> similarity/r_graph
+```
+
+Both refuse an `--output-dir` that already holds a layer, unless `--overwrite` is given.
 
 ## cluster
 
-Connected-component clustering of a search's hits, filtered by a [`HitFilter`](similarity.md#filtering-hits-hitfilter):
+Connected-component clustering of a similarity layer, filtered by a [`HitFilter`](similarity.md#filtering-hits-hitfilter). The items come from `--structures-dir` (entries or chains) or `--contacts` (interfaces), so items with no hits are single-item clusters:
 
 ```sh
-pandora cluster --input-dir deduped/ --search mmseqs.tsv.search.json --min-score 0.9 --output clusters.json
+pandora cluster --similarity similarity/seq --structures-dir curated/ --min-score 0.9 --output clusters.json
 # 3 clusters from 4 edges -> clusters.json
 ```
 
-`--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score`/`--min-coverage` override its fields. One of the three is required — there is no default threshold. For `min_interface_coverage`, pass a contact layer folder with `--contacts` and the step folder it refers to with `--structures-dir` (see [interface coverage](similarity.md#deriving-interface_residues-correctly)).
+`--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score`/`--min-coverage` override its fields. One of the three is required; there is no default threshold. `--items entry` on a chain layer clusters entries, linking two entries when any of their chains are similar ([Clustering entries from a chain layer](similarity.md#clustering-entries-from-a-chain-layer)). For `min_interface_coverage` on a chain layer, pass a contact layer folder with `--contacts` alongside `--structures-dir` (see [interface coverage](similarity.md#interface-restricted-coverage-ppi-pairs)). `--pairs pairs.json` also writes per-pair cluster keys to `cluster_pairs.json`.
 
 ## partition
 
