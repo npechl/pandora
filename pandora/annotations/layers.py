@@ -80,9 +80,14 @@ def check_layer_columns(
     Raises:
         ValueError: `entry_id` is absent, a side has neither Pandora's
             nor the author's naming columns complete, or the template's
-            required value column is absent.
+            required value column is absent. `template` is
+            "similarity", which `pandora similarity import` handles.
     """
 
+    if template == "similarity":
+        raise ValueError(
+            "similarity layers are imported with `pandora similarity import`"
+        )
     if "entry_id" not in columns:
         raise ValueError(
             f"table has no 'entry_id' column, which template "

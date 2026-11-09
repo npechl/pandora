@@ -17,6 +17,7 @@ from pandora.schemas.annotation import (
     LayerDescription,
     LayerRow,
     ResidueContactRow,
+    SimilarityRow,
 )
 from pandora.schemas.dataset import InterfaceRecord
 from pandora.schemas.structure import (
@@ -996,3 +997,33 @@ def test_ligand_contacts_keep_insertion_codes_apart():
         (1, "301", None),
         (2, "301", "A"),
     }
+
+
+def test_similarity_description_needs_items():
+    with pytest.raises(ValidationError, match="items"):
+        LayerDescription(name="g", template="similarity", tool="R")
+    description = LayerDescription(
+        name="g", template="similarity", tool="R", items="chain"
+    )
+    assert description.items == "chain"
+
+
+def test_items_rejected_for_other_templates():
+    with pytest.raises(ValidationError, match="items"):
+        LayerDescription(
+            name="c", template="residue_contacts", tool="x", items="chain"
+        )
+
+
+def test_similarity_row_coerces_int_score():
+    row = SimilarityRow(
+        item_id_1="1ABC_A", item_id_2="2XYZ_B", score=3, extra_col="k"
+    )
+    assert row.score == 3.0
+    assert isinstance(row.score, float)
+    assert row.model_dump()["extra_col"] == "k"
+
+
+def test_annotate_import_refuses_similarity_template():
+    with pytest.raises(ValueError, match="pandora similarity import"):
+        check_layer_columns({"item_id_1", "item_id_2", "score"}, "similarity")

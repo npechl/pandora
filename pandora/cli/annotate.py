@@ -137,6 +137,8 @@ def _cmd_import(args: argparse.Namespace) -> None:
     table = Path(args.table)
     try:
         description = load_policy(args.description, model=LayerDescription)
+        if description.template == "similarity":
+            check_layer_columns((), "similarity")
         rows = [row.model_dump() for row in read_records(table, LayerRow)]
         if rows:
             columns = {column for row in rows for column in row}

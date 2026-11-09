@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 AnnotationScope = Literal[
     "entry",
@@ -59,8 +65,13 @@ LayerTemplate = Literal[
     "chain_labels",
     "interface_labels",
     "free_form",
+    "similarity",
 ]
 """The table shapes an imported annotation layer can take."""
+
+SimilarityItems = Literal["entry", "chain", "interface"]
+"""What a `similarity` layer's items are: entries (`1ABC`), chains
+(`1ABC_A`) or interfaces (`1ABC_A_B`)."""
 
 UnmatchedReason = Literal[
     "entry_not_found",
@@ -72,6 +83,8 @@ UnmatchedReason = Literal[
     "ambiguous_author_id",
     "bad_value",
     "duplicate_key",
+    "interface_not_found",
+    "bad_item_id",
 ]
 """Why an imported row could not be linked to a structure."""
 
@@ -88,6 +101,8 @@ class LayerDescription(BaseModel):
         tool_version: The tool's version, if known.
         parameters: The tool's parameters, recorded as given.
         description: Free text about the layer.
+        items: For a `similarity` layer, what its items are; required
+            there and rejected for every other template.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -98,6 +113,22 @@ class LayerDescription(BaseModel):
     tool_version: str | None = None
     parameters: dict[str, Any] = Field(default_factory=dict)
     description: str = ""
+    items: SimilarityItems | None = None
+
+    @model_validator(mode="after")
+    def _items_only_for_similarity(self) -> LayerDescription:
+        """`items` is required for `similarity` and nowhere else."""
+
+        if self.template == "similarity" and self.items is None:
+            raise ValueError(
+                "similarity layers need `items`: entry, chain or interface"
+            )
+        if self.template != "similarity" and self.items is not None:
+            raise ValueError(
+                f"`items` applies only to similarity layers, not "
+                f"{self.template!r}"
+            )
+        return self
 
 
 class LayerRow(BaseModel):
@@ -171,3 +202,37 @@ class ResidueContactRow(BaseModel):
         if isinstance(value, str) and value.strip() in _NO_INS_CODE:
             return None
         return value
+
+
+class SimilarityRow(BaseModel):
+    """One row of a `similarity` layer: a hit between two items.
+
+    Describes and checks the template, e.g. for small tables and tests.
+    Similarity layers can hold billions of rows, so bulk reading works
+    on pyarrow record batches and never builds one of these per row.
+
+    Attributes:
+        item_id_1: Side 1 item, e.g. "1ABC_A" (see `SimilarityItems`).
+        item_id_2: Side 2 item.
+        score: The hit's score.
+        identity: Fraction of identical aligned residues, if known.
+        coverage_1: Alignment coverage of item 1, if known.
+        coverage_2: Alignment coverage of item 2, if known.
+        start_1: First aligned position on item 1 (1-based), if known.
+        end_1: Last aligned position on item 1, if known.
+        start_2: First aligned position on item 2, if known.
+        end_2: Last aligned position on item 2, if known.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    item_id_1: str
+    item_id_2: str
+    score: float
+    identity: float | None = None
+    coverage_1: float | None = None
+    coverage_2: float | None = None
+    start_1: int | None = None
+    end_1: int | None = None
+    start_2: int | None = None
+    end_2: int | None = None

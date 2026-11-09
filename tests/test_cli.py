@@ -1184,3 +1184,14 @@ def test_annotate_import_parquet_with_mixed_type_columns(tmp_path):
     ]
     assert reasons == ["bad_value", "residue_not_found"]
     assert (out / "layer.json").exists()
+
+
+def test_annotate_import_refuses_similarity_layer(tmp_path):
+    args = _layer_inputs(tmp_path)
+    (tmp_path / "cocada.yaml").write_text(
+        "name: s\ntemplate: similarity\nitems: chain\ntool: R\n"
+    )
+    (tmp_path / "t.jsonl").write_text("")
+    with pytest.raises(SystemExit, match="pandora similarity import"):
+        main(["annotate", "import", *args])
+    assert not (tmp_path / "annotations" / "t").exists()
