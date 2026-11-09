@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import inspect
 import json
+import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -17,7 +18,9 @@ from pandora.annotations import (
     annotate_ligand_contacts,
     check_layer_columns,
     count_chain_contacts,
+    count_interface_labels,
     count_residue_contacts,
+    drop_labelled_interfaces,
     resolve_layer_rows,
 )
 from pandora.annotations.entry import CONTACT_ATOM_SETS
@@ -275,6 +278,120 @@ def _cmd_count(args: argparse.Namespace) -> None:
     )
 
 
+def _layer_origin(folder: Path) -> Path | None:
+    """The structures folder a layer was made from, or None if unknown.
+
+    Follows `previous_summary` back through layer summaries (a filtered
+    layer points at its parent layer) to the structures folder's step
+    summary.
+    """
+
+    summary = json.loads((folder / "layer.json").read_text())
+    while True:
+        previous = summary.get("previous_summary")
+        if previous is None:
+            if summary.get("step") == "annotation_compute":
+                return Path(summary["input"]).resolve()
+            return None
+        previous = Path(previous)
+        if previous.name != "layer.json":
+            return previous.parent.resolve()
+        summary = json.loads(previous.read_text())
+
+
+def _cmd_filter(args: argparse.Namespace) -> None:
+    """Handle `annotate filter-contacts`: a contact layer without the
+    interfaces a labels layer marks for dropping, as a new layer."""
+
+    command = "annotate filter-contacts"
+    started_at = now_iso()
+    check_table_format(args.table_format)
+    contacts = Path(args.contacts_dir)
+    labels = Path(args.labels_dir)
+    out = Path(args.output_dir)
+    check_contact_layer(command, contacts)
+    if not (labels / "layer.json").exists():
+        raise SystemExit(f"{command}: {labels} is not a layer folder")
+    labels_policy = (
+        json.loads((labels / "layer.json").read_text()).get("policy") or {}
+    )
+    if labels_policy.get("template") != "interface_labels":
+        raise SystemExit(
+            f"{command}: {labels} is a {labels_policy.get('template')} "
+            "layer, --labels needs interface_labels"
+        )
+    for flag, folder in (("contacts", contacts), ("labels", labels)):
+        if out.resolve() == folder.resolve():
+            raise SystemExit(
+                f"{command}: {out} is the --{flag} folder; choose another "
+                "--output-dir"
+            )
+    origins = {
+        flag: _layer_origin(folder)
+        for flag, folder in (("contacts", contacts), ("labels", labels))
+    }
+    if None in origins.values():
+        unknown = [flag for flag, origin in origins.items() if origin is None]
+        print(
+            f"{command}: warning: cannot tell which structures folder the "
+            f"--{' and --'.join(unknown)} layer came from; check that both "
+            "layers use the same chain ids",
+            file=sys.stderr,
+        )
+    elif origins["contacts"] != origins["labels"]:
+        raise SystemExit(
+            f"{command}: --contacts comes from {origins['contacts']}, "
+            f"--labels from {origins['labels']}; both layers must come "
+            "from the same structures folder"
+        )
+
+    table = find_table(contacts, "layer")
+    rows = read_records(table, ResidueContactRow) if table else []
+    table = find_table(labels, "layer")
+    label_rows = read_records(table, LayerRow) if table else []
+    drop = set(args.drop)
+    try:
+        kept = drop_labelled_interfaces(rows, label_rows, drop)
+    except ValueError as exc:
+        raise SystemExit(f"{command}: {exc}") from exc
+
+    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    write_table(kept, out, "layer", args.table_format)
+    source = json.loads((contacts / "layer.json").read_text())["policy"]
+    description = LayerDescription(
+        name="filtered_contacts",
+        template="residue_contacts",
+        tool="pandora",
+        tool_version=__version__,
+        parameters={
+            "contacts_layer": source.get("name"),
+            "labels_layer": labels_policy.get("name"),
+            "labels_dir": str(labels),
+            "drop": sorted(drop),
+        },
+    )
+    counts = count_interface_labels(rows, label_rows, drop)
+    counts |= {"rows_in": len(rows), "rows_out": len(kept)}
+    write_json(
+        build_step_summary(
+            "annotation_filter",
+            description,
+            input=contacts,
+            output=out,
+            started_at=started_at,
+            counts=dict(sorted(counts.items())),
+            previous_summary=contacts / "layer.json",
+        ),
+        out / "layer.json",
+    )
+    kept_interfaces = counts["interfaces_in"] - counts["interfaces_dropped"]
+    print(
+        f"filtered: {counts['interfaces_dropped']} interfaces dropped, "
+        f"{kept_interfaces} kept, {counts['interfaces_unlabelled']} "
+        f"unlabelled -> {out}"
+    )
+
+
 def register(subparsers: argparse._SubParsersAction) -> None:
     """Add this module's subcommands to the `pandora` parser."""
 
@@ -330,3 +447,20 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--overwrite", action="store_true")
     p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet")
     p.set_defaults(func=_cmd_count)
+
+    p = commands.add_parser(
+        "filter-contacts",
+        help="Drop labelled interfaces from a contact layer.",
+    )
+    p.add_argument("--contacts", dest="contacts_dir", required=True)
+    p.add_argument("--labels", dest="labels_dir", required=True)
+    p.add_argument(
+        "--drop",
+        action="append",
+        required=True,
+        help="an interface label that means drop (repeatable)",
+    )
+    p.add_argument("--output-dir", required=True)
+    p.add_argument("--overwrite", action="store_true")
+    p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet")
+    p.set_defaults(func=_cmd_filter)

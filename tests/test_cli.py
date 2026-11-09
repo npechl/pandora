@@ -8,7 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from pandora.annotations import count_chain_contacts, count_residue_contacts
+from pandora.annotations import (
+    count_chain_contacts,
+    count_residue_contacts,
+    drop_labelled_interfaces,
+)
 from pandora.cli._io import read_structures_dir, write_structures_dir
 from pandora.cli.app import _build_parser, main
 from pandora.datasets import extract_interface_records
@@ -1589,3 +1593,206 @@ def test_annotate_count_contacts_refuses_its_input_as_output(tmp_path):
             + ["--overwrite", "--table-format", "jsonl"]
         )
     assert (contacts / "layer.jsonl").read_text() == before
+
+
+def _import_labels(tmp_path, step, rows, out, template="interface_labels"):
+    table = tmp_path / f"{out.name}.jsonl"
+    _write_jsonl(table, rows)
+    description = tmp_path / f"{out.name}.yaml"
+    description.write_text(
+        f"name: {out.name}\ntemplate: {template}\ntool: pandas\n"
+        'tool_version: "1"\n'
+    )
+    main(
+        ["annotate", "import", "--structures-dir", str(step)]
+        + ["--table", str(table), "--description", str(description)]
+        + ["--output-dir", str(out), "--table-format", "jsonl"]
+    )
+
+
+def _contact_pairs(contacts):
+    rows = _jsonl(contacts / "layer.jsonl")
+    return sorted({(r["chain_id_1"], r["chain_id_2"]) for r in rows})
+
+
+def _verdicts(pairs):
+    """Label the first pair `bad`, the rest `ok`."""
+
+    return [
+        {"entry_id": "1a2c", "chain_id_1": c1, "chain_id_2": c2}
+        | {"label": "bad" if i == 0 else "ok"}
+        for i, (c1, c2) in enumerate(pairs)
+    ]
+
+
+def _filter_inputs(tmp_path, labels_step=None):
+    """A contact layer of 1a2c and a labels layer marking its first
+    interface `bad`; returns (step, contacts, labels)."""
+
+    step = _step_folder(tmp_path)
+    (step / "curation.json").write_text("{}")
+    contacts = tmp_path / "annotations" / "interfaces"
+    _compute(step, contacts, "--layer", "chain_interfaces")
+    labels = tmp_path / "annotations" / "verdict"
+    _import_labels(
+        tmp_path,
+        labels_step or step,
+        _verdicts(_contact_pairs(contacts)),
+        labels,
+    )
+    return step, contacts, labels
+
+
+def _filter(contacts, labels, out, *extra):
+    main(
+        ["annotate", "filter-contacts", "--contacts", str(contacts)]
+        + ["--labels", str(labels), "--output-dir", str(out)]
+        + ["--table-format", "jsonl", *extra]
+    )
+
+
+def test_annotate_filter_contacts_writes_layer(tmp_path):
+    _, contacts, labels = _filter_inputs(tmp_path)
+    out = tmp_path / "filtered"
+    _filter(contacts, labels, out, "--drop", "bad")
+
+    rows = read_records(contacts / "layer.jsonl", ResidueContactRow)
+    label_rows = read_records(labels / "layer.jsonl", LayerRow)
+    written = read_records(out / "layer.jsonl", ResidueContactRow)
+    assert written == drop_labelled_interfaces(rows, label_rows, {"bad"})
+    bad = set(_contact_pairs(contacts)[0])
+    assert all({r.chain_id_1, r.chain_id_2} != bad for r in written)
+    assert len(written) < len(rows)
+
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["step"] == "annotation_filter"
+    assert summary["policy"]["name"] == "filtered_contacts"
+    assert summary["policy"]["template"] == "residue_contacts"
+    assert summary["policy"]["parameters"] == {
+        "contacts_layer": "chain_interfaces",
+        "labels_layer": "verdict",
+        "labels_dir": str(labels),
+        "drop": ["bad"],
+    }
+    assert summary["previous_summary"] == str(contacts / "layer.json")
+    n = len(_contact_pairs(contacts))
+    assert summary["counts"] == {
+        "interfaces_dropped": 1,
+        "interfaces_in": n,
+        "interfaces_unlabelled": 0,
+        "labels_unmatched": 0,
+        "rows_in": len(rows),
+        "rows_out": len(written),
+    }
+
+
+def test_annotate_filter_contacts_output_feeds_records(tmp_path):
+    _, contacts, labels = _filter_inputs(tmp_path)
+    out = tmp_path / "filtered"
+    _filter(contacts, labels, out, "--drop", "bad")
+    rows = read_records(out / "layer.jsonl", ResidueContactRow)
+    pairs = {
+        frozenset((r.chain_id_1, r.chain_id_2))
+        for r in extract_interface_records(rows)
+    }
+    assert pairs
+    assert frozenset(_contact_pairs(contacts)[0]) not in pairs
+
+
+def test_annotate_filter_contacts_chains(tmp_path):
+    _, contacts, labels = _filter_inputs(tmp_path)
+    first = tmp_path / "first"
+    _filter(contacts, labels, first, "--drop", "bad")
+    second = tmp_path / "second"
+    _filter(first, labels, second, "--drop", "bad")
+    assert (second / "layer.jsonl").read_text() == (
+        first / "layer.jsonl"
+    ).read_text()
+    counts = json.loads((second / "layer.json").read_text())["counts"]
+    assert counts["interfaces_dropped"] == 0
+    assert counts["labels_unmatched"] == 1
+
+
+def test_annotate_filter_contacts_rejects_wrong_labels_template(tmp_path):
+    step, contacts, _ = _filter_inputs(tmp_path)
+    chain_labels = tmp_path / "chain_verdict"
+    _import_labels(
+        tmp_path,
+        step,
+        [{"entry_id": "1a2c", "chain_id": "A", "label": "bad"}],
+        chain_labels,
+        template="chain_labels",
+    )
+    out = tmp_path / "filtered"
+    with pytest.raises(SystemExit, match="needs interface_labels"):
+        _filter(contacts, chain_labels, out, "--drop", "bad")
+    assert not out.exists()
+
+
+def test_annotate_filter_contacts_rejects_unknown_drop(tmp_path):
+    _, contacts, labels = _filter_inputs(tmp_path)
+    out = tmp_path / "filtered"
+    with pytest.raises(SystemExit, match="typo"):
+        _filter(contacts, labels, out, "--drop", "typo")
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("which", ["contacts", "labels"])
+def test_annotate_filter_contacts_refuses_input_as_output(tmp_path, which):
+    _, contacts, labels = _filter_inputs(tmp_path)
+    target = contacts if which == "contacts" else labels
+    before = (target / "layer.jsonl").read_text()
+    with pytest.raises(SystemExit, match=f"is the --{which} folder"):
+        _filter(contacts, labels, target, "--drop", "bad", "--overwrite")
+    assert (target / "layer.jsonl").read_text() == before
+
+
+def test_annotate_filter_contacts_rejects_different_origins(tmp_path):
+    other = tmp_path / "other"
+    shutil.copytree(FIXTURES_DIR / "a2", other / "structures" / "a2")
+    (other / "curation.json").write_text("{}")
+    _, contacts, labels = _filter_inputs(tmp_path, labels_step=other)
+    out = tmp_path / "filtered"
+    with pytest.raises(SystemExit, match="same structures folder"):
+        _filter(contacts, labels, out, "--drop", "bad")
+    assert not out.exists()
+
+
+def test_annotate_filter_contacts_warns_without_origin(tmp_path, capsys):
+    other = tmp_path / "other"
+    (other / "structures" / "a2").mkdir(parents=True)
+    shutil.copy(FIXTURES_DIR / "a2" / "1a2c.cif", other / "structures" / "a2")
+    _, contacts, labels = _filter_inputs(tmp_path, labels_step=other)
+    out = tmp_path / "filtered"
+    _filter(contacts, labels, out, "--drop", "bad")
+    assert "warning" in capsys.readouterr().err
+    assert (out / "layer.json").exists()
+
+
+def test_annotate_filter_contacts_empty_contacts(tmp_path):
+    step, _, labels = _filter_inputs(tmp_path)
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    (empty / "layer.json").write_text(
+        json.dumps(
+            {
+                "step": "annotation_compute",
+                "input": str(step),
+                "previous_summary": None,
+                "policy": {"name": "x", "template": "residue_contacts"},
+            }
+        )
+    )
+    out = tmp_path / "filtered"
+    _filter(empty, labels, out, "--drop", "bad")
+    assert sorted(p.name for p in out.iterdir()) == ["layer.json"]
+    counts = json.loads((out / "layer.json").read_text())["counts"]
+    n = len(read_records(labels / "layer.jsonl", LayerRow))
+    assert counts == {
+        "interfaces_dropped": 0,
+        "interfaces_in": 0,
+        "interfaces_unlabelled": 0,
+        "labels_unmatched": n,
+        "rows_in": 0,
+        "rows_out": 0,
+    }
