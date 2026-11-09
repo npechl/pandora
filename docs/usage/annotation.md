@@ -348,7 +348,12 @@ There is no join function; these are plain pandas joins. The example uses `1a2c`
     keys = ["entry_id", "chain_id", "seq_id"]
     joined = residues.merge(counts[[*keys, "value"]], on=keys, how="left")
     joined = joined.fillna({"value": 0}).astype({"value": int})
-    print(joined.loc[joined.value > 0, ["chain_id", "seq_id", "auth_seq_id", "ins_code", "value"]].head(3))
+    print(
+        joined.loc[
+            joined.value > 0,
+            ["chain_id", "seq_id", "auth_seq_id", "ins_code", "value"],
+        ].head(3)
+    )
 
     # ... or on the author's keys
     auth = ["entry_id", "auth_chain_id", "auth_seq_id", "ins_code"]
@@ -369,7 +374,14 @@ There is no join function; these are plain pandas joins. The example uses `1a2c`
 
     # Interface labels onto interface records, in either chain order
     labels, _ = resolve_layer_rows(
-        [{"entry_id": "1a2c", "chain_id_1": "B", "chain_id_2": "A", "label": "light_heavy"}],
+        [
+            {
+                "entry_id": "1a2c",
+                "chain_id_1": "B",
+                "chain_id_2": "A",
+                "label": "light_heavy",
+            }
+        ],
         "interface_labels",
         {structure.entry_id: structure},
     )
@@ -377,7 +389,9 @@ There is no join function; these are plain pandas joins. The example uses `1a2c`
     interfaces = table(extract_interface_records(contacts))
     pair = ["chain_id_1", "chain_id_2"]
     for df in (interfaces, labels):
-        df[pair] = pd.DataFrame(df[pair].apply(sorted, axis=1).tolist(), index=df.index)
+        df[pair] = pd.DataFrame(
+            df[pair].apply(sorted, axis=1).tolist(), index=df.index
+        )
     keys = ["entry_id", *pair]
     interfaces = interfaces.merge(labels[[*keys, "label"]], on=keys, how="left")
     print(interfaces[[*pair, "contact_count", "label"]])

@@ -158,16 +158,23 @@ def test_count_residue_contacts_counts_distinct_partners():
         _contact("B", 5, "A", 1),
         _contact("A", 1, "B", 6),
     ]
-    out = {(r.chain_id, r.seq_id): r.value for r in count_residue_contacts(rows)}
+    out = {
+        (r.chain_id, r.seq_id): r.value for r in count_residue_contacts(rows)
+    }
     assert out == {("A", 1): 2, ("B", 5): 1, ("B", 6): 1}
 
 
 def test_count_residue_contacts_keeps_both_namings():
     row = count_residue_contacts([_contact("A", 1, "B", 5)])[0]
     assert row.model_dump() == {
-        "entry_id": "1abc", "chain_id": "A", "seq_id": 1,
-        "auth_chain_id": "A", "auth_seq_id": "1", "ins_code": None,
-        "comp_id": "ALA", "value": 1,
+        "entry_id": "1abc",
+        "chain_id": "A",
+        "seq_id": 1,
+        "auth_chain_id": "A",
+        "auth_seq_id": "1",
+        "ins_code": None,
+        "comp_id": "ALA",
+        "value": 1,
     }
 
 
@@ -178,7 +185,8 @@ def test_count_residue_contacts_ligands_keyed_by_author_naming():
     ]
     ligands = [r for r in count_residue_contacts(rows) if r.chain_id == "C"]
     assert [(r.seq_id, r.auth_seq_id, r.value) for r in ligands] == [
-        (None, "301", 1), (None, "302", 1)
+        (None, "301", 1),
+        (None, "302", 1),
     ]
 
 
@@ -187,8 +195,11 @@ def test_count_residue_contacts_self_pair_adds_nothing():
 
 
 def test_count_chain_contacts_counts_distinct_residues():
-    rows = [_contact("A", 1, "B", 5), _contact("A", 1, "B", 6),
-            _contact("A", 2, "B", 5)]
+    rows = [
+        _contact("A", 1, "B", 5),
+        _contact("A", 1, "B", 6),
+        _contact("A", 2, "B", 5),
+    ]
     out = {r.chain_id: r.value for r in count_chain_contacts(rows)}
     assert out == {"A": 2, "B": 2}
 
