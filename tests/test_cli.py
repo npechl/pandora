@@ -1576,3 +1576,16 @@ def test_annotate_count_contacts_empty_layer(tmp_path):
     assert sorted(p.name for p in out.iterdir()) == ["layer.json"]
     summary = json.loads((out / "layer.json").read_text())
     assert summary["counts"] == {"rows_in": 0, "rows_out": 0}
+
+
+def test_annotate_count_contacts_refuses_its_input_as_output(tmp_path):
+    contacts = tmp_path / "interfaces"
+    _compute(_step_folder(tmp_path), contacts, "--layer", "chain_interfaces")
+    before = (contacts / "layer.jsonl").read_text()
+    with pytest.raises(SystemExit, match="is the --contacts folder"):
+        main(
+            ["annotate", "count-contacts", "--contacts", str(contacts)]
+            + ["--level", "chain", "--output-dir", str(contacts)]
+            + ["--overwrite", "--table-format", "jsonl"]
+        )
+    assert (contacts / "layer.jsonl").read_text() == before

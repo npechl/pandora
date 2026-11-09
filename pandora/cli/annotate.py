@@ -239,9 +239,14 @@ def _cmd_count(args: argparse.Namespace) -> None:
     check_contact_layer("annotate count-contacts", contacts)
     source = json.loads((contacts / "layer.json").read_text())["policy"]
     out = Path(args.output_dir)
-    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    if out.resolve() == contacts.resolve():
+        raise SystemExit(
+            f"annotate count-contacts: {out} is the --contacts folder; "
+            "choose another --output-dir"
+        )
     table = find_table(contacts, "layer")
     rows = read_records(table, ResidueContactRow) if table else []
+    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
     function, template = _COUNT[args.level]
     counted = function(rows)
     write_table(counted, out, "layer", args.table_format)
