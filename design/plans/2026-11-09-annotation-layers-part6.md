@@ -77,8 +77,13 @@ KINDS = [
     [f"a{i}" for i in range(10)],
     [f"b{i}" for i in range(8)],
     [f"c{i}" for i in range(6)],
-    ["h0", "h1"], ["h2"], ["h3"],
-    ["s0"], ["s1"], ["s2"], ["s3"],
+    ["h0", "h1"],
+    ["h2"],
+    ["h3"],
+    ["s0"],
+    ["s1"],
+    ["s2"],
+    ["s3"],
 ]
 KIND_LABELS = {i: "homomer" for c in KINDS for i in c} | {
     h: "heteromer" for h in ("h0", "h1", "h2", "h3")
