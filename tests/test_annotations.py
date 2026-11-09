@@ -190,18 +190,65 @@ def test_ligand_contacts_reports_nearest_polymer_residue():
     ]
     structure = _structure(atoms, entities, asym_units)
 
-    layer = annotate_ligand_contacts(structure, distance_cutoff=4.0)
+    (row,) = annotate_ligand_contacts(structure, distance_cutoff=4.0)
 
-    ligands = layer.data["ligands"]
-    assert len(ligands) == 1
-    contacts = ligands[0]["contacts"]
-    assert len(contacts) == 1
-    assert contacts[0]["label_seq_id"] == 1
-    assert contacts[0]["distance"] == 1.0
-    assert layer.parameters == {
-        "distance_cutoff": 4.0,
-        "include_waters": False,
-    }
+    assert (row.chain_id_1, row.seq_id_1) == ("A", 1)
+    assert (row.chain_id_2, row.seq_id_2) == ("B", None)
+    assert (row.auth_seq_id_2, row.comp_id_2) == ("101", "ZN")
+    assert row.distance == 1.0
+
+
+def test_ligand_contacts_fixture():
+    rows = annotate_ligand_contacts(_load("1a2c"))
+
+    assert {
+        (r.chain_id_2, r.auth_chain_id_2, r.auth_seq_id_2, r.comp_id_2)
+        for r in rows
+    } == {("E", "H", "626", "NA")}
+    assert len(rows) == 2
+
+
+def test_ligand_contacts_hetatm_in_polymer_chain_is_not_a_ligand():
+    # A: polymer with a HETATM modified residue (MSE) at seq 2.
+    # B: a second polymer chain. C: a real ligand near A:2.
+    atoms = [
+        _atom(id=1, label_asym_id="A", label_seq_id=1, entity_id="1", x=0.0),
+        _atom(
+            id=2,
+            group_PDB="HETATM",
+            label_asym_id="A",
+            label_seq_id=2,
+            label_comp_id="MSE",
+            entity_id="1",
+            x=10.0,
+        ),
+        _atom(id=3, label_asym_id="B", label_seq_id=1, entity_id="2", x=11.0),
+        _atom(
+            id=4,
+            group_PDB="HETATM",
+            label_asym_id="C",
+            label_seq_id=None,
+            label_comp_id="ZN",
+            auth_seq_id="101",
+            entity_id="3",
+            x=9.0,
+        ),
+    ]
+    entities = [
+        EntityRecord(id="1", type="polymer"),
+        EntityRecord(id="2", type="polymer"),
+        EntityRecord(id="3", type="non-polymer"),
+    ]
+    asym_units = [
+        AsymRecord(id=c, entity_id=e)
+        for c, e in (("A", "1"), ("B", "2"), ("C", "3"))
+    ]
+
+    rows = annotate_ligand_contacts(_structure(atoms, entities, asym_units))
+
+    assert {r.chain_id_2 for r in rows} == {"C"}  # MSE is not a ligand
+    assert ("A", 2) in {(r.chain_id_1, r.seq_id_1) for r in rows}
+    assert extract_interface_records(rows) == []
 
 
 def test_chain_interfaces_match_reference_on_fixture():

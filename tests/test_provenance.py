@@ -6,7 +6,6 @@ import gemmi
 import pytest
 
 import pandora
-from pandora.annotations.entry import annotate_structure_counts
 from pandora.canonicalisation import canonicalise_structure
 from pandora.datasets import curate_structure, extract_chain_records
 from pandora.export import write_json, write_records
@@ -29,7 +28,6 @@ from pandora.schemas.dataset import (
 )
 from pandora.schemas.ingestion import IngestionProvenance
 from pandora.schemas.provenance import (
-    AnnotationProvenanceRecord,
     ProvenanceBundle,
     StepSummary,
 )
@@ -125,53 +123,6 @@ def test_reproduce_dataset(tmp_path, monkeypatch):
     assert new_manifest.excluded == []
     assert [b.entry_id for b in new_manifest.structures] == [entry_id]
     assert new_manifest.structures[0].ingestion.provider == "pdbe"
-
-
-def test_reproduce_dataset_regenerates_annotations(tmp_path, monkeypatch):
-    structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
-    entry_id = structure.entry_id
-    original_layer = annotate_structure_counts(structure)
-
-    def fake_fetch_mmcif(
-        entry_id, provider, source_uri, output_dir, fetch_options=None
-    ):
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy(MMCIF_PATH, output_dir / f"{entry_id.lower()}.cif")
-        return IngestionProvenance(provider=provider, source_uri=source_uri)
-
-    monkeypatch.setattr(
-        "pandora.provenance.reproduce.fetch_mmcif", fake_fetch_mmcif
-    )
-
-    manifest = build_dataset_manifest(
-        dataset_id="d1",
-        dataset_name="Dataset One",
-        dataset_version="1.0.0",
-        structures=[
-            ProvenanceBundle(
-                entry_id=entry_id,
-                pandora_version="0.0.0",
-                generated_at="2026-01-01T00:00:00+00:00",
-                ingestion=IngestionProvenance(provider="pdbe"),
-                annotations=[
-                    AnnotationProvenanceRecord(
-                        layer_name=original_layer.layer_name,
-                        layer_type=original_layer.layer_type,
-                        method=original_layer.method,
-                        target_ids=original_layer.target_ids,
-                        parameters=original_layer.parameters,
-                    )
-                ],
-            )
-        ],
-    )
-
-    _, new_manifest = reproduce_dataset(manifest, tmp_path)
-
-    new_bundle = new_manifest.structures[0]
-    assert len(new_bundle.annotations) == 1
-    assert new_bundle.annotations[0].layer_type == "structure_counts"
 
 
 def test_reproduce_dataset_requires_ingestion_provenance(tmp_path):

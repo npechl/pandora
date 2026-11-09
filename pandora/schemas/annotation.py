@@ -29,7 +29,7 @@ class AnnotationLayer(BaseModel):
     Attributes:
         layer_name: A human-readable name for the layer.
         layer_type: A machine-readable type identifying the layer
-            (e.g. "structure_counts").
+            (e.g. "pairwise_sequence_identity").
         scope: What the layer describes: an entry, a pair, an
             interface, etc.
         method: The identifier of the method/algorithm used to

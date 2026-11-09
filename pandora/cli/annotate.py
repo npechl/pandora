@@ -12,9 +12,7 @@ from typing import Any
 
 from pandora._util import now_iso
 from pandora.annotations import (
-    annotate_ligand_contacts,
     annotate_pairwise_sequence_identity,
-    annotate_structure_counts,
     check_layer_columns,
     resolve_layer_rows,
 )
@@ -34,10 +32,8 @@ from pandora.schemas.annotation import (
     LayerRow,
 )
 
-_ENTRY_ANNOTATORS = {
-    "structure_counts": annotate_structure_counts,
-    "ligand_contacts": annotate_ligand_contacts,
-}
+# Emptied in part 2; `annotate compute` is rewritten to write layer folders.
+_ENTRY_ANNOTATORS: dict = {}
 
 
 def _cmd_compute(args: argparse.Namespace) -> None:

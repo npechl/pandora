@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import defaultdict
 from itertools import combinations
 from typing import Any, get_args
 
@@ -9,7 +9,6 @@ from pandora.canonicalisation.missing_data import (
     _backbone_by_entity,
 )
 from pandora.schemas.annotation import (
-    AnnotationLayer,
     ContactAtomSet,
     ResidueContactRow,
 )
@@ -20,69 +19,17 @@ HYDROGEN_ELEMENTS = frozenset({"H", "D"})
 CONTACT_ATOM_SETS = frozenset(get_args(ContactAtomSet))
 
 
-def annotate_structure_counts(structure: Structure) -> AnnotationLayer:
-    """Compute simple per-entry counts from the canonical structure.
-
-    Args:
-        structure: The canonical structure to summarize.
-
-    Returns:
-        An `AnnotationLayer` of type "structure_counts" whose `data`
-        holds atom/residue/asym/entity/assembly/connection counts,
-        secondary-structure record counts, entity-type and atom-group
-        breakdowns, and the altloc atom count.
-    """
-
-    residue_keys = {
-        (
-            atom.label_asym_id,
-            atom.label_seq_id,
-            atom.auth_seq_id,
-            atom.label_comp_id,
-        )
-        for atom in structure.atoms
-    }
-    entity_type_counts = Counter(entity.type for entity in structure.entities)
-    atom_group_counts = Counter(atom.group_PDB for atom in structure.atoms)
-    altloc_atom_count = sum(1 for atom in structure.atoms if atom.label_alt_id)
-
-    return AnnotationLayer(
-        layer_name="Structure counts",
-        layer_type="structure_counts",
-        scope="entry",
-        method="pandora.basic.structure_counts.v1",
-        target_ids=[structure.entry_id],
-        data={
-            "atom_count": len(structure.atoms),
-            "residue_count": len(residue_keys),
-            "asym_unit_count": len(structure.asym_units),
-            "entity_count": len(structure.entities),
-            "assembly_count": len(structure.assemblies),
-            "connection_count": len(structure.connections),
-            "secondary_structure": {
-                "conf_records": len(structure.secondary_structure.conf_records),
-                "sheet_strands": len(
-                    structure.secondary_structure.sheet_strands
-                ),
-            },
-            "entity_type_counts": dict(entity_type_counts),
-            "atom_group_counts": dict(atom_group_counts),
-            "altloc_atom_count": altloc_atom_count,
-        },
-        provenance={"inputs": ["Structure.atoms", "Structure.entities"]},
-    )
-
-
 def annotate_ligand_contacts(
     structure: Structure,
     distance_cutoff: float = 4.0,
     include_waters: bool = False,
-) -> AnnotationLayer:
-    """Compute polymer residues near non-polymer atoms within a cutoff.
+) -> list[ResidueContactRow]:
+    """Compute polymer residues near ligands within a cutoff.
 
-    Groups HETATM records into ligands (by asym/auth_seq/comp id) and,
-    for each ligand, finds polymer residues with at least one atom
-    within `distance_cutoff` angstroms of a ligand atom.
+    A ligand is a residue of a non-polymer chain (waters only with
+    `include_waters`). A modified residue inside a polymer chain is
+    not a ligand, even when written as HETATM: it counts on the
+    polymer side.
 
     Args:
         structure: The structure to scan for ligand contacts.
@@ -90,61 +37,54 @@ def annotate_ligand_contacts(
         include_waters: If True, treat water residues as ligands too.
 
     Returns:
-        An `AnnotationLayer` of type "ligand_contacts" whose `data`
-        holds the cutoff/flags used and, per ligand, the contacting
-        polymer residues with their nearest distance.
+        A `residue_contacts` layer: one `ResidueContactRow` per
+        (polymer residue, ligand residue) in contact, side 1 the
+        polymer residue, side 2 the ligand (`seq_id_2` None, named by
+        its author ids), `distance` the nearest atom distance (rounded
+        to 3 decimals). Sorted by ligand, then polymer residue.
     """
 
+    polymers = polymer_asym_ids(structure)
     polymer_atoms = [
-        atom for atom in structure.atoms if atom.group_PDB == "ATOM"
+        atom for atom in structure.atoms if atom.label_asym_id in polymers
     ]
     ligand_atoms = [
         atom
         for atom in structure.atoms
-        if _is_ligand_atom(atom, include_waters)
+        if atom.label_asym_id not in polymers
+        and (include_waters or atom.label_comp_id.upper() not in WATER_COMP_IDS)
     ]
 
-    ligand_groups: dict[tuple[str, str | None, str], list[AtomSiteRecord]]
-    ligand_groups = defaultdict(list)
-    for atom in ligand_atoms:
-        ligand_groups[
-            (atom.label_asym_id, atom.auth_seq_id, atom.label_comp_id)
-        ].append(atom)
-
     cutoff_sq = distance_cutoff * distance_cutoff
+    cell_size = _cell_size(distance_cutoff)
     polymer_grid = _spatial_grid(polymer_atoms, distance_cutoff)
-    contacts = []
-    for ligand_key, atoms in ligand_groups.items():
-        residue_contacts = _residues_within_cutoff(
-            atoms, polymer_grid, distance_cutoff, cutoff_sq
-        )
-        contacts.append(
-            {
-                "ligand_asym_id": ligand_key[0],
-                "ligand_auth_seq_id": ligand_key[1],
-                "ligand_comp_id": ligand_key[2],
-                "contact_count": len(residue_contacts),
-                "contacts": residue_contacts,
-            }
-        )
+    nearest: dict[tuple[tuple, tuple], float] = {}
+    atoms_of: dict[tuple, AtomSiteRecord] = {}
+    for ligand_atom in ligand_atoms:
+        ligand_key = _residue_key(ligand_atom)
+        atoms_of.setdefault(ligand_key, ligand_atom)
+        cell = _cell_key(ligand_atom, cell_size)
+        for polymer_atom in _neighbor_atoms(polymer_grid, cell):
+            dist_sq = _squared_distance(ligand_atom, polymer_atom)
+            if dist_sq > cutoff_sq:
+                continue
+            polymer_key = _residue_key(polymer_atom)
+            atoms_of.setdefault(polymer_key, polymer_atom)
+            key = (ligand_key, polymer_key)
+            if dist_sq < nearest.get(key, cutoff_sq + 1.0):
+                nearest[key] = dist_sq
 
-    return AnnotationLayer(
-        layer_name="Ligand contacts",
-        layer_type="ligand_contacts",
-        scope="entry",
-        method="pandora.basic.distance_cutoff_contacts.v1",
-        target_ids=[structure.entry_id],
-        parameters={
-            "distance_cutoff": distance_cutoff,
-            "include_waters": include_waters,
-        },
-        data={
-            "distance_cutoff": distance_cutoff,
-            "include_waters": include_waters,
-            "ligands": contacts,
-        },
-        provenance={"inputs": ["Structure.atoms"]},
-    )
+    return [
+        _contact_row(
+            structure.entry_id,
+            atoms_of[polymer_key],
+            atoms_of[ligand_key],
+            dist_sq,
+        )
+        for (ligand_key, polymer_key), dist_sq in sorted(
+            nearest.items(), key=lambda item: _sort_key(item[0])
+        )
+    ]
 
 
 def polymer_asym_ids(structure: Structure) -> set[str]:
@@ -301,22 +241,6 @@ def _contact_row(
     )
 
 
-def _contact_settings(
-    distance_cutoff: float,
-    atom_set: ContactAtomSet,
-    polymer_types: list[str] | None,
-) -> dict[str, Any]:
-    """Settings dict with its own copy of polymer_types (never aliased)."""
-
-    return {
-        "distance_cutoff": distance_cutoff,
-        "atom_set": atom_set,
-        "polymer_types": (
-            list(polymer_types) if polymer_types is not None else None
-        ),
-    }
-
-
 def _select_contact_atoms(
     structure: Structure,
     atom_set: ContactAtomSet,
@@ -416,54 +340,6 @@ def _boxes_apart(
         or box_b[axis] - box_a[axis + 3] > cutoff
         for axis in range(3)
     )
-
-
-def _is_ligand_atom(atom: AtomSiteRecord, include_waters: bool) -> bool:
-    """Whether atom is a HETATM ligand atom (optionally including waters)."""
-
-    if atom.group_PDB != "HETATM":
-        return False
-    if include_waters:
-        return True
-    return atom.label_comp_id.upper() not in WATER_COMP_IDS
-
-
-def _residues_within_cutoff(
-    ligand_atoms: list[AtomSiteRecord],
-    polymer_grid: dict[tuple[int, int, int], list[AtomSiteRecord]],
-    cutoff: float,
-    cutoff_sq: float,
-) -> list[dict[str, Any]]:
-    """Polymer residues in polymer_grid within cutoff of any ligand_atoms
-    atom, with nearest distance."""
-
-    contacts: dict[tuple[str, int | None, str], float] = {}
-    cell_size = _cell_size(cutoff)
-    for ligand_atom in ligand_atoms:
-        key = _cell_key(ligand_atom, cell_size)
-        for polymer_atom in _neighbor_atoms(polymer_grid, key):
-            dist_sq = _squared_distance(ligand_atom, polymer_atom)
-            if dist_sq > cutoff_sq:
-                continue
-
-            rk = (
-                polymer_atom.label_asym_id,
-                polymer_atom.label_seq_id,
-                polymer_atom.label_comp_id,
-            )
-            current = contacts.get(rk)
-            if current is None or dist_sq < current:
-                contacts[rk] = dist_sq
-
-    return [
-        {
-            "label_asym_id": asym_id,
-            "label_seq_id": seq_id,
-            "label_comp_id": comp_id,
-            "distance": round(dist_sq**0.5, 3),
-        }
-        for (asym_id, seq_id, comp_id), dist_sq in sorted(contacts.items())
-    ]
 
 
 # Cell-list spatial index: bucket atoms into cutoff-sized grid cells so a

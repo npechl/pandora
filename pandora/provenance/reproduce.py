@@ -2,10 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pandora.annotations.entry import (
-    annotate_ligand_contacts,
-    annotate_structure_counts,
-)
 from pandora.annotations.pairwise import annotate_pairwise_sequence_identity
 from pandora.canonicalisation import canonicalise_structure
 from pandora.datasets.curation import curate_structure, deduplicate_structures
@@ -39,10 +35,6 @@ from pandora.similarity.partition import partition_dataset
 from pandora.similarity.sequence import compute_sequence_similarity
 from pandora.similarity.structure import compute_structure_similarity
 
-ENTRY_ANNOTATION_DISPATCH = {
-    "structure_counts": annotate_structure_counts,
-    "ligand_contacts": annotate_ligand_contacts,
-}
 PAIRWISE_ANNOTATION_DISPATCH = {
     "pairwise_sequence_identity": annotate_pairwise_sequence_identity,
 }
@@ -80,8 +72,9 @@ def _reproduce_similarity(
 def _reproduce_annotations(
     manifest: DatasetManifest, structures: dict[str, Structure]
 ) -> dict[str, list[AnnotationLayer]]:
-    """Recompute every entry-level and pairwise annotation layer
-    recorded in manifest, for structures."""
+    """Recompute every pairwise annotation layer recorded in manifest,
+    for structures. Entry-level layers (contacts) are no longer
+    `AnnotationLayer`s and are not replayed."""
 
     layers_by_entry: dict[str, list[AnnotationLayer]] = {
         entry_id: [] for entry_id in structures
@@ -90,20 +83,7 @@ def _reproduce_annotations(
 
     for bundle in manifest.structures:
         for record in bundle.annotations:
-            if record.layer_type in ENTRY_ANNOTATION_DISPATCH:
-                if bundle.entry_id not in structures:
-                    continue
-                try:
-                    layer = ENTRY_ANNOTATION_DISPATCH[record.layer_type](
-                        structures[bundle.entry_id], **record.parameters
-                    )
-                except TypeError as exc:
-                    raise TypeError(
-                        f"cannot reproduce annotation {record.layer_type!r} "
-                        f"for entry {bundle.entry_id!r}: {exc}"
-                    ) from exc
-                layers_by_entry[bundle.entry_id].append(layer)
-            elif record.layer_type in PAIRWISE_ANNOTATION_DISPATCH:
+            if record.layer_type in PAIRWISE_ANNOTATION_DISPATCH:
                 pair = frozenset(record.target_ids)
                 if len(pair) != 2 or pair in seen_pairs:
                     continue
