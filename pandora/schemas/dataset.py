@@ -85,18 +85,19 @@ class ResidueRecord(BaseModel):
 
 
 class InterfaceRecord(BaseModel):
-    """One polymer chain pair in contact, reshaped from a
-    chain-interfaces annotation layer.
+    """One polymer chain pair in contact, built from a
+    `residue_contacts` layer by `extract_interface_records()`.
 
     Attributes:
         entry_id: The structure's entry id.
         chain_id_1: The first chain in the interface.
         chain_id_2: The second chain in the interface.
         distance_cutoff: The contact distance cutoff used, in
-            angstroms.
+            angstroms; None if unknown (e.g. an imported layer).
         atom_set: Which atoms counted towards contacts ("all",
-            "heavy", "backbone" or "ca"). Records written before this
-            field existed load as "all", which is what they used.
+            "heavy", "backbone" or "ca"); None if unknown. Records
+            written before this field existed load as "all", which is
+            what they used.
         interface_residues_chain_1: Contacting residue ids on
             `chain_id_1`'s side.
         interface_residues_chain_2: Contacting residue ids on
@@ -110,15 +111,14 @@ class InterfaceRecord(BaseModel):
     entry_id: str
     chain_id_1: str
     chain_id_2: str
-    distance_cutoff: float
-    atom_set: ContactAtomSet = "all"
+    distance_cutoff: float | None = None
+    atom_set: ContactAtomSet | None = "all"
     interface_residues_chain_1: list[str]
     interface_residues_chain_2: list[str]
     contact_count: int
     residue_pairs: list[tuple[str, str]] = Field(default_factory=list)
-    # Populated from annotations.entry.annotate_chain_interfaces() — this
-    # record never computes contacts itself, only reshapes that layer's
-    # output per chain pair.
+    # Built from residue_contacts rows (Pandora's own or imported) —
+    # this record never computes contacts itself.
 
 
 MissingResidueDefinition = Literal["unobserved", "incomplete_backbone"]

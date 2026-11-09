@@ -8,6 +8,7 @@ from pandora.datasets.records import (
     extract_chain_records,
     extract_interface_records,
     extract_residue_records,
+    interface_residue_pairs,
 )
 
 __all__ = [
@@ -18,5 +19,6 @@ __all__ = [
     "entry_sequences",
     "extract_chain_records",
     "extract_interface_records",
+    "interface_residue_pairs",
     "extract_residue_records",
 ]

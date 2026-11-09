@@ -12,7 +12,6 @@ from typing import Any
 
 from pandora._util import now_iso
 from pandora.annotations import (
-    annotate_chain_interfaces,
     annotate_ligand_contacts,
     annotate_pairwise_sequence_identity,
     annotate_structure_counts,
@@ -38,7 +37,6 @@ from pandora.schemas.annotation import (
 _ENTRY_ANNOTATORS = {
     "structure_counts": annotate_structure_counts,
     "ligand_contacts": annotate_ligand_contacts,
-    "chain_interfaces": annotate_chain_interfaces,
 }
 
 

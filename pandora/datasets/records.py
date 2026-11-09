@@ -1,16 +1,12 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
-from pandora.annotations.entry import (
-    annotate_chain_interfaces,
-    atoms_by_asym_id,
-    polymer_asym_ids,
-)
+from pandora.annotations.entry import atoms_by_asym_id, polymer_asym_ids
 from pandora.datasets.completeness import chain_completeness
-from pandora.schemas.annotation import ContactAtomSet
+from pandora.schemas.annotation import ContactAtomSet, ResidueContactRow
 from pandora.schemas.dataset import (
     ChainRecord,
     DatasetChainRecord,
@@ -20,8 +16,6 @@ from pandora.schemas.dataset import (
 )
 from pandora.schemas.metadata import MetadataRecord
 from pandora.schemas.structure import AtomSiteRecord, Structure
-
-DEFAULT_INTERFACE_CUTOFF = 4.0
 
 
 def extract_chain_records(structure: Structure) -> list[ChainRecord]:
@@ -150,52 +144,82 @@ def extract_residue_records(structure: Structure) -> list[ResidueRecord]:
 
 
 def extract_interface_records(
-    structure: Structure,
-    distance_cutoff: float = DEFAULT_INTERFACE_CUTOFF,
-    atom_set: ContactAtomSet = "heavy",
-    polymer_types: list[str] | None = None,
+    rows: Iterable[ResidueContactRow],
+    distance_cutoff: float | None = None,
+    atom_set: ContactAtomSet | None = None,
 ) -> list[InterfaceRecord]:
     """Build one InterfaceRecord per polymer chain pair in contact.
 
-    Contact detection itself lives in
-    `annotations.entry.annotate_chain_interfaces` — this function only
-    reshapes that annotation layer's output into records.
+    Works on any `residue_contacts` layer: Pandora's own
+    (`annotate_chain_interfaces`) or one brought in with
+    `annotate import`. Only rows between polymer residues (both
+    `seq_id`s present) on different chains count; ligand and
+    same-chain rows are skipped. Pairs are unordered: (A, B) and
+    (B, A) rows make one interface, and a residue pair on several rows
+    (e.g. several contact types) counts once.
 
     Args:
-        structure: The canonical structure to extract interface
-            records from.
-        distance_cutoff: Contact distance in angstroms.
-        atom_set: Which atoms count towards contacts; see
-            `annotate_chain_interfaces`.
-        polymer_types: Keep only chains of these entity polymer types;
-            None keeps every polymer chain.
+        rows: `residue_contacts` rows, for any number of entries.
+        distance_cutoff: The contact cutoff the rows were computed
+            with, recorded on every record; None if unknown.
+        atom_set: The atoms that counted towards contacts, recorded on
+            every record; None if unknown.
 
     Returns:
-        An `InterfaceRecord` per polymer chain pair with at least one
-        contact within `distance_cutoff`.
-
-    Raises:
-        ValueError: `atom_set` is not one of the supported values.
-        TypeError: `polymer_types` is a single string, not a list.
+        An `InterfaceRecord` per entry and polymer chain pair with at
+        least one contact, side 1 on the chain that sorts first,
+        ordered by entry and chain pair.
     """
 
-    layer = annotate_chain_interfaces(
-        structure, distance_cutoff, atom_set, polymer_types
-    )
-    return [
-        InterfaceRecord(
-            entry_id=structure.entry_id,
-            chain_id_1=interface["chain_id_1"],
-            chain_id_2=interface["chain_id_2"],
-            distance_cutoff=distance_cutoff,
-            atom_set=atom_set,
-            interface_residues_chain_1=interface["interface_residues_chain_1"],
-            interface_residues_chain_2=interface["interface_residues_chain_2"],
-            contact_count=interface["contact_count"],
-            residue_pairs=[tuple(pair) for pair in interface["residue_pairs"]],
+    pairs = interface_residue_pairs(rows)
+    records = []
+    for (entry_id, chain_1, chain_2), residue_pairs in sorted(pairs.items()):
+        ordered = sorted(residue_pairs)
+        side_1 = sorted({a for a, _ in ordered})
+        side_2 = sorted({b for _, b in ordered})
+        records.append(
+            InterfaceRecord(
+                entry_id=entry_id,
+                chain_id_1=chain_1,
+                chain_id_2=chain_2,
+                distance_cutoff=distance_cutoff,
+                atom_set=atom_set,
+                interface_residues_chain_1=side_1,
+                interface_residues_chain_2=side_2,
+                contact_count=len(side_1) + len(side_2),
+                residue_pairs=ordered,
+            )
         )
-        for interface in layer.data["interfaces"]
-    ]
+    return records
+
+
+def interface_residue_pairs(
+    rows: Iterable[ResidueContactRow],
+) -> dict[tuple[str, str, str], set[tuple[str, str]]]:
+    """Residue pairs across polymer chains, per entry and chain pair.
+
+    Keeps rows with both `seq_id`s present on different chains,
+    oriented so side 1 is the chain that sorts first.
+
+    Args:
+        rows: `residue_contacts` rows.
+
+    Returns:
+        `{(entry_id, chain_1, chain_2): {("A:5", "B:7"), ...}}`, residue
+        ids as `label_asym_id:label_seq_id`.
+    """
+
+    pairs: dict[tuple[str, str, str], set[tuple[str, str]]] = defaultdict(set)
+    for row in rows:
+        if row.seq_id_1 is None or row.seq_id_2 is None:
+            continue
+        if row.chain_id_1 == row.chain_id_2:
+            continue
+        side_1 = (row.chain_id_1, f"{row.chain_id_1}:{row.seq_id_1}")
+        side_2 = (row.chain_id_2, f"{row.chain_id_2}:{row.seq_id_2}")
+        (chain_1, res_1), (chain_2, res_2) = sorted((side_1, side_2))
+        pairs[(row.entry_id, chain_1, chain_2)].add((res_1, res_2))
+    return dict(pairs)
 
 
 def dataset_chain_records(

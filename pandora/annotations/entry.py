@@ -8,7 +8,11 @@ from pandora.canonicalisation.missing_data import (
     _PROTEIN_BACKBONE,
     _backbone_by_entity,
 )
-from pandora.schemas.annotation import AnnotationLayer, ContactAtomSet
+from pandora.schemas.annotation import (
+    AnnotationLayer,
+    ContactAtomSet,
+    ResidueContactRow,
+)
 from pandora.schemas.structure import AtomSiteRecord, Structure
 
 WATER_COMP_IDS = frozenset({"HOH", "WAT", "DOD"})
@@ -169,8 +173,8 @@ def annotate_chain_interfaces(
     distance_cutoff: float = 4.0,
     atom_set: ContactAtomSet = "heavy",
     polymer_types: list[str] | None = None,
-) -> AnnotationLayer:
-    """Compute polymer chain pairs with residues in contact within a cutoff.
+) -> list[ResidueContactRow]:
+    """Compute residue pairs in contact across polymer chains.
 
     For each pair of polymer chains, finds residue pairs (one per chain)
     with at least one pair of selected atoms within `distance_cutoff`
@@ -188,9 +192,11 @@ def annotate_chain_interfaces(
             polymer chain; an empty list keeps none.
 
     Returns:
-        An `AnnotationLayer` of type "chain_interfaces" whose `data`
-        holds the settings used and, per chain pair in contact, the
-        contacting residue ids on each side and the residue pairs.
+        A `residue_contacts` layer: one `ResidueContactRow` per
+        contacting residue pair, side 1 on the chain that sorts first,
+        both namings filled in, `distance` the closest selected-atom
+        distance of the pair (rounded to 3 decimals). Sorted by chain
+        pair, then residue pair.
 
     Raises:
         ValueError: `atom_set` is not one of the supported values.
@@ -220,7 +226,12 @@ def annotate_chain_interfaces(
     }
     cutoff_sq = distance_cutoff * distance_cutoff
 
-    interfaces = []
+    residues = {
+        _residue_key(atom): atom
+        for atoms in selected.values()
+        for atom in reversed(atoms)
+    }
+    rows = []
     for chain_a, chain_b in combinations(sorted(selected), 2):
         if _boxes_apart(boxes[chain_a], boxes[chain_b], distance_cutoff):
             continue
@@ -231,33 +242,62 @@ def annotate_chain_interfaces(
             distance_cutoff,
             cutoff_sq,
         )
-        if not pairs:
-            continue
-        residues_a = sorted({residue_a for residue_a, _ in pairs})
-        residues_b = sorted({residue_b for _, residue_b in pairs})
-        interfaces.append(
-            {
-                "chain_id_1": chain_a,
-                "chain_id_2": chain_b,
-                "interface_residues_chain_1": residues_a,
-                "interface_residues_chain_2": residues_b,
-                "residue_pairs": [list(pair) for pair in sorted(pairs)],
-                "contact_count": len(residues_a) + len(residues_b),
-            }
-        )
+        for (key_a, key_b), dist_sq in sorted(
+            pairs.items(), key=lambda item: _sort_key(item[0])
+        ):
+            rows.append(
+                _contact_row(
+                    structure.entry_id,
+                    residues[key_a],
+                    residues[key_b],
+                    dist_sq,
+                )
+            )
+    return rows
 
-    return AnnotationLayer(
-        layer_name="Chain-chain interfaces",
-        layer_type="chain_interfaces",
-        scope="interface",
-        method="pandora.basic.distance_cutoff_contacts.v2",
-        target_ids=[structure.entry_id],
-        parameters=_contact_settings(distance_cutoff, atom_set, polymer_types),
-        data={
-            **_contact_settings(distance_cutoff, atom_set, polymer_types),
-            "interfaces": interfaces,
-        },
-        provenance={"inputs": ["Structure.atoms", "Structure.entities"]},
+
+def _residue_key(atom: AtomSiteRecord) -> tuple[str, int | None, str | None]:
+    """An atom's residue: (label_asym_id, label_seq_id, auth_seq_id)."""
+
+    return (atom.label_asym_id, atom.label_seq_id, atom.auth_seq_id)
+
+
+def _sort_key(pair: tuple[tuple, tuple]) -> tuple:
+    """Sort residue pairs by chain, then residue number (None first)."""
+
+    return tuple(
+        (chain, seq is not None, seq or 0, auth or "")
+        for chain, seq, auth in pair
+    )
+
+
+def _side(atom: AtomSiteRecord, side: str) -> dict[str, Any]:
+    """Both namings of atom's residue, as `ResidueContactRow` side fields."""
+
+    ins = (atom.pdbx_PDB_ins_code or "").strip()
+    return {
+        f"chain_id{side}": atom.label_asym_id,
+        f"seq_id{side}": atom.label_seq_id,
+        f"auth_chain_id{side}": atom.auth_asym_id,
+        f"auth_seq_id{side}": atom.auth_seq_id,
+        f"ins_code{side}": ins or None,
+        f"comp_id{side}": atom.label_comp_id,
+    }
+
+
+def _contact_row(
+    entry_id: str,
+    atom_1: AtomSiteRecord,
+    atom_2: AtomSiteRecord,
+    dist_sq: float,
+) -> ResidueContactRow:
+    """A contact row between the residues of atom_1 and atom_2."""
+
+    return ResidueContactRow(
+        entry_id=entry_id,
+        **_side(atom_1, "_1"),
+        **_side(atom_2, "_2"),
+        distance=round(dist_sq**0.5, 3),
     )
 
 
@@ -328,12 +368,13 @@ def _chain_pair_contacts(
     grid_b: dict[tuple[int, int, int], list[AtomSiteRecord]],
     cutoff: float,
     cutoff_sq: float,
-) -> set[tuple[str, str]]:
-    """Residue-id pairs with an atom of atoms_a within cutoff of grid_b."""
+) -> dict[tuple[tuple, tuple], float]:
+    """Residue pairs with an atom of atoms_a within cutoff of grid_b,
+    with their closest squared distance."""
 
     min_x, min_y, min_z, max_x, max_y, max_z = box_b
     cell_size = _cell_size(cutoff)
-    pairs: set[tuple[str, str]] = set()
+    pairs: dict[tuple[tuple, tuple], float] = {}
     for atom_a in atoms_a:
         # Only atoms inside chain b's box grown by the cutoff can touch it.
         if not (
@@ -343,8 +384,12 @@ def _chain_pair_contacts(
         ):
             continue
         for atom_b in _neighbor_atoms(grid_b, _cell_key(atom_a, cell_size)):
-            if _squared_distance(atom_a, atom_b) <= cutoff_sq:
-                pairs.add((_residue_id(atom_a), _residue_id(atom_b)))
+            dist_sq = _squared_distance(atom_a, atom_b)
+            if dist_sq > cutoff_sq:
+                continue
+            key = (_residue_key(atom_a), _residue_key(atom_b))
+            if dist_sq < pairs.get(key, cutoff_sq + 1.0):
+                pairs[key] = dist_sq
     return pairs
 
 
@@ -371,12 +416,6 @@ def _boxes_apart(
         or box_b[axis] - box_a[axis + 3] > cutoff
         for axis in range(3)
     )
-
-
-def _residue_id(atom: AtomSiteRecord) -> str:
-    """The `label_asym_id:label_seq_id` id of atom's residue."""
-
-    return f"{atom.label_asym_id}:{atom.label_seq_id}"
 
 
 def _is_ligand_atom(atom: AtomSiteRecord, include_waters: bool) -> bool:

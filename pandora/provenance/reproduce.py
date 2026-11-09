@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from pandora.annotations.entry import (
-    annotate_chain_interfaces,
     annotate_ligand_contacts,
     annotate_structure_counts,
 )
@@ -43,7 +42,6 @@ from pandora.similarity.structure import compute_structure_similarity
 ENTRY_ANNOTATION_DISPATCH = {
     "structure_counts": annotate_structure_counts,
     "ligand_contacts": annotate_ligand_contacts,
-    "chain_interfaces": annotate_chain_interfaces,
 }
 PAIRWISE_ANNOTATION_DISPATCH = {
     "pairwise_sequence_identity": annotate_pairwise_sequence_identity,
