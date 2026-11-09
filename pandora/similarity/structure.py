@@ -3,10 +3,12 @@ from __future__ import annotations
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
 from pandora._util import now_iso
-from pandora.schemas.annotation import AnnotationLayer
+from pandora.datasets.records import interface_residue_pairs
+from pandora.schemas.annotation import ResidueContactRow
 from pandora.schemas.similarity import SimilaritySearch
 from pandora.schemas.structure import Structure
 from pandora.similarity.hits import HIT_COLUMNS
@@ -82,23 +84,25 @@ def chain_item_id(entry_id: str, chain_id: str) -> str:
 
 
 def interface_residues_from_annotation(
-    structures: dict[str, Structure],
-    interface_layers: dict[str, AnnotationLayer],
+    structures: Mapping[str, Structure],
+    rows: Iterable[ResidueContactRow],
 ) -> dict[str, set[int]]:
-    """Bridge `annotate_chain_interfaces()` output into the
-    `interface_residues` mapping `iter_edges()` expects,
-    for one exported file per chain (`export_chain_mmcif()`).
+    """Bridge a `residue_contacts` layer into the `interface_residues`
+    mapping `iter_edges()` expects, for one exported file per chain
+    (`export_chain_mmcif()`).
 
-    Converts each interface's `label_asym_id:label_seq_id` residue ids to
-    Foldseek-aligned positions via `residue_positions()`, so callers never
-    have to reason about the numbering mismatch between mmCIF's
-    `label_seq_id` and Foldseek's own per-file residue order themselves.
+    Works on any contact layer, Pandora's own
+    (`annotate_chain_interfaces()`) or imported. Only contacts between
+    polymer residues on different chains count. Each residue's
+    `label_seq_id` is converted to its Foldseek-aligned position via
+    `residue_positions()`, so callers never have to reason about the
+    numbering mismatch between mmCIF's `label_seq_id` and Foldseek's
+    own per-file residue order themselves.
 
     Args:
-        structures: `entry_id -> Structure`, the same structures the
-            layers in `interface_layers` were computed from.
-        interface_layers: `entry_id -> its "chain_interfaces"
-            AnnotationLayer` (from `annotate_chain_interfaces()`).
+        structures: `entry_id -> Structure`, the structures the rows
+            refer to.
+        rows: `residue_contacts` rows.
 
     Returns:
         `{chain_item_id(entry_id, chain_id): {positions...}}` — one
@@ -106,36 +110,29 @@ def interface_residues_from_annotation(
         this to `iter_edges()` / `cluster_similar_items()` as
         `interface_residues`, for a search run on files written by
         `export_chain_mmcif()` with the same ids.
+
+    Raises:
+        KeyError: A row's entry is not in `structures`.
     """
 
     result: dict[str, set[int]] = {}
-    for entry_id, layer in interface_layers.items():
-        structure = structures[entry_id]
-        positions_by_chain: dict[str, dict[int, int]] = {}
-        for interface in layer.data.get("interfaces", []):
-            sides = (
-                (
-                    interface["chain_id_1"],
-                    interface["interface_residues_chain_1"],
-                ),
-                (
-                    interface["chain_id_2"],
-                    interface["interface_residues_chain_2"],
-                ),
-            )
-            for chain_id, residue_ids in sides:
-                if chain_id not in positions_by_chain:
-                    positions_by_chain[chain_id] = residue_positions(
-                        structure, chain_id
-                    )
-                positions = positions_by_chain[chain_id]
-                item_id = chain_item_id(entry_id, chain_id)
-                for residue_id in residue_ids:
-                    label_seq_id = int(residue_id.rsplit(":", 1)[1])
-                    if label_seq_id in positions:
-                        result.setdefault(item_id, set()).add(
-                            positions[label_seq_id]
-                        )
+    positions_by_chain: dict[tuple[str, str], dict[int, int]] = {}
+    pairs = interface_residue_pairs(rows)
+    for (entry_id, _, _), residue_pairs in sorted(pairs.items()):
+        if entry_id not in structures:
+            raise KeyError(f"no structure for entry {entry_id!r}")
+        for residue_id in {r for pair in residue_pairs for r in pair}:
+            chain_id, seq = residue_id.rsplit(":", 1)
+            key = (entry_id, chain_id)
+            if key not in positions_by_chain:
+                positions_by_chain[key] = residue_positions(
+                    structures[entry_id], chain_id
+                )
+            position = positions_by_chain[key].get(int(seq))
+            if position is not None:
+                result.setdefault(chain_item_id(entry_id, chain_id), set()).add(
+                    position
+                )
     return result
 
 

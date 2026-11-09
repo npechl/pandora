@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import stat
 
-from pandora.schemas.annotation import AnnotationLayer
+from pandora.schemas.annotation import ResidueContactRow
 from pandora.schemas.structure import AtomSiteRecord, EntryRecord, Structure
 from pandora.similarity.hits import HIT_COLUMNS, _interface_coverage
 from pandora.similarity.structure import (
@@ -66,29 +66,22 @@ def test_chain_item_id() -> None:
 
 def test_interface_residues_from_annotation_maps_to_file_positions() -> None:
     structure = _structure_with_gap()
-    layer = AnnotationLayer(
-        layer_name="Chain-chain interfaces",
-        layer_type="chain_interfaces",
-        scope="interface",
-        method="pandora.basic.distance_cutoff_contacts.v1",
-        target_ids=["ENTRY1"],
-        data={
-            "distance_cutoff": 4.0,
-            "interfaces": [
-                {
-                    "chain_id_1": "A",
-                    "chain_id_2": "B",
-                    "interface_residues_chain_1": ["A:6", "A:7"],
-                    "interface_residues_chain_2": ["B:2"],
-                    "contact_count": 3,
-                }
-            ],
-        },
-    )
+    rows = [
+        ResidueContactRow(
+            entry_id="ENTRY1",
+            chain_id_1=a,
+            seq_id_1=seq_a,
+            chain_id_2=b,
+            seq_id_2=seq_b,
+        )
+        for a, seq_a, b, seq_b in (
+            ("A", 6, "B", 2),
+            ("B", 2, "A", 7),
+            ("A", 6, "E", None),  # a ligand row adds nothing
+        )
+    ]
 
-    result = interface_residues_from_annotation(
-        {"ENTRY1": structure}, {"ENTRY1": layer}
-    )
+    result = interface_residues_from_annotation({"ENTRY1": structure}, rows)
 
     # A:6/A:7 are label_seq_id's, but land at file positions 4/5 (the gap
     # shift) -- this is exactly the mismatch compute_structure_similarity's
