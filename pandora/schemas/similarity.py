@@ -349,3 +349,54 @@ class NegativeSamplingSettings(BaseModel):
     contacts: str
     representatives: str
     unpaired: list[str] = Field(default_factory=list)
+
+
+class DatasetPair(BaseModel):
+    """One row of the final PPI table written by `assemble`.
+
+    Attributes:
+        chain_a: The first chain item id (a positive's first chain, or a
+            negative's A).
+        chain_b: The second chain item id (a positive's second chain, or
+            a negative's C).
+        label: 1 for a positive, 0 for a negative.
+        kind: The positive's "homomer"/"heteromer" (negatives inherit).
+        cluster: The positive's dimer group (negatives inherit).
+        split: "train", "val" or "test" (negatives take their
+            positive's).
+        positive: The positive dimer id (a positive's own id).
+        c_leak_positive: Negatives: C is structurally similar to a
+            positive's chain in another split. None for positives.
+        c_leak_negative: Negatives: C is structurally similar to another
+            split's negative C. None for positives.
+    """
+
+    chain_a: str
+    chain_b: str
+    label: int
+    kind: str
+    cluster: str
+    split: str
+    positive: str
+    c_leak_positive: bool | None = None
+    c_leak_negative: bool | None = None
+
+
+class AssemblySettings(BaseModel):
+    """What one `assemble` run used, recorded as its summary's policy.
+
+    Attributes:
+        positives: The `rebalance` step folder.
+        negatives: The `negatives` step folder.
+        splits: The `partition` splits file.
+        representatives: The representatives JSON (chain mapping).
+        similarity_layer: The chain similarity layer's `layer.json`.
+        hit_filter: The filter that makes a hit count as "similar".
+    """
+
+    positives: str
+    negatives: str
+    splits: str
+    representatives: str
+    similarity_layer: str
+    hit_filter: HitFilter

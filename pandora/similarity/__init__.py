@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pandora.similarity.assembly import assemble_pairs
 from pandora.similarity.clustering import (
     cluster_edges,
     entry_edges,
@@ -68,6 +69,7 @@ __all__ = [
     "dimer_adjacency",
     "rebalance",
     "sample_negatives",
+    "assemble_pairs",
     "pick_representatives",
     "restrict_clusters",
     "residue_positions",

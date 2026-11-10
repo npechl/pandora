@@ -5,6 +5,8 @@ and 8)."""
 from __future__ import annotations
 
 import argparse
+import json
+import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -38,8 +40,10 @@ from pandora.export import read_records, write_json, write_records
 from pandora.provenance import build_step_summary
 from pandora.schemas.annotation import LayerDescription, LayerRow
 from pandora.schemas.similarity import (
+    AssemblySettings,
     ClusteredLayer,
     HitFilter,
+    NegativePair,
     NegativeSamplingSettings,
     PositiveDimer,
     RebalanceSettings,
@@ -48,6 +52,7 @@ from pandora.schemas.similarity import (
     SimilarityCluster,
 )
 from pandora.similarity import (
+    assemble_pairs,
     dimer_adjacency,
     item_id,
     member_representatives,
@@ -407,6 +412,105 @@ def _cmd_negatives(args: argparse.Namespace) -> None:
     )
 
 
+_ASSEMBLE_OUTPUTS = [f"pairs.{fmt}" for fmt in TABLE_FORMATS] + [
+    "assemble.json"
+]
+
+
+def _negatives_run(
+    command: str, folder: Path
+) -> tuple[list[NegativePair], Path, dict]:
+    """The pairs of a `negatives` step folder, its summary and the
+    summary's policy."""
+
+    summary = folder / "negatives.json"
+    if not summary.exists():
+        raise SystemExit(
+            f"{command}: {folder} has no negatives.json; it is written by "
+            "`pandora negatives`"
+        )
+    table = find_table(folder, "negatives")
+    pairs = read_records(table, NegativePair) if table else []
+    return pairs, summary, json.loads(summary.read_text())["policy"]
+
+
+def _cmd_assemble(args: argparse.Namespace) -> None:
+    """Handle `assemble`: write the final pairs table with splits and
+    C-chain leak flags as a step folder."""
+
+    command = "assemble"
+    started_at = now_iso()
+    check_table_format(args.table_format)
+    layers, filters, levels = _layers(args, command)
+    if len(layers) != 1 or levels[0] != "chain":
+        raise SystemExit(
+            f"{command}: --similarity takes one chain layer (the one "
+            "`negatives` used)"
+        )
+    positives, _ = _positives(command, Path(args.positives))
+    negatives, previous, used = _negatives_run(command, Path(args.negatives))
+    layer_json = str(layers[0] / "layer.json")
+    if (
+        used.get("representatives") != str(args.representatives)
+        or used.get("similarity_layer") != layer_json
+    ):
+        print(
+            f"{command}: warning: --representatives or --similarity differs "
+            f"from what {previous} used; leak counts are not comparable",
+            file=sys.stderr,
+        )
+    splits = json.loads(Path(args.splits).read_text())
+    representative_of = member_representatives(
+        load_json_list(RepresentativeCluster, Path(args.representatives))
+    )
+    counts: Counter[int] = Counter()
+    tm_edges = list(
+        _layer_edges(layers[0], filters[0], None, counts, 0, command)
+    )
+    try:
+        rows = assemble_pairs(
+            positives, negatives, splits, representative_of, tm_edges
+        )
+    except ValueError as exc:
+        raise SystemExit(f"{command}: {exc}") from exc
+
+    out = Path(args.output_dir)
+    prepare_output_dir(out, _ASSEMBLE_OUTPUTS, args.overwrite)
+    write_table(rows, out, "pairs", args.table_format)
+    tallies = Counter(f"pairs:{r.split}:{r.label}" for r in rows)
+    paired = {r.positive for r in rows if r.label == 0}
+    settings = AssemblySettings(
+        positives=str(args.positives),
+        negatives=str(args.negatives),
+        splits=str(args.splits),
+        representatives=str(args.representatives),
+        similarity_layer=layer_json,
+        hit_filter=filters[0],
+    )
+    write_json(
+        build_step_summary(
+            command,
+            settings,
+            input=args.splits,
+            output=out,
+            started_at=started_at,
+            counts={
+                **dict(sorted(tallies.items())),
+                "negatives_c_leak_positive": sum(
+                    bool(r.c_leak_positive) for r in rows
+                ),
+                "negatives_c_leak_negative": sum(
+                    bool(r.c_leak_negative) for r in rows
+                ),
+                "positives_unpaired": len(positives) - len(paired),
+            },
+            previous_summary=previous,
+        ),
+        out / "assemble.json",
+    )
+    print(f"{len(rows)} pairs -> {out}")
+
+
 def register(subparsers: argparse._SubParsersAction) -> None:
     """Add this module's subcommands to the `pandora` parser."""
 
@@ -469,3 +573,28 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet")
     p.add_argument("--overwrite", action="store_true")
     p.set_defaults(func=_cmd_negatives)
+
+    p = subparsers.add_parser(
+        "assemble",
+        help="Write the final pairs table: positives and negatives with "
+        "their split, kind, group and C-chain leak flags.",
+    )
+    p.add_argument(
+        "--positives", required=True, help="pandora rebalance step folder"
+    )
+    p.add_argument(
+        "--negatives", required=True, help="pandora negatives step folder"
+    )
+    p.add_argument(
+        "--splits", required=True, help="splits JSON (pandora partition)"
+    )
+    p.add_argument(
+        "--representatives",
+        required=True,
+        help="representatives.json (the one `negatives` used)",
+    )
+    _layer_flags(p, "the chain structure-similarity layer `negatives` used")
+    p.add_argument("--output-dir", required=True)
+    p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet")
+    p.add_argument("--overwrite", action="store_true")
+    p.set_defaults(func=_cmd_assemble)

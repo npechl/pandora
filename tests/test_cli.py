@@ -3258,3 +3258,73 @@ def test_partition_stratify_records_flag(tmp_path):
         (tmp_path / "out" / "partition_provenance.json").read_text()
     )
     assert prov["stratify"] is True
+
+
+def _assemble_inputs(tmp_path):
+    """Positives, negatives (seed 0), stratified splits and the inputs
+    `negatives` used."""
+
+    positives, reps, tm, contacts = _negatives_inputs(tmp_path)
+    negatives = tmp_path / "negatives"
+    _negatives(positives, reps, tm, contacts, negatives)
+    splits = tmp_path / "splits.json"
+    main(
+        ["partition", "--clusters", str(positives / "groups.json")]
+        + ["--labels", str(positives / "kinds"), "--stratify"]
+        + ["--output", str(splits)]
+    )
+    return positives, negatives, splits, reps, tm
+
+
+def _assemble(positives, negatives, splits, reps, tm, out, *extra):
+    main(
+        ["assemble", "--positives", str(positives)]
+        + ["--negatives", str(negatives), "--splits", str(splits)]
+        + ["--representatives", str(reps), "--similarity", str(tm)]
+        + ["--min-score", "0.5", "--output-dir", str(out)]
+        + ["--table-format", "jsonl", *extra]
+    )
+
+
+def test_assemble_writes_pairs_and_summary(tmp_path, capsys):
+    positives, negatives, splits, reps, tm = _assemble_inputs(tmp_path)
+    out = tmp_path / "dataset"
+    _assemble(positives, negatives, splits, reps, tm, out)
+
+    rows = _jsonl(out / "pairs.jsonl")
+    n_pos = len(_jsonl(positives / "positives.jsonl"))
+    n_neg = len(_jsonl(negatives / "negatives.jsonl"))
+    assert [r["label"] for r in rows] == [1] * n_pos + [0] * n_neg
+    split_of = {
+        d: name
+        for name, members in json.loads(splits.read_text()).items()
+        for d in members
+    }
+    assert all(r["split"] == split_of[r["positive"]] for r in rows)
+    summary = json.loads((out / "assemble.json").read_text())
+    assert summary["step"] == "assemble"
+    assert summary["previous_summary"] == str(negatives / "negatives.json")
+    counts = summary["counts"]
+    assert sum(v for k, v in counts.items() if k.startswith("pairs:")) == len(
+        rows
+    )
+    assert counts["negatives_c_leak_positive"] == 0
+    assert counts["negatives_c_leak_negative"] == 0
+    assert counts["positives_unpaired"] == n_pos - n_neg
+    assert "assemble: warning" not in capsys.readouterr().err
+
+
+def test_assemble_warns_on_other_representatives(tmp_path, capsys):
+    positives, negatives, splits, reps, tm = _assemble_inputs(tmp_path)
+    other = tmp_path / "other_reps.json"
+    other.write_text(reps.read_text())
+    _assemble(positives, negatives, splits, other, tm, tmp_path / "d")
+    assert "assemble: warning" in capsys.readouterr().err
+
+
+def test_assemble_refuses_existing_output(tmp_path):
+    positives, negatives, splits, reps, tm = _assemble_inputs(tmp_path)
+    out = tmp_path / "dataset"
+    _assemble(positives, negatives, splits, reps, tm, out)
+    with pytest.raises(SystemExit, match="overwrite"):
+        _assemble(positives, negatives, splits, reps, tm, out)
