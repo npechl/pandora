@@ -285,7 +285,7 @@ pandora cluster --similarity similarity/struct2 --structures-dir curated2/ --con
     ['1AYI_A']
     ```
 
-    `--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score` and `--min-coverage` override its fields. At least one of the three is required: with no threshold every hit would become an edge. `cluster_provenance.json`, next to `--output`, records the hit filter, the layer (`similarity_layer`), and the edge and cluster counts.
+    `--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score` and `--min-coverage` override its fields. At least one of the three is required: with no threshold every hit would become an edge. `cluster_provenance.json`, next to `--output`, records each layer under `layers` (its `layer.json`, item level, hit filter and edge count) and the total edge and cluster counts.
 
 === "`library`"
 
@@ -336,7 +336,7 @@ Splits are usually made by entry, so that chains of one entry never land in diff
     ['1AYI']
     ```
 
-    Only `entry` on a chain layer may differ from the layer's own level; any other `--items` is an error.
+    `--items` may differ from the layer's own level only on a chain layer, which rolls up to `entry` or `interface` (below); anything else is an error.
 
 === "`library`"
 
@@ -370,6 +370,64 @@ pandora cluster --similarity similarity/iface --contacts annotations/interfaces 
 ['1A2C_A_B', '1A2C_B_C']
 ['1A2C_B_D']
 ```
+
+### Clustering interfaces from a chain layer, and several layers
+
+`--items interface` on a chain layer rolls the chains up to the interfaces of `--contacts`: two interfaces share a cluster when **any** chain of one is similar to any chain of the other. Interfaces that share a chain are always joined, since a chain matches itself, so every interface of one assembly whose chains connect lands in one cluster. A hit involving a chain that is in no interface is dropped: a chain that is not part of any dimer must not join two dimers it happens to resemble.
+
+`--similarity` can be repeated, and an edge from any layer links two items. This is how a dimer similarity built from several checks (say chain fold *or* interface similarity) is clustered in one go. `--min-score`, `--min-coverage` and `--hit-filter` are each given once for every layer, or once per `--similarity` in the same order. Each layer must be at the `--items` level or be a chain layer that rolls up to it.
+
+The examples use `1a3n` (deoxyhemoglobin) from [Comparing interfaces](#comparing-interfaces), with its interface layer `similarity/iface_jaccard` and a Foldseek layer `similarity/struct` over its four chains.
+
+=== "`cli`"
+
+    ```bash
+    pandora cluster --items interface --contacts annotations/interfaces \
+      --similarity similarity/iface_jaccard --min-score 0.1 \
+      --similarity similarity/struct --min-score 0.5 \
+      --structures-dir curated/ --output clusters/dimers.json
+    jq -c '.[].components' clusters/dimers.json
+    jq -c '.layers[] | [.similarity_layer, .items, .n_edges]' clusters/cluster_provenance.json
+    ```
+
+    ```text
+    1 clusters from 18 edges -> clusters/dimers.json
+    ["1A3N_A_B","1A3N_A_C","1A3N_A_D","1A3N_B_C","1A3N_B_D"]
+    ["similarity/iface_jaccard/layer.json","interface",2]
+    ["similarity/struct/layer.json","chain",12]
+    ```
+
+    The interface layer alone gives three clusters; α and β are both globins (TM-score above 0.9), so the chain layer joins them. The 18 edges are the interface layer's 2, the 10 chain hits between chains of different interfaces, and 6 links between interfaces sharing a chain. `--structures-dir` is optional here; when given, symmetry copies are linked to their source chain as for chain clustering.
+
+=== "`library`"
+
+    ```python
+    import pandas as pd
+
+    from pandora.schemas.similarity import HitFilter
+    from pandora.similarity import (
+        cluster_edges,
+        interface_edges,
+        interface_items,
+        read_similarity_table,
+        similarity_edges,
+    )
+
+    contacts = pd.read_parquet("annotations/interfaces/layer.parquet")
+    interfaces = sorted(interface_items(contacts.to_dict("records")).ids.values())
+    edges = similarity_edges(
+        read_similarity_table("similarity/struct/layer.parquet"),
+        HitFilter(min_score=0.5),
+    )
+    clusters, _ = cluster_edges(interfaces, interface_edges(edges, interfaces))
+    print([c.components for c in clusters])
+    ```
+
+    ```text
+    [['1A3N_A_B', '1A3N_A_C', '1A3N_A_D', '1A3N_B_C', '1A3N_B_D']]
+    ```
+
+    To join several layers, chain their edge streams (`itertools.chain`) before `cluster_edges()`, rolling up only the chain-level ones.
 
 ### Paired cluster keys (PPI pairs)
 
@@ -484,7 +542,8 @@ Up to this release the searches kept a raw hit TSV with a `SimilaritySearch` rec
 | `iter_edges()`, `cluster_similar_items()` | `similarity_edges()` + `cluster_edges()` |
 | `HitFilter.tm_normalisation` | `HitFilter.score_column` (`qtmscore`, `ttmscore`; no `max`) |
 | `HitFilter.coverage_of: query / target` | `side_1` / `side_2` |
-| `ClusteringProvenance.search` | `ClusteringProvenance.similarity_layer` |
+| `ClusteringProvenance.search` | `ClusteringProvenance.layers[].similarity_layer` |
+| `ClusteringProvenance.hit_filter`, `.similarity_layer` (one layer) | `ClusteringProvenance.layers` (one entry per `--similarity`) |
 | `annotate_pairwise_sequence_identity()` | removed: use an MMseqs2 search |
 
 `reproduce_dataset()` no longer replays similarity or clustering.

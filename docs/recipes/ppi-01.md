@@ -27,7 +27,7 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
     from pandora.provenance import build_dataset_manifest, build_provenance_bundle
     from pandora.schemas.canonicalisation import canonicalisationPolicy
     from pandora.schemas.dataset import DatasetCurationPolicy, DeduplicationRules
-    from pandora.schemas.similarity import HitFilter
+    from pandora.schemas.similarity import ClusteredLayer, HitFilter
     from pandora.schemas.structure import Structure
     from pandora.similarity import (
         cluster_edges,
@@ -121,7 +121,9 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
         read_hit_tsv(OUTPUT_DIR / "hits.tsv", "MMseqs2"), hit_filter
     )
     clusters, cluster_prov = cluster_edges(sorted(structures), entry_edges(edges))
-    cluster_prov = cluster_prov.model_copy(update={"hit_filter": hit_filter})
+    cluster_prov = cluster_prov.model_copy(
+        update={"layers": [ClusteredLayer(items="chain", hit_filter=hit_filter)]}
+    )
     print(
         f"{len(clusters)} sequence-identity cluster(s) at {IDENTITY_THRESHOLD:.0%}"
     )
@@ -262,7 +264,9 @@ edges = similarity_edges(
     read_hit_tsv(OUTPUT_DIR / "hits.tsv", "MMseqs2"), hit_filter
 )
 clusters, cluster_prov = cluster_edges(sorted(structures), entry_edges(edges))
-cluster_prov = cluster_prov.model_copy(update={"hit_filter": hit_filter})
+cluster_prov = cluster_prov.model_copy(
+    update={"layers": [ClusteredLayer(items="chain", hit_filter=hit_filter)]}
+)
 splits, partition_prov = partition_dataset(
     clusters, pct_train=0.7, pct_val=0.15, pct_test=0.15
 )
@@ -418,15 +422,21 @@ datasets/output/ppi/
     },
     "clustering": {
         "clustered_at": "2026-11-09T16:12:43.663850+00:00",
-        "hit_filter": {
-            "min_score": 0.3,
-            "score_column": "score",
-            "min_identity": null,
-            "min_coverage": null,
-            "coverage_of": "both",
-            "min_interface_coverage": null
-        },
-        "similarity_layer": null,
+        "layers": [
+            {
+                "similarity_layer": null,
+                "items": "chain",
+                "hit_filter": {
+                    "min_score": 0.3,
+                    "score_column": "score",
+                    "min_identity": null,
+                    "min_coverage": null,
+                    "coverage_of": "both",
+                    "min_interface_coverage": null
+                },
+                "n_edges": 0
+            }
+        ],
         "n_edges": 398,
         "n_edges_unknown_ids": 0,
         "n_clusters": 35
