@@ -1,7 +1,7 @@
 # Conda environment for Pandora. From the repo root:
 #   conda env create -f environment.yml
 #   conda activate pandora
-name: pandora_v0.6.0
+name: pandora_v0.6.1
 channels:
   - conda-forge
   - bioconda
