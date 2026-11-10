@@ -645,3 +645,66 @@ Leaving a threshold out turns its rule off. With neither, every pair is `ok`, wh
     ```
 
     `annotations/interfaces` stays the "any contact" set and `annotations/contacts_real` is the "real interaction" set. The thresholds are recorded in `annotations/dimer_labels/layer.json` under `policy.parameters`.
+
+### Labelling interfaces with a hole
+
+PPI v2.1 drops dimers with a hole in the binding site: a residue missing from the model that lies between two residues in contact. `label_interface_gaps` finds them and writes an `interface_labels` layer, which you can then use to drop interfaces as above. A residue is missing if it is a SEQRES position without all of its backbone atoms (N, CA, C, O), the same rule `pandora curate` uses for `incomplete_backbone`. On each side of a chain pair, the span runs from the first to the last residue in contact with the other chain that is not missing, in sequence order. Each chain pair gets one row with:
+
+- `gaps_1`, `gaps_2`: how many missing positions of each chain lie inside its span.
+- `label`: `interface_gap` if either side has a gap, `unknown` if a chain could not be measured, else `ok`.
+
+A chain can't be measured if its entity has no SEQRES (`_entity_poly_seq`), or if its `label_seq_id`s no longer match SEQRES, for example after renumbering. Canonicalise with `residue_numbering: preserve` so that `seq_id` is still the SEQRES position. Run this check on structures before any gap filling: once missing residues are rebuilt, every chain passes. A chain flagged at one interface keeps its other interfaces. (v2.1 removes the whole chain; Pandora only drops the dimer where the gap is.)
+
+=== "`library`"
+
+    ```python
+    import pandas as pd
+
+    from pandora.annotations import annotate_chain_interfaces, label_interface_gaps
+    from pandora.datasets import missing_positions
+    from pandora.parsing import mmcif_to_structure
+
+    structure, _, _ = mmcif_to_structure("curated/structures/a2/1a2c.cif")
+    contacts = annotate_chain_interfaces(structure)
+    chains, _ = missing_positions(structure)
+    missing = {
+        (structure.entry_id.upper(), chain): positions
+        for chain, positions in chains.items()
+    }
+    rows = label_interface_gaps(contacts, missing)
+    columns = ["chain_id_1", "chain_id_2", "gaps_1", "gaps_2", "label"]
+    print(pd.DataFrame([row.model_dump() for row in rows])[columns])
+    ```
+
+    ```text
+      chain_id_1 chain_id_2  gaps_1  gaps_2          label
+    0          A          B       0       7  interface_gap
+    1          B          C       0       0             ok
+    2          B          D       7       0  interface_gap
+    ```
+
+    Thrombin's heavy chain `B` has a missing loop inside its interfaces with the light chain `A` and with hirudin `D`.
+
+=== "`cli`"
+
+    `pandora annotate interface-gaps` reads the structures of the step folder the contact layer was computed from. Its output is an `interface_labels` layer folder:
+
+    ```bash
+    pandora annotate compute --layer chain_interfaces --structures-dir curated/ \
+      --output-dir annotations/interfaces
+    pandora annotate interface-gaps --contacts annotations/interfaces \
+      --output-dir annotations/interface_gaps
+    pandora annotate filter-contacts --contacts annotations/interfaces \
+      --labels annotations/interface_gaps --drop interface_gap \
+      --output-dir annotations/contacts_nogap
+    jq -c '.counts' annotations/interface_gaps/layer.json
+    ```
+
+    ```text
+    computed: 120 rows for 1 entries -> annotations/interfaces
+    labelled: 3 interfaces (1 ok, 2 interface_gap, 0 unknown) -> annotations/interface_gaps
+    filtered: 2 interfaces dropped, 1 kept, 0 unlabelled -> annotations/contacts_nogap
+    {"rows_in":120,"interfaces":3,"ok":1,"interface_gap":2,"unknown":0,"chains_unmeasured":0}
+    ```
+
+    `chains_unmeasured` counts the polymer chains in the structures folder that could not be measured. If any interface is `unknown`, the command prints a warning. To drop those interfaces too, add `--drop unknown`.

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from pandora.datasets.completeness import chain_completeness
+from pandora.datasets.completeness import (
+    chain_completeness,
+    missing_positions,
+)
 from pandora.datasets.containment import find_contained
 from pandora.datasets.curation import curate_structure, deduplicate_structures
 from pandora.datasets.records import (
@@ -21,4 +24,5 @@ __all__ = [
     "extract_interface_records",
     "interface_residue_pairs",
     "extract_residue_records",
+    "missing_positions",
 ]

@@ -21,6 +21,7 @@ from pandora.annotations import (
     count_interface_labels,
     count_residue_contacts,
     drop_labelled_interfaces,
+    label_interface_gaps,
     label_interfaces,
     resolve_layer_rows,
 )
@@ -37,6 +38,7 @@ from pandora.cli._io import (
     read_structures_dir,
     write_table,
 )
+from pandora.datasets import missing_positions
 from pandora.export import read_records, write_json
 from pandora.ingestion import load_policy
 from pandora.provenance import build_step_summary
@@ -457,6 +459,127 @@ def _cmd_label(args: argparse.Namespace) -> None:
     )
 
 
+def _cmd_gaps(args: argparse.Namespace) -> None:
+    """Handle `annotate interface-gaps`: label a contact layer's
+    interfaces with a missing residue inside them, as a layer folder."""
+
+    command = "annotate interface-gaps"
+    started_at = now_iso()
+    check_table_format(args.table_format)
+    contacts = Path(args.contacts_dir)
+    check_contact_layer(command, contacts)
+    out = Path(args.output_dir)
+    if out.resolve() == contacts.resolve():
+        raise SystemExit(
+            f"{command}: {out} is the --contacts folder; choose another "
+            "--output-dir"
+        )
+    origin = layer_origin(contacts)
+    if origin is None:
+        raise SystemExit(
+            f"{command}: cannot tell which structures folder {contacts} "
+            "came from; the paths in its layer.json may be relative to "
+            "where `annotate compute` ran, so run from that folder"
+        )
+    table = find_table(contacts, "layer")
+    rows = read_records(table, ResidueContactRow) if table else []
+    missing: dict[tuple[str, str], set[int]] = {}
+    unmeasured = 0
+    for entry_id, structure in read_structures_dir(origin).items():
+        chains, diagnostics = missing_positions(structure)
+        unmeasured += len(diagnostics.warnings)
+        for chain_id, positions in chains.items():
+            missing[(entry_id.upper(), chain_id)] = positions
+    labelled = label_interface_gaps(rows, missing)
+
+    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    write_table(labelled, out, "layer", args.table_format)
+    source = json.loads((contacts / "layer.json").read_text())["policy"]
+    description = LayerDescription(
+        name="interface_gaps",
+        template="interface_labels",
+        tool="pandora",
+        tool_version=__version__,
+        parameters={
+            "contacts_layer": source.get("name"),
+            "structures_dir": str(origin),
+            "missing_residue_definition": "incomplete_backbone",
+        },
+    )
+    labels = Counter(row.label for row in labelled)
+    counts = {
+        "rows_in": len(rows),
+        "interfaces": len(labelled),
+        "ok": labels["ok"],
+        "interface_gap": labels["interface_gap"],
+        "unknown": labels["unknown"],
+        "chains_unmeasured": unmeasured,
+    }
+    write_json(
+        build_step_summary(
+            "annotation_label",
+            description,
+            input=contacts,
+            output=out,
+            started_at=started_at,
+            counts=counts,
+            previous_summary=contacts / "layer.json",
+        ),
+        out / "layer.json",
+    )
+    if labels["unknown"]:
+        print(
+            f"{command}: warning: {labels['unknown']} interfaces have a "
+            "chain whose missing residues can't be measured (no SEQRES, "
+            "or label_seq_id renumbered); they are labelled unknown",
+            file=sys.stderr,
+        )
+    print(
+        f"labelled: {len(labelled)} interfaces ({labels['ok']} ok, "
+        f"{labels['interface_gap']} interface_gap, {labels['unknown']} "
+        f"unknown) -> {out}"
+    )
+
+
+def _register_labels(commands: argparse._SubParsersAction) -> None:
+    """Add the subcommands that write interface_labels layers."""
+
+    p = commands.add_parser(
+        "label-interfaces",
+        help="Label a contact layer's interfaces few_contacts, too_large "
+        "or ok, with their counts, as an interface_labels layer.",
+    )
+    p.add_argument("--contacts", dest="contacts_dir", required=True)
+    p.add_argument(
+        "--min-residues-per-chain",
+        type=int,
+        help="label few_contacts when either chain has fewer residues "
+        "in contact with the other",
+    )
+    p.add_argument(
+        "--max-total-residues",
+        type=int,
+        help="label too_large when the two chains' sequence lengths add "
+        "up to more",
+    )
+    p.add_argument("--output-dir", required=True)
+    p.add_argument("--overwrite", action="store_true")
+    p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet")
+    p.set_defaults(func=_cmd_label)
+
+    p = commands.add_parser(
+        "interface-gaps",
+        help="Label a contact layer's interfaces interface_gap when a "
+        "residue missing backbone atoms lies inside either side, as an "
+        "interface_labels layer.",
+    )
+    p.add_argument("--contacts", dest="contacts_dir", required=True)
+    p.add_argument("--output-dir", required=True)
+    p.add_argument("--overwrite", action="store_true")
+    p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet")
+    p.set_defaults(func=_cmd_gaps)
+
+
 def register(subparsers: argparse._SubParsersAction) -> None:
     """Add this module's subcommands to the `pandora` parser."""
 
@@ -513,28 +636,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet")
     p.set_defaults(func=_cmd_count)
 
-    p = commands.add_parser(
-        "label-interfaces",
-        help="Label a contact layer's interfaces few_contacts, too_large "
-        "or ok, with their counts, as an interface_labels layer.",
-    )
-    p.add_argument("--contacts", dest="contacts_dir", required=True)
-    p.add_argument(
-        "--min-residues-per-chain",
-        type=int,
-        help="label few_contacts when either chain has fewer residues "
-        "in contact with the other",
-    )
-    p.add_argument(
-        "--max-total-residues",
-        type=int,
-        help="label too_large when the two chains' sequence lengths add "
-        "up to more",
-    )
-    p.add_argument("--output-dir", required=True)
-    p.add_argument("--overwrite", action="store_true")
-    p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet")
-    p.set_defaults(func=_cmd_label)
+    _register_labels(commands)
 
     p = commands.add_parser(
         "filter-contacts",

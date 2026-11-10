@@ -2171,6 +2171,55 @@ def test_annotate_label_interfaces_without_chains_table_exits(tmp_path):
     assert not (tmp_path / "labels").exists()
 
 
+def _gaps(contacts, out):
+    main(
+        ["annotate", "interface-gaps", "--contacts", str(contacts)]
+        + ["--output-dir", str(out), "--table-format", "jsonl"]
+    )
+
+
+def test_annotate_interface_gaps_writes_layer(tmp_path):
+    step = _step_folder(tmp_path)
+    contacts = tmp_path / "interfaces"
+    _compute(step, contacts, "--layer", "chain_interfaces")
+    out = tmp_path / "gaps"
+    _gaps(contacts, out)
+
+    written = read_records(out / "layer.jsonl", LayerRow)
+    # 1a2c: heavy chain B (auth H) has a missing loop inside both of
+    # its interfaces with the light chain and with hirudin (D/J).
+    assert [
+        (r.chain_id_1, r.chain_id_2, r.gaps_1, r.gaps_2, r.label)
+        for r in written
+    ] == [
+        ("A", "B", 0, 7, "interface_gap"),
+        ("B", "C", 0, 0, "ok"),
+        ("B", "D", 7, 0, "interface_gap"),
+    ]
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["policy"]["name"] == "interface_gaps"
+    assert summary["policy"]["template"] == "interface_labels"
+    assert summary["policy"]["parameters"] == {
+        "contacts_layer": "chain_interfaces",
+        "structures_dir": str(step.resolve()),
+        "missing_residue_definition": "incomplete_backbone",
+    }
+    assert summary["counts"] == {
+        "rows_in": 120,
+        "interfaces": 3,
+        "ok": 1,
+        "interface_gap": 2,
+        "unknown": 0,
+        "chains_unmeasured": 0,
+    }
+
+    kept = tmp_path / "nogap"
+    _filter(contacts, out, kept, "--drop", "interface_gap")
+    assert {tuple(sorted(pair)) for pair in _contact_pairs(kept)} == {
+        ("B", "C")
+    }
+
+
 def test_annotate_label_interfaces_output_is_contacts_exits(tmp_path):
     _, contacts = _label_inputs(tmp_path)
     before = (contacts / "layer.json").read_text()

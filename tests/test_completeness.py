@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from pandora.canonicalisation import canonicalise_structure
-from pandora.datasets import chain_completeness
+from pandora.datasets import chain_completeness, missing_positions
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.canonicalisation import (
     IdentifierRules,
@@ -98,3 +98,24 @@ def test_completeness_accepts_mapped_modified_residue():
     records, diagnostics = chain_completeness(canonical)
     assert _counts(records) == {"A": (69, 0, 1, 0)}
     assert diagnostics.warnings == []
+
+
+def test_missing_positions_agree_with_completeness():
+    structure = _load("10mv")
+    (record,), _ = chain_completeness(structure)
+    missing, diagnostics = missing_positions(structure)
+    positions = sorted(missing["A"])
+    assert len(positions) == 21 + 18 + 5
+    assert positions[:21] == list(range(1, 22))
+    assert positions[-18:] == list(range(258, 276))
+    assert diagnostics.warnings == []
+
+
+def test_missing_positions_skip_unmeasured_chains():
+    structure = _load("10mv")
+    raw = {k: v for k, v in structure.raw.items() if k != "_entity_poly_seq"}
+    missing, diagnostics = missing_positions(
+        structure.model_copy(update={"raw": raw})
+    )
+    assert missing == {}
+    assert [d.code for d in diagnostics.warnings] == ["NO_SEQRES"]

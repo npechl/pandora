@@ -73,6 +73,7 @@ only need one piece. See [Metadata](../usage/metadata.md).
 | `annotate_chain_interfaces()` | `Structure` | `list[ResidueContactRow]` (a `residue_contacts` layer) |
 | `count_residue_contacts()` | `list[ResidueContactRow]` | `list[LayerRow]` (a `residue_values` layer) |
 | `count_chain_contacts()` | `list[ResidueContactRow]` | `list[LayerRow]` (a `chain_values` layer) |
+| `label_interface_gaps()` | `list[ResidueContactRow]`, missing positions by chain | `list[LayerRow]` (an `interface_labels` layer) |
 | `drop_labelled_interfaces()` | `list[ResidueContactRow]`, `interface_labels` rows, drop labels | `list[ResidueContactRow]` (the kept rows) |
 | `count_interface_labels()` | the same | `dict[str, int]` (interfaces in, dropped, unlabelled; labels unmatched) |
 
@@ -84,6 +85,7 @@ The contact functions return the same `ResidueContactRow` rows that `annotate im
 |---|---|---|
 | `curate_structure()` | `Structure`, `MetadataRecord | None`, `DatasetCurationPolicy` | `(Structure | None, list[ExclusionRecord], CurationProvenance)` — `None` structure means excluded; records also cover removed chains |
 | `chain_completeness()` | `Structure`, `MissingResidueDefinition` | `(list[ChainCompleteness], DiagnosticBundle)` |
+| `missing_positions()` | `Structure`, `MissingResidueDefinition` | `(dict[str, set[int]], DiagnosticBundle)` — missing `label_seq_id`s per chain |
 | `deduplicate_structures()` | `list[Structure]`, `DeduplicationRules` | `(list[Structure], list[ExclusionRecord], DeduplicationProvenance)` |
 | `find_contained()` | entry → chain counts per cluster, entry → rank values, `list[RankKey]` | `list[ContainmentRecord]`: the entries contained in another |
 | `extract_chain_records()` | `Structure` | `list[ChainRecord]` |

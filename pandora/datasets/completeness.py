@@ -40,6 +40,62 @@ def _matches_seqres(
     return True
 
 
+def _present_positions(
+    structure: Structure, definition: MissingResidueDefinition
+) -> tuple[dict[str, tuple[int, list[int]]], DiagnosticBundle]:
+    """Per measurable polymer chain, its SEQRES length and sorted present
+    positions; a warning per chain that can't be measured."""
+
+    diagnostics = DiagnosticBundle()
+    seqres = _seqres_by_entity(structure)
+    backbone_by_entity = _backbone_by_entity(structure.entities)
+    polymer_entities = {e.id for e in structure.entities if e.type == "polymer"}
+
+    # chain -> seq_id -> (comp_id, atom names)
+    residues: dict[str, dict[int, tuple[str, set[str]]]] = defaultdict(dict)
+    for a in structure.atoms:
+        if a.label_seq_id is None:
+            continue
+        chain = residues[a.label_asym_id]
+        if a.label_seq_id not in chain:
+            chain[a.label_seq_id] = (a.label_comp_id, set())
+        chain[a.label_seq_id][1].add(a.label_atom_id)
+
+    measured: dict[str, tuple[int, list[int]]] = {}
+    for asym in structure.asym_units:
+        if asym.entity_id not in polymer_entities:
+            continue
+        positions = seqres.get(asym.entity_id, {})
+        chain_residues = residues.get(asym.id, {})
+        code = None
+        if not positions:
+            code = "NO_SEQRES"
+        elif not _matches_seqres(chain_residues, positions):
+            code = "SEQRES_MISMATCH"
+        if code is not None:
+            diagnostics.warnings.append(
+                Diagnostic(
+                    code=code,
+                    severity="warning",
+                    message=f"Chain {asym.id}: completeness not measured "
+                    f"({code})",
+                    entry_id=structure.entry_id,
+                    context={"chain": asym.id},
+                )
+            )
+            continue
+        backbone = backbone_by_entity.get(asym.entity_id, _PROTEIN_BACKBONE)
+        measured[asym.id] = (
+            len(positions),
+            sorted(
+                seq_id
+                for seq_id, (_, names) in chain_residues.items()
+                if definition == "unobserved" or backbone <= names
+            ),
+        )
+    return measured, diagnostics
+
+
 def chain_completeness(
     structure: Structure,
     definition: MissingResidueDefinition = "incomplete_backbone",
@@ -64,52 +120,9 @@ def chain_completeness(
         measured.
     """
 
-    diagnostics = DiagnosticBundle()
-    seqres = _seqres_by_entity(structure)
-    backbone_by_entity = _backbone_by_entity(structure.entities)
-    polymer_entities = {e.id for e in structure.entities if e.type == "polymer"}
-
-    # chain -> seq_id -> (comp_id, atom names)
-    residues: dict[str, dict[int, tuple[str, set[str]]]] = defaultdict(dict)
-    for a in structure.atoms:
-        if a.label_seq_id is None:
-            continue
-        chain = residues[a.label_asym_id]
-        if a.label_seq_id not in chain:
-            chain[a.label_seq_id] = (a.label_comp_id, set())
-        chain[a.label_seq_id][1].add(a.label_atom_id)
-
+    measured, diagnostics = _present_positions(structure, definition)
     records: list[ChainCompleteness] = []
-    for asym in structure.asym_units:
-        if asym.entity_id not in polymer_entities:
-            continue
-        positions = seqres.get(asym.entity_id, {})
-        chain_residues = residues.get(asym.id, {})
-        code = None
-        if not positions:
-            code = "NO_SEQRES"
-        elif not _matches_seqres(chain_residues, positions):
-            code = "SEQRES_MISMATCH"
-        if code is not None:
-            diagnostics.warnings.append(
-                Diagnostic(
-                    code=code,
-                    severity="warning",
-                    message=f"Chain {asym.id}: completeness not measured "
-                    f"({code})",
-                    entry_id=structure.entry_id,
-                    context={"chain": asym.id},
-                )
-            )
-            continue
-
-        length = len(positions)
-        backbone = backbone_by_entity.get(asym.entity_id, _PROTEIN_BACKBONE)
-        present = sorted(
-            seq_id
-            for seq_id, (_, names) in chain_residues.items()
-            if definition == "unobserved" or backbone <= names
-        )
+    for chain_id, (length, present) in measured.items():
         if present:
             first, last = present[0], present[-1]
             n_term, c_term = first - 1, length - last
@@ -119,7 +132,7 @@ def chain_completeness(
         records.append(
             ChainCompleteness(
                 entry_id=structure.entry_id,
-                chain_id=asym.id,
+                chain_id=chain_id,
                 seqres_length=length,
                 missing_n_term=n_term,
                 missing_c_term=c_term,
@@ -127,3 +140,31 @@ def chain_completeness(
             )
         )
     return records, diagnostics
+
+
+def missing_positions(
+    structure: Structure,
+    definition: MissingResidueDefinition = "incomplete_backbone",
+) -> tuple[dict[str, set[int]], DiagnosticBundle]:
+    """List the missing SEQRES positions of each polymer chain.
+
+    Missing has the same meaning, and the same chains are measured, as
+    in `chain_completeness`.
+
+    Args:
+        structure: The structure to measure. Its `label_seq_id`s must
+            still index SEQRES.
+        definition: `"unobserved"` or `"incomplete_backbone"`, as in
+            `chain_completeness`.
+
+    Returns:
+        `(missing, diagnostics)`: the missing `label_seq_id`s by chain
+        (`label_asym_id`) for every measured polymer chain, and a
+        warning per chain that could not be measured.
+    """
+
+    measured, diagnostics = _present_positions(structure, definition)
+    return {
+        chain_id: set(range(1, length + 1)) - set(present)
+        for chain_id, (length, present) in measured.items()
+    }, diagnostics

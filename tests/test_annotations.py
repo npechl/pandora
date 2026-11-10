@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from pandora.annotations.counts import (
     count_chain_contacts,
     count_residue_contacts,
+    label_interface_gaps,
     label_interfaces,
 )
 from pandora.annotations.entry import (
@@ -1303,3 +1304,51 @@ def test_label_interfaces_orders_reversed_pair_and_its_counts():
     (row,) = label_interfaces(rows, _lengths(A=10, B=20))
     assert (row.chain_id_1, row.residues_1, row.length_1) == ("A", 1, 10)
     assert (row.chain_id_2, row.residues_2, row.length_2) == ("B", 3, 20)
+
+
+def _missing(**chains):
+    return {("1ABC", c): set(positions) for c, positions in chains.items()}
+
+
+def test_label_interface_gaps_counts_missing_inside_each_span():
+    rows = [
+        _contact("A", 2, "B", 3),
+        _contact("A", 6, "B", 3),
+        _contact("A", 8, "B", 5),  # 8 is missing: span ends at 6
+    ]
+    (row,) = label_interface_gaps(rows, _missing(A={1, 4, 8, 9}, B={2}))
+    assert row.model_dump() == {
+        "entry_id": "1abc",
+        "chain_id_1": "A",
+        "chain_id_2": "B",
+        "auth_chain_id_1": "A",
+        "auth_chain_id_2": "B",
+        "gaps_1": 1,
+        "gaps_2": 0,
+        "label": "interface_gap",
+    }
+
+
+@pytest.mark.parametrize(
+    "missing, label, gaps",
+    [
+        (_missing(A=set(), B={9}), "ok", (0, 0)),
+        (_missing(A=set()), "unknown", (0, None)),
+        (_missing(A={2}), "interface_gap", (1, None)),
+    ],
+)
+def test_label_interface_gaps_labels(missing, label, gaps):
+    rows = [_contact("A", 1, "B", 1), _contact("A", 3, "B", 1)]
+    (row,) = label_interface_gaps(rows, missing)
+    assert (row.label, (row.gaps_1, row.gaps_2)) == (label, gaps)
+
+
+def test_label_interface_gaps_skips_non_polymer_and_same_chain_rows():
+    rows = [
+        _contact("A", 1, "B", 1),
+        _contact("A", 5, "B", None),
+        _contact("A", 1, "A", 5),
+    ]
+    (row,) = label_interface_gaps(rows, _missing(A={3}, B=set()))
+    assert (row.gaps_1, row.label) == (0, "ok")
+    check_layer_columns(row.model_dump().keys(), "interface_labels")

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from typing import Any
 
 from pandora.schemas.annotation import LayerRow, ResidueContactRow
@@ -207,6 +207,94 @@ def label_interfaces(
                 length_1=length_1,
                 length_2=length_2,
                 total_residues=total,
+                label=label,
+            )
+        )
+    return out
+
+
+def label_interface_gaps(
+    contacts: Iterable[ResidueContactRow],
+    missing: Mapping[tuple[str, str], Collection[int]],
+) -> list[LayerRow]:
+    """Label each interface with a missing residue inside its span.
+
+    An interface is an entry's unordered chain pair with at least one
+    contact row where both residues are polymer residues (`seq_id`
+    set) on different chains. Per side, the span runs from the first
+    to the last of its chain's residues in contact with the other
+    chain that are not missing; the side's gap count is the missing
+    positions strictly inside that span. The label is `interface_gap`
+    if either side has a gap, else `unknown` if either chain is not in
+    `missing`, else `ok`.
+
+    `seq_id` must be the position in the chain's sequence (structures
+    that keep `label_seq_id`), and `missing` must come from the
+    structures before any gap filling.
+
+    Args:
+        contacts: The rows of one `residue_contacts` layer.
+        missing: Missing `seq_id`s by `(entry_id.upper(), chain_id)`,
+            e.g. from `missing_positions`. Chains not here are
+            unmeasured.
+
+    Returns:
+        An `interface_labels` row per interface, sorted by entry and
+        chain pair, with the smaller chain id in `chain_id_1`:
+        `entry_id`, `chain_id_1`, `chain_id_2`, `auth_chain_id_1`,
+        `auth_chain_id_2`, `gaps_1`, `gaps_2` (None if unmeasured) and
+        `label`.
+    """
+
+    residues: dict[tuple[str, str, str], set[int]] = defaultdict(set)
+    entry: dict[str, str] = {}
+    auth: dict[tuple[str, str], str | None] = {}
+    for row in contacts:
+        if (
+            row.seq_id_1 is None
+            or row.seq_id_2 is None
+            or row.chain_id_1 == row.chain_id_2
+        ):
+            continue
+        upper = row.entry_id.upper()
+        entry.setdefault(upper, row.entry_id)
+        residues[(upper, row.chain_id_1, row.chain_id_2)].add(row.seq_id_1)
+        residues[(upper, row.chain_id_2, row.chain_id_1)].add(row.seq_id_2)
+        auth.setdefault((upper, row.chain_id_1), row.auth_chain_id_1)
+        auth.setdefault((upper, row.chain_id_2), row.auth_chain_id_2)
+
+    def gaps(upper: str, chain: str, other: str) -> int | None:
+        """Missing positions inside one side's span, None if unmeasured."""
+
+        gone = missing.get((upper, chain))
+        if gone is None:
+            return None
+        present = residues[(upper, chain, other)] - set(gone)
+        if not present:
+            return 0
+        low, high = min(present), max(present)
+        return sum(low < position < high for position in gone)
+
+    pairs = sorted({(e, *sorted((a, b))) for e, a, b in residues})
+    out = []
+    for upper, chain_1, chain_2 in pairs:
+        gaps_1 = gaps(upper, chain_1, chain_2)
+        gaps_2 = gaps(upper, chain_2, chain_1)
+        if gaps_1 or gaps_2:
+            label = "interface_gap"
+        elif gaps_1 is None or gaps_2 is None:
+            label = "unknown"
+        else:
+            label = "ok"
+        out.append(
+            LayerRow(
+                entry_id=entry[upper],
+                chain_id_1=chain_1,
+                chain_id_2=chain_2,
+                auth_chain_id_1=auth[(upper, chain_1)],
+                auth_chain_id_2=auth[(upper, chain_2)],
+                gaps_1=gaps_1,
+                gaps_2=gaps_2,
                 label=label,
             )
         )
