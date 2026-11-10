@@ -2038,7 +2038,7 @@ def test_annotate_label_interfaces_untraceable_origin_exits(tmp_path):
     summary = json.loads((contacts / "layer.json").read_text())
     summary["input"] = str(tmp_path / "gone")
     (contacts / "layer.json").write_text(json.dumps(summary))
-    with pytest.raises(SystemExit, match="structures folder"):
+    with pytest.raises(SystemExit, match="relative to where"):
         _label(contacts, tmp_path / "labels")
     assert not (tmp_path / "labels").exists()
 

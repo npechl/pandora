@@ -421,7 +421,8 @@ def _cmd_label(args: argparse.Namespace) -> None:
     if origin is None:
         raise SystemExit(
             f"{command}: cannot tell which structures folder {contacts} "
-            "came from"
+            "came from; the paths in its layer.json may be relative to "
+            "where `annotate compute` ran, so run from that folder"
         )
     chains_table = find_table(origin, "chains")
     if chains_table is None:

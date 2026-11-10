@@ -1296,3 +1296,10 @@ def test_label_interfaces_passes_template_check_and_keeps_input():
     out = label_interfaces(rows, _lengths(A=1, B=1))
     check_layer_columns(out[0].model_dump().keys(), "interface_labels")
     assert rows == before
+
+
+def test_label_interfaces_orders_reversed_pair_and_its_counts():
+    rows = [_contact("B", s, "A", 1) for s in (1, 2, 3)]
+    (row,) = label_interfaces(rows, _lengths(A=10, B=20))
+    assert (row.chain_id_1, row.residues_1, row.length_1) == ("A", 1, 10)
+    assert (row.chain_id_2, row.residues_2, row.length_2) == ("B", 3, 20)
