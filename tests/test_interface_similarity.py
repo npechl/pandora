@@ -264,3 +264,12 @@ def test_inputs_not_mutated():
     before = (copy.deepcopy(contacts), copy.deepcopy(clusters), dict(seqs))
     interface_similarity(contacts, clusters, seqs)
     assert (contacts, clusters, seqs) == before
+
+
+def test_sequence_guard_skips_nonstandard_codes():
+    # PCA (gemmi "e") and 5MC (gemmi " ") are written as their parent
+    # residue in the canonical sequence; only standard codes are checked
+    pca = _row("1AAA", "A", 14, "B", 1, "PCA", "ALA")  # position 14 is Q
+    c5m = _row("1AAA", "A", 2, "B", 1, "5MC", "ALA")  # position 2 is C
+    assert _guard_counts(pca)["interfaces_sequence_mismatch"] == 0
+    assert _guard_counts(c5m)["interfaces_sequence_mismatch"] == 0

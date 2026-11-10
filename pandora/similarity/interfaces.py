@@ -58,8 +58,8 @@ def interface_similarity(
 
     `seq_id` must be the position in the chain's sequence (structures
     that keep `label_seq_id`). An interface whose contact rows name a
-    residue that disagrees with the sequence (its `comp_id`'s one-letter
-    code, or a `seq_id` past the end) is skipped and counted.
+    residue that disagrees with the sequence (a standard residue's
+    one-letter code, or a `seq_id` past the end) is skipped and counted.
 
     Args:
         contacts: The rows of one `residue_contacts` layer.
@@ -254,15 +254,21 @@ def _orders(
 
 
 def _residue_fits(sequence: str, seq_id: int, comp_id: str | None) -> bool:
-    """Whether `seq_id` is inside `sequence` and agrees with `comp_id`."""
+    """Whether `seq_id` is inside `sequence` and, for a standard
+    residue, agrees with `comp_id`."""
 
     if not 1 <= seq_id <= len(sequence):
         return False
     if comp_id is None:
         return True
     info = gemmi.find_tabulated_residue(comp_id)
-    code = info.one_letter_code.strip() if info is not None else ""
-    return (code.upper() or "X") == sequence[seq_id - 1].upper()
+    code = info.one_letter_code if info is not None else ""
+    # Modified residues (lowercase or blank codes) may be written as
+    # their parent in the sequence; standard ones suffice to catch
+    # renumbering.
+    if len(code) != 1 or not code.isupper():
+        return True
+    return code == sequence[seq_id - 1].upper()
 
 
 def _align(query: str, target: str) -> tuple[dict[int, int], float]:

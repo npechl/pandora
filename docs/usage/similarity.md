@@ -394,7 +394,7 @@ Two dimers are redundant when they are the same two proteins touching at the sam
 - **`score` is the smaller side.** Both proteins must touch with the same residues. One protein reusing a patch to bind its partner at two different places scores 0.
 - **Every compared pair is written**, zeros included, so you can look at the distribution before choosing a cut-off. `cluster --min-score` keeps scores at or above it.
 
-The residue numbers must be positions in the chain's sequence: canonicalise with `residue_numbering: preserve` (renumbering moves them). Each contact row's residue name is checked against the sequence, and an interface that disagrees is skipped and counted as `interfaces_sequence_mismatch`, never matched by guess.
+The residue numbers must be positions in the chain's sequence: canonicalise with `residue_numbering: preserve` (renumbering moves them). Each standard residue in the contact rows is checked against the sequence (modified residues such as `MSE` are not, since the sequence may give their parent), and an interface that disagrees is skipped and counted as `interfaces_sequence_mismatch`, never matched by guess.
 
 The examples use `1a3n` (deoxyhemoglobin): chains A and B are α, C and D are β. α1β1 and α2β2 (`A_C`, `B_D`) are the same interface; so are the two α1β2 contacts (`A_D`, `B_C`).
 

@@ -64,6 +64,7 @@ from pandora.similarity.layer import (
     item_id,
     item_labels,
     match_similarity_batches,
+    parse_item_id,
 )
 
 _CLI_ENGINES = {"mmseqs2": "MMseqs2", "foldseek": "Foldseek"}
@@ -624,6 +625,15 @@ def _cmd_interfaces(args: argparse.Namespace) -> None:
     }
     clusters_file = Path(args.chain_clusters)
     clusters = load_json_list(SimilarityCluster, clusters_file)
+    try:
+        for cluster in clusters:
+            for component in cluster.components:
+                parse_item_id("chain", component)
+    except ValueError as exc:
+        raise SystemExit(
+            f"{command}: {clusters_file} must cluster chain items "
+            f"(ENTRY_CHAIN): {exc}"
+        ) from exc
     table = find_table(contacts, "layer")
     rows = read_records(table, ResidueContactRow) if table else []
     scored, counts = interface_similarity(

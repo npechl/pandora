@@ -2219,3 +2219,10 @@ def test_similarity_interfaces_output_is_contacts_exits(tmp_path):
     with pytest.raises(SystemExit, match="--contacts folder"):
         _iface_sim(contacts, clusters_file, contacts)
     assert (contacts / "layer.json").read_text() == before
+
+
+def test_similarity_interfaces_wrong_level_clusters_exits(tmp_path):
+    _, contacts, clusters_file, _ = _iface_inputs(tmp_path, [["1A2C"]])
+    with pytest.raises(SystemExit, match="chain items"):
+        _iface_sim(contacts, clusters_file, tmp_path / "out")
+    assert not (tmp_path / "out").exists()
