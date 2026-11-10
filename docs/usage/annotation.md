@@ -578,3 +578,70 @@ The example uses `1a2c` again. Pandora's own contact layers leave `contact_type`
     ```text
     annotate filter-contacts: no interface has the label(s) ['typo']; check for typos
     ```
+
+### Labelling interfaces by contacts and size
+
+PPI-style benchmarks keep only chain pairs that touch enough and are not too big. `label_interfaces` writes that verdict for you as an `interface_labels` layer, so you can drop interfaces with it as above without writing the pandas yourself. Each chain pair gets one row with:
+
+- `residues_1`, `residues_2`: how many residues of each chain touch the other chain. A pair of residues listed several times, or in either order, counts once.
+- `length_1`, `length_2`, `total_residues`: the chains' full sequence lengths (`seqres_length` in the `chains` table that `pandora curate` writes) and their sum. A chain missing from that table has no length, and its pair is never `too_large`.
+- `label`, the first that applies: `too_large` if `total_residues` is over the maximum, `few_contacts` if either side has fewer residues in contact than the minimum, else `ok`.
+
+Leaving a threshold out turns its rule off. With neither, every pair is `ok`, which is a quick way to look at the counts before choosing cut-offs. PPI v2.1 uses 4 residues per chain and 5,000 residues per pair; the example below uses smaller values so that the one entry, `1a2c`, shows all three labels.
+
+=== "`library`"
+
+    ```python
+    import pandas as pd
+
+    from pandora.annotations import annotate_chain_interfaces, label_interfaces
+    from pandora.parsing import mmcif_to_structure
+
+    structure, _, _ = mmcif_to_structure("curated/structures/a2/1a2c.cif")
+    contacts = annotate_chain_interfaces(structure)
+    chains = pd.read_parquet("curated/chains.parquet").dropna(
+        subset="seqres_length"
+    )
+    lengths = {
+        (row.entry_id.upper(), row.chain_id): int(row.seqres_length)
+        for row in chains.itertuples()
+    }
+    rows = label_interfaces(
+        contacts, lengths, min_residues_per_chain=5, max_total_residues=290
+    )
+    columns = ["chain_id_1", "chain_id_2", "residues_1", "residues_2"]
+    columns += ["total_residues", "label"]
+    print(pd.DataFrame([row.model_dump() for row in rows])[columns])
+    ```
+
+    ```text
+      chain_id_1 chain_id_2  residues_1  residues_2  total_residues         label
+    0          A          B          27          34             295     too_large
+    1          B          C          13           8             271            ok
+    2          B          D          18           4             263  few_contacts
+    ```
+
+=== "`cli`"
+
+    `pandora annotate label-interfaces` reads the lengths from the `chains` table of the step folder the contact layer was computed from, and stops if that folder has none. Its output is an `interface_labels` layer folder, ready for `filter-contacts --labels` or `partition --labels`:
+
+    ```bash
+    pandora annotate compute --layer chain_interfaces --structures-dir curated/ \
+      --output-dir annotations/interfaces
+    pandora annotate label-interfaces --contacts annotations/interfaces \
+      --min-residues-per-chain 5 --max-total-residues 290 \
+      --output-dir annotations/dimer_labels
+    pandora annotate filter-contacts --contacts annotations/interfaces \
+      --labels annotations/dimer_labels --drop few_contacts --drop too_large \
+      --output-dir annotations/contacts_real
+    jq -c '.counts' annotations/dimer_labels/layer.json
+    ```
+
+    ```text
+    computed: 120 rows for 1 entries -> annotations/interfaces
+    labelled: 3 interfaces (1 ok, 1 few_contacts, 1 too_large) -> annotations/dimer_labels
+    filtered: 2 interfaces dropped, 1 kept, 0 unlabelled -> annotations/contacts_real
+    {"rows_in":120,"interfaces":3,"ok":1,"few_contacts":1,"too_large":1,"unknown_length":0}
+    ```
+
+    `annotations/interfaces` stays the "any contact" set and `annotations/contacts_real` is the "real interaction" set. The thresholds are recorded in `annotations/dimer_labels/layer.json` under `policy.parameters`.
