@@ -243,3 +243,48 @@ class RepresentativesProvenance(BaseModel):
     n_members: int
     n_members_dropped: int = 0
     n_clusters_dropped: int = 0
+
+
+class PositiveDimer(BaseModel):
+    """One dimer kept as a positive by `rebalance`.
+
+    Attributes:
+        dimer: The interface item id (`{entry}_{chain}_{chain}`).
+        entry_id: The dimer's entry.
+        chain_id_1: The first chain (sorted order of the item id).
+        chain_id_2: The second chain.
+        group: The dimer group it came from (the group's first
+            component).
+        kind: "homomer" (both chains in one 90% cluster) or "heteromer".
+        degree: Its number of neighbours when it was kept.
+    """
+
+    dimer: str
+    entry_id: str
+    chain_id_1: str
+    chain_id_2: str
+    group: str
+    kind: Literal["homomer", "heteromer"]
+    degree: int
+
+
+class DroppedDimer(BaseModel):
+    """One dimer `rebalance` did not keep, and why.
+
+    Attributes:
+        dimer: The interface item id.
+        group: The dimer group it came from.
+        reason: "homomer_in_mixed_group" (a homomer in a group with
+            heteromers), "similar_to_kept" (a neighbour of a kept
+            heteromer) or "not_most_connected" (a homomer-only group's
+            other dimers).
+        kept: The kept dimer that caused the drop, for
+            "similar_to_kept".
+    """
+
+    dimer: str
+    group: str
+    reason: Literal[
+        "homomer_in_mixed_group", "similar_to_kept", "not_most_connected"
+    ]
+    kept: str | None = None

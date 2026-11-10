@@ -24,6 +24,7 @@ from pandora.similarity.layer import (
     parse_item_id,
 )
 from pandora.similarity.partition import partition_dataset
+from pandora.similarity.rebalance import dimer_adjacency, rebalance
 from pandora.similarity.representatives import (
     cluster_hit_counts,
     member_representatives,
@@ -63,6 +64,8 @@ __all__ = [
     "partition_dataset",
     "cluster_hit_counts",
     "member_representatives",
+    "dimer_adjacency",
+    "rebalance",
     "pick_representatives",
     "restrict_clusters",
     "residue_positions",
