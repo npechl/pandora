@@ -967,16 +967,22 @@ def _cmd_partition(args: argparse.Namespace) -> None:
     """Handle the `partition` subcommand: leakage-safe train/val/test
     split of clusters."""
 
+    if args.stratify and args.labels_dir is None:
+        raise SystemExit("partition: --stratify needs --labels")
     labels = _partition_labels(args)
     clusters = load_json_list(SimilarityCluster, Path(args.clusters))
-    splits, prov = partition_dataset(
-        clusters,
-        args.pct_train,
-        args.pct_val,
-        args.pct_test,
-        keep_similar_items=not args.no_keep_similar_items,
-        labels=labels,
-    )
+    try:
+        splits, prov = partition_dataset(
+            clusters,
+            args.pct_train,
+            args.pct_val,
+            args.pct_test,
+            keep_similar_items=not args.no_keep_similar_items,
+            labels=labels,
+            stratify=args.stratify,
+        )
+    except ValueError as exc:
+        raise SystemExit(f"partition: {exc}") from exc
     if labels is not None:
         prov = prov.model_copy(
             update={"labels_layer": str(Path(args.labels_dir) / "layer.json")}
@@ -1313,6 +1319,12 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--pct-val", type=float, default=0.2)
     p.add_argument("--pct-test", type=float, default=0.2)
     p.add_argument("--no-keep-similar-items", action="store_true")
+    p.add_argument(
+        "--stratify",
+        action="store_true",
+        help="split each --labels label's clusters separately, keeping the "
+        "label mix in every split",
+    )
     p.add_argument(
         "--labels",
         dest="labels_dir",

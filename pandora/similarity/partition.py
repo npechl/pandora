@@ -17,6 +17,7 @@ def partition_dataset(
     pct_test: float = 0.2,
     keep_similar_items: bool = True,
     labels: Mapping[str, str] | None = None,
+    stratify: bool = False,
 ) -> tuple[dict[str, list[str]], PartitionProvenance]:
     """Assign cluster members to train/val/test splits.
 
@@ -43,6 +44,10 @@ def partition_dataset(
             cluster's members are divided proportionally across splits.
         labels: Item ID -> label (e.g. from `item_labels`). Items not in
             it count as the label `"unlabelled"`.
+        stratify: Split each label's clusters on their own, with the
+            same fractions, and merge the results, so every split keeps
+            about the overall label mix. Needs `labels`, whole clusters,
+            and one label per cluster.
 
     Returns:
         `(splits, provenance)` — the split assignment, and a record of
@@ -54,13 +59,11 @@ def partition_dataset(
             or `labels` is given with `keep_similar_items=False`.
     """
 
-    if abs(pct_train + pct_val + pct_test - 1.0) > _FRACTION_TOLERANCE:
-        raise ValueError(
-            f"pct_train + pct_val + pct_test must equal 1.0, got "
-            f"{pct_train + pct_val + pct_test}"
-        )
-    if labels is not None and not keep_similar_items:
-        raise ValueError("labels need keep_similar_items=True")
+    _check_options(pct_train + pct_val + pct_test, keep_similar_items, labels)
+    if stratify:
+        if labels is None:
+            raise ValueError("stratify needs labels")
+        return _stratified(clusters, pct_train, pct_val, pct_test, labels)
 
     ordered = sorted(clusters, key=lambda c: c.n_components, reverse=True)
     total = sum(c.n_components for c in ordered)
@@ -174,3 +177,61 @@ def _label_report(
         if every - counts[name].keys()
     }
     return counts, missing
+
+
+def _stratified(
+    clusters: list[SimilarityCluster],
+    pct_train: float,
+    pct_val: float,
+    pct_test: float,
+    labels: Mapping[str, str],
+) -> tuple[dict[str, list[str]], PartitionProvenance]:
+    """Partition each label's clusters on their own and merge."""
+
+    by_label: dict[str, list[SimilarityCluster]] = {}
+    for cluster in clusters:
+        kinds = {_label(labels, i) for i in cluster.components}
+        if len(kinds) > 1:
+            raise ValueError(
+                f"cluster {cluster.components[0]} has several labels "
+                f"({', '.join(sorted(kinds))}); stratify needs one per cluster"
+            )
+        by_label.setdefault(kinds.pop(), []).append(cluster)
+    splits: dict[str, list[str]] = {"train": [], "val": [], "test": []}
+    for label in sorted(by_label):
+        part, _ = partition_dataset(
+            by_label[label], pct_train, pct_val, pct_test
+        )
+        for name, members in part.items():
+            splits[name].extend(members)
+    fractions = {"train": pct_train, "val": pct_val, "test": pct_test}
+    active = [name for name, f in fractions.items() if f > 0]
+    label_counts, missing_labels = _label_report(
+        clusters, labels, splits, active
+    )
+    provenance = PartitionProvenance(
+        partitioned_at=now_iso(),
+        pct_train=pct_train,
+        pct_val=pct_val,
+        pct_test=pct_test,
+        keep_similar_items=True,
+        split_sizes={name: len(members) for name, members in splits.items()},
+        label_counts=label_counts,
+        missing_labels=missing_labels,
+        stratify=True,
+    )
+    return splits, provenance
+
+
+def _check_options(
+    total: float, keep_similar_items: bool, labels: Mapping[str, str] | None
+) -> None:
+    """Raise ValueError if the fractions don't sum to 1, or labels come
+    with split clusters."""
+
+    if abs(total - 1.0) > _FRACTION_TOLERANCE:
+        raise ValueError(
+            f"pct_train + pct_val + pct_test must equal 1.0, got {total}"
+        )
+    if labels is not None and not keep_similar_items:
+        raise ValueError("labels need keep_similar_items=True")

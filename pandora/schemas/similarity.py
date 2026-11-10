@@ -147,6 +147,8 @@ class PartitionProvenance(BaseModel):
             fraction, are left out. Empty otherwise.
         labels_layer: The labels layer's `layer.json` (it records the
             layer's name), when the CLI was given one.
+        stratify: Whether each label's clusters were split on their own,
+            keeping the label mix in every split.
     """
 
     partitioned_at: str
@@ -158,6 +160,7 @@ class PartitionProvenance(BaseModel):
     label_counts: dict[str, dict[str, int]] = Field(default_factory=dict)
     missing_labels: dict[str, list[str]] = Field(default_factory=dict)
     labels_layer: str | None = None
+    stratify: bool = False
 
 
 class RepresentativePolicy(BaseModel):

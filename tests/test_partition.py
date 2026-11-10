@@ -187,3 +187,50 @@ if __name__ == "__main__":
     test_no_keep_similar_items_splits_proportionally_and_flat()
     test_bad_fractions_raise()
     print("ok")
+
+
+def _singles(prefix, n):
+    return [
+        SimilarityCluster(components=[f"{prefix}{i}"], n_components=1)
+        for i in range(n)
+    ]
+
+
+def test_stratify_keeps_label_ratio() -> None:
+    clusters = _singles("h", 10) + _singles("x", 5)
+    labels = {c.components[0]: c.components[0][0] for c in clusters}
+    _, prov = partition_dataset(clusters, labels=labels, stratify=True)
+    assert prov.stratify is True
+    assert prov.label_counts == {
+        "train": {"h": 6, "x": 3},
+        "val": {"h": 2, "x": 1},
+        "test": {"h": 2, "x": 1},
+    }
+
+
+def test_stratify_needs_labels() -> None:
+    with pytest.raises(ValueError, match="labels"):
+        partition_dataset(_singles("h", 3), stratify=True)
+
+
+def test_stratify_rejects_split_items() -> None:
+    with pytest.raises(ValueError, match="keep_similar_items"):
+        partition_dataset(
+            _singles("h", 3),
+            labels={"h0": "h"},
+            keep_similar_items=False,
+            stratify=True,
+        )
+
+
+def test_stratify_rejects_mixed_cluster() -> None:
+    mixed = SimilarityCluster(components=["m0", "m1"], n_components=2)
+    with pytest.raises(ValueError, match="m0"):
+        partition_dataset([mixed], labels={"m0": "h", "m1": "x"}, stratify=True)
+
+
+def test_stratify_rare_label_reports_missing() -> None:
+    clusters = _singles("h", 10) + _singles("x", 1)
+    labels = {c.components[0]: c.components[0][0] for c in clusters}
+    _, prov = partition_dataset(clusters, labels=labels, stratify=True)
+    assert sum("x" in m for m in prov.missing_labels.values()) == 2

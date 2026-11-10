@@ -3238,3 +3238,23 @@ def test_rebalance_overwrite_clears_groups_and_kinds(tmp_path):
     _rebalance(contacts, seq90, groups, iface, out, "--overwrite")
     assert not (out / "kinds" / "stale.txt").exists()
     assert (out / "groups.json").exists()
+
+
+def test_partition_stratify_needs_labels(tmp_path):
+    clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
+    with pytest.raises(SystemExit, match="--labels"):
+        main(
+            ["partition", "--clusters", str(clusters), "--stratify"]
+            + ["--output", str(tmp_path / "s.json")]
+        )
+
+
+def test_partition_stratify_records_flag(tmp_path):
+    clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
+    rows = _kind_rows(_KIND_GROUPS, {"1H0", "1H1", "1H2"})
+    labels = _labels_layer(tmp_path, "chain_labels", rows)
+    _partition(tmp_path, clusters, labels, "--stratify")
+    prov = json.loads(
+        (tmp_path / "out" / "partition_provenance.json").read_text()
+    )
+    assert prov["stratify"] is True
