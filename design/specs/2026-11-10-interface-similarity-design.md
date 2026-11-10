@@ -193,8 +193,7 @@ def interface_similarity(
     chain_clusters: Iterable[SimilarityCluster],
     sequences: Mapping[tuple[str, str], str],
     min_identity: float = 0.9,
-) -> list[LayerRow]:
-    ...
+) -> list[LayerRow]: ...
 ```
 
 `sequences` is keyed by `(entry_id.upper(), chain_id)`, like
