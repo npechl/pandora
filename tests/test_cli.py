@@ -2323,3 +2323,155 @@ def test_similarity_interfaces_wrong_level_clusters_exits(tmp_path):
     with pytest.raises(SystemExit, match="chain items"):
         _iface_sim(contacts, clusters_file, tmp_path / "out")
     assert not (tmp_path / "out").exists()
+
+
+def _contained_inputs(tmp_path, clusters=None):
+    """A curate-like step folder (1AAA: A, res 2.0; 2BBB: A+B, res 1.0;
+    3CCC: A, res 1.5) with dummy structure files, and a clusters.json
+    (default: [1AAA_A, 2BBB_A, 2BBB_B], [3CCC_A])."""
+
+    step = tmp_path / "curation"
+    entries = []
+    chains = []
+    for entry, chain_ids, res in (
+        ("1AAA", ["A"], 2.0),
+        ("2BBB", ["A", "B"], 1.0),
+        ("3CCC", ["A"], 1.5),
+    ):
+        path = f"structures/{entry[1:3].lower()}/{entry.lower()}.cif"
+        (step / path).parent.mkdir(parents=True, exist_ok=True)
+        (step / path).write_text(f"data_{entry}\n")
+        entries.append(
+            {
+                "entry_id": entry,
+                "structure_path": path,
+                "resolution": res,
+                "chain_count": len(chain_ids),
+                "policy_id": "p",
+                "policy_name": "p",
+                "policy_version": "1",
+                "curated_at": "2026-11-10T00:00:00+00:00",
+            }
+        )
+        chains += [
+            {
+                "entry_id": entry,
+                "chain_id": c,
+                "entity_id": "1",
+                "residue_count": 10,
+                "atom_count": 80,
+            }
+            for c in chain_ids
+        ]
+    _write_jsonl(step / "entries.jsonl", entries)
+    _write_jsonl(step / "chains.jsonl", chains)
+    if clusters is None:
+        clusters = [["1AAA_A", "2BBB_A", "2BBB_B"], ["3CCC_A"]]
+    clusters_file = tmp_path / "clusters.json"
+    clusters_file.write_text(
+        json.dumps(
+            [{"components": c, "n_components": len(c)} for c in clusters]
+        )
+    )
+    return step, clusters_file
+
+
+def _dedup_contained(step, clusters, out, *extra):
+    main(
+        ["dedup", "--contained", "--input-dir", str(step)]
+        + ["--clusters", str(clusters), "--output-dir", str(out)]
+        + ["--table-format", "jsonl", *extra]
+    )
+
+
+def _jsonl(path):
+    return [json.loads(line) for line in path.read_text().splitlines()]
+
+
+def test_dedup_contained_writes_step_folder(tmp_path):
+    step, clusters = _contained_inputs(tmp_path)
+    out = tmp_path / "uncontained"
+    _dedup_contained(step, clusters, out)
+    entries = [row["entry_id"] for row in _jsonl(out / "entries.jsonl")]
+    assert entries == ["2BBB", "3CCC"]
+    assert len(_jsonl(out / "chains.jsonl")) == 3
+    assert _jsonl(out / "contained.jsonl") == [
+        {"entry_id": "1AAA", "contained_in": "2BBB", "equal": False}
+    ]
+    assert (out / "structures/bb/2bbb.cif").exists()
+    assert not (out / "structures/aa/1aaa.cif").exists()
+    assert (out / "failures.jsonl").read_text() == ""
+    summary = json.loads((out / "dedup.json").read_text())
+    assert summary["counts"]["entries_contained"] == 1
+    assert summary["counts"]["entries_kept"] == 2
+    assert summary["counts"]["chains_kept"] == 3
+    assert summary["counts"]["chains_unclustered"] == 0
+
+
+def test_dedup_contained_counts_unclustered_chains(tmp_path, capsys):
+    step, clusters = _contained_inputs(
+        tmp_path, clusters=[["1AAA_A", "2BBB_A", "2BBB_B"]]
+    )
+    out = tmp_path / "uncontained"
+    _dedup_contained(step, clusters, out)
+    summary = json.loads((out / "dedup.json").read_text())
+    assert summary["counts"]["chains_unclustered"] == 1
+    entries = [row["entry_id"] for row in _jsonl(out / "entries.jsonl")]
+    assert "3CCC" in entries
+    assert "warning" in capsys.readouterr().err
+
+
+def test_dedup_contained_disable_keeps_everything(tmp_path):
+    step, clusters = _contained_inputs(tmp_path)
+    out = tmp_path / "uncontained"
+    _dedup_contained(step, clusters, out, "--disable")
+    assert len(_jsonl(out / "entries.jsonl")) == 3
+    assert [r["entry_id"] for r in _jsonl(out / "contained.jsonl")] == ["1AAA"]
+    assert (out / "structures/aa/1aaa.cif").exists()
+
+
+def test_dedup_contained_needs_clusters(tmp_path):
+    with pytest.raises(SystemExit, match="--clusters"):
+        main(
+            ["dedup", "--contained", "--input-dir", str(tmp_path)]
+            + ["--output-dir", str(tmp_path / "o")]
+        )
+
+
+def test_dedup_contained_rejects_unknown_rank_key(tmp_path):
+    step, clusters = _contained_inputs(tmp_path)
+    policy = tmp_path / "dedup.yaml"
+    policy.write_text("contained_rank:\n  - key: n_atoms\n")
+    with pytest.raises(SystemExit, match="n_atoms"):
+        _dedup_contained(
+            step, clusters, tmp_path / "o", "--policy", str(policy)
+        )
+
+
+def test_dedup_contained_uses_policy_rank(tmp_path):
+    # Tie 1AAA vs 2BBB (both one chain in the same cluster); rank on
+    # resolution max keeps the worse one (1AAA, 2.0).
+    step, clusters = _contained_inputs(
+        tmp_path, clusters=[["1AAA_A", "2BBB_A"], ["2BBB_B"], ["3CCC_A"]]
+    )
+    rows = _jsonl(step / "chains.jsonl")
+    _write_jsonl(
+        step / "chains.jsonl", [r for r in rows if r["chain_id"] != "B"]
+    )
+    policy = tmp_path / "dedup.yaml"
+    policy.write_text("contained_rank:\n  - key: resolution\n    order: max\n")
+    out = tmp_path / "o"
+    _dedup_contained(step, clusters, out, "--policy", str(policy))
+    assert _jsonl(out / "contained.jsonl") == [
+        {"entry_id": "2BBB", "contained_in": "1AAA", "equal": True}
+    ]
+
+
+def test_dedup_contained_refuses_existing_output(tmp_path):
+    step, clusters = _contained_inputs(tmp_path)
+    out = tmp_path / "uncontained"
+    _dedup_contained(step, clusters, out)
+    with pytest.raises(SystemExit):
+        _dedup_contained(step, clusters, out)
+    _dedup_contained(step, clusters, out, "--overwrite")
+    assert (out / "dedup.json").exists()

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import shutil
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -14,6 +16,7 @@ from pandora.cli._io import (
     duplicate_line,
     failure_line,
     find_table,
+    load_json_list,
     load_yaml_model,
     prepare_step_dir,
     read_structures_dir,
@@ -25,6 +28,7 @@ from pandora.datasets import (
     curate_structure,
     dataset_chain_records,
     deduplicate_structures,
+    find_contained,
 )
 from pandora.export import (
     read_records,
@@ -44,7 +48,9 @@ from pandora.schemas.dataset import (
     ExclusionRecord,
 )
 from pandora.schemas.provenance import CurationEntryRecord
+from pandora.schemas.similarity import SimilarityCluster
 from pandora.schemas.structure import Structure
+from pandora.similarity import item_id
 
 
 def _read_copies(folder: Path) -> dict[str, dict[str, str]]:
@@ -160,10 +166,131 @@ def _cmd_curate(args: argparse.Namespace) -> None:
     )
 
 
+_CONTAINED_RANK_KEYS = ("resolution", "chain_count")
+
+
+def _read_step_tables(
+    folder: Path,
+) -> tuple[list[CurationEntryRecord], list[DatasetChainRecord]]:
+    """The entries and chains tables of a curate step folder."""
+
+    entries, chains = (
+        find_table(folder, "entries"),
+        find_table(folder, "chains"),
+    )
+    if entries is None or chains is None:
+        raise SystemExit(
+            "dedup: --contained needs a curate step folder (entries and "
+            "chains tables)"
+        )
+    return (
+        read_records(entries, CurationEntryRecord),
+        read_records(chains, DatasetChainRecord),
+    )
+
+
+def _cluster_counts(
+    chains: list[DatasetChainRecord], clusters: list[SimilarityCluster]
+) -> tuple[dict[str, Counter[str]], int]:
+    """Entry id -> chain count per cluster, and how many chains were in
+    no cluster (each counts as its own cluster)."""
+
+    cluster_of = {
+        member: str(index)
+        for index, cluster in enumerate(clusters)
+        for member in cluster.components
+    }
+    counts: dict[str, Counter[str]] = defaultdict(Counter)
+    unclustered = 0
+    for chain in chains:
+        key = item_id("chain", chain.entry_id, chain.chain_id)
+        if key not in cluster_of:
+            unclustered += 1
+        counts[chain.entry_id][cluster_of.get(key, key)] += 1
+    return counts, unclustered
+
+
+def _cmd_dedup_contained(args: argparse.Namespace) -> None:
+    """Handle `dedup --contained`: drop entries contained in another and
+    write the step folder."""
+
+    if not args.clusters:
+        raise SystemExit("dedup: --contained needs --clusters")
+    started_at = now_iso()
+    in_dir, out = Path(args.input_dir), Path(args.output_dir)
+    rules = (
+        load_yaml_model(DeduplicationRules, Path(args.policy))
+        if args.policy
+        else DeduplicationRules()
+    )
+    for rank_key in rules.contained_rank:
+        if rank_key.key not in _CONTAINED_RANK_KEYS:
+            raise SystemExit(
+                f"dedup: unknown contained_rank key {rank_key.key!r}; use "
+                + ", ".join(_CONTAINED_RANK_KEYS)
+            )
+    check_table_format(args.table_format)
+    entries, chains = _read_step_tables(in_dir)
+    clusters = load_json_list(SimilarityCluster, Path(args.clusters))
+    prepare_step_dir(out, "dedup.json", args.overwrite)
+
+    counts, unclustered = _cluster_counts(chains, clusters)
+    for entry in entries:
+        counts.setdefault(entry.entry_id, Counter())
+    values = {
+        e.entry_id: {k: getattr(e, k) for k in _CONTAINED_RANK_KEYS}
+        for e in entries
+    }
+    contained = find_contained(counts, values, rules.contained_rank)
+    removed = set() if args.disable else {r.entry_id for r in contained}
+    kept = [e for e in entries if e.entry_id not in removed]
+    kept_chains = [c for c in chains if c.entry_id not in removed]
+    for entry in kept:
+        if entry.structure_path:
+            dest = out / entry.structure_path
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(in_dir / entry.structure_path, dest)
+
+    write_table(kept, out, "entries", args.table_format)
+    write_table(kept_chains, out, "chains", args.table_format)
+    write_table(contained, out, "contained", args.table_format)
+    (out / "failures.jsonl").write_text("")
+    previous = in_dir / "curation.json"
+    write_json(
+        build_step_summary(
+            "dedup",
+            rules,
+            input=in_dir,
+            output=out,
+            started_at=started_at,
+            counts={
+                "chains_kept": len(kept_chains),
+                "chains_unclustered": unclustered,
+                "entries_contained": len(contained),
+                "entries_in": len(entries),
+                "entries_kept": len(kept),
+            },
+            previous_summary=previous if previous.exists() else None,
+        ),
+        out / "dedup.json",
+    )
+    if unclustered:
+        print(
+            f"dedup: warning: {unclustered} chains are in no cluster of "
+            f"{args.clusters} (each counted as its own cluster); were the "
+            "clusters built from this folder?",
+            file=sys.stderr,
+        )
+    print(f"dedup: {len(kept)} retained, {len(contained)} contained -> {out}")
+
+
 def _cmd_dedup(args: argparse.Namespace) -> None:
     """Handle the `dedup` subcommand: remove structures sharing the same
-    entry_id."""
+    entry_id, or with --contained, entries contained in another."""
 
+    if args.contained:
+        _cmd_dedup_contained(args)
+        return
     output_dir = Path(args.output_dir)
     structures = read_structures_dir(Path(args.input_dir))
     rules = DeduplicationRules(enabled=not args.disable)
@@ -216,5 +343,26 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--output-dir", required=True)
     p.add_argument(
         "--disable", action="store_true", help="record but keep dupes"
+    )
+    p.add_argument(
+        "--contained",
+        action="store_true",
+        help="remove entries contained in another (by chain counts per "
+        "cluster of --clusters); writes a step folder",
+    )
+    p.add_argument(
+        "--clusters", help="clusters.json from `pandora cluster` (chains)"
+    )
+    p.add_argument("--policy", help="DeduplicationRules YAML (contained_rank)")
+    p.add_argument(
+        "--table-format",
+        choices=TABLE_FORMATS,
+        default="parquet",
+        help="format of the step folder tables (--contained)",
+    )
+    p.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="replace step outputs already in --output-dir (--contained)",
     )
     p.set_defaults(func=_cmd_dedup)

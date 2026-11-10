@@ -26,7 +26,7 @@ ENTRY_ERRORS = (ValueError, OSError, RuntimeError, KeyError, IndexError)
 
 # What a step writes besides its tables: cleared by --overwrite.
 _STEP_FILES = ("failures.jsonl", "mappings.jsonl")
-_STEP_TABLES = ("entries", "chain_copies", "chains", "exclusions")
+_STEP_TABLES = ("entries", "chain_copies", "chains", "exclusions", "contained")
 
 
 def failure_line(path: Path, error_type: str, message: str) -> str:
