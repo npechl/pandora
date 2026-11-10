@@ -6,6 +6,7 @@ import argparse
 import itertools
 import json
 import sys
+import tempfile
 from collections import Counter
 from collections.abc import Iterable, Iterator
 from pathlib import Path
@@ -28,7 +29,12 @@ from pandora.cli._io import (
     read_columns,
     read_structures_dir,
 )
-from pandora.export import read_records, write_json, write_records
+from pandora.export import (
+    export_chain_mmcif,
+    read_records,
+    write_json,
+    write_records,
+)
 from pandora.ingestion import load_policy
 from pandora.provenance import build_step_summary
 from pandora.schemas.annotation import (
@@ -237,6 +243,14 @@ def _search_options(args: argparse.Namespace) -> dict[str, Any]:
     return options
 
 
+def _read_chain_list(path: Path) -> list[str]:
+    """Chain item ids from a file, one per line (blank lines and `#`
+    comments skipped)."""
+
+    lines = (line.strip() for line in path.read_text().splitlines())
+    return [line for line in lines if line and not line.startswith("#")]
+
+
 def _cmd_search(args: argparse.Namespace) -> None:
     """Handle `similarity search`: run MMseqs2 or Foldseek over chains
     and write the hits as a similarity layer folder."""
@@ -248,31 +262,58 @@ def _cmd_search(args: argparse.Namespace) -> None:
             "similarity search: --input-dir is for foldseek; mmseqs2 reads "
             "chain sequences from --structures-dir"
         )
-    if args.engine == "foldseek" and args.input_dir is None:
+    if args.chains is not None and args.input_dir is not None:
         raise SystemExit(
-            "similarity search: foldseek needs --input-dir (the per-chain "
-            "structure files)"
+            "similarity search: --chains needs the chains cut from "
+            "--structures-dir; drop --input-dir"
         )
     structures_dir = Path(args.structures_dir)
     items, previous = _item_set(
         "similarity search", "chain", structures_dir, None
     )
+    chains: set[str] | None = None
+    if args.chains is not None:
+        known = set(items.ids.values())
+        listed = _read_chain_list(Path(args.chains))
+        unknown = next((c for c in listed if c not in known), None)
+        if unknown is not None:
+            raise SystemExit(
+                f"similarity search: --chains names {unknown}, not a chain "
+                f"of {structures_dir}"
+            )
+        chains = set(listed)
     out = Path(args.output_dir)
     prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
     hits = out / "hits.tsv"
+    counts_extra: dict[str, int] = {}
     if args.engine == "mmseqs2":
+        sequences = _chain_sequences(structures_dir)
+        if chains is not None:
+            sequences = {k: v for k, v in sequences.items() if k in chains}
+        counts_extra["chains_searched"] = len(sequences)
         description = compute_sequence_similarity(
-            _chain_sequences(structures_dir), hits, **_search_options(args)
+            sequences, hits, **_search_options(args)
         )
         searched: Path = structures_dir
-    else:
+    elif args.input_dir is not None:
         searched = Path(args.input_dir)
         description = compute_structure_similarity(
             searched, hits, **_search_options(args)
         )
+    else:
+        searched = structures_dir
+        with tempfile.TemporaryDirectory() as tmp:
+            files = _chain_files(structures_dir, chains, Path(tmp))
+            counts_extra["chains_searched"] = len(files)
+            description = compute_structure_similarity(
+                files, hits, **_search_options(args)
+            )
+    if args.chains is not None:
+        searched = Path(args.chains)
     counts = _write_layer(
         read_hit_tsv(hits, _CLI_ENGINES[args.engine]), items, out
     )
+    counts.update(counts_extra)
     hits.unlink()
     _write_summary(
         "similarity_search",
@@ -287,6 +328,38 @@ def _cmd_search(args: argparse.Namespace) -> None:
         f"searched: {counts['rows_matched']} hits, "
         f"{counts['rows_unmatched']} unmatched -> {out}"
     )
+
+
+def _chain_files(
+    structures_dir: Path, chains: set[str] | None, out: Path
+) -> dict[str, Path]:
+    """Write one mmCIF per non-copy chain of the step folder (or only
+    `chains`) into `out`; returns item id -> file."""
+
+    table = _step_table(
+        "similarity search", structures_dir, "chains", "pandora curate"
+    )
+    wanted = {
+        item_id("chain", r["entry_id"], r["chain_id"]): r
+        for r in read_columns(table, ("entry_id", "chain_id", "copy_of"))
+        if not r["copy_of"]
+    }
+    if chains is not None:
+        wanted = {k: r for k, r in wanted.items() if k in chains}
+    # ponytail: parses every entry; limit to the listed entries if slow.
+    structures = read_structures_dir(structures_dir)
+    files: dict[str, Path] = {}
+    for key, row in sorted(wanted.items()):
+        structure = structures.get(row["entry_id"])
+        if structure is None:
+            raise SystemExit(
+                f"similarity search: {structures_dir} has no structure for "
+                f"{row['entry_id']}"
+            )
+        files[key] = export_chain_mmcif(
+            structure, row["chain_id"], out / f"{key}.cif"
+        )
+    return files
 
 
 def _chain_sequences(structures_dir: Path) -> dict[str, str]:
@@ -1064,7 +1137,14 @@ def register(subparsers: argparse._SubParsersAction) -> None:
         help="step folder with a chains table (pandora curate)",
     )
     p.add_argument(
-        "--input-dir", help="foldseek only: dir of per-chain structure files"
+        "--input-dir",
+        help="foldseek only: dir of per-chain structure files (default: "
+        "Pandora writes them from --structures-dir)",
+    )
+    p.add_argument(
+        "--chains",
+        help="file of chain item ids (one per line, # comments) to limit "
+        "the search to",
     )
     p.add_argument("--output-dir", required=True)
     p.add_argument("--overwrite", action="store_true")

@@ -1407,6 +1407,7 @@ def test_similarity_search_mmseqs_writes_layer_without_copies(tmp_path):
     assert summary["policy"]["parameters"]["max_seqs"] == 500
     assert summary["previous_summary"].endswith("curation.json")
     assert summary["counts"] == {
+        "chains_searched": 2,
         "rows_in": 2,
         "rows_matched": 1,
         "rows_unmatched": 1,
@@ -1455,6 +1456,86 @@ def test_similarity_search_foldseek_matches_file_stems(tmp_path):
 def test_similarity_search_mmseqs_rejects_input_dir(tmp_path):
     with pytest.raises(SystemExit, match="--input-dir"):
         _search_mmseqs(tmp_path, tmp_path / "out", "--input-dir", str(tmp_path))
+
+
+def test_similarity_search_mmseqs_limits_to_chains(tmp_path):
+    chains = tmp_path / "reps.txt"
+    chains.write_text("# reps\n104M_A \n\n")
+    out = tmp_path / "seq"
+    _search_mmseqs(tmp_path, out, "--chains", str(chains))
+
+    query = (tmp_path / "query.fasta").read_text()
+    assert ">104M_A" in query
+    assert ">112M_A" not in query
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["counts"]["chains_searched"] == 1
+    assert summary["input"] == str(chains)
+
+
+def test_similarity_search_chains_unknown_id_exits(tmp_path):
+    chains = tmp_path / "reps.txt"
+    chains.write_text("104M_A\n9XXX_A\n")
+    with pytest.raises(SystemExit, match="9XXX_A"):
+        _search_mmseqs(tmp_path, tmp_path / "out", "--chains", str(chains))
+
+
+def _search_foldseek(tmp_path, structures_dir, out, *extra):
+    main(
+        ["similarity", "search", "--engine", "foldseek"]
+        + ["--foldseek-bin", str(tmp_path / "foldseek")]
+        + ["--structures-dir", str(structures_dir)]
+        + ["--output-dir", str(out), *extra]
+    )
+
+
+def test_similarity_search_chains_rejects_input_dir(tmp_path):
+    _executable(tmp_path / "foldseek", FAKE_FOLDSEEK_CLI)
+    chains = tmp_path / "reps.txt"
+    chains.write_text("104M_A\n")
+    with pytest.raises(SystemExit, match="--chains"):
+        _search_foldseek(
+            tmp_path,
+            _similarity_step(tmp_path),
+            tmp_path / "out",
+            *["--chains", str(chains), "--input-dir", str(tmp_path)],
+        )
+
+
+# Stands in for `foldseek`: lists the files it was given, no hits.
+FAKE_FOLDSEEK_LIST = """#!/bin/sh
+if [ "$1" = version ]; then echo 10.941cd33; exit 0; fi
+ls "$2" > "$(dirname "$0")/files.txt"
+for f in "$2"/*; do grep -c '^ATOM\\|^HETATM' "$f"; done \
+  > "$(dirname "$0")/atoms.txt"
+grep -h '^ATOM\\|^HETATM' "$2"/* | awk '{print $7}' | sort -u \
+  > "$(dirname "$0")/asyms.txt"
+: > "$4"
+"""
+
+
+def test_similarity_search_foldseek_writes_chain_files(tmp_path):
+    _, curated = _canonicalise_and_curate(tmp_path, "a2/1a2c.cif")
+    chains = _jsonl(curated / "chains.jsonl")
+    ids = sorted(
+        f"{c['entry_id']}_{c['chain_id']}" for c in chains if not c["copy_of"]
+    )
+    assert len(ids) > 1
+    _executable(tmp_path / "foldseek", FAKE_FOLDSEEK_LIST)
+    _search_foldseek(tmp_path, curated, tmp_path / "tm")
+
+    files = (tmp_path / "files.txt").read_text().split()
+    assert files == [f"{i}.cif" for i in ids]
+    assert all(int(n) > 0 for n in (tmp_path / "atoms.txt").read_text().split())
+
+    # With --chains, only the listed chain is written.
+    listed = tmp_path / "reps.txt"
+    listed.write_text(ids[0] + "\n")
+    _search_foldseek(
+        tmp_path, curated, tmp_path / "tm1", "--chains", str(listed)
+    )
+    assert (tmp_path / "files.txt").read_text().split() == [f"{ids[0]}.cif"]
+    one_chain = ids[0].split("_", 1)[1]
+    assert (tmp_path / "asyms.txt").read_text().split() == [one_chain]
 
 
 def _import(tmp_path, items, *flags, rows=None):
