@@ -348,8 +348,8 @@ Containment counts chains per cluster: X is contained in Y when Y has at least a
 
 | Field | Default | Description |
 |---|---|---|
-| `items` | `chain` | The clusters' item level. Only `chain` for now. |
-| `rank` | `[{key: missing_residues, order: min}, {key: n_hits, order: max}]` | Ranking keys, best first. `order` is `min` or `max`; a null value ranks last; the lowest item id breaks the last tie. |
+| `items` | `chain` | The clusters' item level: `chain` or `interface`. The CLI sets it from `--items`. |
+| `rank` | chains: `[{key: missing_residues, order: min}, {key: n_hits, order: max}]`; interfaces: `[{key: interface_residues, order: max}, {key: resolution, order: min}, {key: missing_residues, order: min}]` | Ranking keys, best first. The default depends on `items`. `order` is `min` or `max`; a null value ranks last; the lowest item id breaks the last tie. |
 
 Chain rank keys:
 
@@ -358,6 +358,15 @@ Chain rank keys:
 | `missing_residues` | `missing_n_term + missing_c_term + missing_middle` from the `chains` table: an absolute count, measured by `curate` before any residue rebuilding. Null if any part is null. |
 | `n_hits` | Distinct chains of the same cluster (after limiting it to `--structures-dir`) linked to this chain by a hit that passes the hit filter. Needs `--similarity`. |
 | `residue_count`, `atom_count`, `seqres_length`, `missing_n_term`, `missing_c_term`, `missing_middle`, `resolution` | That column of the `chains` table. |
+
+Interface rank keys (`--items interface`; chain values come from the `chains` table of the structures folder the `--contacts` layer traces to):
+
+| Key | Meaning |
+|---|---|
+| `interface_residues` | Distinct residues in contact, summed over both sides, as `residues_1 + residues_2` of `annotate label-interfaces`. |
+| `resolution` | The entry's resolution (the first chain's that is not null). |
+| `missing_residues` | The chain `missing_residues` of both chains, summed. Null if either is null. |
+| `n_hits` | Distinct interfaces of the same cluster linked by a hit that passes the hit filter. Needs an interface `--similarity` layer. |
 
 ```yaml
 rank:

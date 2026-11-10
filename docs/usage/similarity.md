@@ -444,7 +444,7 @@ Each cluster's own lexicographically smallest member is its key, so keys are sta
 
 ### Representatives
 
-`pandora representatives` picks one item per cluster, ranked by a `RepresentativePolicy`: by default the chain with the fewest missing residues, then the most hits inside its own cluster, then the lowest id. Only chains are supported for now.
+`pandora representatives` picks one item per cluster, ranked by a `RepresentativePolicy`: by default the chain with the fewest missing residues, then the most hits inside its own cluster, then the lowest id. With `--items interface` it picks one dimer per interface cluster instead (see [Interface representatives](#interface-representatives)).
 
 === "`cli`"
 
@@ -496,6 +496,31 @@ Each cluster's own lexicographically smallest member is its key, so keys are sta
     ```
 
     `restrict_clusters()` limits clusters to a set of item ids; `pick_representatives(..., eligible=...)` restricts who can be picked (the CLI passes the non-copy chains).
+
+#### Interface representatives
+
+The same command picks one dimer per cluster of interfaces, e.g. one per protein pair from a `cluster --items interface --min-score 0` run over a `similarity interfaces` layer. By default the dimer with the most residues in contact (both sides) wins, then the best resolution, then the fewest missing residues (both chains), then the lowest id.
+
+=== "`cli`"
+
+    ```bash
+    pandora representatives --items interface \
+      --clusters clusters/dimers_pairs.json \
+      --contacts layers/contacts_real \
+      --output clusters/dimers_pairs_reps.json
+    cat clusters/dimers_pairs_reps.json
+    ```
+
+    ```text
+    1 representatives from 3 interfaces -> clusters/dimers_pairs_reps.json
+    [{"representative":"1A2C_A_B","members":["1A2C_A_B","1A2C_B_C","1A2C_B_D"],"n_members":3}]
+    ```
+
+    `--contacts` (a `residue_contacts` layer folder) replaces `--structures-dir`: clusters are limited to the layer's interfaces, residues in contact are counted as in `annotate label-interfaces`, and resolution and missing residues come from the `chains` table of the structures folder the layer traces to. A dimer with a symmetry-copy chain is never picked, unless every dimer of its cluster has one. `n_hits` needs an interface `--similarity` layer. Each representative's `members` are every dimer of its cluster, so on protein-pair clusters they are the link from the representative to its complete-set dimers.
+
+=== "`library`"
+
+    No separate function: build the per-interface values (e.g. from `label_interfaces()`) and call `pick_representatives(clusters, values, RepresentativePolicy(items="interface"))`.
 
 ## Comparing interfaces
 
