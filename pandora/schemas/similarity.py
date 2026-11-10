@@ -309,3 +309,18 @@ class RebalanceSettings(BaseModel):
     clusters: str
     chain_clusters: str
     chain_representatives: str | None = None
+
+
+class NegativePair(BaseModel):
+    """One negative chain pair drawn for a positive by `negatives`.
+
+    Attributes:
+        chain_1: The positive's chain the negative was drawn for (A), a
+            chain item id.
+        chain_2: The drawn partner (C), a representative chain item id.
+        positive: The positive dimer it was drawn for.
+    """
+
+    chain_1: str
+    chain_2: str
+    positive: str

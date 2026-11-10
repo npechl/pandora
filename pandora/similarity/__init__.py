@@ -23,6 +23,7 @@ from pandora.similarity.layer import (
     match_similarity_batches,
     parse_item_id,
 )
+from pandora.similarity.negatives import sample_negatives
 from pandora.similarity.partition import partition_dataset
 from pandora.similarity.rebalance import dimer_adjacency, rebalance
 from pandora.similarity.representatives import (
@@ -66,6 +67,7 @@ __all__ = [
     "member_representatives",
     "dimer_adjacency",
     "rebalance",
+    "sample_negatives",
     "pick_representatives",
     "restrict_clusters",
     "residue_positions",
