@@ -12,6 +12,7 @@ from pandora.annotations import (
     count_chain_contacts,
     count_residue_contacts,
     drop_labelled_interfaces,
+    label_interfaces,
 )
 from pandora.cli._io import read_structures_dir, write_structures_dir
 from pandora.cli.annotate import _layer_origin
@@ -1955,3 +1956,121 @@ def test_partition_labels_rejects_no_keep(tmp_path):
     with pytest.raises(SystemExit, match="no-keep-similar-items"):
         _partition(tmp_path, clusters, labels, "--no-keep-similar-items")
     assert not (tmp_path / "out" / "splits.json").exists()
+
+
+def _label(contacts, out, *extra):
+    main(
+        ["annotate", "label-interfaces", "--contacts", str(contacts)]
+        + ["--output-dir", str(out), "--table-format", "jsonl", *extra]
+    )
+
+
+def _label_inputs(tmp_path, skip=()):
+    """1a2c step folder with a chains table, and its contact layer."""
+
+    step = _step_folder(tmp_path)
+    contacts = tmp_path / "interfaces"
+    _compute(step, contacts, "--layer", "chain_interfaces")
+    chains = sorted({c for pair in _contact_pairs(contacts) for c in pair})
+    rows = [
+        {"entry_id": "1A2C", "chain_id": c, "entity_id": "1"}
+        | {"residue_count": 1, "atom_count": 1, "seqres_length": 100}
+        for c in chains
+        if c not in skip
+    ]
+    (step / "chains.jsonl").write_text(
+        "".join(json.dumps(r) + "\n" for r in rows)
+    )
+    return step, contacts
+
+
+def test_annotate_label_interfaces_writes_layer(tmp_path):
+    step, contacts = _label_inputs(tmp_path)
+    out = tmp_path / "labels"
+    _label(contacts, out, "--min-residues-per-chain", "5")
+
+    rows = read_records(contacts / "layer.jsonl", ResidueContactRow)
+    lengths = {
+        ("1A2C", c): 100 for pair in _contact_pairs(contacts) for c in pair
+    }
+    written = read_records(out / "layer.jsonl", LayerRow)
+    expected = label_interfaces(rows, lengths, 5, None)
+    assert written
+    assert [r.model_dump() for r in written] == [
+        r.model_dump() for r in expected
+    ]
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["step"] == "annotation_label"
+    assert summary["policy"]["name"] == "contact_labels"
+    assert summary["policy"]["template"] == "interface_labels"
+    assert summary["policy"]["parameters"] == {
+        "contacts_layer": "chain_interfaces",
+        "structures_dir": str(step.resolve()),
+        "min_residues_per_chain": 5,
+        "max_total_residues": None,
+    }
+    labels = [r.label for r in written]
+    assert summary["counts"] == {
+        "rows_in": len(rows),
+        "interfaces": len(written),
+        "ok": labels.count("ok"),
+        "few_contacts": labels.count("few_contacts"),
+        "too_large": 0,
+        "unknown_length": 0,
+    }
+    assert summary["previous_summary"] == str(contacts / "layer.json")
+
+
+def test_annotate_label_interfaces_feeds_filter(tmp_path):
+    _, contacts = _label_inputs(tmp_path)
+    labels = tmp_path / "labels"
+    _label(contacts, labels, "--min-residues-per-chain", "1000")
+    out = tmp_path / "real"
+    _filter(contacts, labels, out, "--drop", "few_contacts")
+    # every interface dropped: filter-contacts writes no rows table
+    assert not (out / "layer.jsonl").exists()
+    counts = json.loads((out / "layer.json").read_text())["counts"]
+    assert counts["interfaces_dropped"] == counts["interfaces_in"] > 0
+
+
+def test_annotate_label_interfaces_untraceable_origin_exits(tmp_path):
+    _, contacts = _label_inputs(tmp_path)
+    summary = json.loads((contacts / "layer.json").read_text())
+    summary["input"] = str(tmp_path / "gone")
+    (contacts / "layer.json").write_text(json.dumps(summary))
+    with pytest.raises(SystemExit, match="structures folder"):
+        _label(contacts, tmp_path / "labels")
+    assert not (tmp_path / "labels").exists()
+
+
+def test_annotate_label_interfaces_missing_chain_has_unknown_length(
+    tmp_path,
+):
+    _, probe = _label_inputs(tmp_path / "probe")
+    first = _contact_pairs(probe)[0][0]
+    _, contacts = _label_inputs(tmp_path, skip={first})
+    out = tmp_path / "labels"
+    _label(contacts, out, "--max-total-residues", "150")
+    written = read_records(out / "layer.jsonl", LayerRow)
+    unknown = [r for r in written if first in (r.chain_id_1, r.chain_id_2)]
+    assert unknown and all(r.total_residues is None for r in unknown)
+    assert all(r.label == "ok" for r in unknown)
+    assert all(r.label == "too_large" for r in written if r not in unknown)
+    counts = json.loads((out / "layer.json").read_text())["counts"]
+    assert counts["unknown_length"] == len(unknown)
+
+
+def test_annotate_label_interfaces_without_chains_table_exits(tmp_path):
+    step, contacts = _label_inputs(tmp_path)
+    (step / "chains.jsonl").unlink()
+    with pytest.raises(SystemExit, match="pandora curate"):
+        _label(contacts, tmp_path / "labels")
+    assert not (tmp_path / "labels").exists()
+
+
+def test_annotate_label_interfaces_output_is_contacts_exits(tmp_path):
+    _, contacts = _label_inputs(tmp_path)
+    before = (contacts / "layer.json").read_text()
+    with pytest.raises(SystemExit, match="--contacts folder"):
+        _label(contacts, contacts)
+    assert (contacts / "layer.json").read_text() == before

@@ -21,6 +21,7 @@ from pandora.annotations import (
     count_interface_labels,
     count_residue_contacts,
     drop_labelled_interfaces,
+    label_interfaces,
     resolve_layer_rows,
 )
 from pandora.annotations.entry import CONTACT_ATOM_SETS
@@ -42,6 +43,7 @@ from pandora.schemas.annotation import (
     LayerRow,
     ResidueContactRow,
 )
+from pandora.schemas.dataset import DatasetChainRecord
 
 # Layer -> (function, its settings flags: CLI dest -> function argument).
 _COMPUTE = {
@@ -400,6 +402,87 @@ def _cmd_filter(args: argparse.Namespace) -> None:
     )
 
 
+def _cmd_label(args: argparse.Namespace) -> None:
+    """Handle `annotate label-interfaces`: label a contact layer's
+    interfaces by contacts per side and dimer size, as a layer folder."""
+
+    command = "annotate label-interfaces"
+    started_at = now_iso()
+    check_table_format(args.table_format)
+    contacts = Path(args.contacts_dir)
+    check_contact_layer(command, contacts)
+    out = Path(args.output_dir)
+    if out.resolve() == contacts.resolve():
+        raise SystemExit(
+            f"{command}: {out} is the --contacts folder; choose another "
+            "--output-dir"
+        )
+    origin = _layer_origin(contacts)
+    if origin is None:
+        raise SystemExit(
+            f"{command}: cannot tell which structures folder {contacts} "
+            "came from"
+        )
+    chains_table = find_table(origin, "chains")
+    if chains_table is None:
+        raise SystemExit(
+            f"{command}: {origin} has no chains table; it is written by "
+            "`pandora curate`"
+        )
+    lengths = {
+        (chain.entry_id.upper(), chain.chain_id): chain.seqres_length
+        for chain in read_records(chains_table, DatasetChainRecord)
+        if chain.seqres_length is not None
+    }
+    table = find_table(contacts, "layer")
+    rows = read_records(table, ResidueContactRow) if table else []
+    labelled = label_interfaces(
+        rows, lengths, args.min_residues_per_chain, args.max_total_residues
+    )
+
+    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    write_table(labelled, out, "layer", args.table_format)
+    source = json.loads((contacts / "layer.json").read_text())["policy"]
+    description = LayerDescription(
+        name="contact_labels",
+        template="interface_labels",
+        tool="pandora",
+        tool_version=__version__,
+        parameters={
+            "contacts_layer": source.get("name"),
+            "structures_dir": str(origin),
+            "min_residues_per_chain": args.min_residues_per_chain,
+            "max_total_residues": args.max_total_residues,
+        },
+    )
+    labels = Counter(row.label for row in labelled)
+    counts = {
+        "rows_in": len(rows),
+        "interfaces": len(labelled),
+        "ok": labels["ok"],
+        "few_contacts": labels["few_contacts"],
+        "too_large": labels["too_large"],
+        "unknown_length": sum(r.total_residues is None for r in labelled),
+    }
+    write_json(
+        build_step_summary(
+            "annotation_label",
+            description,
+            input=contacts,
+            output=out,
+            started_at=started_at,
+            counts=counts,
+            previous_summary=contacts / "layer.json",
+        ),
+        out / "layer.json",
+    )
+    print(
+        f"labelled: {len(labelled)} interfaces ({labels['ok']} ok, "
+        f"{labels['few_contacts']} few_contacts, {labels['too_large']} "
+        f"too_large) -> {out}"
+    )
+
+
 def register(subparsers: argparse._SubParsersAction) -> None:
     """Add this module's subcommands to the `pandora` parser."""
 
@@ -455,6 +538,29 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--overwrite", action="store_true")
     p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet")
     p.set_defaults(func=_cmd_count)
+
+    p = commands.add_parser(
+        "label-interfaces",
+        help="Label a contact layer's interfaces few_contacts, too_large "
+        "or ok, with their counts, as an interface_labels layer.",
+    )
+    p.add_argument("--contacts", dest="contacts_dir", required=True)
+    p.add_argument(
+        "--min-residues-per-chain",
+        type=int,
+        help="label few_contacts when either chain has fewer residues "
+        "in contact with the other",
+    )
+    p.add_argument(
+        "--max-total-residues",
+        type=int,
+        help="label too_large when the two chains' sequence lengths add "
+        "up to more",
+    )
+    p.add_argument("--output-dir", required=True)
+    p.add_argument("--overwrite", action="store_true")
+    p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet")
+    p.set_defaults(func=_cmd_label)
 
     p = commands.add_parser(
         "filter-contacts",

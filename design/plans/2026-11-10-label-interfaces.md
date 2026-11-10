@@ -252,9 +252,7 @@ def test_annotate_label_interfaces_writes_layer(tmp_path):
 
     rows = read_records(contacts / "layer.jsonl", ResidueContactRow)
     lengths = {
-        ("1A2C", c): 100
-        for pair in _contact_pairs(contacts)
-        for c in pair
+        ("1A2C", c): 100 for pair in _contact_pairs(contacts) for c in pair
     }
     written = read_records(out / "layer.jsonl", LayerRow)
     expected = label_interfaces(rows, lengths, 5, None)
