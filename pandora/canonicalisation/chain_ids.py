@@ -47,7 +47,7 @@ def _normalize_chain_ids(
             canonical, n = base, 1
             while canonical in used:
                 n += 1
-                canonical = f"{base}_{n}"
+                canonical = f"{base}-{n}"  # never `_` (item IDs)
         else:  # remap
             canonical = next(id_gen)
 

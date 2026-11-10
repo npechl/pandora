@@ -268,9 +268,11 @@ def _expand_biological_assembly(
                     seen_identity_chains.add(source_chain)
                     continue
 
-                new_id = f"{source_chain}_{oper_id}"
+                # `-`, not `_`: similarity item IDs join entry and chain
+                # IDs with `_` and split on it.
+                new_id = f"{source_chain}-{oper_id}"
                 while new_id in existing_chain_ids:
-                    new_id = f"{new_id}_"
+                    new_id = f"{new_id}-"
                 existing_chain_ids.add(new_id)
 
                 for atom in atoms_by_chain[source_chain]:

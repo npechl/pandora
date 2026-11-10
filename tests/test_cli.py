@@ -625,7 +625,7 @@ def test_curate_fills_copy_of_from_canonicalise_folder(tmp_path):
         tmp_path, "ay/1ayi.cif", canon=canon
     )
     rows = {r["chain_id"]: r for r in _jsonl(curated_dir / "chains.jsonl")}
-    assert rows["A_2"]["copy_of"] == "A"
+    assert rows["A-2"]["copy_of"] == "A"
     assert rows["A"]["copy_of"] is None
 
 

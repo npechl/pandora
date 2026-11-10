@@ -57,13 +57,19 @@ def item_id(level: SimilarityItems, entry_id: str, *chain_ids: str) -> str:
         `E`, `E_C` or `E_C1_C2`.
 
     Raises:
-        ValueError: The number of chains doesn't fit `level`.
+        ValueError: The number of chains doesn't fit `level`, or a chain
+            ID contains `_` (it could not be split back out).
     """
 
     if len(chain_ids) != _CHAINS[level]:
         raise ValueError(
             f"a {level} item needs {_CHAINS[level]} chain ID(s), got "
             f"{len(chain_ids)}"
+        )
+    if any("_" in chain_id for chain_id in chain_ids):
+        raise ValueError(
+            f"chain ID(s) {list(chain_ids)} contain `_`, which item IDs use "
+            "as separator; canonicalise again (copies are now named `A-2`)"
         )
     if level == "interface":
         chain_ids = tuple(sorted(chain_ids))

@@ -755,7 +755,7 @@ def test_dataset_chain_records_join_completeness_quality_copies(tmp_path):
     s = _expand_assembly(_load("1ayi"))
     metadata = collect_metadata(s)
     rows = dataset_chain_records(
-        s, metadata, copy_of={"A_2": "A"}, structure_path=tmp_path / "x.cif"
+        s, metadata, copy_of={"A-2": "A"}, structure_path=tmp_path / "x.cif"
     )
     by_id = {r.chain_id: r for r in rows}
     assert [r.chain_id for r in rows] == [
@@ -764,7 +764,7 @@ def test_dataset_chain_records_join_completeness_quality_copies(tmp_path):
     assert by_id["A"].seqres_length is not None
     assert by_id["A"].missing_middle is not None
     assert by_id["A"].copy_of is None
-    assert by_id["A_2"].copy_of == "A"
+    assert by_id["A-2"].copy_of == "A"
     assert by_id["A"].structure_path == str(tmp_path / "x.cif")
     assert by_id["A"].resolution == metadata.quality.resolution
     assert by_id["A"].experimental_method == (

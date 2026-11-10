@@ -756,19 +756,19 @@ def test_standardize_biological_assembly_expands_symmetry_copy():
 
     # The generator lists A under operator 2 only, so the untransformed A
     # isn't part of the assembly.
-    assert {a.label_asym_id for a in new_atoms} == {"A_2"}
-    copy_atom = next(a for a in new_atoms if a.label_asym_id == "A_2")
+    assert {a.label_asym_id for a in new_atoms} == {"A-2"}
+    copy_atom = next(a for a in new_atoms if a.label_asym_id == "A-2")
     assert (copy_atom.Cartn_x, copy_atom.Cartn_y, copy_atom.Cartn_z) == (
         11.0,
         2.0,
         3.0,
     )
-    assert {a.id for a in new_asyms} == {"A_2"}
+    assert {a.id for a in new_asyms} == {"A-2"}
     # The deposited count already describes the whole assembly.
     assert result[0].oligomeric_count == 1
     assert mapping.items[0].chain_copies == [
         AssemblyChainCopy(
-            canonical_chain_id="A_2", source_chain_id="A", operator_id="2"
+            canonical_chain_id="A-2", source_chain_id="A", operator_id="2"
         )
     ]
 
@@ -867,7 +867,7 @@ def test_standardize_biological_assembly_expands_intra_chain_connection():
     atoms = [_atom(label_asym_id="A", x=1.0, y=2.0, z=3.0)]
     asym_units = [AsymRecord(id="A", entity_id="1")]
     # a disulfide-style bond within chain A -- rigid-body copies of A
-    # (i.e. A_2) preserve this bond exactly, so it should get duplicated.
+    # (i.e. A-2) preserve this bond exactly, so it should get duplicated.
     conn = ConnRecord(
         id="disulf1",
         conn_type_id="disulf",
@@ -893,14 +893,14 @@ def test_standardize_biological_assembly_expands_intra_chain_connection():
 
     assert conn in new_conns  # original, untouched
     copy = next(c for c in new_conns if c is not conn)
-    assert copy.ptnr1.label_asym_id == "A_2"
-    assert copy.ptnr2.label_asym_id == "A_2"
+    assert copy.ptnr1.label_asym_id == "A-2"
+    assert copy.ptnr2.label_asym_id == "A-2"
     assert copy.pdbx_dist_value == 2.05  # rigid transform preserves distance
 
 
 def test_standardize_biological_assembly_drops_inter_chain_connection_when_only_one_side_copied():
     # A and B are in the assembly at identity, but only A also gets a copy
-    # under operator 2 -- an A_2-B connection has no valid single-operator
+    # under operator 2 -- an A-2 to B connection has no valid single-operator
     # remap and must not be fabricated.
     assemblies = _assembly_with_identity_and_copy(
         identity_chains=["A", "B"], copied_chains=["A"]
@@ -935,12 +935,12 @@ def test_standardize_biological_assembly_drops_inter_chain_connection_when_only_
         "test",
     )
 
-    assert new_conns == [conn]  # no fabricated A_2-B connection
+    assert new_conns == [conn]  # no fabricated A-2 to B connection
 
 
 def test_standardize_biological_assembly_expands_inter_chain_connection_when_both_sides_copied_together():
     # both A and B are copied under the same operator (listed together in
-    # the same generator), so A-B's connection has a valid remap: A_2-B_2.
+    # the same generator), so A-B's connection has a valid remap: A-2 with B-2.
     assemblies = _assembly_with_identity_and_copy(
         identity_chains=["A", "B"], copied_chains=["A", "B"]
     )
@@ -975,8 +975,8 @@ def test_standardize_biological_assembly_expands_inter_chain_connection_when_bot
     )
 
     copy = next(c for c in new_conns if c is not conn)
-    assert copy.ptnr1.label_asym_id == "A_2"
-    assert copy.ptnr2.label_asym_id == "B_2"
+    assert copy.ptnr1.label_asym_id == "A-2"
+    assert copy.ptnr2.label_asym_id == "B-2"
 
 
 def test_standardize_biological_assembly_expands_secondary_structure():
@@ -1020,14 +1020,14 @@ def test_standardize_biological_assembly_expands_secondary_structure():
 
     assert helix in new_ss.conf_records
     helix_copy = next(c for c in new_ss.conf_records if c is not helix)
-    assert helix_copy.beg_label_asym_id == "A_2"
-    assert helix_copy.end_label_asym_id == "A_2"
+    assert helix_copy.beg_label_asym_id == "A-2"
+    assert helix_copy.end_label_asym_id == "A-2"
     assert helix_copy.beg_label_seq_id == 1  # residue range unchanged
 
     assert strand in new_ss.sheet_strands
     strand_copy = next(s for s in new_ss.sheet_strands if s is not strand)
-    assert strand_copy.beg_label_asym_id == "A_2"
-    assert strand_copy.end_label_asym_id == "A_2"
+    assert strand_copy.beg_label_asym_id == "A-2"
+    assert strand_copy.end_label_asym_id == "A-2"
 
 
 def test_standardize_biological_assembly_pdbe_source_falls_back_with_warning():
@@ -1181,6 +1181,10 @@ def test_use_auth_chain_id_keeps_ligand_and_water_asym_units_distinct():
     assert len(asym_ids) == len(structure.asym_units)
     assert len(set(asym_ids)) == len(asym_ids)
     assert asym_ids[0] == "A"
+    assert asym_ids[1] == "A-2"
+    assert not any(
+        "_" in asym_id for asym_id in asym_ids
+    )  # item IDs split on _
     assert len(canonical.atoms) == len(structure.atoms)
 
 
@@ -1351,7 +1355,7 @@ def test_assembly_expansion_keeps_only_assembly_chains():
         assembly_rules=AssemblyRules(strategy="standardize_biological_assembly")
     )
     canonical, _, _ = canonicalise_structure(_load("13dg"), policy)
-    source_chains = {u.id.split("_")[0] for u in canonical.asym_units}
+    source_chains = {u.id.split("-")[0] for u in canonical.asym_units}
     assert source_chains == {"A", "B", "C", "D"}
     assert len(canonical.asym_units) == 12
     assert {a.label_asym_id for a in canonical.atoms} == {
@@ -1613,8 +1617,8 @@ def test_chain_copy_records_from_expanded_assembly():
     canon, mappings, _ = canonicalise_structure(structure, policy)
     rows = chain_copy_records(canon, mappings)
     assert [(r.chain_id, r.source_chain_id) for r in rows] == [
-        ("A_2", "A"),
-        ("B_2", "B"),
+        ("A-2", "A"),
+        ("B-2", "B"),
     ]
     assert all(r.entry_id == canon.entry_id and r.operator_id for r in rows)
     assert {r.chain_id for r in rows} <= {u.id for u in canon.asym_units}
@@ -1644,4 +1648,4 @@ def test_chain_copy_records_skip_copies_removed_later():
     )
     canon, mappings, _ = canonicalise_structure(structure, policy)
     rows = chain_copy_records(canon, mappings)
-    assert [(r.chain_id, r.source_chain_id) for r in rows] == [("A_2", "A")]
+    assert [(r.chain_id, r.source_chain_id) for r in rows] == [("A-2", "A")]

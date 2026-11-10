@@ -25,7 +25,7 @@ policy = canonicalisationPolicy(
 |---|---|
 | `preserve` | Keep the original `label_asym_id` as the canonical chain ID. |
 | `remap` | Reassign chain IDs to sequential labels (`A`, `B`, ... `Z`, `AA`, `AB`, ...). |
-| `use_auth_chain_id` | Use `auth_asym_id` as the canonical chain ID (falls back to `label_asym_id` if no author ID is set). A polymer and its ligands/waters usually share one author ID, so the first asym unit gets the plain ID and later ones get a suffix (`A`, `A_2`, `A_3`, ...). |
+| `use_auth_chain_id` | Use `auth_asym_id` as the canonical chain ID (falls back to `label_asym_id` if no author ID is set). A polymer and its ligands/waters usually share one author ID, so the first asym unit gets the plain ID and later ones get a suffix (`A`, `A-2`, `A-3`, ...; never `_`, which similarity item IDs use as separator). |
 
 **`residue_numbering.strategy`** (default `preserve`)
 

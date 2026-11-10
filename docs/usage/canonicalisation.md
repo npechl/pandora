@@ -93,7 +93,7 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
 
     ```text
     remap: A->A, E->B, B->C, F->D, C->E, G->F, D->G, H->H
-    use_auth_chain_id: A->A, C->B, B->C, D->D, E->A_2, F->C_2, G->B_2, H->D_2
+    use_auth_chain_id: A->A, C->B, B->C, D->D, E->A-2, F->C-2, G->B-2, H->D-2
     ```
 
 === "`cli`"
@@ -130,7 +130,7 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
     canonicalised 2 structures -> remap
     canonicalised 2 structures -> auth
     A->A,E->B,B->C,F->D,C->E,G->F,D->G,H->H
-    A->A,C->B,B->C,D->D,E->A_2,F->C_2,G->B_2,H->D_2
+    A->A,C->B,B->C,D->D,E->A-2,F->C-2,G->B-2,H->D-2
     ```
 
 ## Renumber residues
@@ -345,9 +345,9 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
 
     ```text
     asymmetric unit: ['A', 'E', 'B', 'F', 'C', 'G', 'D', 'H']
-    after expansion: ['A', 'B', 'C', 'D', 'A_2', 'A_3', 'B_2', 'B_3', 'C_2', 'C_3', 'D_2', 'D_3']
-      A_2 = chain A under operator 2
-      A_3 = chain A under operator 3
+    after expansion: ['A', 'B', 'C', 'D', 'A-2', 'A-3', 'B-2', 'B-3', 'C-2', 'C-3', 'D-2', 'D-3']
+      A-2 = chain A under operator 2
+      A-3 = chain A under operator 3
     ```
 
 === "`cli`"
@@ -373,9 +373,9 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
     ```text
     canonicalised 1 structures -> canonical
     exported -> 13dg.json
-    ["A","A_2","A_3","B","B_2","B_3","C","C_2","C_3","D","D_2","D_3"]
-    A_2 = chain A under operator 2
-    A_3 = chain A under operator 3
+    ["A","A-2","A-3","B","B-2","B-3","C","C-2","C-3","D","D-2","D-3"]
+    A-2 = chain A under operator 2
+    A-3 = chain A under operator 3
     ```
 
 ## Map modified residues

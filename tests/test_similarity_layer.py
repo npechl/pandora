@@ -36,6 +36,14 @@ def test_item_id_round_trip_and_interface_sorted():
         item_id("chain", "1ABC")
 
 
+def test_item_id_rejects_chain_ids_with_underscores():
+    # `1AYI_A_2` would parse back as entry `1AYI_A`, chain `2`.
+    with pytest.raises(ValueError, match="_"):
+        item_id("chain", "1AYI", "A_2")
+    with pytest.raises(ValueError, match="_"):
+        item_id("interface", "1AYI", "A", "A_2")
+
+
 def test_chain_match_is_case_insensitive_on_entry_only():
     items = chain_items([("104M", "A"), ("112M", "A")])
     batch = _batch(
