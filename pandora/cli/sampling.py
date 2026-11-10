@@ -434,6 +434,16 @@ def _negatives_run(
     return pairs, summary, json.loads(summary.read_text())["policy"]
 
 
+def _same_path(recorded: str | None, given: str) -> bool:
+    """Whether a path recorded in a summary names the same file as
+    `given` (both resolved from here)."""
+
+    return (
+        recorded is not None
+        and Path(recorded).resolve() == Path(given).resolve()
+    )
+
+
 def _cmd_assemble(args: argparse.Namespace) -> None:
     """Handle `assemble`: write the final pairs table with splits and
     C-chain leak flags as a step folder."""
@@ -450,10 +460,9 @@ def _cmd_assemble(args: argparse.Namespace) -> None:
     positives, _ = _positives(command, Path(args.positives))
     negatives, previous, used = _negatives_run(command, Path(args.negatives))
     layer_json = str(layers[0] / "layer.json")
-    if (
-        used.get("representatives") != str(args.representatives)
-        or used.get("similarity_layer") != layer_json
-    ):
+    if not _same_path(
+        used.get("representatives"), args.representatives
+    ) or not _same_path(used.get("similarity_layer"), layer_json):
         print(
             f"{command}: warning: --representatives or --similarity differs "
             f"from what {previous} used; leak counts are not comparable",

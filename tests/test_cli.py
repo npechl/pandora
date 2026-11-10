@@ -3328,3 +3328,11 @@ def test_assemble_refuses_existing_output(tmp_path):
     _assemble(positives, negatives, splits, reps, tm, out)
     with pytest.raises(SystemExit, match="overwrite"):
         _assemble(positives, negatives, splits, reps, tm, out)
+
+
+def test_assemble_same_file_other_spelling_no_warning(tmp_path, capsys):
+    positives, negatives, splits, reps, tm = _assemble_inputs(tmp_path)
+    (tmp_path / "sub").mkdir()
+    spelled = tmp_path / "sub" / ".." / reps.name
+    _assemble(positives, negatives, splits, spelled, tm, tmp_path / "d")
+    assert "assemble: warning" not in capsys.readouterr().err
