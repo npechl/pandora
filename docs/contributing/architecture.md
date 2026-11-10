@@ -85,6 +85,7 @@ The contact functions return the same `ResidueContactRow` rows that `annotate im
 | `curate_structure()` | `Structure`, `MetadataRecord | None`, `DatasetCurationPolicy` | `(Structure | None, list[ExclusionRecord], CurationProvenance)` — `None` structure means excluded; records also cover removed chains |
 | `chain_completeness()` | `Structure`, `MissingResidueDefinition` | `(list[ChainCompleteness], DiagnosticBundle)` |
 | `deduplicate_structures()` | `list[Structure]`, `DeduplicationRules` | `(list[Structure], list[ExclusionRecord], DeduplicationProvenance)` |
+| `find_contained()` | entry → chain counts per cluster, entry → rank values, `list[RankKey]` | `list[ContainmentRecord]`: the entries contained in another |
 | `extract_chain_records()` | `Structure` | `list[ChainRecord]` |
 | `dataset_chain_records()` | `Structure`, `MetadataRecord \| None`, `MissingResidueDefinition`, `copy_of`, `structure_path` | `list[DatasetChainRecord]`: `ChainRecord` + completeness + method/resolution + path + `copy_of` |
 | `extract_residue_records()` | `Structure` | `list[ResidueRecord]` |
@@ -106,6 +107,9 @@ The contact functions return the same `ResidueContactRow` rows that `annotate im
 | `entry_edges()` | chain-item edges | `Iterator[(entry_id, entry_id)]`: the roll-up to entries |
 | `interface_edges()` | chain-item edges, interface item ids | `Iterator[(interface_id, interface_id)]`: the roll-up to interfaces |
 | `cluster_edges()` | `item_ids`, any iterable of `(id, id)` pairs | `(list[SimilarityCluster], ClusteringProvenance)` |
+| `restrict_clusters()` | `list[SimilarityCluster]`, item ids | `list[SimilarityCluster]` holding only those items |
+| `cluster_hit_counts()` | `list[SimilarityCluster]`, any iterable of `(id, id)` pairs | `dict[str, int]`: partners per item inside its own cluster |
+| `pick_representatives()` | `list[SimilarityCluster]`, item → rank values, `RepresentativePolicy`, optional eligible ids | `list[RepresentativeCluster]` |
 | `item_labels()` | rows of a `chain_labels` / `interface_labels` layer, the template | `dict[str, str]`: item ID → label |
 | `partition_dataset()` | `list[SimilarityCluster]`, optional `labels` (item ID → label) | `(dict[str, list[str]], PartitionProvenance)` — the `train`/`val`/`test` split, whole clusters per side; with `labels`, per-split label counts and the labels missing from a split |
 

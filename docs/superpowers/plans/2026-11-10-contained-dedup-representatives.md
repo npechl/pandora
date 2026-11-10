@@ -200,8 +200,10 @@ def _counts(**entries):
 def _run(counts, res=None):
     res = res or {}
     values = {e: {"resolution": res.get(e)} for e in counts}
-    return {r.entry_id: (r.contained_in, r.equal)
-            for r in find_contained(counts, values, RES)}
+    return {
+        r.entry_id: (r.contained_in, r.equal)
+        for r in find_contained(counts, values, RES)
+    }
 
 
 def test_monomer_contained_in_homodimer():
@@ -347,16 +349,32 @@ The `clusters.json` is `[["1AAA_A", "2BBB_A", "2BBB_B"], ["3CCC_A"]]`.
 def test_dedup_contained_writes_step_folder(tmp_path):
     step, clusters = _contained_inputs(tmp_path)
     out = tmp_path / "uncontained"
-    main(["dedup", "--contained", "--input-dir", str(step),
-          "--clusters", str(clusters), "--output-dir", str(out),
-          "--table-format", "jsonl"])
-    entries = [json.loads(l)["entry_id"]
-               for l in (out / "entries.jsonl").read_text().splitlines()]
+    main(
+        [
+            "dedup",
+            "--contained",
+            "--input-dir",
+            str(step),
+            "--clusters",
+            str(clusters),
+            "--output-dir",
+            str(out),
+            "--table-format",
+            "jsonl",
+        ]
+    )
+    entries = [
+        json.loads(l)["entry_id"]
+        for l in (out / "entries.jsonl").read_text().splitlines()
+    ]
     assert entries == ["2BBB", "3CCC"]
     chains = (out / "chains.jsonl").read_text().splitlines()
     assert len(chains) == 3
     assert json.loads((out / "contained.jsonl").read_text()) == {
-        "entry_id": "1AAA", "contained_in": "2BBB", "equal": False}
+        "entry_id": "1AAA",
+        "contained_in": "2BBB",
+        "equal": False,
+    }
     assert (out / "structures/bb/2bbb.cif").exists()
     assert not (out / "structures/aa/1aaa.cif").exists()
     counts = json.loads((out / "dedup.json").read_text())["counts"]
@@ -379,8 +397,16 @@ def test_dedup_contained_disable_keeps_everything(tmp_path):
 
 def test_dedup_contained_needs_clusters(tmp_path):
     with pytest.raises(SystemExit, match="--clusters"):
-        main(["dedup", "--contained", "--input-dir", str(tmp_path),
-              "--output-dir", str(tmp_path / "o")])
+        main(
+            [
+                "dedup",
+                "--contained",
+                "--input-dir",
+                str(tmp_path),
+                "--output-dir",
+                str(tmp_path / "o"),
+            ]
+        )
 
 
 def test_dedup_contained_rejects_unknown_rank_key(tmp_path):
@@ -455,7 +481,10 @@ git commit -m "feat(cli): dedup --contained writes an uncontained step folder"
 from pandora.schemas.common import RankKey
 from pandora.schemas.similarity import RepresentativePolicy, SimilarityCluster
 from pandora.similarity import (
-    cluster_hit_counts, pick_representatives, restrict_clusters)
+    cluster_hit_counts,
+    pick_representatives,
+    restrict_clusters,
+)
 
 
 def _c(*ids):
@@ -470,8 +499,9 @@ def _v(missing, hits):
 
 
 def test_fewest_missing_residues_wins():
-    reps = pick_representatives([_c("A_A", "B_A")],
-                                {"A_A": _v(5, 9), "B_A": _v(1, 0)}, POLICY)
+    reps = pick_representatives(
+        [_c("A_A", "B_A")], {"A_A": _v(5, 9), "B_A": _v(1, 0)}, POLICY
+    )
     assert reps[0].representative == "B_A"
     assert reps[0].members == ["A_A", "B_A"] and reps[0].n_members == 2
 
@@ -484,15 +514,17 @@ def test_n_hits_then_lowest_id_break_ties():
 
 def test_copy_is_never_picked():
     values = {"A_A": _v(3, 0), "A_A-2": _v(0, 0)}
-    reps = pick_representatives([_c("A_A", "A_A-2")], values, POLICY,
-                                eligible={"A_A"})
+    reps = pick_representatives(
+        [_c("A_A", "A_A-2")], values, POLICY, eligible={"A_A"}
+    )
     assert reps[0].representative == "A_A"
     assert reps[0].members == ["A_A", "A_A-2"]
 
 
 def test_copies_only_cluster_falls_back_to_all_members():
-    reps = pick_representatives([_c("A_A-2")], {"A_A-2": _v(0, 0)},
-                                POLICY, eligible=set())
+    reps = pick_representatives(
+        [_c("A_A-2")], {"A_A-2": _v(0, 0)}, POLICY, eligible=set()
+    )
     assert reps[0].representative == "A_A-2"
 
 
@@ -510,10 +542,20 @@ def test_restrict_drops_members_and_empty_clusters():
 
 def test_hit_counts_stay_inside_clusters():
     clusters = [_c("A_A", "B_A", "C_A"), _c("D_A")]
-    edges = [("A_A", "B_A"), ("B_A", "A_A"), ("A_A", "C_A"),
-             ("A_A", "D_A"), ("A_A", "A_A"), ("A_A", "Z_A")]
+    edges = [
+        ("A_A", "B_A"),
+        ("B_A", "A_A"),
+        ("A_A", "C_A"),
+        ("A_A", "D_A"),
+        ("A_A", "A_A"),
+        ("A_A", "Z_A"),
+    ]
     assert cluster_hit_counts(clusters, edges) == {
-        "A_A": 2, "B_A": 1, "C_A": 1, "D_A": 0}
+        "A_A": 2,
+        "B_A": 1,
+        "C_A": 1,
+        "D_A": 0,
+    }
 
 
 def test_inputs_not_mutated():
@@ -607,10 +649,16 @@ def test_representatives_default_policy(tmp_path):
     # 104M_A-118L_A, 112M_A-118L_A -> n_hits 2/2/-/2 ; 118L_A wins on missing
     ...
     reps = json.loads(out.read_text())
-    assert reps == [{"representative": "118L_A",
-                     "members": ["104M_A", "112M_A", "112M_B", "118L_A"],
-                     "n_members": 4}]
-    prov = json.loads((out.parent / "representatives_provenance.json").read_text())
+    assert reps == [
+        {
+            "representative": "118L_A",
+            "members": ["104M_A", "112M_A", "112M_B", "118L_A"],
+            "n_members": 4,
+        }
+    ]
+    prov = json.loads(
+        (out.parent / "representatives_provenance.json").read_text()
+    )
     assert prov["n_clusters"] == 1 and prov["items"] == "chain"
 
 
@@ -628,8 +676,17 @@ def test_representatives_drops_chains_outside_step_folder(tmp_path):
 
 def test_representatives_n_hits_needs_similarity(tmp_path):
     with pytest.raises(SystemExit, match="n_hits"):
-        main(["representatives", "--clusters", str(clusters),
-              "--structures-dir", str(step), "--output", str(out)])
+        main(
+            [
+                "representatives",
+                "--clusters",
+                str(clusters),
+                "--structures-dir",
+                str(step),
+                "--output",
+                str(out),
+            ]
+        )
 
 
 def test_representatives_policy_without_n_hits_needs_no_layer(tmp_path):
@@ -639,7 +696,7 @@ def test_representatives_policy_without_n_hits_needs_no_layer(tmp_path):
 
 def test_representatives_rejects_interface_items(tmp_path):
     with pytest.raises(SystemExit):
-        main([... , "--items", "interface"])
+        main([..., "--items", "interface"])
 
 
 def test_representatives_rejects_unknown_rank_key(tmp_path):

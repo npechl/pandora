@@ -331,6 +331,42 @@ min_coverage: 0.8
 coverage_of: both
 ```
 
+## Deduplication
+
+`DeduplicationRules` (`pandora.schemas.dataset`), read by `pandora dedup --policy`.
+
+| Field | Default | Description |
+|---|---|---|
+| `enabled` | `false` | Whether `deduplicate_structures()` removes structures sharing an `entry_id`. The `dedup` command uses `--disable` instead, and `dedup --contained` ignores this field. |
+| `contained_rank` | `[{key: resolution, order: min}]` | Which entry `find_contained()` keeps among entries with the same chain counts per cluster, best first. Keys: `resolution`, `chain_count` (columns of the `entries` table). `order` is `min` or `max`. A null value ranks last; the lowest entry id breaks the last tie. |
+
+Containment counts chains per cluster: X is contained in Y when Y has at least as many chains as X in every cluster, so a homodimer is never removed in favour of a monomer of the same protein.
+
+## Cluster representatives
+
+`RepresentativePolicy` (`pandora.schemas.similarity`), read by `pandora representatives --policy`.
+
+| Field | Default | Description |
+|---|---|---|
+| `items` | `chain` | The clusters' item level. Only `chain` for now. |
+| `rank` | `[{key: missing_residues, order: min}, {key: n_hits, order: max}]` | Ranking keys, best first. `order` is `min` or `max`; a null value ranks last; the lowest item id breaks the last tie. |
+
+Chain rank keys:
+
+| Key | Meaning |
+|---|---|
+| `missing_residues` | `missing_n_term + missing_c_term + missing_middle` from the `chains` table: an absolute count, measured by `curate` before any residue rebuilding. Null if any part is null. |
+| `n_hits` | Distinct chains of the same cluster (after limiting it to `--structures-dir`) linked to this chain by a hit that passes the hit filter. Needs `--similarity`. |
+| `residue_count`, `atom_count`, `seqres_length`, `missing_n_term`, `missing_c_term`, `missing_middle`, `resolution` | That column of the `chains` table. |
+
+```yaml
+rank:
+  - key: missing_residues
+    order: min
+  - key: n_hits
+    order: max
+```
+
 ## Provenance
 
 Every rule that deviates from its "preserve" default is recorded as a transform label (e.g. `"chain_id:remap"`) in the returned `canonicalisationProvenance.transforms`, alongside the policy id/name/ version and, if `provenance_rules.emit_canonicalisation_report` is set, a report of warning/error counts. The original-to-canonical identifier mappings themselves come back separately as `CanonicalMappings`.

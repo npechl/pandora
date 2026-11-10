@@ -442,6 +442,61 @@ keys = pair_cluster_keys([("104M_A", "112M_A")], clusters)
 
 Each cluster's own lexicographically smallest member is its key, so keys are stable regardless of clustering order. On the command line, `pandora cluster --pairs pairs.json` (a JSON array of `[item_id_1, item_id_2]`) writes the keys to `cluster_pairs.json` next to `--output`.
 
+### Representatives
+
+`pandora representatives` picks one item per cluster, ranked by a `RepresentativePolicy`: by default the chain with the fewest missing residues, then the most hits inside its own cluster, then the lowest id. Only chains are supported for now.
+
+=== "`cli`"
+
+    ```bash
+    pandora representatives --clusters clusters/seq90/clusters.json \
+      --structures-dir work/uncontained \
+      --similarity layers/seq --hit-filter policies/seq90.yaml \
+      --output clusters/seq90/representatives.json
+    ```
+
+    ```text
+    31 representatives from 51 chains -> clusters/seq90/representatives.json
+    ```
+
+    ```json
+    {"representative": "1ABW_B", "members": ["1A3N_B", "1A3N_D", "1ABW_B", "1ABW_C"], "n_members": 4}
+    ```
+
+    Clusters are first limited to the chains of `--structures-dir` (e.g. after `dedup --contained`); clusters left empty are dropped. Symmetry copies stay among the members but are never picked. `missing_residues` is the absolute count from the `chains` table; `n_hits` counts the chains of the same (limited) cluster linked by a hit that passes the filter, so it needs `--similarity` with `--hit-filter` or `--min-score`/`--min-coverage`, as for `cluster`. `--policy` takes a `RepresentativePolicy` YAML; a policy without `n_hits` needs no layer. `representatives_provenance.json`, next to `--output`, records the policy, inputs, layers and counts, including the members and clusters dropped by the limit.
+
+=== "`library`"
+
+    ```python
+    from pandora.schemas.similarity import (
+        RepresentativePolicy,
+        SimilarityCluster,
+    )
+    from pandora.similarity import cluster_hit_counts, pick_representatives
+
+    clusters = [
+        SimilarityCluster(
+            components=["1A3N_B", "1A3N_D", "1ABW_B", "1ABW_C"], n_components=4
+        )
+    ]
+    edges = [("1A3N_B", "1ABW_B"), ("1A3N_D", "1ABW_B"), ("1ABW_B", "1ABW_C")]
+    missing = {"1A3N_B": 3, "1A3N_D": 3, "1ABW_B": 3, "1ABW_C": 5}
+    hits = cluster_hit_counts(clusters, edges)
+    values = {
+        c: {"missing_residues": missing[c], "n_hits": hits[c]} for c in missing
+    }
+    reps = pick_representatives(clusters, values, RepresentativePolicy())
+    print(hits)
+    print(reps[0].representative)
+    ```
+
+    ```text
+    {'1A3N_B': 1, '1A3N_D': 1, '1ABW_B': 3, '1ABW_C': 1}
+    1ABW_B
+    ```
+
+    `restrict_clusters()` limits clusters to a set of item ids; `pick_representatives(..., eligible=...)` restricts who can be picked (the CLI passes the non-copy chains).
+
 ## Comparing interfaces
 
 Two dimers are redundant when they are the same two proteins touching at the same spot. `pandora similarity interfaces` scores that for every pair of interfaces in a contact layer, and writes the scores as a similarity layer with `items: interface`, ready for `pandora cluster --items interface`.

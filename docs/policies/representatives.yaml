@@ -1,0 +1,8 @@
+RepresentativePolicy:
+  items: string
+  # chain (only value for now)
+  rank: list[RankKey]
+  # RankKey: {key: string, order: string}
+  # key: missing_residues | n_hits | residue_count | atom_count |
+  #      seqres_length | missing_n_term | missing_c_term |
+  #      missing_middle | resolution; order: min (default) | max

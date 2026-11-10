@@ -1,0 +1,5 @@
+DeduplicationRules:
+  enabled: bool
+  contained_rank: list[RankKey]
+  # RankKey: {key: string, order: string}
+  # key: resolution | chain_count; order: min (default) | max

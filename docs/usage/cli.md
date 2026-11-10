@@ -59,6 +59,13 @@ pandora dedup --input-dir curated/ --output-dir deduped/
 # dedup: 5 retained, 0 removed -> deduped/
 ```
 
+`--contained` instead removes entries contained in another, by chain counts per cluster of `--clusters` (a `clusters.json` from `pandora cluster`), and writes a step folder with a `contained` table and a `dedup.json` summary ([Contained biounits](datasets.md#contained-biounits)):
+
+```sh
+pandora dedup --contained --input-dir work/curation --clusters clusters/seq90/clusters.json --output-dir work/uncontained
+# dedup: 29 retained, 2 contained -> work/uncontained
+```
+
 ## similarity
 
 `similarity search` runs an all-vs-all search (requires `mmseqs`/`foldseek` on `PATH`) over a step folder's chains and writes the hits as a [similarity layer](similarity.md#the-similarity-layer) folder: `layer.parquet`, `unmatched.parquet` and `layer.json`. MMseqs2 reads the chain sequences from `--structures-dir`'s `chains` table (written by `curate`), leaving symmetry copies out; Foldseek searches the per-chain files in `--input-dir`, named `{entry}_{chain}.cif`. Similarity layers are Parquet and need the `export` extra.
@@ -96,6 +103,15 @@ pandora cluster --similarity similarity/seq --structures-dir curated/ --min-scor
 ```
 
 `--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score`/`--min-coverage` override its fields. One of the three is required; there is no default threshold. `--items entry` on a chain layer clusters entries, linking two entries when any of their chains are similar ([Clustering entries from a chain layer](similarity.md#clustering-entries-from-a-chain-layer)). For `min_interface_coverage` on a chain layer, pass a contact layer folder with `--contacts` alongside `--structures-dir` (see [interface coverage](similarity.md#interface-restricted-coverage-ppi-pairs)). `--pairs pairs.json` also writes per-pair cluster keys to `cluster_pairs.json`.
+
+## representatives
+
+One representative chain per cluster, ranked by a `RepresentativePolicy` (default: fewest missing residues, then most hits inside the cluster, then lowest id). Clusters are limited to the chains of `--structures-dir`; symmetry copies are never picked. The `n_hits` key needs `--similarity` and a hit filter ([Representatives](similarity.md#representatives)):
+
+```sh
+pandora representatives --clusters clusters/seq90/clusters.json --structures-dir work/uncontained --similarity layers/seq --hit-filter policies/seq90.yaml --output clusters/seq90/representatives.json
+# 31 representatives from 51 chains -> clusters/seq90/representatives.json
+```
 
 ## partition
 

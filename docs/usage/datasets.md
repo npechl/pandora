@@ -806,6 +806,56 @@ given `entry_id`:
     `--disable` runs `DeduplicationRules(enabled=False)` instead — every
     structure passes through, but dedup provenance is still recorded.
 
+### Contained biounits
+
+`find_contained()` finds the entries (biounits) to remove because another entry contains them: X is contained in Y when, for every sequence cluster, Y has at least as many chains in it as X. A monomer A is contained in a homodimer AA, but AA isn't contained in A. Among entries with exactly the same chain counts, the best by `DeduplicationRules.contained_rank` is kept (lowest resolution by default, then lowest entry id). Entries with no chains are always kept.
+
+=== "`cli`"
+
+    ```bash
+    pandora dedup --contained --input-dir work/curation \
+      --clusters clusters/seq90/clusters.json --output-dir work/uncontained
+    ```
+
+    ```text
+    dedup: 29 retained, 2 contained -> work/uncontained
+    ```
+
+    `--clusters` is the `clusters.json` of `pandora cluster` over the same step folder's chains, so symmetry copies count in their source chain's cluster. The output is a step folder like `curate`'s: the kept entries' `structures/` (copied as they are), `entries` and `chains` tables, `contained` (one row per removed entry: `entry_id`, `contained_in`, the lowest-id kept entry containing it, and `equal`, true when the two have the same counts), `failures.jsonl` and a `dedup.json` step summary. Its counts:
+
+    ```text
+    {'chains_kept': 51, 'chains_unclustered': 0, 'entries_contained': 2, 'entries_in': 31, 'entries_kept': 29}
+    ```
+
+    A chain missing from `--clusters` counts as its own cluster; the run warns and counts them as `chains_unclustered`. `--policy` takes a `DeduplicationRules` YAML (`contained_rank`); `--disable` writes the `contained` table but keeps every entry. `--table-format` and `--overwrite` work as for `curate`.
+
+=== "`library`"
+
+    ```python
+    from collections import Counter
+
+    from pandora.datasets import find_contained
+    from pandora.schemas.common import RankKey
+
+    # Chains per seq90 cluster: 2BBB is a homodimer of 1AAA's protein;
+    # 3CCC and 4DDD are the same monomer.
+    counts = {
+        "1AAA": Counter({"c1": 1}),
+        "2BBB": Counter({"c1": 2}),
+        "3CCC": Counter({"c2": 1}),
+        "4DDD": Counter({"c2": 1}),
+    }
+    resolution = {"1AAA": 2.0, "2BBB": 2.5, "3CCC": 1.8, "4DDD": 1.2}
+    values = {e: {"resolution": r} for e, r in resolution.items()}
+    for record in find_contained(counts, values, [RankKey(key="resolution")]):
+        print(record)
+    ```
+
+    ```text
+    entry_id='1AAA' contained_in='2BBB' equal=False
+    entry_id='3CCC' contained_in='4DDD' equal=True
+    ```
+
 ## Reshape into flat records
 
 Each `extract_*_records()` function turns one canonical `Structure`
