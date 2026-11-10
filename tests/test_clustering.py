@@ -116,8 +116,6 @@ def test_interface_edges_chain_map_lower_case_entries() -> None:
         "pdb_00002xyz_C": "pdb_00009zzz_X",
     }
     rolled = list(
-        interface_edges(
-            [], ["pdb_00001abc_A_B", "pdb_00002xyz_C_D"], chain_map
-        )
+        interface_edges([], ["pdb_00001abc_A_B", "pdb_00002xyz_C_D"], chain_map)
     )
     assert rolled == [("pdb_00001abc_A_B", "pdb_00002xyz_C_D")]

@@ -3171,3 +3171,32 @@ def test_negatives_refuses_existing_output(tmp_path):
     _negatives(positives, reps, tm, contacts, out)
     with pytest.raises(SystemExit, match="overwrite"):
         _negatives(positives, reps, tm, contacts, out)
+
+
+def test_rebalance_passes_interface_residues_to_coverage_filter(
+    tmp_path, monkeypatch
+):
+    # A chain layer filtered by min_interface_coverage, as `cluster` takes.
+    contacts, seq90, groups, _, _ = _rebalance_inputs(tmp_path)
+    row = {"item_id_1": "1A2C_A", "item_id_2": "1A2C_B", "score": 0.9}
+    row |= {"start_1": 1, "end_1": 50, "start_2": 1, "end_2": 50}
+    tm = _similarity_layer(tmp_path / "tm", [row], "chain")
+    captured = {}
+
+    def fake_edges(batches, hit_filter, interface_residues=None):
+        captured["residues"] = interface_residues
+        raise _Captured
+
+    monkeypatch.setattr("pandora.cli.similarity.similarity_edges", fake_edges)
+    hit_filter = tmp_path / "filter.yaml"
+    hit_filter.write_text("min_interface_coverage: 0.5\n")
+    with pytest.raises(_Captured):
+        main(
+            ["rebalance", "--clusters", str(groups)]
+            + ["--contacts", str(contacts), "--chain-clusters", str(seq90)]
+            + ["--similarity", str(tm), "--hit-filter", str(hit_filter)]
+            + ["--output-dir", str(tmp_path / "out")]
+        )
+
+    assert captured["residues"]
+    assert "1A2C_A" in captured["residues"]

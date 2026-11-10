@@ -586,6 +586,7 @@ def _layer_edges(
     interface_residues: dict[str, set[int]] | None,
     counts: Counter[int],
     index: int,
+    command: str = "cluster",
 ) -> Iterator[Any]:
     """The edges of one layer, counted into `counts[index]`; exits naming
     the layer on a bad table or filter."""
@@ -602,7 +603,7 @@ def _layer_edges(
             counts[index] += 1
             yield edge
     except ValueError as exc:
-        raise SystemExit(f"cluster: {layer}: {exc}") from exc
+        raise SystemExit(f"{command}: {layer}: {exc}") from exc
 
 
 def _chain_map(

@@ -26,6 +26,7 @@ from pandora.cli.similarity import (
     _contact_layer,
     _hit_filters,
     _interface_chains,
+    _interface_residues,
     _interface_values,
     _item_set,
     _layer_edges,
@@ -166,7 +167,7 @@ def _cmd_rebalance(args: argparse.Namespace) -> None:
     missing = next((d for d in dimers if d not in known), None)
     if missing is not None:
         raise SystemExit(f"{command}: dimer {missing} is not in {contacts}")
-    values, _, _ = _interface_values(contacts, command)
+    values, _, origin = _interface_values(contacts, command)
     homomers = _homomers(Path(args.chain_clusters), dimers)
     chain_map = (
         _chain_map(
@@ -178,6 +179,12 @@ def _cmd_rebalance(args: argparse.Namespace) -> None:
         else None
     )
 
+    residues = None
+    if any(
+        level == "chain" and f.min_interface_coverage is not None
+        for level, f in zip(levels, filters, strict=True)
+    ):
+        residues = _interface_residues(origin, contacts)
     counts: Counter[int] = Counter()
     chain_edges: list[Any] = []
     dimer_edges: list[Any] = []
@@ -187,7 +194,10 @@ def _cmd_rebalance(args: argparse.Namespace) -> None:
         if level not in ("chain", "interface"):
             raise SystemExit(f"{command}: {layer} is a {level} layer")
         target = chain_edges if level == "chain" else dimer_edges
-        target.extend(_layer_edges(layer, hit_filter, None, counts, index))
+        scoped = residues if level == "chain" else None
+        target.extend(
+            _layer_edges(layer, hit_filter, scoped, counts, index, command)
+        )
     adjacency = dimer_adjacency(dimers, chain_edges, dimer_edges, chain_map)
     try:
         positives, dropped = rebalance(
@@ -294,7 +304,9 @@ def _cmd_negatives(args: argparse.Namespace) -> None:
         load_json_list(RepresentativeCluster, Path(args.representatives))
     )
     counts: Counter[int] = Counter()
-    tm_edges = list(_layer_edges(layers[0], filters[0], None, counts, 0))
+    tm_edges = list(
+        _layer_edges(layers[0], filters[0], None, counts, 0, command)
+    )
     binding = _binding_pairs(command, Path(args.contacts))
     try:
         negatives, unpaired = sample_negatives(
