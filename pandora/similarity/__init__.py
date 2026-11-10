@@ -24,6 +24,11 @@ from pandora.similarity.layer import (
     parse_item_id,
 )
 from pandora.similarity.partition import partition_dataset
+from pandora.similarity.representatives import (
+    cluster_hit_counts,
+    pick_representatives,
+    restrict_clusters,
+)
 from pandora.similarity.sequence import compute_sequence_similarity
 from pandora.similarity.structure import (
     chain_item_id,
@@ -55,5 +60,8 @@ __all__ = [
     "similarity_edges",
     "pair_cluster_keys",
     "partition_dataset",
+    "cluster_hit_counts",
+    "pick_representatives",
+    "restrict_clusters",
     "residue_positions",
 ]
