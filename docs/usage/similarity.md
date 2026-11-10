@@ -847,6 +847,93 @@ It draws C from the rest and removes C from the pool for good. One generator see
     12 []
     ```
 
+### Splits and the final table
+
+The groups go to train/val/test whole, so similar positives never straddle a split, and each negative follows its positive. `rebalance` also writes what `partition` needs: `groups.json` (the dimer groups limited to the positives) and `kinds/`, an `interface_labels` layer marking each positive `homomer` or `heteromer`. `partition --stratify` ([below](#keeping-the-mix-in-every-split)) keeps the homomer:heteromer mix in every split. `pandora assemble` then writes the final table to a step folder: `pairs` and an `assemble.json` summary.
+
+=== "`cli`"
+
+    ```bash
+    pandora partition --clusters work/positives/groups.json \
+      --labels work/positives/kinds --stratify --output splits.json
+    jq -c .label_counts partition_provenance.json
+    pandora assemble --positives work/positives --negatives work/negatives \
+      --splits splits.json \
+      --representatives clusters/seq90/representatives.json \
+      --similarity layers/tm --hit-filter policies/tm.yaml \
+      --table-format jsonl --output-dir work/dataset
+    jq -c '[.chain_a, .chain_b, .label, .split, .c_leak_negative]' work/dataset/pairs.jsonl | sed -n '1p;12,13p'
+    jq -c .counts work/dataset/assemble.json
+    ```
+
+    ```text
+    partition: warning: val has no item labelled heteromer
+    partition: warning: test has no item labelled heteromer
+    split sizes: {'train': 7, 'val': 2, 'test': 2} -> splits.json
+    unlabelled items: 0 of 11
+    {"train":{"heteromer":1,"homomer":6},"val":{"homomer":2},"test":{"homomer":2}}
+    22 pairs -> work/dataset
+    ["1ABW_A","1ABW_C",1,"train",null]
+    ["1ABW_C","1B7I_A",0,"train",false]
+    ["1AYI_A","1A3E_A",0,"train",false]
+    {"pairs:test:0":2,"pairs:test:1":2,"pairs:train:0":7,"pairs:train:1":7,"pairs:val:0":2,"pairs:val:1":2,"negatives_c_leak_positive":0,"negatives_c_leak_negative":2,"positives_unpaired":0}
+    ```
+
+    With one heteromer in the dev data, only one split can have it, hence the warnings. Each row has `chain_a`, `chain_b`, `label` (1 positive, 0 negative), `kind`, `cluster` (the positive's dimer group), `split`, `positive` (the dimer the pair belongs to) and two leak flags, null for positives:
+
+    - `c_leak_positive`: the negative's C is structurally similar (through `--similarity` and its hit filter, chains mapped to their representatives) to a positive's chain in another split;
+    - `c_leak_negative`: C is similar to another split's negative C.
+
+    Negatives can't be prevented from leaking this way without sampling them per split; the counts measure how often it happens (here 2 negatives). `assemble` warns if `--representatives` or `--similarity` are not the files `negatives` used. A positive in no split or two, a split item that's not a positive, or a negative whose positive is unknown is an error.
+
+=== "`library`"
+
+    ```python
+    import json
+
+    from pandora.export import read_records
+    from pandora.schemas.similarity import (
+        HitFilter,
+        NegativePair,
+        PositiveDimer,
+        RepresentativeCluster,
+        SimilarityCluster,
+    )
+    from pandora.similarity import (
+        assemble_pairs,
+        member_representatives,
+        partition_dataset,
+        read_similarity_table,
+        similarity_edges,
+    )
+
+    positives = read_records("work/positives/positives.jsonl", PositiveDimer)
+    negatives = read_records("work/negatives/negatives.jsonl", NegativePair)
+    groups = [
+        SimilarityCluster(**g)
+        for g in json.load(open("work/positives/groups.json"))
+    ]
+    kinds = {p.dimer: p.kind for p in positives}
+    splits, prov = partition_dataset(groups, labels=kinds, stratify=True)
+    print(prov.label_counts)
+
+    reps = member_representatives(
+        RepresentativeCluster(**r)
+        for r in json.load(open("clusters/seq90/representatives.json"))
+    )
+    tm = similarity_edges(
+        read_similarity_table("layers/tm/layer.parquet"),
+        HitFilter(min_score=0.5, min_coverage=0.8, coverage_of="both"),
+    )
+    rows = assemble_pairs(positives, negatives, splits, reps, tm)
+    print(len(rows), sum(bool(r.c_leak_negative) for r in rows))
+    ```
+
+    ```text
+    {'train': {'heteromer': 1, 'homomer': 6}, 'val': {'homomer': 2}, 'test': {'homomer': 2}}
+    22 2
+    ```
+
 ## Leakage-safe partitioning
 
 `partition_dataset()` assigns whole clusters to train/val/test: similar items never end up split across partitions, since a whole cluster moves together to whichever split is furthest from its target share.
@@ -957,3 +1044,7 @@ Symmetry copies sit in their source chain's cluster as items of their own, so la
     ```
 
     `item_labels()` turns a `chain_labels` or `interface_labels` layer into item IDs (`1ABC_A`, `1ABC_A_B`; a label on B–A labels `1ABC_A_B`) and raises `ValueError` if one item has two different labels. `partition_dataset(labels=...)` raises `ValueError` with `keep_similar_items=False`.
+
+### Keeping the mix in every split
+
+`--labels` only makes sure each label reaches each split; the rest is placed by size, so a rare label can end up almost all in train. `--stratify` (with `--labels`) splits each label's clusters on their own, with the same fractions, and merges the result, so every split keeps about the overall mix. Every cluster must carry one label; a cluster with two is an error. `partition_provenance.json` records `stratify: true` and the achieved `label_counts`. In Python: `partition_dataset(clusters, labels=labels, stratify=True)`. See [Splits and the final table](#splits-and-the-final-table) for a run.
