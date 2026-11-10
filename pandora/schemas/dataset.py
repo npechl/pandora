@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from pandora.schemas.annotation import ContactAtomSet
+from pandora.schemas.common import RankKey
 from pandora.schemas.structure import AtomSiteRecord
 
 
@@ -303,14 +304,35 @@ class ContentRules(BaseModel):
 
 
 class DeduplicationRules(BaseModel):
-    """Policy for whether duplicate entry_ids are removed.
+    """Policy for removing duplicate and contained structures.
 
     Attributes:
         enabled: Whether structures sharing the same `entry_id` are
-            removed.
+            removed. `pandora dedup --contained` ignores it.
+        contained_rank: Which entry to keep among entries with equal
+            chain counts per cluster (`find_contained`), best first; the
+            lowest entry id breaks the last tie.
     """
 
     enabled: bool = False
+    contained_rank: list[RankKey] = Field(
+        default_factory=lambda: [RankKey(key="resolution", order="min")]
+    )
+
+
+class ContainmentRecord(BaseModel):
+    """One entry removed because another entry contains it.
+
+    Attributes:
+        entry_id: The removed entry.
+        contained_in: A kept entry that contains it (the lowest id).
+        equal: True when both have the same chain counts per cluster
+            and the other entry ranked better.
+    """
+
+    entry_id: str
+    contained_in: str
+    equal: bool
 
 
 class DatasetCurationPolicy(BaseModel):

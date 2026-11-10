@@ -5,6 +5,7 @@ from typing import Literal, NamedTuple
 from pydantic import BaseModel, Field
 
 from pandora.schemas.annotation import SimilarityItems
+from pandora.schemas.common import RankKey
 
 
 class SimilarityCluster(BaseModel):
@@ -153,3 +154,65 @@ class PartitionProvenance(BaseModel):
     label_counts: dict[str, dict[str, int]] = Field(default_factory=dict)
     missing_labels: dict[str, list[str]] = Field(default_factory=dict)
     labels_layer: str | None = None
+
+
+class RepresentativePolicy(BaseModel):
+    """Policy for picking one representative item per cluster.
+
+    Attributes:
+        items: The cluster items' level; only "chain" for now.
+        rank: Ranking keys, best first; the lowest item id breaks the
+            last tie. Chain keys: "missing_residues" (absolute count),
+            "n_hits" (partners in the same cluster), or a number column
+            of the `chains` table.
+    """
+
+    items: SimilarityItems = "chain"
+    rank: list[RankKey] = Field(
+        default_factory=lambda: [
+            RankKey(key="missing_residues", order="min"),
+            RankKey(key="n_hits", order="max"),
+        ]
+    )
+
+
+class RepresentativeCluster(BaseModel):
+    """One cluster with its chosen representative.
+
+    Attributes:
+        representative: The item that stands for the cluster.
+        members: Every item of the cluster, the representative included.
+        n_members: The number of members.
+    """
+
+    representative: str
+    members: list[str]
+    n_members: int
+
+
+class RepresentativesProvenance(BaseModel):
+    """Record of one `representatives` run.
+
+    Attributes:
+        selected_at: When the run completed, as an ISO 8601 timestamp.
+        items: The items' level.
+        policy: The ranking policy used.
+        clusters: The clusters file read.
+        structures_dir: The step folder the clusters were limited to.
+        layers: The similarity layers read for `n_hits`, if any.
+        n_clusters: Clusters written.
+        n_members: Members written, over all clusters.
+        n_members_dropped: Members not in the step folder.
+        n_clusters_dropped: Clusters left empty by that, so not written.
+    """
+
+    selected_at: str
+    items: SimilarityItems
+    policy: RepresentativePolicy
+    clusters: str
+    structures_dir: str
+    layers: list[ClusteredLayer] = Field(default_factory=list)
+    n_clusters: int
+    n_members: int
+    n_members_dropped: int = 0
+    n_clusters_dropped: int = 0

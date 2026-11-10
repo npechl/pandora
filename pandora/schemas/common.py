@@ -56,3 +56,16 @@ class AppliedPolicyRef(BaseModel):
     policy_id: str
     policy_name: str
     policy_version: str
+
+
+class RankKey(BaseModel):
+    """One key of an ordered ranking, e.g. for picking which item to keep.
+
+    Attributes:
+        key: The value to rank on, e.g. "resolution".
+        order: "min" (smaller is better) or "max" (larger is better).
+            A missing (null) value always ranks last.
+    """
+
+    key: str
+    order: Literal["min", "max"] = "min"
