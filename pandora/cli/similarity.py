@@ -39,10 +39,13 @@ from pandora.schemas.dataset import DatasetChainRecord
 from pandora.schemas.similarity import (
     ClusteredLayer,
     HitFilter,
+    RepresentativePolicy,
+    RepresentativesProvenance,
     SimilarityCluster,
 )
 from pandora.similarity import (
     cluster_edges,
+    cluster_hit_counts,
     compute_sequence_similarity,
     compute_structure_similarity,
     entry_edges,
@@ -51,6 +54,8 @@ from pandora.similarity import (
     interface_similarity,
     pair_cluster_keys,
     partition_dataset,
+    pick_representatives,
+    restrict_clusters,
 )
 from pandora.similarity.hits import (
     read_hit_tsv,
@@ -356,7 +361,9 @@ def _cmd_import(args: argparse.Namespace) -> None:
     )
 
 
-def _per_layer(flag: str, values: list[Any] | None, n: int) -> list[Any]:
+def _per_layer(
+    flag: str, values: list[Any] | None, n: int, command: str = "cluster"
+) -> list[Any]:
     """`values` of a repeatable flag, one per --similarity layer: absent,
     given once for all layers, or once per layer in order."""
 
@@ -366,21 +373,23 @@ def _per_layer(flag: str, values: list[Any] | None, n: int) -> list[Any]:
         return values * n
     if len(values) != n:
         raise SystemExit(
-            f"cluster: give {flag} once (for every layer) or once per "
+            f"{command}: give {flag} once (for every layer) or once per "
             f"--similarity layer ({n}), not {len(values)} times"
         )
     return values
 
 
-def _hit_filters(args: argparse.Namespace, n: int) -> list[HitFilter]:
+def _hit_filters(
+    args: argparse.Namespace, n: int, command: str = "cluster"
+) -> list[HitFilter]:
     """One HitFilter per layer, from --hit-filter with --min-score /
     --min-coverage overriding it; exits if a layer has no threshold."""
 
     filters = []
     for path, min_score, min_coverage in zip(
-        _per_layer("--hit-filter", args.hit_filter, n),
-        _per_layer("--min-score", args.min_score, n),
-        _per_layer("--min-coverage", args.min_coverage, n),
+        _per_layer("--hit-filter", args.hit_filter, n, command),
+        _per_layer("--min-score", args.min_score, n, command),
+        _per_layer("--min-coverage", args.min_coverage, n, command),
         strict=True,
     ):
         if path is None and min_score is None and min_coverage is None:
@@ -388,7 +397,7 @@ def _hit_filters(args: argparse.Namespace, n: int) -> list[HitFilter]:
             # (the old --threshold defaulted to 0.9), merging clusters
             # silently.
             raise SystemExit(
-                "cluster: set --min-score, --min-coverage or --hit-filter "
+                f"{command}: set --min-score, --min-coverage or --hit-filter "
                 "for every layer; with no threshold every reported hit "
                 "becomes an edge"
             )
@@ -634,6 +643,123 @@ def _partition_labels(args: argparse.Namespace) -> dict[str, str] | None:
         raise SystemExit(f"{command}: {folder}: {exc}") from exc
 
 
+_CHAIN_RANK_COLUMNS = (
+    "residue_count",
+    "atom_count",
+    "seqres_length",
+    "missing_n_term",
+    "missing_c_term",
+    "missing_middle",
+    "resolution",
+)
+_MISSING_COLUMNS = ("missing_n_term", "missing_c_term", "missing_middle")
+
+
+def _chain_values(
+    table: Path, keys: set[str]
+) -> tuple[dict[str, dict[str, Any]], set[str]]:
+    """Rank values per chain item from a chains table (missing_residues
+    summed; n_hits left for later), and the non-copy chain items."""
+
+    columns = ("entry_id", "chain_id", "copy_of", *_CHAIN_RANK_COLUMNS)
+    values: dict[str, dict[str, Any]] = {}
+    eligible: set[str] = set()
+    for row in read_columns(table, columns):
+        key = item_id("chain", row["entry_id"], row["chain_id"])
+        parts = [row[c] for c in _MISSING_COLUMNS]
+        missing = None if None in parts else sum(parts)
+        values[key] = {k: row[k] for k in keys & set(_CHAIN_RANK_COLUMNS)}
+        values[key]["missing_residues"] = missing
+        if not row["copy_of"]:
+            eligible.add(key)
+    return values, eligible
+
+
+def _cmd_representatives(args: argparse.Namespace) -> None:
+    """Handle the `representatives` subcommand: one representative item
+    per cluster."""
+
+    policy = (
+        load_yaml_model(RepresentativePolicy, Path(args.policy))
+        if args.policy
+        else RepresentativePolicy()
+    )
+    policy = policy.model_copy(update={"items": args.items})
+    keys = {rank_key.key for rank_key in policy.rank}
+    allowed = {"missing_residues", "n_hits", *_CHAIN_RANK_COLUMNS}
+    unknown = sorted(keys - allowed)
+    if unknown:
+        raise SystemExit(
+            f"representatives: unknown rank key {unknown[0]!r}; use "
+            + ", ".join(sorted(allowed))
+        )
+    layers = [Path(folder) for folder in args.similarity or []]
+    if "n_hits" in keys and not layers:
+        raise SystemExit(
+            "representatives: rank key n_hits needs --similarity (and a "
+            "hit filter)"
+        )
+    hit_filters = (
+        _hit_filters(args, len(layers), "representatives") if layers else []
+    )
+    structures_dir = Path(args.structures_dir)
+    table = _step_table(
+        "representatives", structures_dir, "chains", "pandora curate"
+    )
+    values, eligible = _chain_values(table, keys)
+    clusters_in = load_json_list(SimilarityCluster, Path(args.clusters))
+    clusters = restrict_clusters(clusters_in, values.keys())
+
+    counts: Counter[int] = Counter()
+    if "n_hits" in keys:
+        _require_pyarrow("representatives")
+        for layer in layers:
+            if _similarity_level(layer) != "chain":
+                raise SystemExit(
+                    f"representatives: {layer} is not a chain layer"
+                )
+        edges = itertools.chain(
+            *(
+                _layer_edges(layer, hit_filter, None, counts, index)
+                for index, (layer, hit_filter) in enumerate(
+                    zip(layers, hit_filters, strict=True)
+                )
+            )
+        )
+        for item, n in cluster_hit_counts(clusters, edges).items():
+            values[item]["n_hits"] = n
+    reps = pick_representatives(clusters, values, policy, eligible)
+
+    n_in = sum(c.n_components for c in clusters_in)
+    n_members = sum(c.n_components for c in clusters)
+    prov = RepresentativesProvenance(
+        selected_at=now_iso(),
+        items=policy.items,
+        policy=policy,
+        clusters=str(args.clusters),
+        structures_dir=str(structures_dir),
+        layers=[
+            ClusteredLayer(
+                similarity_layer=str(layer / "layer.json"),
+                items="chain",
+                hit_filter=hit_filter,
+                n_edges=counts[index],
+            )
+            for index, (layer, hit_filter) in enumerate(
+                zip(layers, hit_filters, strict=True)
+            )
+        ],
+        n_clusters=len(reps),
+        n_members=n_members,
+        n_members_dropped=n_in - n_members,
+        n_clusters_dropped=len(clusters_in) - len(clusters),
+    )
+    output = Path(args.output)
+    write_records(reps, output)
+    write_json(prov, output.parent / "representatives_provenance.json")
+    print(f"{len(reps)} representatives from {n_members} chains -> {output}")
+
+
 def _cmd_partition(args: argparse.Namespace) -> None:
     """Handle the `partition` subcommand: leakage-safe train/val/test
     split of clusters."""
@@ -785,6 +911,56 @@ def _register_interfaces(commands: argparse._SubParsersAction) -> None:
     p.set_defaults(func=_cmd_interfaces)
 
 
+def _register_representatives(subparsers: argparse._SubParsersAction) -> None:
+    """Add the `representatives` subcommand."""
+
+    p = subparsers.add_parser(
+        "representatives",
+        help="Pick one representative item per cluster, by a ranking policy.",
+    )
+    p.add_argument(
+        "--clusters", required=True, help="clusters.json (pandora cluster)"
+    )
+    p.add_argument(
+        "--structures-dir",
+        required=True,
+        help="the step folder whose chains the clusters are limited to",
+    )
+    p.add_argument(
+        "--items",
+        choices=["chain"],
+        default="chain",
+        help="the clusters' item level (only chain for now)",
+    )
+    p.add_argument(
+        "--similarity",
+        action="append",
+        help="chain similarity layer folder for the n_hits rank key; "
+        "repeatable",
+    )
+    p.add_argument(
+        "--hit-filter",
+        action="append",
+        help="HitFilter YAML; once for every layer or once per "
+        "--similarity, in order (same for the two flags below)",
+    )
+    p.add_argument(
+        "--min-score",
+        type=float,
+        action="append",
+        help="overrides --hit-filter's min_score",
+    )
+    p.add_argument(
+        "--min-coverage",
+        type=float,
+        action="append",
+        help="overrides --hit-filter's min_coverage",
+    )
+    p.add_argument("--policy", help="RepresentativePolicy YAML (rank keys)")
+    p.add_argument("--output", required=True)
+    p.set_defaults(func=_cmd_representatives)
+
+
 def register(subparsers: argparse._SubParsersAction) -> None:
     """Add this module's subcommands to the `pandora` parser."""
 
@@ -905,6 +1081,8 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     )
     p.add_argument("--output", required=True)
     p.set_defaults(func=_cmd_cluster)
+
+    _register_representatives(subparsers)
 
     p = subparsers.add_parser(
         "partition", help="Leakage-safe train/val/test split of clusters."

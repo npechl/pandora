@@ -36,6 +36,7 @@ CANON_POLICY = (
 
 _SUBCOMMANDS = [
     "fetch",
+    "representatives",
     "ingest",
     "canonicalise",
     "curate",
@@ -2475,3 +2476,141 @@ def test_dedup_contained_refuses_existing_output(tmp_path):
         _dedup_contained(step, clusters, out)
     _dedup_contained(step, clusters, out, "--overwrite")
     assert (out / "dedup.json").exists()
+
+
+def _rep_inputs(tmp_path, missing, hits, clusters=None):
+    """Step folder (chains 104M_A, 112M_A, 112M_B copy of A, 118L_A with
+    `missing` residues each), clusters.json (default: one of all four)
+    and a chain similarity layer of `hits` pairs."""
+
+    step = tmp_path / "step"
+    step.mkdir()
+    chains = [("104M", "A", None), ("112M", "A", None)]
+    chains += [("112M", "B", "A"), ("118L", "A", None)]
+    _write_jsonl(
+        step / "chains.jsonl",
+        [
+            {
+                "entry_id": e,
+                "chain_id": c,
+                "copy_of": copy,
+                "missing_n_term": 0,
+                "missing_c_term": 0,
+                "missing_middle": missing[f"{e}_{c}"],
+            }
+            for e, c, copy in chains
+        ],
+    )
+    if clusters is None:
+        clusters = [["104M_A", "112M_A", "112M_B", "118L_A"]]
+    clusters_file = tmp_path / "clusters.json"
+    clusters_file.write_text(
+        json.dumps(
+            [{"components": c, "n_components": len(c)} for c in clusters]
+        )
+    )
+    rows = [{"item_id_1": a, "item_id_2": b, "score": 0.95} for a, b in hits]
+    layer = _similarity_layer(tmp_path / "layer", rows, "chain")
+    return step, clusters_file, layer
+
+
+def _representatives(step, clusters, out, *extra):
+    main(
+        ["representatives", "--clusters", str(clusters)]
+        + ["--structures-dir", str(step), "--output", str(out), *extra]
+    )
+    return json.loads(out.read_text())
+
+
+_MISSING = {"104M_A": 2, "112M_A": 2, "112M_B": 0, "118L_A": 0}
+_ALL_HITS = [("104M_A", "112M_A"), ("104M_A", "118L_A"), ("112M_A", "118L_A")]
+
+
+def test_representatives_default_policy(tmp_path):
+    step, clusters, layer = _rep_inputs(tmp_path, _MISSING, _ALL_HITS)
+    out = tmp_path / "reps" / "representatives.json"
+    reps = _representatives(
+        step, clusters, out, "--similarity", str(layer), "--min-score", "0.9"
+    )
+    assert reps == [
+        {
+            "representative": "118L_A",
+            "members": ["104M_A", "112M_A", "112M_B", "118L_A"],
+            "n_members": 4,
+        }
+    ]
+    prov = json.loads(
+        (out.parent / "representatives_provenance.json").read_text()
+    )
+    assert prov["n_clusters"] == 1 and prov["items"] == "chain"
+    assert prov["n_members"] == 4 and len(prov["layers"]) == 1
+
+
+def test_representatives_n_hits_breaks_tie(tmp_path):
+    missing = dict.fromkeys(_MISSING, 0)
+    hits = [("104M_A", "112M_A"), ("112M_A", "118L_A")]
+    step, clusters, layer = _rep_inputs(tmp_path, missing, hits)
+    reps = _representatives(
+        step,
+        clusters,
+        tmp_path / "r.json",
+        "--similarity",
+        str(layer),
+        "--min-score",
+        "0.9",
+    )
+    assert reps[0]["representative"] == "112M_A"
+
+
+def test_representatives_drops_chains_outside_step_folder(tmp_path):
+    step, clusters, layer = _rep_inputs(
+        tmp_path,
+        _MISSING,
+        _ALL_HITS,
+        clusters=[["104M_A", "112M_A", "112M_B", "118L_A", "999X_A"]]
+        + [["999Y_A"]],
+    )
+    out = tmp_path / "r.json"
+    reps = _representatives(
+        step, clusters, out, "--similarity", str(layer), "--min-score", "0.9"
+    )
+    assert len(reps) == 1 and "999X_A" not in reps[0]["members"]
+    prov = json.loads(
+        (tmp_path / "representatives_provenance.json").read_text()
+    )
+    assert prov["n_members_dropped"] == 2
+    assert prov["n_clusters_dropped"] == 1
+
+
+def test_representatives_n_hits_needs_similarity(tmp_path):
+    step, clusters, _ = _rep_inputs(tmp_path, _MISSING, _ALL_HITS)
+    with pytest.raises(SystemExit, match="n_hits"):
+        _representatives(step, clusters, tmp_path / "r.json")
+
+
+def test_representatives_policy_without_n_hits_needs_no_layer(tmp_path):
+    step, clusters, _ = _rep_inputs(tmp_path, _MISSING, _ALL_HITS)
+    policy = tmp_path / "reps.yaml"
+    policy.write_text("rank:\n  - key: missing_residues\n")
+    reps = _representatives(
+        step, clusters, tmp_path / "r.json", "--policy", str(policy)
+    )
+    assert reps[0]["representative"] == "118L_A"
+
+
+def test_representatives_rejects_interface_items(tmp_path):
+    step, clusters, _ = _rep_inputs(tmp_path, _MISSING, _ALL_HITS)
+    with pytest.raises(SystemExit):
+        _representatives(
+            step, clusters, tmp_path / "r.json", "--items", "interface"
+        )
+
+
+def test_representatives_rejects_unknown_rank_key(tmp_path):
+    step, clusters, _ = _rep_inputs(tmp_path, _MISSING, _ALL_HITS)
+    policy = tmp_path / "reps.yaml"
+    policy.write_text("rank:\n  - key: bogus\n")
+    with pytest.raises(SystemExit, match="bogus"):
+        _representatives(
+            step, clusters, tmp_path / "r.json", "--policy", str(policy)
+        )
