@@ -3200,3 +3200,41 @@ def test_rebalance_passes_interface_residues_to_coverage_filter(
 
     assert captured["residues"]
     assert "1A2C_A" in captured["residues"]
+
+
+def test_rebalance_writes_groups_and_kinds(tmp_path):
+    contacts, seq90, groups, iface, _ = _rebalance_inputs(tmp_path)
+    out = tmp_path / "positives"
+    _rebalance(contacts, seq90, groups, iface, out)
+
+    positives = _jsonl(out / "positives.jsonl")
+    kept = json.loads((out / "groups.json").read_text())
+    assert sorted(d for g in kept for d in g["components"]) == sorted(
+        p["dimer"] for p in positives
+    )
+    assert all(g["n_components"] == len(g["components"]) for g in kept)
+    kinds = _jsonl(out / "kinds" / "layer.jsonl")
+    assert {
+        f"{r['entry_id']}_{r['chain_id_1']}_{r['chain_id_2']}": r["label"]
+        for r in kinds
+    } == {p["dimer"]: p["kind"] for p in positives}
+    summary = json.loads((out / "kinds" / "layer.json").read_text())
+    assert summary["policy"]["template"] == "interface_labels"
+    assert summary["previous_summary"] == str(out / "rebalance.json")
+
+    split = tmp_path / "splits.json"
+    main(
+        ["partition", "--clusters", str(out / "groups.json")]
+        + ["--labels", str(out / "kinds"), "--output", str(split)]
+    )
+    assert split.exists()
+
+
+def test_rebalance_overwrite_clears_groups_and_kinds(tmp_path):
+    contacts, seq90, groups, iface, _ = _rebalance_inputs(tmp_path)
+    out = tmp_path / "positives"
+    _rebalance(contacts, seq90, groups, iface, out)
+    (out / "kinds" / "stale.txt").write_text("x")
+    _rebalance(contacts, seq90, groups, iface, out, "--overwrite")
+    assert not (out / "kinds" / "stale.txt").exists()
+    assert (out / "groups.json").exists()

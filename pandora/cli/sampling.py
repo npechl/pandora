@@ -9,6 +9,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from pandora import __version__
 from pandora._util import now_iso, rank_sort_key
 from pandora.cli._io import (
     TABLE_FORMATS,
@@ -33,8 +34,9 @@ from pandora.cli.similarity import (
     _require_pyarrow,
     _similarity_level,
 )
-from pandora.export import read_records, write_json
+from pandora.export import read_records, write_json, write_records
 from pandora.provenance import build_step_summary
+from pandora.schemas.annotation import LayerDescription, LayerRow
 from pandora.schemas.similarity import (
     ClusteredLayer,
     HitFilter,
@@ -51,6 +53,7 @@ from pandora.similarity import (
     member_representatives,
     parse_item_id,
     rebalance,
+    restrict_clusters,
     sample_negatives,
 )
 
@@ -58,7 +61,7 @@ _REBALANCE_OUTPUTS = [
     f"{name}.{fmt}"
     for name in ("positives", "dropped")
     for fmt in TABLE_FORMATS
-] + ["rebalance.json"]
+] + ["rebalance.json", "groups.json", "kinds"]
 _REBALANCE_RANK_KEYS = {"interface_residues", "resolution", "missing_residues"}
 
 
@@ -248,7 +251,56 @@ def _cmd_rebalance(args: argparse.Namespace) -> None:
         ),
         out / "rebalance.json",
     )
+    _write_groups_and_kinds(
+        groups, positives, out, args.table_format, started_at
+    )
     print(f"{len(positives)} positives from {len(dimers)} dimers -> {out}")
+
+
+def _write_groups_and_kinds(
+    groups: list[SimilarityCluster],
+    positives: list[PositiveDimer],
+    out: Path,
+    table_format: str,
+    started_at: str,
+) -> None:
+    """Write `groups.json` (the groups limited to the positives) and
+    `kinds/`, an interface_labels layer of homomer/heteromer."""
+
+    kept = restrict_clusters(groups, {p.dimer for p in positives})
+    write_records(kept, out / "groups.json")
+    kinds = out / "kinds"
+    kinds.mkdir()
+    rows = [
+        LayerRow(
+            entry_id=p.entry_id,
+            chain_id_1=p.chain_id_1,
+            chain_id_2=p.chain_id_2,
+            label=p.kind,
+        )
+        for p in positives
+    ]
+    write_table(rows, kinds, "layer", table_format)
+    description = LayerDescription(
+        name="positive_kinds",
+        template="interface_labels",
+        tool="pandora",
+        tool_version=__version__,
+        parameters={},
+    )
+    labels = Counter(p.kind for p in positives)
+    write_json(
+        build_step_summary(
+            "rebalance_kinds",
+            description,
+            input=out / "positives",
+            output=kinds,
+            started_at=started_at,
+            counts={"interfaces": len(rows), **dict(sorted(labels.items()))},
+            previous_summary=out / "rebalance.json",
+        ),
+        kinds / "layer.json",
+    )
 
 
 _NEGATIVES_OUTPUTS = [f"negatives.{fmt}" for fmt in TABLE_FORMATS] + [
