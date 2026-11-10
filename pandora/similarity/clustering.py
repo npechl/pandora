@@ -139,7 +139,13 @@ def interface_edges(
             iterating).
     """
 
-    mapped = chain_map or {}
+    # Key the map like `_chain_key` does, so the entry's case can't miss.
+    mapped = {
+        _chain_key(*parse_item_id("chain", k)): _chain_key(
+            *parse_item_id("chain", v)
+        )
+        for k, v in (chain_map or {}).items()
+    }
 
     def key_of(entry: str, chain: str) -> str:
         key = _chain_key(entry, chain)

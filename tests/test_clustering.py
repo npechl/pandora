@@ -107,3 +107,17 @@ def test_interface_edges_chain_map_maps_edge_ends() -> None:
         )
     )
     assert rolled == [("1AAA_A_B", "2BBB_C_D")]
+
+
+def test_interface_edges_chain_map_lower_case_entries() -> None:
+    # Extended ids are lower case; the map must still apply.
+    chain_map = {
+        "pdb_00001abc_A": "pdb_00009zzz_X",
+        "pdb_00002xyz_C": "pdb_00009zzz_X",
+    }
+    rolled = list(
+        interface_edges(
+            [], ["pdb_00001abc_A_B", "pdb_00002xyz_C_D"], chain_map
+        )
+    )
+    assert rolled == [("pdb_00001abc_A_B", "pdb_00002xyz_C_D")]
