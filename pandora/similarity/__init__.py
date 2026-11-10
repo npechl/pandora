@@ -10,6 +10,7 @@ from pandora.similarity.hits import (
     read_similarity_table,
     similarity_edges,
 )
+from pandora.similarity.interfaces import interface_similarity
 from pandora.similarity.layer import (
     ItemSet,
     chain_items,
@@ -31,6 +32,7 @@ from pandora.similarity.structure import (
 )
 
 __all__ = [
+    "interface_similarity",
     "ItemSet",
     "chain_items",
     "check_similarity_columns",
