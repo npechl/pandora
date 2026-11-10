@@ -812,13 +812,12 @@ _INTERFACE_RANK_KEYS = (
 
 
 def _interface_values(
-    contacts: Path,
+    contacts: Path, command: str = "representatives"
 ) -> tuple[dict[str, dict[str, Any]], set[str], Path]:
     """Rank values per interface item of a contact layer (n_hits left for
     later), the interfaces with no symmetry-copy chain, and the
     structures folder the layer traces to."""
 
-    command = "representatives"
     rows_file = _contact_layer(command, contacts)
     origin = layer_origin(contacts)
     if origin is None:

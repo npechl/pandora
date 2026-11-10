@@ -288,3 +288,24 @@ class DroppedDimer(BaseModel):
         "homomer_in_mixed_group", "similar_to_kept", "not_most_connected"
     ]
     kept: str | None = None
+
+
+class RebalanceSettings(BaseModel):
+    """What one `rebalance` run used, recorded as its summary's policy.
+
+    Attributes:
+        rank: The ranking that breaks ties between equally connected
+            dimers.
+        layers: The similarity layers and hit filters of the dimer
+            graph (the same as the Step 5 `cluster` run).
+        clusters: The dimer groups file.
+        chain_clusters: The 90% chain clusters file (homomer test).
+        chain_representatives: The representatives JSON mapping chains
+            to their representative, if any.
+    """
+
+    rank: RepresentativePolicy
+    layers: list[ClusteredLayer] = Field(default_factory=list)
+    clusters: str
+    chain_clusters: str
+    chain_representatives: str | None = None

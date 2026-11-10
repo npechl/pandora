@@ -2952,3 +2952,123 @@ def test_plain_dedup_rejects_contained_only_flags(tmp_path):
                 ["dedup", "--input-dir", str(tmp_path)]
                 + ["--output-dir", str(tmp_path / "o"), *flag]
             )
+
+
+def _rebalance_inputs(tmp_path, homomers=False, groups=None):
+    """1a2c contact layer, chain clusters (every chain alone, or all in
+    one with `homomers`), dimer groups (default: one of every dimer)
+    and an empty interface layer."""
+
+    contacts, _, labelled = _iface_rep_inputs(tmp_path)
+    dimers = sorted(f"1A2C_{r.chain_id_1}_{r.chain_id_2}" for r in labelled)
+    chains = sorted(
+        {f"1A2C_{c}" for r in labelled for c in (r.chain_id_1, r.chain_id_2)}
+    )
+    chain_groups = [chains] if homomers else [[c] for c in chains]
+    seq90 = tmp_path / "seq90_clusters.json"
+    seq90.write_text(
+        json.dumps(
+            [{"components": c, "n_components": len(c)} for c in chain_groups]
+        )
+    )
+    groups_file = tmp_path / "groups.json"
+    groups_file.write_text(
+        json.dumps(
+            [
+                {"components": g, "n_components": len(g)}
+                for g in (groups or [dimers])
+            ]
+        )
+    )
+    iface = _similarity_layer(tmp_path / "iface", None, "interface")
+    return contacts, seq90, groups_file, iface, dimers
+
+
+def _rebalance(contacts, seq90, groups, iface, out, *extra):
+    main(
+        ["rebalance", "--clusters", str(groups), "--contacts", str(contacts)]
+        + ["--chain-clusters", str(seq90), "--similarity", str(iface)]
+        + ["--min-score", "0.5", "--output-dir", str(out)]
+        + ["--table-format", "jsonl", *extra]
+    )
+
+
+def test_rebalance_writes_positives_and_dropped(tmp_path):
+    contacts, seq90, groups, iface, dimers = _rebalance_inputs(tmp_path)
+    out = tmp_path / "positives"
+    _rebalance(contacts, seq90, groups, iface, out)
+
+    positives = _jsonl(out / "positives.jsonl")
+    dropped = (
+        _jsonl(out / "dropped.jsonl") if len(positives) < len(dimers) else []
+    )
+    assert (
+        sorted([p["dimer"] for p in positives] + [d["dimer"] for d in dropped])
+        == dimers
+    )
+    assert {p["kind"] for p in positives} == {"heteromer"}
+    # No two positives share a chain (sharing a chain makes them similar).
+    sides = [(p["chain_id_1"], p["chain_id_2"]) for p in positives]
+    flat = [c for pair in sides for c in pair]
+    assert len(flat) == len(set(flat))
+    summary = json.loads((out / "rebalance.json").read_text())
+    assert summary["step"] == "rebalance"
+    assert summary["previous_summary"] == str(contacts / "layer.json")
+    assert summary["counts"]["groups"] == 1
+    assert summary["counts"]["dimers_in"] == len(dimers)
+    assert summary["counts"]["positives:heteromer"] == len(positives)
+    assert summary["policy"]["rank"]["items"] == "interface"
+
+
+def test_rebalance_homomer_only_group_keeps_one(tmp_path):
+    contacts, seq90, groups, iface, dimers = _rebalance_inputs(
+        tmp_path, homomers=True
+    )
+    out = tmp_path / "positives"
+    _rebalance(contacts, seq90, groups, iface, out)
+
+    positives = _jsonl(out / "positives.jsonl")
+    assert [p["kind"] for p in positives] == ["homomer"]
+    dropped = _jsonl(out / "dropped.jsonl")
+    assert {d["reason"] for d in dropped} == {"not_most_connected"}
+    assert len(dropped) == len(dimers) - 1
+
+
+def test_rebalance_chain_missing_from_chain_clusters_exits(tmp_path):
+    contacts, seq90, groups, iface, _ = _rebalance_inputs(tmp_path)
+    clusters = json.loads(seq90.read_text())
+    missing = clusters.pop()["components"][0]
+    seq90.write_text(json.dumps(clusters))
+    with pytest.raises(SystemExit, match=missing):
+        _rebalance(contacts, seq90, groups, iface, tmp_path / "out")
+
+
+def test_rebalance_dimer_missing_from_contacts_exits(tmp_path):
+    contacts, seq90, _, iface, dimers = _rebalance_inputs(tmp_path, groups=None)
+    groups = tmp_path / "groups2.json"
+    groups.write_text(
+        json.dumps([{"components": [*dimers, "9ZZZ_A_B"], "n_components": 99}])
+    )
+    with pytest.raises(SystemExit, match="9ZZZ_A_B"):
+        _rebalance(contacts, seq90, groups, iface, tmp_path / "out")
+
+
+def test_rebalance_refuses_existing_output(tmp_path):
+    contacts, seq90, groups, iface, _ = _rebalance_inputs(tmp_path)
+    out = tmp_path / "positives"
+    _rebalance(contacts, seq90, groups, iface, out)
+    with pytest.raises(SystemExit, match="overwrite"):
+        _rebalance(contacts, seq90, groups, iface, out)
+    _rebalance(contacts, seq90, groups, iface, out, "--overwrite")
+    assert (out / "rebalance.json").exists()
+
+
+def test_rebalance_inputs_mismatch_exits(tmp_path):
+    # Each dimer in its own group, but dimers sharing a chain are similar.
+    contacts, seq90, _, iface, dimers = _rebalance_inputs(tmp_path)
+    groups = tmp_path / "split.json"
+    groups.write_text(
+        json.dumps([{"components": [d], "n_components": 1} for d in dimers])
+    )
+    with pytest.raises(SystemExit, match="different groups"):
+        _rebalance(contacts, seq90, groups, iface, tmp_path / "out")

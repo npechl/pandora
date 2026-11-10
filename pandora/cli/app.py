@@ -12,6 +12,7 @@ from pandora.cli import (
     export,
     ingestion,
     provenance,
+    sampling,
     similarity,
 )
 
@@ -21,6 +22,7 @@ _MODULES = (
     canonicalisation,
     datasets,
     similarity,
+    sampling,
     annotate,
     provenance,
     export,
