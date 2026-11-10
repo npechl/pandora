@@ -291,6 +291,13 @@ def _cmd_dedup(args: argparse.Namespace) -> None:
     if args.contained:
         _cmd_dedup_contained(args)
         return
+    for flag, value in (
+        ("--clusters", args.clusters),
+        ("--policy", args.policy),
+        ("--overwrite", args.overwrite),
+    ):
+        if value:
+            raise SystemExit(f"dedup: {flag} only applies with --contained")
     output_dir = Path(args.output_dir)
     structures = read_structures_dir(Path(args.input_dir))
     rules = DeduplicationRules(enabled=not args.disable)

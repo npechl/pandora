@@ -26,6 +26,8 @@ ENTRY_ERRORS = (ValueError, OSError, RuntimeError, KeyError, IndexError)
 
 # What a step writes besides its tables: cleared by --overwrite.
 _STEP_FILES = ("failures.jsonl", "mappings.jsonl")
+# Step summaries a structures folder can hold, at most one per folder.
+STEP_SUMMARIES = ("dedup.json", "curation.json", "canonicalisation.json")
 _STEP_TABLES = ("entries", "chain_copies", "chains", "exclusions", "contained")
 
 

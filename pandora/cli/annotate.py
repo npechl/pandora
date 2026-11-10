@@ -26,6 +26,7 @@ from pandora.annotations import (
 )
 from pandora.annotations.entry import CONTACT_ATOM_SETS
 from pandora.cli._io import (
+    STEP_SUMMARIES,
     TABLE_FORMATS,
     check_contact_layer,
     check_table_format,
@@ -139,7 +140,7 @@ _LAYER_OUTPUTS = [
     "source",
     "layer.json",
 ]
-_PREVIOUS_SUMMARIES = ("curation.json", "canonicalisation.json")
+_PREVIOUS_SUMMARIES = STEP_SUMMARIES
 
 
 def _cmd_import(args: argparse.Namespace) -> None:

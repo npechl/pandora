@@ -14,6 +14,7 @@ from typing import Any
 from pandora import __version__
 from pandora._util import now_iso
 from pandora.cli._io import (
+    STEP_SUMMARIES,
     ParquetSink,
     check_contact_layer,
     copy_source,
@@ -84,7 +85,7 @@ _LAYER_OUTPUTS = [
     "layer.json",
     "hits.tsv",
 ]
-_STEP_SUMMARIES = ("curation.json", "canonicalisation.json")
+_STEP_SUMMARIES = STEP_SUMMARIES
 _CONTACT_COLUMNS = (
     "entry_id",
     "chain_id_1",

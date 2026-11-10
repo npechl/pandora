@@ -2614,3 +2614,22 @@ def test_representatives_rejects_unknown_rank_key(tmp_path):
         _representatives(
             step, clusters, tmp_path / "r.json", "--policy", str(policy)
         )
+
+
+def test_layer_on_dedup_step_folder_links_its_summary(tmp_path):
+    args = _layer_inputs(tmp_path)
+    curated = tmp_path / "curated"
+    (curated / "curation.json").rename(curated / "dedup.json")
+    out = tmp_path / "layer"
+    main(["annotate", "import", *args, "--output-dir", str(out)])
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["previous_summary"].endswith("dedup.json")
+
+
+def test_plain_dedup_rejects_contained_only_flags(tmp_path):
+    for flag in (["--clusters", "c.json"], ["--policy", "p.yaml"]):
+        with pytest.raises(SystemExit, match="--contained"):
+            main(
+                ["dedup", "--input-dir", str(tmp_path)]
+                + ["--output-dir", str(tmp_path / "o"), *flag]
+            )
