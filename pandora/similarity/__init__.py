@@ -3,6 +3,7 @@ from __future__ import annotations
 from pandora.similarity.clustering import (
     cluster_edges,
     entry_edges,
+    interface_edges,
     pair_cluster_keys,
 )
 from pandora.similarity.hits import (
@@ -45,6 +46,7 @@ __all__ = [
     "chain_item_id",
     "cluster_edges",
     "entry_edges",
+    "interface_edges",
     "compute_sequence_similarity",
     "compute_structure_similarity",
     "interface_residues_from_annotation",

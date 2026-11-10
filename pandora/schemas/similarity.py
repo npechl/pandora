@@ -4,6 +4,8 @@ from typing import Literal, NamedTuple
 
 from pydantic import BaseModel, Field
 
+from pandora.schemas.annotation import SimilarityItems
+
 
 class SimilarityCluster(BaseModel):
     """One connected-component cluster of similar items.
@@ -76,28 +78,45 @@ class Edge(NamedTuple):
     interface_coverage: float | None
 
 
+class ClusteredLayer(BaseModel):
+    """One similarity layer read by a clustering run.
+
+    Attributes:
+        similarity_layer: The layer's `layer.json`, or None when the
+            edges came from elsewhere (e.g. a hit TSV).
+        items: The layer's item level; chain layers can be rolled up
+            to entries or interfaces.
+        hit_filter: The filter that turned the layer's rows into edges.
+        n_edges: How many edges the layer gave, before any roll-up.
+    """
+
+    similarity_layer: str | None = None
+    items: SimilarityItems
+    hit_filter: HitFilter
+    n_edges: int = 0
+
+
 class ClusteringProvenance(BaseModel):
-    """Record of one clustering run: which similarity layer and filter
+    """Record of one clustering run: which similarity layers and filters
     produced the edges, and how many edges and clusters resulted.
 
     Attributes:
         clustered_at: When this clustering run completed, as an ISO
             8601 timestamp.
-        hit_filter: The filter that turned hits into edges, or None
+        layers: The similarity layers whose edges were joined (an edge
+            from any layer links two items), with their filters. Empty
             for hand-built edges (`cluster_edges`).
-        similarity_layer: The `layer.json` of the similarity layer that
-            was clustered, or None for hand-built edges.
         n_edges: How many edges were read (duplicates included; with
             chain items, the links from symmetry copies to their source
-            chain count too).
+            chain count too, and with a roll-up to interfaces, the
+            links between interfaces sharing a chain).
         n_edges_unknown_ids: How many of those named an id outside
             `item_ids` and were ignored.
         n_clusters: How many clusters resulted.
     """
 
     clustered_at: str
-    hit_filter: HitFilter | None = None
-    similarity_layer: str | None = None
+    layers: list[ClusteredLayer] = Field(default_factory=list)
     n_edges: int = 0
     n_edges_unknown_ids: int = 0
     n_clusters: int

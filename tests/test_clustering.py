@@ -4,6 +4,7 @@ from pandora.schemas.similarity import ClusteringProvenance
 from pandora.similarity.clustering import (
     cluster_edges,
     entry_edges,
+    interface_edges,
     pair_cluster_keys,
 )
 
@@ -18,8 +19,7 @@ def test_transitive_merge_and_isolate() -> None:
     assert provenance.n_edges == 2
     assert provenance.n_edges_unknown_ids == 0
     assert provenance.n_clusters == 3
-    assert provenance.hit_filter is None
-    assert provenance.similarity_layer is None
+    assert provenance.layers == []
 
 
 def test_every_item_appears_exactly_once() -> None:
@@ -60,8 +60,7 @@ def test_old_clustering_provenance_still_loads() -> None:
 
     provenance = ClusteringProvenance.model_validate(old)
 
-    assert provenance.similarity_layer is None
-    assert provenance.hit_filter is None
+    assert provenance.layers == []
     assert provenance.n_clusters == 2
 
 
@@ -72,3 +71,22 @@ def test_pair_cluster_keys_uses_each_clusters_min_component_id() -> None:
 
     # a, c share the {a,b,c} cluster (keyed "a"); d, e are singletons.
     assert keys == {("a", "d"): ("a", "d"), ("c", "e"): ("a", "e")}
+
+
+def test_interface_edges_links_interfaces_through_any_chain() -> None:
+    interfaces = ["1AAA_A_B", "1AAA_B_C", "2BBB_C_D", "3CCC_E_F"]
+    edges = [
+        ("1aaa_A", "2BBB_D"),  # case-insensitive entry ids
+        ("2BBB_C", "2BBB_D"),  # same interface: no edge
+        ("9ZZZ_A", "3CCC_E"),  # 9ZZZ_A is in no interface: dropped
+        ("9ZZZ_A", "1AAA_A"),
+    ]
+
+    rolled = list(interface_edges(edges, interfaces))
+
+    assert rolled == [("1AAA_A_B", "1AAA_B_C"), ("1AAA_A_B", "2BBB_C_D")]
+    clusters, _ = cluster_edges(interfaces, rolled)
+    assert [c.components for c in clusters] == [
+        ["1AAA_A_B", "1AAA_B_C", "2BBB_C_D"],
+        ["3CCC_E_F"],
+    ]

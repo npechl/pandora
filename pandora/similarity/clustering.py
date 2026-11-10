@@ -28,7 +28,7 @@ def cluster_edges(
     Returns:
         `(clusters, provenance)` — the clusters (sorted by their
         smallest member), and the edge and cluster counts.
-        `provenance.hit_filter` and `.similarity_layer` are None.
+        `provenance.layers` is empty.
     """
 
     # ponytail: dict union-find on string ids; integer arrays if memory
@@ -95,6 +95,57 @@ def entry_edges(edges: Iterable[Sequence[Any]]) -> Iterator[tuple[str, str]]:
         entry_2 = parse_item_id("chain", edge[1])[0]
         if entry_1 != entry_2:
             yield entry_1, entry_2
+
+
+def _chain_key(entry_id: str, chain_id: str) -> str:
+    """Case-insensitive lookup key of a chain."""
+
+    return f"{entry_id.upper()}_{chain_id}"
+
+
+def interface_edges(
+    edges: Iterable[Sequence[Any]], interface_ids: Iterable[str]
+) -> Iterator[tuple[str, str]]:
+    """Roll chain-item edges up to interface-item edges.
+
+    Clustering the result puts two interfaces together when any chain
+    of one is linked to any chain of the other. Interfaces that share a
+    chain are linked too, since a chain matches itself. Edges naming a
+    chain that is in no interface are dropped: such a chain must not
+    join the interfaces of two chains it is similar to. Each chain edge
+    gives one interface edge, so the output grows with the input, not
+    with the number of interfaces per chain.
+
+    Args:
+        edges: Pairs of chain item ids (`{entry}_{chain}`), as `Edge`s
+            or any tuples whose first two items are the ids.
+        interface_ids: The interface item ids (`{entry}_{chain}_{chain}`)
+            to link.
+
+    Returns:
+        An iterator of `(interface_id_1, interface_id_2)` pairs: first
+        the links between interfaces sharing a chain, then one per
+        chain edge whose chains are in different interfaces.
+
+    Raises:
+        ValueError: An id is not an interface or chain item id (while
+            iterating).
+    """
+
+    first: dict[str, str] = {}
+    for interface in interface_ids:
+        entry, *chains = parse_item_id("interface", interface)
+        for chain in chains:
+            key = _chain_key(entry, chain)
+            if key in first:
+                yield first[key], interface
+            else:
+                first[key] = interface
+    for edge in edges:
+        side_1 = first.get(_chain_key(*parse_item_id("chain", edge[0])))
+        side_2 = first.get(_chain_key(*parse_item_id("chain", edge[1])))
+        if side_1 is not None and side_2 is not None and side_1 != side_2:
+            yield side_1, side_2
 
 
 def pair_cluster_keys(
