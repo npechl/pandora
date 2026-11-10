@@ -47,6 +47,7 @@ from pandora.schemas.dataset import DatasetChainRecord
 from pandora.schemas.similarity import (
     ClusteredLayer,
     HitFilter,
+    RepresentativeCluster,
     RepresentativePolicy,
     RepresentativesProvenance,
     SimilarityCluster,
@@ -60,6 +61,7 @@ from pandora.similarity import (
     interface_edges,
     interface_residues_from_annotation,
     interface_similarity,
+    member_representatives,
     pair_cluster_keys,
     partition_dataset,
     pick_representatives,
@@ -603,6 +605,49 @@ def _layer_edges(
         raise SystemExit(f"cluster: {layer}: {exc}") from exc
 
 
+def _chain_map(
+    command: str, path: Path, chains: Iterable[str]
+) -> dict[str, str]:
+    """Chain item id -> 90% representative from a representatives JSON;
+    exits naming the first of `chains` in no members list."""
+
+    mapping = member_representatives(
+        load_json_list(RepresentativeCluster, path)
+    )
+    missing = next((c for c in sorted(chains) if c not in mapping), None)
+    if missing is not None:
+        raise SystemExit(
+            f"{command}: chain {missing} is in no members list of {path}"
+        )
+    return mapping
+
+
+def _interface_chains(interface_ids: Iterable[str]) -> set[str]:
+    """The chain item ids of `interface_ids`."""
+
+    chains = set()
+    for interface in interface_ids:
+        entry, *sides = parse_item_id("interface", interface)
+        chains.update(item_id("chain", entry, side) for side in sides)
+    return chains
+
+
+def _cluster_chain_map(
+    args: argparse.Namespace, items_level: str, item_ids: list[str]
+) -> dict[str, str] | None:
+    """`cluster`'s --chain-representatives map, or None without it."""
+
+    if args.chain_representatives is None:
+        return None
+    if items_level != "interface":
+        raise SystemExit(
+            "cluster: --chain-representatives needs --items interface"
+        )
+    return _chain_map(
+        "cluster", Path(args.chain_representatives), _interface_chains(item_ids)
+    )
+
+
 def _cmd_cluster(args: argparse.Namespace) -> None:
     """Handle the `cluster` subcommand: connected-component clustering
     of the union of one or more similarity layers."""
@@ -618,6 +663,7 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
         check_contact_layer("cluster", contacts)
     items, _ = _item_set("cluster", items_level, structures_dir, contacts)
     item_ids = sorted(set(items.ids.values()))
+    chain_map = _cluster_chain_map(args, items_level, item_ids)
 
     residues = None
     if any(
@@ -644,8 +690,10 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
         chain_edges = itertools.chain(chain_edges, _copy_links(structures_dir))
     if chain_streams and items_level == "entry":
         chain_edges = entry_edges(chain_edges)
-    elif chain_streams and items_level == "interface":
-        chain_edges = interface_edges(chain_edges, item_ids)
+    elif (chain_streams or chain_map) and items_level == "interface":
+        # With a chain map, dimers sharing a representative link even
+        # without a chain layer.
+        chain_edges = interface_edges(chain_edges, item_ids, chain_map)
     edges = itertools.chain(*same_level, chain_edges)
     try:
         clusters, prov = cluster_edges(item_ids, edges)
@@ -662,7 +710,12 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
             zip(layers, levels, hit_filters, strict=True)
         )
     ]
-    prov = prov.model_copy(update={"layers": records})
+    prov = prov.model_copy(
+        update={
+            "layers": records,
+            "chain_representatives": args.chain_representatives,
+        }
+    )
 
     output = Path(args.output)
     write_records(clusters, output)
@@ -1233,6 +1286,12 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument(
         "--structures-dir",
         help="the step folder whose entries/chains are the items",
+    )
+    p.add_argument(
+        "--chain-representatives",
+        help="representatives.json (pandora representatives): map each "
+        "chain to its representative before rolling chain layers up to "
+        "interfaces",
     )
     p.add_argument(
         "--pairs",

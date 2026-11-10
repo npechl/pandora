@@ -114,6 +114,9 @@ class ClusteringProvenance(BaseModel):
         n_edges_unknown_ids: How many of those named an id outside
             `item_ids` and were ignored.
         n_clusters: How many clusters resulted.
+        chain_representatives: The representatives JSON that mapped
+            chains to their representative before the roll-up to
+            interfaces, if any.
     """
 
     clustered_at: str
@@ -121,6 +124,7 @@ class ClusteringProvenance(BaseModel):
     n_edges: int = 0
     n_edges_unknown_ids: int = 0
     n_clusters: int
+    chain_representatives: str | None = None
 
 
 class PartitionProvenance(BaseModel):

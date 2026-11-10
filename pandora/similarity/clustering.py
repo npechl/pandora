@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from typing import Any
 
 from pandora._util import now_iso
@@ -104,7 +104,9 @@ def _chain_key(entry_id: str, chain_id: str) -> str:
 
 
 def interface_edges(
-    edges: Iterable[Sequence[Any]], interface_ids: Iterable[str]
+    edges: Iterable[Sequence[Any]],
+    interface_ids: Iterable[str],
+    chain_map: Mapping[str, str] | None = None,
 ) -> Iterator[tuple[str, str]]:
     """Roll chain-item edges up to interface-item edges.
 
@@ -121,6 +123,11 @@ def interface_edges(
             or any tuples whose first two items are the ids.
         interface_ids: The interface item ids (`{entry}_{chain}_{chain}`)
             to link.
+        chain_map: Chain item id -> the id to key it by (e.g. its 90%
+            representative, from `member_representatives`), applied to
+            the interfaces' chains and to both ends of every edge.
+            Interfaces whose chains map to the same id are linked.
+            Chains missing from the map keep their own id.
 
     Returns:
         An iterator of `(interface_id_1, interface_id_2)` pairs: first
@@ -132,18 +139,24 @@ def interface_edges(
             iterating).
     """
 
+    mapped = chain_map or {}
+
+    def key_of(entry: str, chain: str) -> str:
+        key = _chain_key(entry, chain)
+        return mapped.get(key, key)
+
     first: dict[str, str] = {}
     for interface in interface_ids:
         entry, *chains = parse_item_id("interface", interface)
         for chain in chains:
-            key = _chain_key(entry, chain)
-            if key in first:
-                yield first[key], interface
-            else:
+            key = key_of(entry, chain)
+            if key not in first:
                 first[key] = interface
+            elif first[key] != interface:
+                yield first[key], interface
     for edge in edges:
-        side_1 = first.get(_chain_key(*parse_item_id("chain", edge[0])))
-        side_2 = first.get(_chain_key(*parse_item_id("chain", edge[1])))
+        side_1 = first.get(key_of(*parse_item_id("chain", edge[0])))
+        side_2 = first.get(key_of(*parse_item_id("chain", edge[1])))
         if side_1 is not None and side_2 is not None and side_1 != side_2:
             yield side_1, side_2
 

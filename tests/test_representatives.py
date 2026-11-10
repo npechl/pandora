@@ -96,3 +96,21 @@ def test_inputs_not_mutated():
     clusters = [_c("A_A", "B_A")]
     restrict_clusters(clusters, {"A_A"})
     assert clusters[0].components == ["A_A", "B_A"]
+
+
+def test_member_representatives_maps_every_member():
+    from pandora.schemas.similarity import RepresentativeCluster
+    from pandora.similarity import member_representatives
+
+    reps = [
+        RepresentativeCluster(
+            representative="1A_A",
+            members=["1A_A", "1A_A-2", "2B_C"],
+            n_members=3,
+        )
+    ]
+    assert member_representatives(reps) == {
+        "1A_A": "1A_A",
+        "1A_A-2": "1A_A",
+        "2B_C": "1A_A",
+    }

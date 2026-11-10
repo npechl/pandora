@@ -90,3 +90,20 @@ def test_interface_edges_links_interfaces_through_any_chain() -> None:
         ["1AAA_A_B", "1AAA_B_C", "2BBB_C_D"],
         ["3CCC_E_F"],
     ]
+
+
+def test_interface_edges_chain_map_links_members() -> None:
+    # 9R_X is in no interface; its members still link their interfaces.
+    chain_map = {"1AAA_A": "9R_X", "2BBB_C": "9R_X"}
+    rolled = list(interface_edges([], ["1AAA_A_B", "2BBB_C_D"], chain_map))
+    assert rolled == [("1AAA_A_B", "2BBB_C_D")]
+
+
+def test_interface_edges_chain_map_maps_edge_ends() -> None:
+    chain_map = {"1AAA_A": "9R_X", "2BBB_D": "8R_Y"}
+    rolled = list(
+        interface_edges(
+            [("9R_X", "8R_Y")], ["1AAA_A_B", "2BBB_C_D", "3CCC_E_F"], chain_map
+        )
+    )
+    assert rolled == [("1AAA_A_B", "2BBB_C_D")]

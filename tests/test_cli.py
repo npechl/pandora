@@ -1097,6 +1097,92 @@ def test_cluster_rolls_chain_layer_up_to_interfaces(tmp_path):
     assert provenance["layers"][0]["n_edges"] == 3
 
 
+def _chain_reps(path, mapping):
+    """A representatives.json mapping each chain to its representative."""
+
+    groups: dict[str, list[str]] = {}
+    for chain, rep in mapping.items():
+        groups.setdefault(rep, []).append(chain)
+    path.write_text(
+        json.dumps(
+            [
+                {"representative": r, "members": m, "n_members": len(m)}
+                for r, m in groups.items()
+            ]
+        )
+    )
+    return path
+
+
+_ROLLUP_CHAINS = ["1AAA_A", "1AAA_B", "2BBB_C", "2BBB_D", "3CCC_E", "3CCC_F"]
+
+
+def test_cluster_chain_representatives_joins_members(tmp_path):
+    contacts = _rollup_contacts(tmp_path)
+    mapping = dict(zip(_ROLLUP_CHAINS, _ROLLUP_CHAINS, strict=True))
+    mapping |= {"1AAA_A": "9R_X", "2BBB_D": "8R_Y"}
+    reps = _chain_reps(tmp_path / "reps.json", mapping)
+    tm = _similarity_layer(
+        tmp_path / "tm", _chain_rows(("9R_X", "8R_Y")), "chain"
+    )
+
+    clusters, provenance = _rollup_cluster(
+        tmp_path,
+        contacts,
+        *["--similarity", str(tm), "--min-score", "0.5"],
+        *["--chain-representatives", str(reps)],
+    )
+
+    assert clusters == [["1AAA_A_B", "2BBB_C_D"], ["3CCC_E_F"]]
+    assert provenance["chain_representatives"] == str(reps)
+
+
+def test_cluster_chain_representatives_without_chain_layer(tmp_path):
+    # Dimers sharing a representative link even with no chain layer.
+    contacts = _rollup_contacts(tmp_path)
+    mapping = dict(zip(_ROLLUP_CHAINS, _ROLLUP_CHAINS, strict=True))
+    mapping["2BBB_C"] = "1AAA_A"
+    reps = _chain_reps(tmp_path / "reps.json", mapping)
+    iface = _similarity_layer(tmp_path / "iface", None, "interface")
+
+    clusters, _ = _rollup_cluster(
+        tmp_path,
+        contacts,
+        *["--similarity", str(iface), "--min-score", "0.5"],
+        *["--chain-representatives", str(reps)],
+    )
+
+    assert clusters == [["1AAA_A_B", "2BBB_C_D"], ["3CCC_E_F"]]
+
+
+def test_cluster_chain_representatives_missing_chain_exits(tmp_path):
+    contacts = _rollup_contacts(tmp_path)
+    mapping = {c: c for c in _ROLLUP_CHAINS if c != "3CCC_F"}
+    reps = _chain_reps(tmp_path / "reps.json", mapping)
+    tm = _similarity_layer(tmp_path / "tm", _chain_rows(), "chain")
+    with pytest.raises(SystemExit, match="3CCC_F"):
+        _rollup_cluster(
+            tmp_path,
+            contacts,
+            *["--similarity", str(tm), "--min-score", "0.5"],
+            *["--chain-representatives", str(reps)],
+        )
+
+
+def test_cluster_chain_representatives_needs_interface_items(tmp_path):
+    step, layer = _cluster_inputs(
+        tmp_path, _chain_rows(("104M_A", "112M_A")), items="chain"
+    )
+    reps = _chain_reps(tmp_path / "reps.json", {"104M_A": "104M_A"})
+    with pytest.raises(SystemExit, match="--items interface"):
+        _cluster(
+            step,
+            layer,
+            tmp_path / "c.json",
+            *["--min-score", "0.5", "--chain-representatives", str(reps)],
+        )
+
+
 def test_cluster_joins_several_layers(tmp_path):
     contacts = _rollup_contacts(tmp_path)
     tm = _similarity_layer(

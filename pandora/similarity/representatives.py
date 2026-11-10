@@ -13,6 +13,27 @@ from pandora.schemas.similarity import (
 )
 
 
+def member_representatives(
+    clusters: Iterable[RepresentativeCluster],
+) -> dict[str, str]:
+    """Map every member of every cluster to its cluster's representative.
+
+    Args:
+        clusters: Clusters with their representatives, as written by
+            `pandora representatives`.
+
+    Returns:
+        Item id -> representative id, for every member (the
+        representative maps to itself).
+    """
+
+    return {
+        member: cluster.representative
+        for cluster in clusters
+        for member in cluster.members
+    }
+
+
 def restrict_clusters(
     clusters: Iterable[SimilarityCluster], item_ids: Collection[str]
 ) -> list[SimilarityCluster]:

@@ -26,6 +26,7 @@ from pandora.similarity.layer import (
 from pandora.similarity.partition import partition_dataset
 from pandora.similarity.representatives import (
     cluster_hit_counts,
+    member_representatives,
     pick_representatives,
     restrict_clusters,
 )
@@ -61,6 +62,7 @@ __all__ = [
     "pair_cluster_keys",
     "partition_dataset",
     "cluster_hit_counts",
+    "member_representatives",
     "pick_representatives",
     "restrict_clusters",
     "residue_positions",
