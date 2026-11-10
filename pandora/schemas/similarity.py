@@ -324,3 +324,25 @@ class NegativePair(BaseModel):
     chain_1: str
     chain_2: str
     positive: str
+
+
+class NegativeSamplingSettings(BaseModel):
+    """What one `negatives` run used, recorded as its summary's policy.
+
+    Attributes:
+        seed: Seed of the random generator (A's and C's draws).
+        hit_filter: The filter that makes a structure-similarity hit
+            count as "similar" (e.g. TM-score >= 0.5).
+        similarity_layer: The chain similarity layer's `layer.json`.
+        contacts: The "any contact" residue_contacts layer folder.
+        representatives: The representatives JSON (pool and chain
+            mapping).
+        unpaired: The positives the pool ran out for.
+    """
+
+    seed: int
+    hit_filter: HitFilter
+    similarity_layer: str
+    contacts: str
+    representatives: str
+    unpaired: list[str] = Field(default_factory=list)

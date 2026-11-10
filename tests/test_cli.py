@@ -3072,3 +3072,102 @@ def test_rebalance_inputs_mismatch_exits(tmp_path):
     )
     with pytest.raises(SystemExit, match="different groups"):
         _rebalance(contacts, seq90, groups, iface, tmp_path / "out")
+
+
+_OUTSIDE = [f"{n}XXX_A" for n in range(2, 10)]
+
+
+def _negatives_inputs(tmp_path):
+    """A rebalance step folder over 1a2c, representatives (every chain
+    its own, plus eight outside proteins) and an empty TM layer."""
+
+    contacts, seq90, groups, iface, _ = _rebalance_inputs(tmp_path)
+    positives = tmp_path / "positives"
+    _rebalance(contacts, seq90, groups, iface, positives)
+    chains = [c for g in json.loads(seq90.read_text()) for c in g["components"]]
+    reps = _chain_reps(
+        tmp_path / "reps.json",
+        {c: c for c in [*chains, *_OUTSIDE]},
+    )
+    tm = _similarity_layer(tmp_path / "tm", None, "chain")
+    return positives, reps, tm, contacts
+
+
+def _negatives(positives, reps, tm, contacts, out, *extra):
+    main(
+        ["negatives", "--positives", str(positives)]
+        + ["--representatives", str(reps), "--similarity", str(tm)]
+        + ["--min-score", "0.5", "--contacts", str(contacts)]
+        + ["--output-dir", str(out), "--table-format", "jsonl", *extra]
+    )
+
+
+def test_negatives_writes_pairs_and_summary(tmp_path):
+    positives, reps, tm, contacts = _negatives_inputs(tmp_path)
+    out = tmp_path / "negatives"
+    _negatives(positives, reps, tm, contacts, out, "--seed", "3")
+
+    n_positives = len(_jsonl(positives / "positives.jsonl"))
+    pairs = _jsonl(out / "negatives.jsonl")
+    summary = json.loads((out / "negatives.json").read_text())
+    assert summary["step"] == "negatives"
+    assert summary["policy"]["seed"] == 3
+    assert summary["policy"]["hit_filter"]["min_score"] == 0.5
+    assert summary["previous_summary"] == str(positives / "rebalance.json")
+    rows = _jsonl(positives / "positives.jsonl")
+    in_positives = {
+        f"1A2C_{r[side]}" for r in rows for side in ("chain_id_1", "chain_id_2")
+    }
+    counts = summary["counts"]
+    assert counts["positives"] == n_positives
+    n_reps = len(json.loads(reps.read_text()))
+    assert counts["pool"] == n_reps - len(in_positives)
+    assert counts["negatives"] == len(pairs)
+    assert counts["negatives"] + counts["unpaired"] == n_positives
+    assert len(summary["policy"]["unpaired"]) == counts["unpaired"]
+    assert all(p["chain_1"] in in_positives for p in pairs)
+    assert not {p["chain_2"] for p in pairs} & in_positives
+    assert len({p["chain_2"] for p in pairs}) == len(pairs)
+
+
+def test_negatives_same_seed_reproduces(tmp_path):
+    positives, reps, tm, contacts = _negatives_inputs(tmp_path)
+    _negatives(positives, reps, tm, contacts, tmp_path / "n1")
+    _negatives(positives, reps, tm, contacts, tmp_path / "n2")
+    assert _jsonl(tmp_path / "n1" / "negatives.jsonl") == _jsonl(
+        tmp_path / "n2" / "negatives.jsonl"
+    )
+
+
+def test_negatives_needs_chain_layer(tmp_path):
+    positives, reps, _, contacts = _negatives_inputs(tmp_path)
+    iface = _similarity_layer(tmp_path / "iface2", None, "interface")
+    with pytest.raises(SystemExit, match="chain layer"):
+        _negatives(positives, reps, iface, contacts, tmp_path / "out")
+
+
+def test_negatives_empty_contacts_layer(tmp_path):
+    positives, reps, tm, _ = _negatives_inputs(tmp_path)
+    empty = tmp_path / "no_contacts"
+    empty.mkdir()
+    (empty / "layer.json").write_text(
+        json.dumps({"policy": {"template": "residue_contacts"}})
+    )
+    out = tmp_path / "negatives"
+    _negatives(positives, reps, tm, empty, out)
+    summary = json.loads((out / "negatives.json").read_text())
+    assert summary["counts"]["unpaired"] == 0
+
+
+def test_negatives_needs_rebalance_folder(tmp_path):
+    _, reps, tm, contacts = _negatives_inputs(tmp_path)
+    with pytest.raises(SystemExit, match="pandora rebalance"):
+        _negatives(tmp_path, reps, tm, contacts, tmp_path / "out")
+
+
+def test_negatives_refuses_existing_output(tmp_path):
+    positives, reps, tm, contacts = _negatives_inputs(tmp_path)
+    out = tmp_path / "negatives"
+    _negatives(positives, reps, tm, contacts, out)
+    with pytest.raises(SystemExit, match="overwrite"):
+        _negatives(positives, reps, tm, contacts, out)
