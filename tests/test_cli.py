@@ -2598,11 +2598,114 @@ def test_representatives_policy_without_n_hits_needs_no_layer(tmp_path):
     assert reps[0]["representative"] == "118L_A"
 
 
-def test_representatives_rejects_interface_items(tmp_path):
+def test_representatives_interface_items_need_contacts(tmp_path):
     step, clusters, _ = _rep_inputs(tmp_path, _MISSING, _ALL_HITS)
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit, match="--contacts"):
         _representatives(
             step, clusters, tmp_path / "r.json", "--items", "interface"
+        )
+
+
+def _iface_rep_inputs(tmp_path, copies=()):
+    """1a2c contact layer, its chains table (`copies` marked as symmetry
+    copies) and one cluster of all its interfaces, largest first."""
+
+    step, contacts, _, seqs = _iface_inputs(tmp_path)
+    _write_jsonl(
+        step / "chains.jsonl",
+        [
+            {"entry_id": "1A2C", "chain_id": c, "resolution": 2.0}
+            | {"copy_of": "X" if c in copies else None}
+            | dict.fromkeys(("missing_n_term", "missing_c_term"), 0)
+            | {"missing_middle": 0}
+            for c in seqs
+        ],
+    )
+    rows = read_records(contacts / "layer.jsonl", ResidueContactRow)
+    labelled = label_interfaces(rows, {})
+    labelled.sort(key=lambda r: -(r.residues_1 + r.residues_2))
+    ids = [f"1A2C_{r.chain_id_1}_{r.chain_id_2}" for r in labelled]
+    clusters = tmp_path / "dimers.json"
+    clusters.write_text(
+        json.dumps([{"components": sorted(ids), "n_components": len(ids)}])
+    )
+    return contacts, clusters, labelled
+
+
+def _iface_reps(contacts, clusters, out, *extra):
+    main(
+        ["representatives", "--items", "interface"]
+        + ["--clusters", str(clusters), "--contacts", str(contacts)]
+        + ["--output", str(out), *extra]
+    )
+    return json.loads(out.read_text())
+
+
+def test_representatives_interfaces_pick_largest_interface(tmp_path):
+    contacts, clusters, labelled = _iface_rep_inputs(tmp_path)
+    best = labelled[0]
+    assert best.residues_1 + best.residues_2 > (
+        labelled[1].residues_1 + labelled[1].residues_2
+    )
+    out = tmp_path / "reps.json"
+    reps = _iface_reps(contacts, clusters, out)
+    assert reps[0]["representative"] == (
+        f"1A2C_{best.chain_id_1}_{best.chain_id_2}"
+    )
+    assert reps[0]["n_members"] == len(labelled)
+    prov = json.loads(
+        (tmp_path / "representatives_provenance.json").read_text()
+    )
+    assert prov["items"] == "interface"
+    assert prov["contacts"] == str(contacts)
+    assert prov["policy"]["rank"][0]["key"] == "interface_residues"
+
+
+def test_representatives_interfaces_skip_symmetry_copies(tmp_path):
+    _, _, labelled = _iface_rep_inputs(tmp_path / "probe")
+    copy = labelled[0].chain_id_1
+    contacts, clusters, _ = _iface_rep_inputs(tmp_path, copies={copy})
+    reps = _iface_reps(contacts, clusters, tmp_path / "reps.json")
+    # The largest interface without the copy, not the lowest such id.
+    rest = [r for r in labelled if copy not in (r.chain_id_1, r.chain_id_2)]
+    best = f"1A2C_{rest[0].chain_id_1}_{rest[0].chain_id_2}"
+    assert best != min(f"1A2C_{r.chain_id_1}_{r.chain_id_2}" for r in rest)
+    assert reps[0]["representative"] == best
+
+
+def test_representatives_interfaces_n_hits_from_interface_layer(tmp_path):
+    contacts, clusters, labelled = _iface_rep_inputs(tmp_path)
+    a, b = (f"1A2C_{r.chain_id_1}_{r.chain_id_2}" for r in labelled[-2:])
+    layer = _similarity_layer(
+        tmp_path / "layer",
+        [{"item_id_1": a, "item_id_2": b, "score": 0.5}],
+        "interface",
+    )
+    policy = tmp_path / "rank.yaml"
+    policy.write_text("rank:\n  - key: n_hits\n    order: max\n")
+    reps = _iface_reps(
+        contacts,
+        clusters,
+        tmp_path / "reps.json",
+        "--policy",
+        str(policy),
+        "--similarity",
+        str(layer),
+        "--min-score",
+        "0.1",
+    )
+    assert reps[0]["representative"] == min(a, b)
+
+
+def test_representatives_interfaces_reject_structures_dir(tmp_path):
+    contacts, clusters, _ = _iface_rep_inputs(tmp_path)
+    with pytest.raises(SystemExit, match="not --structures-dir"):
+        _iface_reps(
+            contacts,
+            clusters,
+            tmp_path / "reps.json",
+            "--structures-dir",
+            str(tmp_path),
         )
 
 

@@ -160,20 +160,37 @@ class RepresentativePolicy(BaseModel):
     """Policy for picking one representative item per cluster.
 
     Attributes:
-        items: The cluster items' level; only "chain" for now.
+        items: The cluster items' level: "chain" or "interface" (entry
+            is not supported).
         rank: Ranking keys, best first; the lowest item id breaks the
             last tie. Chain keys: "missing_residues" (absolute count),
             "n_hits" (partners in the same cluster), or a number column
-            of the `chains` table.
+            of the `chains` table. Interface keys: "interface_residues"
+            (residues in contact, both sides), "resolution",
+            "missing_residues" (both chains) and "n_hits". The default
+            depends on `items`: chains rank by fewest missing residues,
+            then most hits; interfaces by most interface residues, then
+            best resolution, then fewest missing residues.
     """
 
     items: SimilarityItems = "chain"
     rank: list[RankKey] = Field(
-        default_factory=lambda: [
-            RankKey(key="missing_residues", order="min"),
-            RankKey(key="n_hits", order="max"),
-        ]
+        default_factory=lambda data: _DEFAULT_RANK[data["items"]]()
     )
+
+
+_DEFAULT_RANK = {
+    "chain": lambda: [
+        RankKey(key="missing_residues", order="min"),
+        RankKey(key="n_hits", order="max"),
+    ],
+    "interface": lambda: [
+        RankKey(key="interface_residues", order="max"),
+        RankKey(key="resolution", order="min"),
+        RankKey(key="missing_residues", order="min"),
+    ],
+    "entry": list,
+}
 
 
 class RepresentativeCluster(BaseModel):
@@ -198,11 +215,16 @@ class RepresentativesProvenance(BaseModel):
         items: The items' level.
         policy: The ranking policy used.
         clusters: The clusters file read.
-        structures_dir: The step folder the clusters were limited to.
+        structures_dir: Chains: the step folder the clusters were limited
+            to. Interfaces: the structures folder `contacts` traces to,
+            whose `chains` table gave the chain values.
+        contacts: Interfaces: the contact layer folder the clusters were
+            limited to.
         layers: The similarity layers read for `n_hits`, if any.
         n_clusters: Clusters written.
         n_members: Members written, over all clusters.
-        n_members_dropped: Members not in the step folder.
+        n_members_dropped: Members not in the step folder (chains) or
+            the contact layer (interfaces).
         n_clusters_dropped: Clusters left empty by that, so not written.
     """
 
@@ -211,6 +233,7 @@ class RepresentativesProvenance(BaseModel):
     policy: RepresentativePolicy
     clusters: str
     structures_dir: str
+    contacts: str | None = None
     layers: list[ClusteredLayer] = Field(default_factory=list)
     n_clusters: int
     n_members: int

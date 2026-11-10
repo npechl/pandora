@@ -13,6 +13,7 @@ from typing import Any
 
 from pandora import __version__
 from pandora._util import now_iso
+from pandora.annotations import label_interfaces
 from pandora.cli._io import (
     STEP_SUMMARIES,
     ParquetSink,
@@ -676,18 +677,91 @@ def _chain_values(
     return values, eligible
 
 
+_INTERFACE_RANK_KEYS = (
+    "interface_residues",
+    "resolution",
+    "missing_residues",
+    "n_hits",
+)
+
+
+def _interface_values(
+    contacts: Path,
+) -> tuple[dict[str, dict[str, Any]], set[str], Path]:
+    """Rank values per interface item of a contact layer (n_hits left for
+    later), the interfaces with no symmetry-copy chain, and the
+    structures folder the layer traces to."""
+
+    command = "representatives"
+    rows_file = _contact_layer(command, contacts)
+    origin = layer_origin(contacts)
+    if origin is None:
+        raise SystemExit(
+            f"{command}: cannot tell which structures folder {contacts} "
+            "came from; the paths in its layer.json may be relative to "
+            "where `annotate compute` ran, so run from that folder"
+        )
+    table = _step_table(command, origin, "chains", "pandora curate")
+    chains, non_copies = _chain_values(table, {"resolution"})
+    rows = (
+        read_records(rows_file, ResidueContactRow)
+        if rows_file.name != "layer.json"
+        else []
+    )
+    interfaces = set(interface_items(r.model_dump() for r in rows).ids.values())
+    values: dict[str, dict[str, Any]] = {}
+    eligible: set[str] = set()
+    for row in label_interfaces(rows, {}):
+        key = item_id("interface", row.entry_id, row.chain_id_1, row.chain_id_2)
+        if key not in interfaces:
+            continue
+        sides = [
+            item_id("chain", row.entry_id, chain)
+            for chain in (row.chain_id_1, row.chain_id_2)
+        ]
+        found = [chains.get(side, {}) for side in sides]
+        missing = [f.get("missing_residues") for f in found]
+        resolution = [f.get("resolution") for f in found]
+        values[key] = {
+            "interface_residues": row.residues_1 + row.residues_2,
+            "resolution": next((r for r in resolution if r is not None), None),
+            "missing_residues": None if None in missing else sum(missing),
+        }
+        if all(side in non_copies for side in sides):
+            eligible.add(key)
+    return values, eligible, origin
+
+
 def _cmd_representatives(args: argparse.Namespace) -> None:
     """Handle the `representatives` subcommand: one representative item
     per cluster."""
 
-    policy = (
+    command = "representatives"
+    items = args.items
+    if items == "chain" and (args.structures_dir is None or args.contacts):
+        raise SystemExit(
+            f"{command}: chain items need --structures-dir, not --contacts"
+        )
+    if items == "interface" and (args.contacts is None or args.structures_dir):
+        raise SystemExit(
+            f"{command}: interface items need --contacts (a "
+            "residue_contacts layer folder), not --structures-dir"
+        )
+    loaded = (
         load_yaml_model(RepresentativePolicy, Path(args.policy))
         if args.policy
         else RepresentativePolicy()
     )
-    policy = policy.model_copy(update={"items": args.items})
+    # Revalidate so a policy without `rank` gets the default for `items`.
+    policy = RepresentativePolicy.model_validate(
+        loaded.model_dump(exclude_unset=True) | {"items": items}
+    )
     keys = {rank_key.key for rank_key in policy.rank}
-    allowed = {"missing_residues", "n_hits", *_CHAIN_RANK_COLUMNS}
+    allowed = (
+        set(_INTERFACE_RANK_KEYS)
+        if items == "interface"
+        else {"missing_residues", "n_hits", *_CHAIN_RANK_COLUMNS}
+    )
     unknown = sorted(keys - allowed)
     if unknown:
         raise SystemExit(
@@ -700,14 +774,15 @@ def _cmd_representatives(args: argparse.Namespace) -> None:
             "representatives: rank key n_hits needs --similarity (and a "
             "hit filter)"
         )
-    hit_filters = (
-        _hit_filters(args, len(layers), "representatives") if layers else []
-    )
-    structures_dir = Path(args.structures_dir)
-    table = _step_table(
-        "representatives", structures_dir, "chains", "pandora curate"
-    )
-    values, eligible = _chain_values(table, keys)
+    hit_filters = _hit_filters(args, len(layers), command) if layers else []
+    if items == "interface":
+        values, eligible, structures_dir = _interface_values(
+            Path(args.contacts)
+        )
+    else:
+        structures_dir = Path(args.structures_dir)
+        table = _step_table(command, structures_dir, "chains", "pandora curate")
+        values, eligible = _chain_values(table, keys)
     clusters_in = load_json_list(SimilarityCluster, Path(args.clusters))
     clusters = restrict_clusters(clusters_in, values.keys())
 
@@ -715,9 +790,9 @@ def _cmd_representatives(args: argparse.Namespace) -> None:
     if "n_hits" in keys:
         _require_pyarrow("representatives")
         for layer in layers:
-            if _similarity_level(layer) != "chain":
+            if _similarity_level(layer) != items:
                 raise SystemExit(
-                    f"representatives: {layer} is not a chain layer"
+                    f"representatives: {layer} is not a {items} layer"
                 )
         edges = itertools.chain(
             *(
@@ -739,10 +814,11 @@ def _cmd_representatives(args: argparse.Namespace) -> None:
         policy=policy,
         clusters=str(args.clusters),
         structures_dir=str(structures_dir),
+        contacts=args.contacts,
         layers=[
             ClusteredLayer(
                 similarity_layer=str(layer / "layer.json"),
-                items="chain",
+                items=items,
                 hit_filter=hit_filter,
                 n_edges=counts[index],
             )
@@ -758,7 +834,7 @@ def _cmd_representatives(args: argparse.Namespace) -> None:
     output = Path(args.output)
     write_records(reps, output)
     write_json(prov, output.parent / "representatives_provenance.json")
-    print(f"{len(reps)} representatives from {n_members} chains -> {output}")
+    print(f"{len(reps)} representatives from {n_members} {items}s -> {output}")
 
 
 def _cmd_partition(args: argparse.Namespace) -> None:
@@ -924,20 +1000,25 @@ def _register_representatives(subparsers: argparse._SubParsersAction) -> None:
     )
     p.add_argument(
         "--structures-dir",
-        required=True,
-        help="the step folder whose chains the clusters are limited to",
+        help="chain items: the step folder whose chains the clusters are "
+        "limited to",
+    )
+    p.add_argument(
+        "--contacts",
+        help="interface items: the residue_contacts layer folder whose "
+        "interfaces the clusters are limited to",
     )
     p.add_argument(
         "--items",
-        choices=["chain"],
+        choices=["chain", "interface"],
         default="chain",
-        help="the clusters' item level (only chain for now)",
+        help="the clusters' item level (default chain)",
     )
     p.add_argument(
         "--similarity",
         action="append",
-        help="chain similarity layer folder for the n_hits rank key; "
-        "repeatable",
+        help="similarity layer folder (at --items level) for the n_hits "
+        "rank key; repeatable",
     )
     p.add_argument(
         "--hit-filter",
