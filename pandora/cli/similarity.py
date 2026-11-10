@@ -11,12 +11,14 @@ from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
 
+from pandora import __version__
 from pandora._util import now_iso
 from pandora.cli._io import (
     ParquetSink,
     check_contact_layer,
     copy_source,
     find_table,
+    layer_origin,
     load_json_list,
     load_pairs,
     load_yaml_model,
@@ -33,6 +35,7 @@ from pandora.schemas.annotation import (
     ResidueContactRow,
     SimilarityItems,
 )
+from pandora.schemas.dataset import DatasetChainRecord
 from pandora.schemas.similarity import (
     HitFilter,
     SimilarityCluster,
@@ -43,6 +46,7 @@ from pandora.similarity import (
     compute_structure_similarity,
     entry_edges,
     interface_residues_from_annotation,
+    interface_similarity,
     pair_cluster_keys,
     partition_dataset,
 )
@@ -585,6 +589,112 @@ def _cmd_partition(args: argparse.Namespace) -> None:
             )
 
 
+def _cmd_interfaces(args: argparse.Namespace) -> None:
+    """Handle `similarity interfaces`: score pairs of a contact layer's
+    interfaces by per-side Jaccard, as a similarity layer folder."""
+
+    command = "similarity interfaces"
+    started_at = now_iso()
+    _require_pyarrow(command)
+    contacts = Path(args.contacts_dir)
+    check_contact_layer(command, contacts)
+    out = Path(args.output_dir)
+    if out.resolve() == contacts.resolve():
+        raise SystemExit(
+            f"{command}: {out} is the --contacts folder; choose another "
+            "--output-dir"
+        )
+    origin = layer_origin(contacts)
+    if origin is None:
+        raise SystemExit(
+            f"{command}: cannot tell which structures folder {contacts} "
+            "came from; the paths in its layer.json may be relative to "
+            "where `annotate compute` ran, so run from that folder"
+        )
+    chains_table = find_table(origin, "chains")
+    if chains_table is None:
+        raise SystemExit(
+            f"{command}: {origin} has no chains table; it is written by "
+            "`pandora curate`"
+        )
+    sequences = {
+        (chain.entry_id.upper(), chain.chain_id): chain.sequence
+        for chain in read_records(chains_table, DatasetChainRecord)
+        if chain.sequence
+    }
+    clusters_file = Path(args.chain_clusters)
+    clusters = load_json_list(SimilarityCluster, clusters_file)
+    table = find_table(contacts, "layer")
+    rows = read_records(table, ResidueContactRow) if table else []
+    scored, counts = interface_similarity(
+        rows, clusters, sequences, args.min_identity
+    )
+
+    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    if scored:
+        write_records(scored, out / "layer.parquet")
+    source = json.loads((contacts / "layer.json").read_text())["policy"]
+    description = LayerDescription(
+        name="iface_jaccard",
+        template="similarity",
+        items="interface",
+        tool="pandora",
+        tool_version=__version__,
+        parameters={
+            "contacts_layer": source.get("name"),
+            "structures_dir": str(origin),
+            "chain_clusters": str(clusters_file),
+            "min_identity": args.min_identity,
+        },
+    )
+    _write_summary(
+        "similarity_interfaces",
+        description,
+        input=contacts,
+        out=out,
+        started_at=started_at,
+        counts=Counter({"rows_in": len(rows)} | counts),
+        previous=contacts / "layer.json",
+    )
+    print(
+        f"scored: {counts['pairs_compared']} interface pairs "
+        f"({counts['pairs_zero_score']} zero, "
+        f"{counts['pairs_below_identity']} below identity) from "
+        f"{counts['interfaces']} interfaces -> {out}"
+    )
+
+
+def _register_interfaces(commands: argparse._SubParsersAction) -> None:
+    """Add `similarity interfaces` to the `similarity` subcommands."""
+
+    p = commands.add_parser(
+        "interfaces",
+        help="Score pairs of interfaces of the same two proteins by "
+        "per-side Jaccard of their interface residues.",
+    )
+    p.add_argument(
+        "--contacts",
+        dest="contacts_dir",
+        required=True,
+        help="residue_contacts layer folder: the interfaces",
+    )
+    p.add_argument(
+        "--chain-clusters",
+        required=True,
+        help="clusters.json of chains (pandora cluster), e.g. 90%% sequence "
+        "clusters: only interfaces whose chains share clusters are compared",
+    )
+    p.add_argument(
+        "--min-identity",
+        type=float,
+        default=0.9,
+        help="lowest pairwise identity per chain pair (default 0.9)",
+    )
+    p.add_argument("--output-dir", required=True)
+    p.add_argument("--overwrite", action="store_true")
+    p.set_defaults(func=_cmd_interfaces)
+
+
 def register(subparsers: argparse._SubParsersAction) -> None:
     """Add this module's subcommands to the `pandora` parser."""
 
@@ -645,6 +755,8 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--output-dir", required=True)
     p.add_argument("--overwrite", action="store_true")
     p.set_defaults(func=_cmd_import)
+
+    _register_interfaces(commands)
 
     p = subparsers.add_parser(
         "cluster",

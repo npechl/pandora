@@ -14,8 +14,11 @@ from pandora.annotations import (
     drop_labelled_interfaces,
     label_interfaces,
 )
-from pandora.cli._io import read_structures_dir, write_structures_dir
-from pandora.cli.annotate import _layer_origin
+from pandora.cli._io import (
+    layer_origin,
+    read_structures_dir,
+    write_structures_dir,
+)
 from pandora.cli.app import _build_parser, main
 from pandora.datasets import extract_interface_records
 from pandora.export import read_records
@@ -23,6 +26,8 @@ from pandora.ingestion import read_entry_paths
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.annotation import LayerRow, ResidueContactRow
 from pandora.schemas.provenance import CanonicalisationEntryRecord
+from pandora.schemas.similarity import SimilarityCluster
+from pandora.similarity import interface_similarity
 
 FIXTURES_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
 CANON_POLICY = (
@@ -1830,7 +1835,7 @@ def test_layer_origin_stops_on_a_loop(tmp_path):
                 {"previous_summary": str(tmp_path / other / "layer.json")}
             )
         )
-    assert _layer_origin(tmp_path / "a") is None
+    assert layer_origin(tmp_path / "a") is None
 
 
 def _kinds_clusters(tmp_path, groups):
@@ -2073,4 +2078,144 @@ def test_annotate_label_interfaces_output_is_contacts_exits(tmp_path):
     before = (contacts / "layer.json").read_text()
     with pytest.raises(SystemExit, match="--contacts folder"):
         _label(contacts, contacts)
+    assert (contacts / "layer.json").read_text() == before
+
+
+def _iface_inputs(tmp_path, clusters=None):
+    """1a2c step folder whose chains table has sequences that fit its
+    contact layer, plus a clusters file (default: all chains in one)."""
+
+    import gemmi
+
+    step = _step_folder(tmp_path)
+    contacts = tmp_path / "interfaces"
+    _compute(step, contacts, "--layer", "chain_interfaces")
+    letters: dict[str, dict[int, str]] = {}
+    for r in _jsonl(contacts / "layer.jsonl"):
+        for side in ("1", "2"):
+            seq_id = r[f"seq_id_{side}"]
+            if seq_id is None:
+                continue
+            info = gemmi.find_tabulated_residue(r[f"comp_id_{side}"])
+            code = info.one_letter_code.strip().upper() if info else ""
+            letters.setdefault(r[f"chain_id_{side}"], {})[seq_id] = code or "X"
+    seqs = {
+        c: "".join(pos.get(i, "A") for i in range(1, max(pos) + 1))
+        for c, pos in letters.items()
+    }
+    rows = [
+        {"entry_id": "1A2C", "chain_id": c, "entity_id": "1"}
+        | {"residue_count": 1, "atom_count": 1, "sequence": seq}
+        for c, seq in seqs.items()
+    ]
+    _write_jsonl(step / "chains.jsonl", rows)
+    if clusters is None:
+        clusters = [[f"1A2C_{c}" for c in sorted(seqs)]]
+    clusters_file = tmp_path / "seq90.json"
+    clusters_file.write_text(
+        json.dumps(
+            [{"components": c, "n_components": len(c)} for c in clusters]
+        )
+    )
+    return step, contacts, clusters_file, seqs
+
+
+def _iface_sim(contacts, clusters_file, out, *extra):
+    main(
+        ["similarity", "interfaces", "--contacts", str(contacts)]
+        + ["--chain-clusters", str(clusters_file)]
+        + ["--output-dir", str(out), *extra]
+    )
+
+
+def _iface_cluster(layer, contacts, output):
+    main(
+        ["cluster", "--similarity", str(layer), "--items", "interface"]
+        + ["--contacts", str(contacts), "--min-score", "0"]
+        + ["--output", str(output)]
+    )
+    return [c["components"] for c in json.loads(output.read_text())]
+
+
+def test_similarity_interfaces_writes_layer(tmp_path, capsys):
+    step, contacts, clusters_file, seqs = _iface_inputs(tmp_path)
+    out = tmp_path / "iface_jaccard"
+    _iface_sim(contacts, clusters_file, out, "--min-identity", "0")
+
+    rows = read_records(contacts / "layer.jsonl", ResidueContactRow)
+    clusters = [
+        SimilarityCluster.model_validate(c)
+        for c in json.loads(clusters_file.read_text())
+    ]
+    sequences = {("1A2C", c): seq for c, seq in seqs.items()}
+    expected, counts = interface_similarity(rows, clusters, sequences, 0.0)
+    written = _parquet_rows(out / "layer.parquet")
+    assert written
+    assert written == [r.model_dump() for r in expected]
+
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["step"] == "similarity_interfaces"
+    assert summary["policy"]["name"] == "iface_jaccard"
+    assert summary["policy"]["template"] == "similarity"
+    assert summary["policy"]["items"] == "interface"
+    assert summary["policy"]["parameters"] == {
+        "contacts_layer": "chain_interfaces",
+        "structures_dir": str(step.resolve()),
+        "chain_clusters": str(clusters_file),
+        "min_identity": 0.0,
+    }
+    assert summary["counts"] == dict(
+        sorted(({"rows_in": len(rows)} | counts).items())
+    )
+    assert summary["previous_summary"] == str(contacts / "layer.json")
+    assert f"scored: {counts['pairs_compared']} interface pairs" in (
+        capsys.readouterr().out
+    )
+
+
+def test_similarity_interfaces_feeds_cluster(tmp_path):
+    _, contacts, clusters_file, _ = _iface_inputs(tmp_path)
+    out = tmp_path / "iface_jaccard"
+    _iface_sim(contacts, clusters_file, out, "--min-identity", "0")
+    groups = _iface_cluster(out, contacts, tmp_path / "dimers.json")
+    pairs = _contact_pairs(contacts)
+    expected = sorted({"1A2C_" + "_".join(sorted(p)) for p in pairs})
+    assert [sorted(g) for g in groups] == [expected]
+
+
+def test_similarity_interfaces_no_pairs(tmp_path):
+    probe = _iface_inputs(tmp_path / "probe")[3]
+    singletons = [[f"1A2C_{c}"] for c in sorted(probe)]
+    _, contacts, clusters_file, _ = _iface_inputs(tmp_path, singletons)
+    out = tmp_path / "iface_jaccard"
+    _iface_sim(contacts, clusters_file, out)
+    assert (out / "layer.json").exists()
+    assert not (out / "layer.parquet").exists()
+    groups = _iface_cluster(out, contacts, tmp_path / "dimers.json")
+    assert groups and all(len(g) == 1 for g in groups)
+
+
+def test_similarity_interfaces_untraceable_origin_exits(tmp_path):
+    _, contacts, clusters_file, _ = _iface_inputs(tmp_path)
+    summary = json.loads((contacts / "layer.json").read_text())
+    summary["input"] = str(tmp_path / "gone")
+    (contacts / "layer.json").write_text(json.dumps(summary))
+    with pytest.raises(SystemExit, match="relative to where"):
+        _iface_sim(contacts, clusters_file, tmp_path / "out")
+    assert not (tmp_path / "out").exists()
+
+
+def test_similarity_interfaces_no_chains_table_exits(tmp_path):
+    step, contacts, clusters_file, _ = _iface_inputs(tmp_path)
+    (step / "chains.jsonl").unlink()
+    with pytest.raises(SystemExit, match="pandora curate"):
+        _iface_sim(contacts, clusters_file, tmp_path / "out")
+    assert not (tmp_path / "out").exists()
+
+
+def test_similarity_interfaces_output_is_contacts_exits(tmp_path):
+    _, contacts, clusters_file, _ = _iface_inputs(tmp_path)
+    before = (contacts / "layer.json").read_text()
+    with pytest.raises(SystemExit, match="--contacts folder"):
+        _iface_sim(contacts, clusters_file, contacts)
     assert (contacts / "layer.json").read_text() == before

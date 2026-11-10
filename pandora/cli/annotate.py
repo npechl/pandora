@@ -31,6 +31,7 @@ from pandora.cli._io import (
     check_table_format,
     copy_source,
     find_table,
+    layer_origin,
     prepare_output_dir,
     read_structures_dir,
     write_table,
@@ -280,35 +281,6 @@ def _cmd_count(args: argparse.Namespace) -> None:
     )
 
 
-def _layer_origin(folder: Path) -> Path | None:
-    """The structures folder a layer was made from, or None if unknown.
-
-    Follows `previous_summary` back through layer summaries (a filtered
-    layer points at its parent layer) to the structures folder's step
-    summary. Recorded paths may be relative to wherever the step ran, so
-    a path that can't be read from here, or a loop, means unknown.
-    """
-
-    path = folder / "layer.json"
-    seen: set[Path] = set()
-    while path.resolve() not in seen:
-        seen.add(path.resolve())
-        try:
-            summary = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError):
-            return None
-        previous = summary.get("previous_summary")
-        if previous is None:
-            if summary.get("step") != "annotation_compute":
-                return None
-            origin = Path(summary["input"])
-            return origin.resolve() if origin.is_dir() else None
-        path = Path(previous)
-        if path.name != "layer.json":
-            return path.parent.resolve() if path.exists() else None
-    return None
-
-
 def _cmd_filter(args: argparse.Namespace) -> None:
     """Handle `annotate filter-contacts`: a contact layer without the
     interfaces a labels layer marks for dropping, as a new layer."""
@@ -337,7 +309,7 @@ def _cmd_filter(args: argparse.Namespace) -> None:
                 "--output-dir"
             )
     origins = {
-        flag: _layer_origin(folder)
+        flag: layer_origin(folder)
         for flag, folder in (("contacts", contacts), ("labels", labels))
     }
     if None in origins.values():
@@ -417,7 +389,7 @@ def _cmd_label(args: argparse.Namespace) -> None:
             f"{command}: {out} is the --contacts folder; choose another "
             "--output-dir"
         )
-    origin = _layer_origin(contacts)
+    origin = layer_origin(contacts)
     if origin is None:
         raise SystemExit(
             f"{command}: cannot tell which structures folder {contacts} "

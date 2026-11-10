@@ -283,3 +283,32 @@ def load_pairs(path: Path) -> list[tuple[str, str]]:
 
     data = json.loads(path.read_text())
     return [(item_1, item_2) for item_1, item_2 in data]
+
+
+def layer_origin(folder: Path) -> Path | None:
+    """The structures folder a layer was made from, or None if unknown.
+
+    Follows `previous_summary` back through layer summaries (a filtered
+    layer points at its parent layer) to the structures folder's step
+    summary. Recorded paths may be relative to wherever the step ran, so
+    a path that can't be read from here, or a loop, means unknown.
+    """
+
+    path = folder / "layer.json"
+    seen: set[Path] = set()
+    while path.resolve() not in seen:
+        seen.add(path.resolve())
+        try:
+            summary = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
+        previous = summary.get("previous_summary")
+        if previous is None:
+            if summary.get("step") != "annotation_compute":
+                return None
+            origin = Path(summary["input"])
+            return origin.resolve() if origin.is_dir() else None
+        path = Path(previous)
+        if path.name != "layer.json":
+            return path.parent.resolve() if path.exists() else None
+    return None
