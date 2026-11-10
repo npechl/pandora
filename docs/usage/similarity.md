@@ -384,6 +384,92 @@ keys = pair_cluster_keys([("104M_A", "112M_A")], clusters)
 
 Each cluster's own lexicographically smallest member is its key, so keys are stable regardless of clustering order. On the command line, `pandora cluster --pairs pairs.json` (a JSON array of `[item_id_1, item_id_2]`) writes the keys to `cluster_pairs.json` next to `--output`.
 
+## Comparing interfaces
+
+Two dimers are redundant when they are the same two proteins touching at the same spot. `pandora similarity interfaces` scores that for every pair of interfaces in a contact layer, and writes the scores as a similarity layer with `items: interface`, ready for `pandora cluster --items interface`.
+
+- **Same two proteins.** Two interfaces are compared only when their chains fall in the same chain clusters, for example 90% sequence clusters from `similarity search` + `cluster` (a hit filter with `min_identity: 0.9`, `min_coverage: 0.9` and `coverage_of: both`). Clusters only decide which pairs are looked at. Each chain must also be at least `--min-identity` (default 0.9) identical to its counterpart on a pairwise alignment, since connected components can join chains less similar than that.
+- **Both chain orders.** For a homomer, (A, B) lines up with (A′, B′) and with (B′, A′). Both are scored and the better one is kept; `chain_order` says which (`direct` or `swapped`).
+- **Per side.** `jaccard_1` compares the interface residues of the first chain of `item_id_1` with those of its counterpart; `jaccard_2` the other chain. Residues are matched through the alignment, and a residue it can't place counts as not shared.
+- **`score` is the smaller side.** Both proteins must touch with the same residues. One protein reusing a patch to bind its partner at two different places scores 0.
+- **Every compared pair is written**, zeros included, so you can look at the distribution before choosing a cut-off. `cluster --min-score` keeps scores at or above it.
+
+The residue numbers must be positions in the chain's sequence: canonicalise with `residue_numbering: preserve` (renumbering moves them). Each contact row's residue name is checked against the sequence, and an interface that disagrees is skipped and counted as `interfaces_sequence_mismatch`, never matched by guess.
+
+The examples use `1a3n` (deoxyhemoglobin): chains A and B are α, C and D are β. α1β1 and α2β2 (`A_C`, `B_D`) are the same interface; so are the two α1β2 contacts (`A_D`, `B_C`).
+
+=== "`cli`"
+
+    The chain clusters are written by hand here; normally they come from `pandora cluster` on a sequence layer.
+
+    ```bash
+    pandora annotate compute --layer chain_interfaces --structures-dir curated/ \
+      --output-dir annotations/interfaces
+    cat > clusters/seq90.json <<'EOF'
+    [
+      {"components": ["1A3N_A", "1A3N_B"], "n_components": 2},
+      {"components": ["1A3N_C", "1A3N_D"], "n_components": 2}
+    ]
+    EOF
+    pandora similarity interfaces --contacts annotations/interfaces \
+      --chain-clusters clusters/seq90.json --output-dir similarity/iface_jaccard
+    pandora cluster --similarity similarity/iface_jaccard --items interface \
+      --contacts annotations/interfaces --min-score 0.1 --output clusters/dimers.json
+    jq -c '.counts' similarity/iface_jaccard/layer.json
+    jq -c '.[].components' clusters/dimers.json
+    ```
+
+    ```text
+    computed: 135 rows for 1 entries -> annotations/interfaces
+    scored: 6 interface pairs (4 zero, 0 below identity) from 5 interfaces -> similarity/iface_jaccard
+    3 clusters from 2 edges -> clusters/dimers.json
+    {"alignments":0,"interfaces":5,"interfaces_sequence_mismatch":0,"interfaces_without_cluster":0,"interfaces_without_sequence":0,"pairs_below_identity":0,"pairs_compared":6,"pairs_swapped":0,"pairs_zero_score":4,"rows_ignored":0,"rows_in":135}
+    ["1A3N_A_B"]
+    ["1A3N_A_C","1A3N_B_D"]
+    ["1A3N_A_D","1A3N_B_C"]
+    ```
+
+    The structures folder and its `chains` table (sequences) are found from the contact layer's `layer.json`, as for `annotate label-interfaces`. `alignments` is 0 because identical sequences match by position without aligning. `layer.json` records the contact layer, the structures folder, the clusters file and `--min-identity` under `policy.parameters`.
+
+=== "`library`"
+
+    ```python
+    import json
+
+    import pandas as pd
+
+    from pandora.export import read_records
+    from pandora.schemas.annotation import ResidueContactRow
+    from pandora.schemas.similarity import SimilarityCluster
+    from pandora.similarity import interface_similarity
+
+    contacts = read_records(
+        "annotations/interfaces/layer.parquet", ResidueContactRow
+    )
+    with open("clusters/seq90.json") as f:
+        clusters = [SimilarityCluster.model_validate(c) for c in json.load(f)]
+    chains = pd.read_parquet("curated/chains.parquet")
+    sequences = {
+        (row.entry_id.upper(), row.chain_id): row.sequence
+        for row in chains.itertuples()
+    }
+    rows, counts = interface_similarity(contacts, clusters, sequences)
+    columns = ["item_id_1", "item_id_2", "jaccard_1", "jaccard_2", "score"]
+    print(pd.DataFrame([row.model_dump() for row in rows])[columns].round(2))
+    ```
+
+    ```text
+      item_id_1 item_id_2  jaccard_1  jaccard_2  score
+    0  1A3N_A_C  1A3N_A_D       0.00       0.07   0.00
+    1  1A3N_A_C  1A3N_B_C       0.00       0.07   0.00
+    2  1A3N_A_C  1A3N_B_D       0.84       1.00   0.84
+    3  1A3N_A_D  1A3N_B_C       1.00       0.93   0.93
+    4  1A3N_A_D  1A3N_B_D       0.00       0.07   0.00
+    5  1A3N_B_C  1A3N_B_D       0.00       0.07   0.00
+    ```
+
+    `1A3N_A_C` against `1A3N_A_D` shares a little of β's surface (`jaccard_2` 0.07) but none of α's, so its score is 0: α1β1 and α1β2 are different interfaces.
+
 ## Migrating from hit-file searches
 
 Up to this release the searches kept a raw hit TSV with a `SimilaritySearch` record, and `pandora cluster` read only that. Similarity is now a layer:

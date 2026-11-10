@@ -77,7 +77,14 @@ pandora similarity import --table r_graph_edges.tsv --description r_graph.yaml -
 # imported: 2 rows, 1 unmatched -> similarity/r_graph
 ```
 
-Both refuse an `--output-dir` that already holds a layer, unless `--overwrite` is given.
+`similarity interfaces` scores every pair of a contact layer's interfaces whose chains share `--chain-clusters` (a `clusters.json` from `cluster`) and are at least `--min-identity` (default 0.9) identical, by per-side Jaccard of their interface residues; `score` is the smaller side. Every compared pair is written. See [Comparing interfaces](similarity.md#comparing-interfaces).
+
+```sh
+pandora similarity interfaces --contacts annotations/interfaces --chain-clusters clusters/seq90.json --output-dir similarity/iface_jaccard
+# scored: 6 interface pairs (4 zero, 0 below identity) from 5 interfaces -> similarity/iface_jaccard
+```
+
+All three refuse an `--output-dir` that already holds a layer, unless `--overwrite` is given.
 
 ## cluster
 
