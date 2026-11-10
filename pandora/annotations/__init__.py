@@ -3,6 +3,7 @@ from __future__ import annotations
 from pandora.annotations.counts import (
     count_chain_contacts,
     count_residue_contacts,
+    label_interfaces,
 )
 from pandora.annotations.entry import (
     annotate_chain_interfaces,
@@ -25,5 +26,6 @@ __all__ = [
     "count_interface_labels",
     "count_residue_contacts",
     "drop_labelled_interfaces",
+    "label_interfaces",
     "resolve_layer_rows",
 ]

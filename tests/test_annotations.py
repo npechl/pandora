@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from pandora.annotations.counts import (
     count_chain_contacts,
     count_residue_contacts,
+    label_interfaces,
 )
 from pandora.annotations.entry import (
     annotate_chain_interfaces,
@@ -1227,3 +1228,71 @@ def test_drop_labelled_interfaces_accepts_resolved_dicts():
     assert (
         count_interface_labels(rows, labels, {"bad"})["interfaces_dropped"] == 1
     )
+
+
+def _lengths(**chains):
+    return {("1ABC", c): n for c, n in chains.items()}
+
+
+def test_label_interfaces_counts_each_side():
+    rows = [
+        _contact("B", 1, "A", 1),
+        _contact("A", 2, "B", 1),
+        _contact("A", 2, "B", 2),
+        _contact("A", 1, "B", 1),  # repeat of the first, other order
+    ]
+    (row,) = label_interfaces(rows, _lengths(A=10, B=20))
+    assert row.model_dump() == {
+        "entry_id": "1abc",
+        "chain_id_1": "A",
+        "chain_id_2": "B",
+        "auth_chain_id_1": "A",
+        "auth_chain_id_2": "B",
+        "residues_1": 2,
+        "residues_2": 2,
+        "length_1": 10,
+        "length_2": 20,
+        "total_residues": 30,
+        "label": "ok",
+    }
+
+
+@pytest.mark.parametrize(
+    "min_res, max_total, label",
+    [
+        (None, None, "ok"),
+        (3, None, "few_contacts"),
+        (2, None, "ok"),
+        (None, 29, "too_large"),
+        (None, 30, "ok"),
+        (3, 29, "too_large"),  # both apply: too_large wins
+    ],
+)
+def test_label_interfaces_rules(min_res, max_total, label):
+    rows = [_contact("A", 1, "B", 1), _contact("A", 2, "B", 2)]
+    (row,) = label_interfaces(rows, _lengths(A=10, B=20), min_res, max_total)
+    assert row.label == label
+
+
+def test_label_interfaces_unknown_length_is_never_too_large():
+    rows = [_contact("A", 1, "B", 1)]
+    (row,) = label_interfaces(rows, _lengths(A=10), max_total_residues=1)
+    assert (row.length_2, row.total_residues, row.label) == (None, None, "ok")
+
+
+def test_label_interfaces_entry_case_insensitive_and_sorted():
+    rows = [_contact("C", 1, "B", 1), _contact("A", 1, "B", 1)]
+    out = label_interfaces(rows, _lengths(A=1, B=1, C=1))
+    assert [(r.chain_id_1, r.chain_id_2) for r in out] == [
+        ("A", "B"),
+        ("B", "C"),
+    ]
+    assert all(r.total_residues == 2 for r in out)
+
+
+def test_label_interfaces_passes_template_check_and_keeps_input():
+    rows = [_contact("A", 1, "B", 1)]
+    before = [r.model_copy() for r in rows]
+    out = label_interfaces(rows, _lengths(A=1, B=1))
+    check_layer_columns(out[0].model_dump().keys(), "interface_labels")
+    assert rows == before
