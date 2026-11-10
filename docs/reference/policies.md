@@ -344,7 +344,7 @@ Containment counts chains per cluster: X is contained in Y when Y has at least a
 
 ## Cluster representatives
 
-`RepresentativePolicy` (`pandora.schemas.similarity`), read by `pandora representatives --policy`.
+`RepresentativePolicy` (`pandora.schemas.similarity`), read by `pandora representatives --policy`, and by `pandora rebalance --policy` to break ties between equally connected dimers (interface keys except `n_hits`).
 
 | Field | Default | Description |
 |---|---|---|

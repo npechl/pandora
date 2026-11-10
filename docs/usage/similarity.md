@@ -113,7 +113,7 @@ A row naming something that isn't an item goes to `unmatched.parquet` with a `re
 
 ## Structural similarity (Foldseek)
 
-`pandora similarity search --engine foldseek` runs an all-vs-all `foldseek easy-search` over a folder of per-chain structure files, named `{entry}_{chain}.cif` so that the file names are chain item IDs. No command writes these files yet; `export_chain_mmcif()` does, for the chains in the step folder's `chains` table:
+`pandora similarity search --engine foldseek` runs an all-vs-all `foldseek easy-search` over one structure file per chain. By default Pandora writes these files itself, one mmCIF per chain of `--structures-dir` (symmetry copies left out), into a temporary folder, named so that the file names are chain item IDs. `--input-dir` takes a folder of files you already have instead, named `{entry}_{chain}.cif`. In Python, `export_chain_mmcif()` writes them, for the chains in the step folder's `chains` table:
 
 ```python
 from pathlib import Path
@@ -154,6 +154,25 @@ item_id_1  item_id_2  identity  coverage_1  coverage_2  qtmscore  ttmscore  star
 118L_A     1AYI_A     0.161     0.148       0.36        0.1223    0.2083    112      135    13       43     0.4387
 ...
 ```
+
+### Searching a list of chains
+
+`--chains` limits the search to the chain item IDs listed in a file, one per line (blank lines and `#` comments are skipped), for either engine. Every listed ID must be a chain of `--structures-dir`. PPI v2.1 runs Foldseek on the 90% sequence representatives only:
+
+```bash
+jq -r '.[].representative' clusters/seq90/representatives.json > clusters/seq90/representatives.txt
+pandora similarity search --engine foldseek --structures-dir work/uncontained \
+  --chains clusters/seq90/representatives.txt --exhaustive-search \
+  --output-dir layers/tm
+jq -c .counts layers/tm/layer.json
+```
+
+```text
+searched: 522 hits, 0 unmatched -> layers/tm
+{"chains_searched":31,"rows_in":522,"rows_matched":522,"rows_unmatched":0}
+```
+
+The layer's items are still every chain of the step folder; only the listed chains were searched. `--chains` can't be combined with `--input-dir`. To use a representatives-only layer over every chain, map each chain to its representative with `cluster --chain-representatives` ([below](#chain-layers-over-representatives-only)).
 
 In Python, `compute_structure_similarity(paths, hits_path)` runs the search and `read_hit_tsv(hits_path, "Foldseek")` reads it, as for MMseqs2 above.
 
@@ -429,6 +448,27 @@ The examples use `1a3n` (deoxyhemoglobin) from [Comparing interfaces](#comparing
 
     To join several layers, chain their edge streams (`itertools.chain`) before `cluster_edges()`, rolling up only the chain-level ones.
 
+#### Chain layers over representatives only
+
+When the chain layer covers only representative chains (a `--chains` search, above), a dimer whose chains aren't representatives would get no edges. `--chain-representatives <representatives.json>` maps every chain to its representative (through `members`) before the roll-up, so a hit between two representatives links every dimer built from their members, and dimers whose chains share a representative are linked too. It needs `--items interface`; a dimer chain in no `members` list is an error.
+
+```bash
+pandora cluster --items interface --contacts layers/contacts \
+  --similarity layers/iface_sim --hit-filter policies/same_proteins.yaml \
+  --similarity layers/tm --hit-filter policies/tm.yaml \
+  --chain-representatives clusters/seq90/representatives.json \
+  --output clusters/dimer_groups/clusters.json
+jq -c '.[].components' clusters/dimer_groups/clusters.json | head -2
+```
+
+```text
+12 clusters from 41 edges -> clusters/dimer_groups/clusters.json
+["1A3E_A_B"]
+["1A3N_A_B","1A3N_A_D","1A3N_B_C","1A3N_C_D","1ABW_A_B","1ABW_A_C"]
+```
+
+Without the flag the same run reads 35 edges. In Python, pass `member_representatives(...)` as `interface_edges(edges, interfaces, chain_map)`.
+
 ### Paired cluster keys (PPI pairs)
 
 `pair_cluster_keys()` looks up each side of a PPI pair in item-level clusters and returns a `(cluster_id_1, cluster_id_2)` key per pair (Pinder-style `{cluster_id_R, cluster_id_L}`), useful for deduplicating PPI pairs by which fold-pair they represent, not just which structure they came from:
@@ -627,6 +667,185 @@ Up to this release the searches kept a raw hit TSV with a `SimilaritySearch` rec
 | `annotate_pairwise_sequence_identity()` | removed: use an MMseqs2 search |
 
 `reproduce_dataset()` no longer replays similarity or clustering.
+
+## Positives and negatives (PPI)
+
+Two commands build a protein–protein interaction set from dimer groups (PPI v2.1 Steps 7 and 8). Both write a step folder: the tables (`--table-format`), and a summary JSON with the settings and counts. `--overwrite` replaces an earlier run.
+
+### Rebalancing homomers and heteromers
+
+`pandora rebalance` picks the positive dimers of each dimer group (`cluster --items interface`). A dimer is a **homomer** when both chains are in the same `--chain-clusters` cluster (90% sequence clusters), otherwise a **heteromer**. A group of homomers only keeps its most connected dimer. A group with any heteromer drops its homomers, then repeatedly keeps the heteromer with the fewest remaining heteromer neighbours and drops those neighbours, recounting every round, so it keeps as many mutually dissimilar heteromers as it can.
+
+"Connected" is the degree in the dimer graph rebuilt from the same `--similarity` layers, hit filters and `--chain-representatives` as the `cluster` run that made the groups: two dimers are neighbours when they share a chain (or a representative), when a chain-level hit links a chain of each, or when an interface-level hit links them. An edge between two groups means the inputs don't match that run, and is an error. Ties go to `--policy` (a `RepresentativePolicy`; default most residues in contact, best resolution, fewest missing residues, then the lowest id).
+
+=== "`cli`"
+
+    ```bash
+    pandora rebalance --clusters clusters/dimer_groups/clusters.json \
+      --contacts layers/contacts \
+      --chain-clusters clusters/seq90/clusters.json \
+      --chain-representatives clusters/seq90/representatives.json \
+      --similarity layers/iface_sim --hit-filter policies/same_proteins.yaml \
+      --similarity layers/tm --hit-filter policies/tm.yaml \
+      --policy policies/dimer_representatives.yaml \
+      --table-format jsonl --output-dir work/positives
+    jq -c '[.dimer, .kind, .degree]' work/positives/positives.jsonl | head -3
+    jq -c '[.dimer, .reason, .kept]' work/positives/dropped.jsonl | head -3
+    jq -c .counts work/positives/rebalance.json
+    ```
+
+    ```text
+    12 positives from 23 dimers -> work/positives
+    ["1A3E_A_B","heteromer",0]
+    ["1ABW_A_C","heteromer",5]
+    ["1AYI_A_A-2","homomer",0]
+    ["1A3N_A_B","similar_to_kept","1ABW_A_C"]
+    ["1A3N_A_D","similar_to_kept","1ABW_A_C"]
+    ["1A3N_B_C","similar_to_kept","1ABW_A_C"]
+    {"groups":12,"dimers_in":23,"dropped:not_most_connected":6,"dropped:similar_to_kept":5,"positives:heteromer":2,"positives:homomer":10}
+    ```
+
+    The hemoglobin (1A3N) and 1ABW dimers form one group of six heteromers, all similar to each other, so one is kept: all have degree 5, and 1ABW_A_C has the most residues in contact. `positives` has `dimer`, `entry_id`, `chain_id_1`, `chain_id_2`, `group`, `kind` and `degree` (when kept); `dropped` has `dimer`, `group`, `reason` (`homomer_in_mixed_group`, `similar_to_kept`, `not_most_connected`) and `kept`.
+
+=== "`library`"
+
+    ```python
+    import json
+
+    import pandas as pd
+
+    from pandora.schemas.similarity import (
+        HitFilter,
+        RepresentativeCluster,
+        SimilarityCluster,
+    )
+    from pandora.similarity import (
+        dimer_adjacency,
+        item_id,
+        member_representatives,
+        parse_item_id,
+        read_similarity_table,
+        rebalance,
+        similarity_edges,
+    )
+
+    groups = [
+        SimilarityCluster(**g)
+        for g in json.load(open("clusters/dimer_groups/clusters.json"))
+    ]
+    reps = member_representatives(
+        RepresentativeCluster(**r)
+        for r in json.load(open("clusters/seq90/representatives.json"))
+    )
+    seq90 = json.load(open("clusters/seq90/clusters.json"))
+    cluster_of = {c: i for i, g in enumerate(seq90) for c in g["components"]}
+    dimers = [d for g in groups for d in g.components]
+
+
+    def same_protein(dimer):
+        entry, chain_1, chain_2 = parse_item_id("interface", dimer)
+        return (
+            cluster_of[item_id("chain", entry, chain_1)]
+            == cluster_of[item_id("chain", entry, chain_2)]
+        )
+
+
+    homomers = {d for d in dimers if same_protein(d)}
+    tm = similarity_edges(
+        read_similarity_table("layers/tm/layer.parquet"),
+        HitFilter(min_score=0.5, min_coverage=0.8, coverage_of="both"),
+    )
+    same_pair = pd.read_parquet("layers/iface_sim/layer.parquet")
+    pairs = zip(same_pair.item_id_1, same_pair.item_id_2)
+    adjacency = dimer_adjacency(dimers, tm, pairs, reps)
+    positives, dropped = rebalance(groups, adjacency, homomers, lambda d: d)
+    print(len(positives), [p.dimer for p in positives if p.kind == "heteromer"])
+    ```
+
+    ```text
+    12 ['1A3E_A_B', '1A3N_A_B']
+    ```
+
+    `dimer_adjacency()` builds the graph and `rebalance()` picks. The tie-break here is the lowest id, so 1A3N_A_B wins the six-way tie that the CLI's default ranking gives to 1ABW_A_C.
+
+### Sampling negatives
+
+`pandora negatives` draws one negative chain pair per positive. Every chain is looked up through its 90% representative (`--representatives`, whose `members` give the mapping). The pool is every representative minus those of the positives' chains. For each positive, in dimer-id order, it picks one of the two chains, A, at random, and leaves out for this pick:
+
+1. A and the chains structurally similar to it (`--similarity`, one chain layer, through its hit filter);
+2. the chains in contact with any of those, in the "any contact" `--contacts` layer;
+3. the chains structurally similar to set 2.
+
+It draws C from the rest and removes C from the pool for good. One generator seeded with `--seed` (default 0) makes both draws, so the same inputs and seed give the same pairs. A positive the pool ran out for is listed in the summary, not an error.
+
+=== "`cli`"
+
+    ```bash
+    pandora negatives --positives work/positives \
+      --representatives clusters/seq90/representatives.json \
+      --similarity layers/tm --hit-filter policies/tm.yaml \
+      --contacts layers/contacts_any --seed 0 \
+      --table-format jsonl --output-dir work/negatives
+    head -3 work/negatives/negatives.jsonl
+    jq -c .counts work/negatives/negatives.json
+    ```
+
+    ```text
+    12 negatives for 12 positives (0 unpaired) -> work/negatives
+    {"chain_1":"1A3E_B","chain_2":"1CR5_A","positive":"1A3E_A_B"}
+    {"chain_1":"1ABW_C","chain_2":"10KZ_A","positive":"1ABW_A_C"}
+    {"chain_1":"1AYI_A-2","chain_2":"1A6N_A","positive":"1AYI_A_A-2"}
+    {"pool":17,"positives":12,"negatives":12,"unpaired":0,"similarity_edges":12}
+    ```
+
+    `chain_1` is the positive's chain A (it can be a symmetry copy, like `1AYI_A-2`); `chain_2` is a representative chain. `negatives.json` records the seed, the hit filter, the inputs and the unpaired positives.
+
+=== "`library`"
+
+    ```python
+    import json
+
+    import pandas as pd
+
+    from pandora.export import read_records
+    from pandora.schemas.similarity import (
+        HitFilter,
+        PositiveDimer,
+        RepresentativeCluster,
+    )
+    from pandora.similarity import (
+        item_id,
+        member_representatives,
+        read_similarity_table,
+        sample_negatives,
+        similarity_edges,
+    )
+
+    positives = read_records("work/positives/positives.jsonl", PositiveDimer)
+    reps = member_representatives(
+        RepresentativeCluster(**r)
+        for r in json.load(open("clusters/seq90/representatives.json"))
+    )
+    tm = similarity_edges(
+        read_similarity_table("layers/tm/layer.parquet"),
+        HitFilter(min_score=0.5, min_coverage=0.8, coverage_of="both"),
+    )
+    contacts = pd.read_parquet("layers/contacts_any/layer.parquet")
+    binding = {
+        (item_id("chain", e, a), item_id("chain", e, b))
+        for e, a, b in zip(
+            contacts.entry_id, contacts.chain_id_1, contacts.chain_id_2
+        )
+    }
+    negatives, unpaired = sample_negatives(positives, reps, tm, binding, seed=0)
+    print(negatives[0])
+    print(len(negatives), unpaired)
+    ```
+
+    ```text
+    chain_1='1A3E_B' chain_2='1CR5_A' positive='1A3E_A_B'
+    12 []
+    ```
 
 ## Leakage-safe partitioning
 
