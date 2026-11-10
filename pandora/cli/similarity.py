@@ -37,6 +37,7 @@ from pandora.schemas.annotation import (
 )
 from pandora.schemas.dataset import DatasetChainRecord
 from pandora.schemas.similarity import (
+    ClusteredLayer,
     HitFilter,
     SimilarityCluster,
 )
@@ -45,6 +46,7 @@ from pandora.similarity import (
     compute_sequence_similarity,
     compute_structure_similarity,
     entry_edges,
+    interface_edges,
     interface_residues_from_annotation,
     interface_similarity,
     pair_cluster_keys,
@@ -354,35 +356,55 @@ def _cmd_import(args: argparse.Namespace) -> None:
     )
 
 
-def _hit_filter(args: argparse.Namespace) -> HitFilter:
-    """The HitFilter from --hit-filter, with --min-score / --min-coverage
-    overriding it; exits if no threshold is set."""
+def _per_layer(flag: str, values: list[Any] | None, n: int) -> list[Any]:
+    """`values` of a repeatable flag, one per --similarity layer: absent,
+    given once for all layers, or once per layer in order."""
 
-    if (
-        args.hit_filter is None
-        and args.min_score is None
-        and (args.min_coverage is None)
-    ):
-        # Without a filter every reported hit would become an edge (the
-        # old --threshold defaulted to 0.9), merging clusters silently.
+    if not values:
+        return [None] * n
+    if len(values) == 1:
+        return values * n
+    if len(values) != n:
         raise SystemExit(
-            "cluster: set --min-score, --min-coverage or --hit-filter; "
-            "with no threshold every reported hit becomes an edge"
+            f"cluster: give {flag} once (for every layer) or once per "
+            f"--similarity layer ({n}), not {len(values)} times"
         )
-    hit_filter = (
-        load_yaml_model(HitFilter, Path(args.hit_filter))
-        if args.hit_filter
-        else HitFilter()
-    )
-    overrides = {
-        field: value
-        for field, value in (
-            ("min_score", args.min_score),
-            ("min_coverage", args.min_coverage),
+    return values
+
+
+def _hit_filters(args: argparse.Namespace, n: int) -> list[HitFilter]:
+    """One HitFilter per layer, from --hit-filter with --min-score /
+    --min-coverage overriding it; exits if a layer has no threshold."""
+
+    filters = []
+    for path, min_score, min_coverage in zip(
+        _per_layer("--hit-filter", args.hit_filter, n),
+        _per_layer("--min-score", args.min_score, n),
+        _per_layer("--min-coverage", args.min_coverage, n),
+        strict=True,
+    ):
+        if path is None and min_score is None and min_coverage is None:
+            # Without a filter every reported hit would become an edge
+            # (the old --threshold defaulted to 0.9), merging clusters
+            # silently.
+            raise SystemExit(
+                "cluster: set --min-score, --min-coverage or --hit-filter "
+                "for every layer; with no threshold every reported hit "
+                "becomes an edge"
+            )
+        hit_filter = (
+            load_yaml_model(HitFilter, Path(path)) if path else HitFilter()
         )
-        if value is not None
-    }
-    return hit_filter.model_copy(update=overrides)
+        overrides = {
+            field: value
+            for field, value in (
+                ("min_score", min_score),
+                ("min_coverage", min_coverage),
+            )
+            if value is not None
+        }
+        filters.append(hit_filter.model_copy(update=overrides))
+    return filters
 
 
 def _similarity_level(folder: Path) -> SimilarityItems:
@@ -403,32 +425,45 @@ def _similarity_level(folder: Path) -> SimilarityItems:
 
 
 def _cluster_level(
-    args: argparse.Namespace, level: SimilarityItems
+    args: argparse.Namespace, levels: list[SimilarityItems]
 ) -> SimilarityItems:
-    """The level to cluster at: the layer's, or entries from chains."""
+    """The level to cluster at: --items, or the layers' shared level.
+    Chain layers roll up to entries or interfaces."""
 
-    items = args.items or level
-    if items != level and not (items == "entry" and level == "chain"):
-        raise SystemExit(
-            f"cluster: --items {items} does not fit a {level} layer; only "
-            "--items entry on a chain layer rolls up"
-        )
-    if level == "interface" and args.structures_dir is not None:
+    items = args.items or levels[0]
+    for level in levels:
+        if level != items and not (level == "chain" and items != "chain"):
+            raise SystemExit(
+                f"cluster: --items {items} does not fit a {level} layer; "
+                "only chain layers roll up (to entry or interface)"
+            )
+    if (
+        items == "interface"
+        and "chain" not in levels
+        and args.structures_dir is not None
+    ):
         raise SystemExit(
             "cluster: interface items come from --contacts; "
             "--structures-dir does not apply"
         )
-    if level == "entry" and args.contacts is not None:
+    if "entry" in levels and args.contacts is not None:
         raise SystemExit("cluster: --contacts does not apply to an entry layer")
     return items
 
 
 def _interface_residues(
-    structures_dir: Path, contacts: Path
-) -> dict[str, set[int]]:
+    structures_dir: Path | None, contacts: Path | None
+) -> dict[str, set[int]] | None:
     """Interface residue positions per chain item, from a contact layer
-    and the structures it refers to."""
+    and the structures it refers to; None without --contacts."""
 
+    if contacts is None:
+        return None
+    if structures_dir is None:
+        raise SystemExit(
+            "cluster: min_interface_coverage needs --structures-dir "
+            "(the structures the --contacts layer was computed from)"
+        )
     rows_file = _contact_layer("cluster", contacts)
     rows = (
         read_records(rows_file, ResidueContactRow)
@@ -459,46 +494,91 @@ def _copy_links(structures_dir: Path) -> Iterator[tuple[str, str]]:
             )
 
 
-def _cmd_cluster(args: argparse.Namespace) -> None:
-    """Handle the `cluster` subcommand: connected-component clustering
-    of a similarity layer."""
+def _layer_edges(
+    layer: Path,
+    hit_filter: HitFilter,
+    interface_residues: dict[str, set[int]] | None,
+    counts: Counter[int],
+    index: int,
+) -> Iterator[Any]:
+    """The edges of one layer, counted into `counts[index]`; exits naming
+    the layer on a bad table or filter."""
 
-    hit_filter = _hit_filter(args)
-    _require_pyarrow("cluster")
-    layer = Path(args.similarity)
-    level = _similarity_level(layer)
-    items_level = _cluster_level(args, level)
-    structures_dir = Path(args.structures_dir) if args.structures_dir else None
-    contacts = Path(args.contacts) if args.contacts else None
-    items, _ = _item_set("cluster", items_level, structures_dir, contacts)
-
-    interface_residues = None
-    if level == "chain" and contacts is not None:
-        interface_residues = _interface_residues(structures_dir, contacts)
     table = layer / "layer.parquet"
+    if not table.exists():
+        return
     try:
-        edges: Iterable[Any] = (
-            similarity_edges(
-                read_similarity_table(table),
-                hit_filter,
-                interface_residues=interface_residues,
-            )
-            if table.exists()
-            else iter(())
-        )
-        if items_level != level:
-            edges = entry_edges(edges)
-        elif level == "chain":
-            edges = itertools.chain(edges, _copy_links(structures_dir))
-        clusters, prov = cluster_edges(sorted(set(items.ids.values())), edges)
+        for edge in similarity_edges(
+            read_similarity_table(table),
+            hit_filter,
+            interface_residues=interface_residues,
+        ):
+            counts[index] += 1
+            yield edge
     except ValueError as exc:
         raise SystemExit(f"cluster: {layer}: {exc}") from exc
-    prov = prov.model_copy(
-        update={
-            "hit_filter": hit_filter,
-            "similarity_layer": str(layer / "layer.json"),
-        }
-    )
+
+
+def _cmd_cluster(args: argparse.Namespace) -> None:
+    """Handle the `cluster` subcommand: connected-component clustering
+    of the union of one or more similarity layers."""
+
+    layers = [Path(folder) for folder in args.similarity]
+    hit_filters = _hit_filters(args, len(layers))
+    _require_pyarrow("cluster")
+    levels = [_similarity_level(layer) for layer in layers]
+    items_level = _cluster_level(args, levels)
+    structures_dir = Path(args.structures_dir) if args.structures_dir else None
+    contacts = Path(args.contacts) if args.contacts else None
+    if contacts is not None:
+        check_contact_layer("cluster", contacts)
+    items, _ = _item_set("cluster", items_level, structures_dir, contacts)
+    item_ids = sorted(set(items.ids.values()))
+
+    residues = None
+    if any(
+        level == "chain" and f.min_interface_coverage is not None
+        for level, f in zip(levels, hit_filters, strict=True)
+    ):
+        residues = _interface_residues(structures_dir, contacts)
+    counts: Counter[int] = Counter()
+    same_level: list[Iterator[Any]] = []
+    chain_streams: list[Iterator[Any]] = []
+    for index, (layer, level, hit_filter) in enumerate(
+        zip(layers, levels, hit_filters, strict=True)
+    ):
+        if level == "chain":
+            chain_streams.append(
+                _layer_edges(layer, hit_filter, residues, counts, index)
+            )
+        else:
+            same_level.append(
+                _layer_edges(layer, hit_filter, None, counts, index)
+            )
+    chain_edges: Iterable[Any] = itertools.chain(*chain_streams)
+    if chain_streams and structures_dir is not None:
+        chain_edges = itertools.chain(chain_edges, _copy_links(structures_dir))
+    if chain_streams and items_level == "entry":
+        chain_edges = entry_edges(chain_edges)
+    elif chain_streams and items_level == "interface":
+        chain_edges = interface_edges(chain_edges, item_ids)
+    edges = itertools.chain(*same_level, chain_edges)
+    try:
+        clusters, prov = cluster_edges(item_ids, edges)
+    except ValueError as exc:
+        raise SystemExit(f"cluster: {exc}") from exc
+    records = [
+        ClusteredLayer(
+            similarity_layer=str(layer / "layer.json"),
+            items=level,
+            hit_filter=hit_filter,
+            n_edges=counts[index],
+        )
+        for index, (layer, level, hit_filter) in enumerate(
+            zip(layers, levels, hit_filters, strict=True)
+        )
+    ]
+    prov = prov.model_copy(update={"layers": records})
 
     output = Path(args.output)
     write_records(clusters, output)
@@ -770,38 +850,46 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
     p = subparsers.add_parser(
         "cluster",
-        help="Connected-component clustering of a similarity layer.",
+        help="Connected-component clustering of one or more similarity "
+        "layers (an edge from any layer links).",
     )
     p.add_argument(
         "--similarity",
         required=True,
-        help="a similarity layer folder (similarity search/import)",
+        action="append",
+        help="a similarity layer folder (similarity search/import); "
+        "repeat to join several layers",
     )
     p.add_argument(
         "--items",
         choices=["entry", "chain", "interface"],
-        help="cluster at this level (default: the layer's); entry on a "
-        "chain layer rolls chains up to their entries",
+        help="cluster at this level (default: the layers'); chain layers "
+        "roll up to entries, or to the interfaces of --contacts",
     )
-    p.add_argument("--hit-filter", help="HitFilter YAML (thresholds)")
+    p.add_argument(
+        "--hit-filter",
+        action="append",
+        help="HitFilter YAML (thresholds); once for every layer or once "
+        "per --similarity, in order (same for the two flags below)",
+    )
     p.add_argument(
         "--min-score",
         type=float,
-        default=None,
+        action="append",
         help="overrides --hit-filter's min_score",
     )
     p.add_argument(
         "--min-coverage",
         type=float,
-        default=None,
+        action="append",
         help="overrides --hit-filter's min_coverage",
     )
     p.add_argument(
         "--contacts",
         help=(
-            "a residue_contacts layer folder: the items of an interface "
-            "layer, or interface residues for min_interface_coverage on a "
-            "chain layer"
+            "a residue_contacts layer folder: the interface items, or "
+            "interface residues for min_interface_coverage on a chain "
+            "layer"
         ),
     )
     p.add_argument(

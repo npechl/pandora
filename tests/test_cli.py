@@ -375,9 +375,11 @@ def test_cluster_reads_hit_filter_yaml_and_records_it(tmp_path):
     provenance = json.loads(
         (output.parent / "cluster_provenance.json").read_text()
     )
-    assert provenance["hit_filter"]["min_score"] == 0.99
-    assert provenance["hit_filter"]["min_coverage"] == 0.5
-    assert provenance["similarity_layer"] == str(layer / "layer.json")
+    [recorded] = provenance["layers"]
+    assert recorded["hit_filter"]["min_score"] == 0.99
+    assert recorded["hit_filter"]["min_coverage"] == 0.5
+    assert recorded["similarity_layer"] == str(layer / "layer.json")
+    assert recorded["items"] == "entry"
     assert "search" not in provenance
 
 
@@ -1001,9 +1003,12 @@ def test_cluster_reads_contact_layer(tmp_path, monkeypatch):
         raise _Captured
 
     monkeypatch.setattr("pandora.cli.similarity.similarity_edges", fake_edges)
+    hit_filter = tmp_path / "filter.yaml"
+    hit_filter.write_text("min_interface_coverage: 0.5\n")
     with pytest.raises(_Captured):
         main(
-            ["cluster", "--similarity", str(layer), "--min-score", "0.5"]
+            ["cluster", "--similarity", str(layer)]
+            + ["--hit-filter", str(hit_filter)]
             + ["--contacts", str(contacts), "--structures-dir", str(folder)]
             + ["--output", str(tmp_path / "c.json")]
         )
@@ -1040,6 +1045,98 @@ def test_cluster_interface_layer_takes_items_from_contacts(tmp_path):
 
     clusters = [c["components"] for c in json.loads(output.read_text())]
     assert clusters == [["1A2C_A_B", "1A2C_B_C"], ["1A2C_B_D"]]
+
+
+def _rollup_contacts(tmp_path):
+    """A contact layer with interfaces 1AAA_A_B, 2BBB_C_D and 3CCC_E_F."""
+
+    contacts = tmp_path / "contacts"
+    contacts.mkdir()
+    _write_jsonl(
+        contacts / "layer.jsonl",
+        [
+            {"entry_id": e, "chain_id_1": a, "chain_id_2": b}
+            | {"seq_id_1": 1, "seq_id_2": 2}
+            for e, a, b in (("1AAA", "A", "B"), ("2BBB", "C", "D"))
+            + (("3CCC", "E", "F"),)
+        ],
+    )
+    (contacts / "layer.json").write_text(
+        json.dumps({"policy": {"template": "residue_contacts"}})
+    )
+    return contacts
+
+
+def _rollup_cluster(tmp_path, contacts, *extra):
+    output = tmp_path / "c.json"
+    main(
+        ["cluster", "--items", "interface", "--contacts", str(contacts)]
+        + ["--output", str(output), *extra]
+    )
+    provenance = json.loads((tmp_path / "cluster_provenance.json").read_text())
+    return [c["components"] for c in json.loads(output.read_text())], provenance
+
+
+def test_cluster_rolls_chain_layer_up_to_interfaces(tmp_path):
+    contacts = _rollup_contacts(tmp_path)
+    tm = _similarity_layer(
+        tmp_path / "tm",
+        _chain_rows(("1AAA_A", "2BBB_D"), ("9ZZZ_A", "3CCC_E"))
+        + _chain_rows(("9ZZZ_A", "1AAA_A")),
+        "chain",
+    )
+
+    clusters, provenance = _rollup_cluster(
+        tmp_path, contacts, "--similarity", str(tm), "--min-score", "0.5"
+    )
+
+    # 9ZZZ_A is in no interface, so it does not join 3CCC_E_F.
+    assert clusters == [["1AAA_A_B", "2BBB_C_D"], ["3CCC_E_F"]]
+    assert provenance["layers"][0]["items"] == "chain"
+    assert provenance["layers"][0]["n_edges"] == 3
+
+
+def test_cluster_joins_several_layers(tmp_path):
+    contacts = _rollup_contacts(tmp_path)
+    tm = _similarity_layer(
+        tmp_path / "tm", _chain_rows(("1AAA_A", "2BBB_D")), "chain"
+    )
+    rows = [
+        {"item_id_1": "2BBB_C_D", "item_id_2": "3CCC_E_F", "score": 0.3},
+    ]
+    iface = _similarity_layer(tmp_path / "iface", rows, "interface")
+    args = ["--similarity", str(tm), "--min-score", "0.5"]
+    args += ["--similarity", str(iface), "--min-score", "0.2"]
+
+    clusters, provenance = _rollup_cluster(tmp_path, contacts, *args)
+
+    assert clusters == [["1AAA_A_B", "2BBB_C_D", "3CCC_E_F"]]
+    assert [
+        (layer["hit_filter"]["min_score"], layer["n_edges"])
+        for layer in provenance["layers"]
+    ] == [(0.5, 1), (0.2, 1)]
+
+    # One --min-score applies to every layer: 0.3 < 0.5 drops the link.
+    clusters, _ = _rollup_cluster(
+        tmp_path,
+        contacts,
+        *["--similarity", str(tm), "--similarity", str(iface)],
+        *["--min-score", "0.5"],
+    )
+    assert clusters == [["1AAA_A_B", "2BBB_C_D"], ["3CCC_E_F"]]
+
+
+def test_cluster_threshold_count_must_match_layers(tmp_path):
+    contacts = _rollup_contacts(tmp_path)
+    tm = _similarity_layer(tmp_path / "tm", _chain_rows(), "chain")
+    with pytest.raises(SystemExit, match="once per --similarity"):
+        _rollup_cluster(
+            tmp_path,
+            contacts,
+            *["--similarity", str(tm), "--similarity", str(tm)],
+            *["--min-score", "0.5", "--min-score", "0.5"],
+            *["--min-score", "0.5"],
+        )
 
 
 def test_cluster_rejects_non_contact_layer(tmp_path):
