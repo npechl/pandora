@@ -573,7 +573,7 @@ The example uses `1a2c` again. Pandora's own contact layers leave `contact_type`
     {"interfaces_dropped":1,"interfaces_in":3,"interfaces_unlabelled":0,"labels_unmatched":0,"rows_in":120,"rows_out":99}
     ```
 
-    Pass `annotations/interfaces_strong` wherever a contact layer goes, for example `cluster --contacts`. A `--drop` label that no interface has is an error, before anything is written:
+    Pass `annotations/interfaces_strong` wherever a contact layer goes, for example `cluster --contacts`. A `--drop` label that no interface has is an error, before anything is written. The exception is a label the layer can give but no interface happens to have: `label-interfaces` and `interface-gaps` list their labels in `layer.json` (`parameters.labels`), so `--drop too_large` works on a layer with no `too_large` interface. An imported layer can list its labels the same way in its description's `parameters`.
 
     ```text
     annotate filter-contacts: no interface has the label(s) ['typo']; check for typos

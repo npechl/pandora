@@ -2278,6 +2278,7 @@ def test_annotate_label_interfaces_writes_layer(tmp_path):
         "structures_dir": str(step.resolve()),
         "min_residues_per_chain": 5,
         "max_total_residues": None,
+        "labels": ["ok", "few_contacts", "too_large"],
     }
     labels = [r.label for r in written]
     assert summary["counts"] == {
@@ -2301,6 +2302,25 @@ def test_annotate_label_interfaces_feeds_filter(tmp_path):
     assert not (out / "layer.jsonl").exists()
     counts = json.loads((out / "layer.json").read_text())["counts"]
     assert counts["interfaces_dropped"] == counts["interfaces_in"] > 0
+
+
+def test_annotate_filter_contacts_accepts_known_label_with_no_interface(
+    tmp_path,
+):
+    # too_large is a label label-interfaces can give, so dropping it is no
+    # typo even when no interface has it (the dev data has none).
+    _, contacts = _label_inputs(tmp_path)
+    labels = tmp_path / "labels"
+    _label(contacts, labels, "--min-residues-per-chain", "1")
+    out = tmp_path / "sized"
+    _filter(
+        contacts, labels, out, "--drop", "few_contacts", "--drop", "too_large"
+    )
+    counts = json.loads((out / "layer.json").read_text())["counts"]
+    assert counts["interfaces_dropped"] == 0
+    assert counts["rows_out"] == counts["rows_in"]
+    with pytest.raises(SystemExit, match="typo"):
+        _filter(contacts, labels, tmp_path / "typo", "--drop", "too_larg")
 
 
 def test_annotate_label_interfaces_untraceable_origin_exits(tmp_path):
@@ -2370,6 +2390,7 @@ def test_annotate_interface_gaps_writes_layer(tmp_path):
         "contacts_layer": "chain_interfaces",
         "structures_dir": str(step.resolve()),
         "missing_residue_definition": "incomplete_backbone",
+        "labels": ["ok", "interface_gap", "unknown"],
     }
     assert summary["counts"] == {
         "rows_in": 120,

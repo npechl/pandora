@@ -335,10 +335,17 @@ def _cmd_filter(args: argparse.Namespace) -> None:
     table = find_table(labels, "layer")
     label_rows = read_records(table, LayerRow) if table else []
     drop = set(args.drop)
-    try:
-        kept = drop_labelled_interfaces(rows, label_rows, drop)
-    except ValueError as exc:
-        raise SystemExit(f"{command}: {exc}") from exc
+    # A label the layer can give (`parameters.labels`, recorded by Pandora's
+    # labelling commands) is no typo even when no interface has it.
+    present = {row.label for row in label_rows}
+    known = (labels_policy.get("parameters") or {}).get("labels") or []
+    unknown = drop - present - set(known)
+    if unknown:
+        raise SystemExit(
+            f"{command}: no interface has the label(s) {sorted(unknown)}; "
+            "check for typos"
+        )
+    kept = drop_labelled_interfaces(rows, label_rows, drop & present)
 
     prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
     write_table(kept, out, "layer", args.table_format)
@@ -429,6 +436,7 @@ def _cmd_label(args: argparse.Namespace) -> None:
             "structures_dir": str(origin),
             "min_residues_per_chain": args.min_residues_per_chain,
             "max_total_residues": args.max_total_residues,
+            "labels": ["ok", "few_contacts", "too_large"],
         },
     )
     labels = Counter(row.label for row in labelled)
@@ -504,6 +512,7 @@ def _cmd_gaps(args: argparse.Namespace) -> None:
             "contacts_layer": source.get("name"),
             "structures_dir": str(origin),
             "missing_residue_definition": "incomplete_backbone",
+            "labels": ["ok", "interface_gap", "unknown"],
         },
     )
     labels = Counter(row.label for row in labelled)
