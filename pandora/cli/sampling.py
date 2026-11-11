@@ -486,7 +486,8 @@ def _cmd_assemble(args: argparse.Namespace) -> None:
     out = Path(args.output_dir)
     prepare_output_dir(out, _ASSEMBLE_OUTPUTS, args.overwrite)
     write_table(rows, out, "pairs", args.table_format)
-    tallies = Counter(f"pairs:{r.split}:{r.label}" for r in rows)
+    tallies = Counter({f"pairs:{n}:{lab}": 0 for n in splits for lab in (0, 1)})
+    tallies.update(f"pairs:{r.split}:{r.label}" for r in rows)
     paired = {r.positive for r in rows if r.label == 0}
     settings = AssemblySettings(
         positives=str(args.positives),

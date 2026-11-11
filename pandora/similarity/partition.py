@@ -57,6 +57,8 @@ def partition_dataset(
     Raises:
         ValueError: `pct_train + pct_val + pct_test` does not equal 1.0,
             or `labels` is given with `keep_similar_items=False`.
+        ValueError: `stratify` without `labels`, or a cluster whose
+            items carry more than one label with `stratify`.
     """
 
     _check_options(pct_train + pct_val + pct_test, keep_similar_items, labels)
@@ -85,7 +87,7 @@ def partition_dataset(
             key=lambda c: c.n_components,
             reverse=True,
         ):
-            splits[max(splits, key=deficit)].extend(cluster.components)
+            splits[max(active, key=deficit)].extend(cluster.components)
     else:
         # Each item goes to the split furthest below its share of the items
         # seen so far; rounding per cluster sent every singleton to train.

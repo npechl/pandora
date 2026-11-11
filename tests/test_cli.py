@@ -3312,6 +3312,10 @@ def test_assemble_writes_pairs_and_summary(tmp_path, capsys):
     assert counts["negatives_c_leak_negative"] == 0
     assert counts["positives_unpaired"] == n_pos - n_neg
     assert "assemble: warning" not in capsys.readouterr().err
+    # Every split and label has a count, zero included.
+    for split in ("train", "val", "test"):
+        for label in (0, 1):
+            assert f"pairs:{split}:{label}" in counts
 
 
 def test_assemble_warns_on_other_representatives(tmp_path, capsys):

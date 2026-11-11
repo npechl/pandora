@@ -234,3 +234,18 @@ def test_stratify_rare_label_reports_missing() -> None:
     labels = {c.components[0]: c.components[0][0] for c in clusters}
     _, prov = partition_dataset(clusters, labels=labels, stratify=True)
     assert sum("x" in m for m in prov.missing_labels.values()) == 2
+
+
+def test_zero_fraction_split_stays_empty() -> None:
+    clusters = _singles("h", 5)
+    splits, _ = partition_dataset(clusters, 0.0, 0.5, 0.5)
+    assert splits["train"] == []
+
+
+def test_stratify_zero_fraction_split_stays_empty() -> None:
+    clusters = _singles("h", 5) + _singles("x", 3)
+    labels = {c.components[0]: c.components[0][0] for c in clusters}
+    splits, _ = partition_dataset(
+        clusters, 0.0, 0.5, 0.5, labels=labels, stratify=True
+    )
+    assert splits["train"] == []
