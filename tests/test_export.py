@@ -299,3 +299,15 @@ def test_read_records_list_columns_parquet(tmp_path):
 def test_read_records_rejects_bad_suffix(tmp_path):
     with pytest.raises(ValueError):
         read_records(tmp_path / "x.csv", ChainCopyRecord)
+
+
+def test_structure_to_mmcif_writes_single_row_categories_as_pairs(tmp_path):
+    # As the PDB does (`_entry.id 1AYI` on one line); tools such as COCaDA
+    # read the value from the same line as the key.
+    structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
+
+    text = structure_to_mmcif(structure, tmp_path / "1ayi.cif").read_text()
+
+    assert "_entry.id 1AYI\n" in text
+    assert "loop_\n_entry.id" not in text
+    assert "loop_\n_atom_site.group_PDB" in text

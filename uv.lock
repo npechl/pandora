@@ -775,7 +775,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "erdantic", marker = "extra == 'docs'", specifier = ">=1.0" },
-    { name = "gemmi", specifier = ">=0.6" },
+    { name = "gemmi", specifier = ">=0.6.4" },
     { name = "httpx", marker = "extra == 'ingestion'", specifier = ">=0.27" },
     { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=0.25" },
     { name = "pandas", marker = "extra == 'export'", specifier = ">=2.0" },

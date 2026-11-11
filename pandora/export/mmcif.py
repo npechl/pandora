@@ -115,7 +115,11 @@ def structure_to_mmcif(structure: Structure, path: str | Path) -> Path:
 
     out_path = Path(path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    doc.write_file(str(out_path))
+    # One-row categories as `_entry.id 1ABC` pairs, as the PDB writes them;
+    # some tools (e.g. COCaDA) read the value from the key's line.
+    options = gemmi.cif.WriteOptions()
+    options.prefer_pairs = True
+    doc.write_file(str(out_path), options)
     return out_path
 
 
