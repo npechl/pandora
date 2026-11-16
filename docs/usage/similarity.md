@@ -123,14 +123,15 @@ from pandora.export import export_chain_mmcif, read_records
 from pandora.schemas.dataset import DatasetChainRecord
 from pandora.similarity import item_id
 
-structures = read_structures_dir(Path("curated"))
+chains: dict[str, list[str]] = {}
 for chain in read_records("curated/chains.parquet", DatasetChainRecord):
-    name = item_id("chain", chain.entry_id, chain.chain_id)
-    export_chain_mmcif(
-        structures[chain.entry_id],
-        chain.chain_id,
-        Path("chains") / f"{name}.cif",
-    )
+    chains.setdefault(chain.entry_id, []).append(chain.chain_id)
+
+# read_structures_dir parses one structure at a time, so memory stays flat.
+for structure in read_structures_dir(Path("curated")):
+    for chain_id in chains.get(structure.entry_id, []):
+        name = item_id("chain", structure.entry_id, chain_id)
+        export_chain_mmcif(structure, chain_id, Path("chains") / f"{name}.cif")
 print(sorted(p.name for p in Path("chains").iterdir()))
 ```
 

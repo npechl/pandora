@@ -510,7 +510,7 @@ def test_read_structures_dir_reads_flat_mirror_and_step_folders(tmp_path):
     (step / "structures" / "04").mkdir(parents=True)
     shutil.copy(src, step / "structures" / "04" / "104m.cif")
     for folder in (flat, mirror, step):
-        assert list(read_structures_dir(folder)) == ["104M"]
+        assert [s.entry_id for s in read_structures_dir(folder)] == ["104M"]
 
 
 def test_write_structures_dir_uses_mirror_layout(tmp_path):

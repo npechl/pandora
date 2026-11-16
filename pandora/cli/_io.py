@@ -203,22 +203,20 @@ def write_table(
         write_records(rows, folder / f"{name}.{table_format}")
 
 
-def read_structures_dir(input_dir: Path) -> dict[str, Structure]:
-    """Parse every structure file in `input_dir` (see `structure_files`),
-    keyed by `Structure.entry_id`.
+def read_structures_dir(input_dir: Path) -> Iterator[Structure]:
+    """Parse the structure files in `input_dir` (see `structure_files`)
+    one at a time, so only one is held in memory.
 
     Files that fail to parse are skipped with a warning rather than
     aborting the whole batch.
     """
 
-    structures: dict[str, Structure] = {}
     for path in structure_files(input_dir):
         structure, _, status = mmcif_to_structure(str(path))
         if structure is None:
             print(f"warning: failed to parse {path}: {status}", file=sys.stderr)
             continue
-        structures[structure.entry_id] = structure
-    return structures
+        yield structure
 
 
 def write_structures_dir(

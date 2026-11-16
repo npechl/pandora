@@ -89,12 +89,12 @@ def _cmd_compute(args: argparse.Namespace) -> None:
     out = Path(args.output_dir)
     prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
     structures_dir = Path(args.structures_dir)
-    structures = read_structures_dir(structures_dir)
-    rows = [
-        row
-        for _, structure in sorted(structures.items())
-        for row in function(structure, **settings)
-    ]
+    rows = []
+    entries = 0
+    for structure in read_structures_dir(structures_dir):
+        entries += 1
+        rows.extend(function(structure, **settings))
+    rows.sort(key=lambda row: row.entry_id)  # stable: keeps per-entry order
     write_table(rows, out, "layer", args.table_format)
     defaults = {
         name: param.default
@@ -115,12 +115,12 @@ def _cmd_compute(args: argparse.Namespace) -> None:
             input=structures_dir,
             output=out,
             started_at=started_at,
-            counts={"entries": len(structures), "rows": len(rows)},
+            counts={"entries": entries, "rows": len(rows)},
             previous_summary=_previous_summary(structures_dir),
         ),
         out / "layer.json",
     )
-    print(f"computed: {len(rows)} rows for {len(structures)} entries -> {out}")
+    print(f"computed: {len(rows)} rows for {entries} entries -> {out}")
 
 
 def _previous_summary(structures_dir: Path) -> Path | None:
@@ -166,10 +166,23 @@ def _cmd_import(args: argparse.Namespace) -> None:
 
     prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
     structures_dir = Path(args.structures_dir)
-    structures = read_structures_dir(structures_dir)
-    matched, unmatched = resolve_layer_rows(
-        rows, description.template, structures
-    )
+    by_entry: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        entry = str(row.get("entry_id", "")).upper()
+        by_entry.setdefault(entry, []).append(row)
+    matched: list[dict[str, Any]] = []
+    unmatched: list[dict[str, Any]] = []
+    for structure in read_structures_dir(structures_dir):
+        entry_rows = by_entry.pop(structure.entry_id.upper(), [])
+        found, missed = resolve_layer_rows(
+            entry_rows, description.template, {structure.entry_id: structure}
+        )
+        matched.extend(found)
+        unmatched.extend(missed)
+    for entry_rows in by_entry.values():
+        unmatched.extend(
+            resolve_layer_rows(entry_rows, description.template, {})[1]
+        )
     if args.source_files:
         copy_source(Path(args.source_files), out / "source")
     for name, table_rows in (("layer", matched), ("unmatched", unmatched)):
@@ -493,11 +506,11 @@ def _cmd_gaps(args: argparse.Namespace) -> None:
     rows = read_records(table, ResidueContactRow) if table else []
     missing: dict[tuple[str, str], set[int]] = {}
     unmeasured = 0
-    for entry_id, structure in read_structures_dir(origin).items():
+    for structure in read_structures_dir(origin):
         chains, diagnostics = missing_positions(structure)
         unmeasured += len(diagnostics.warnings)
         for chain_id, positions in chains.items():
-            missing[(entry_id.upper(), chain_id)] = positions
+            missing[(structure.entry_id.upper(), chain_id)] = positions
     labelled = label_interface_gaps(rows, missing)
 
     prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)

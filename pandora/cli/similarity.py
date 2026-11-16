@@ -348,20 +348,22 @@ def _chain_files(
     }
     if chains is not None:
         wanted = {k: r for k, r in wanted.items() if k in chains}
+    by_entry: dict[str, list[tuple[str, str]]] = {}
+    for key, row in wanted.items():
+        by_entry.setdefault(row["entry_id"], []).append((key, row["chain_id"]))
     # ponytail: parses every entry; limit to the listed entries if slow.
-    structures = read_structures_dir(structures_dir)
     files: dict[str, Path] = {}
-    for key, row in sorted(wanted.items()):
-        structure = structures.get(row["entry_id"])
-        if structure is None:
-            raise SystemExit(
-                f"similarity search: {structures_dir} has no structure for "
-                f"{row['entry_id']}"
+    for structure in read_structures_dir(structures_dir):
+        for key, chain_id in by_entry.pop(structure.entry_id, []):
+            files[key] = export_chain_mmcif(
+                structure, chain_id, out / f"{key}.cif"
             )
-        files[key] = export_chain_mmcif(
-            structure, row["chain_id"], out / f"{key}.cif"
+    if by_entry:
+        raise SystemExit(
+            f"similarity search: {structures_dir} has no structure for "
+            f"{min(by_entry)}"
         )
-    return files
+    return dict(sorted(files.items()))
 
 
 def _chain_sequences(structures_dir: Path) -> dict[str, str]:
@@ -556,15 +558,27 @@ def _interface_residues(
         if rows_file.name != "layer.json"
         else []
     )
-    # ponytail: parses every structure; fine per dataset, not per archive.
-    structures = read_structures_dir(structures_dir)
-    try:
-        return interface_residues_from_annotation(structures, rows)
+    by_entry: dict[str, list[ResidueContactRow]] = {}
+    for row in rows:
+        by_entry.setdefault(row.entry_id, []).append(row)
+    result: dict[str, set[int]] = {}
+    for structure in read_structures_dir(structures_dir):
+        entry_rows = by_entry.pop(structure.entry_id, [])
+        if entry_rows:
+            result.update(
+                interface_residues_from_annotation(
+                    {structure.entry_id: structure}, entry_rows
+                )
+            )
+    leftover = [row for entry_rows in by_entry.values() for row in entry_rows]
+    try:  # raises only if a leftover row is an inter-chain contact
+        interface_residues_from_annotation({}, leftover)
     except KeyError as exc:
         raise SystemExit(
             f"cluster: {contacts} names an entry missing from "
             f"{structures_dir}: {exc}"
         ) from exc
+    return result
 
 
 def _copy_links(structures_dir: Path) -> Iterator[tuple[str, str]]:

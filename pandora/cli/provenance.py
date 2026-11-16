@@ -65,7 +65,7 @@ def _cmd_manifest(args: argparse.Namespace) -> None:
     """Handle the `manifest` subcommand: assemble a DatasetManifest from
     prior-stage outputs."""
 
-    structures = read_structures_dir(Path(args.structures_dir))
+    structures = read_structures_dir(Path(args.structures_dir))  # streamed
 
     canonicalisation_policy = (
         load_policy(args.canonicalisation_policy)
@@ -123,12 +123,12 @@ def _cmd_manifest(args: argparse.Namespace) -> None:
     bundles = [
         build_provenance_bundle(
             structure,
-            ingestion=ingestion_prov.get(entry_id),
-            canonicalisation=canon_prov.get(entry_id),
-            curation=curation_prov.get(entry_id),
-            annotations=annotations.get(entry_id, []),
+            ingestion=ingestion_prov.get(structure.entry_id),
+            canonicalisation=canon_prov.get(structure.entry_id),
+            curation=curation_prov.get(structure.entry_id),
+            annotations=annotations.get(structure.entry_id, []),
         )
-        for entry_id, structure in structures.items()
+        for structure in structures
     ]
 
     manifest = build_dataset_manifest(

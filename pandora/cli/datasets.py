@@ -299,12 +299,12 @@ def _cmd_dedup(args: argparse.Namespace) -> None:
         if value:
             raise SystemExit(f"dedup: {flag} only applies with --contained")
     output_dir = Path(args.output_dir)
-    structures = read_structures_dir(Path(args.input_dir))
+    # ponytail: holds every structure; stream it if this mode meets the
+    # full PDB (the PPI pipeline uses --contained instead).
+    structures = list(read_structures_dir(Path(args.input_dir)))
     rules = DeduplicationRules(enabled=not args.disable)
 
-    retained, removed, prov = deduplicate_structures(
-        list(structures.values()), rules
-    )
+    retained, removed, prov = deduplicate_structures(structures, rules)
 
     write_structures_dir({s.entry_id: s for s in retained}, output_dir)
     write_json(prov, output_dir / "dedup_provenance.json")
