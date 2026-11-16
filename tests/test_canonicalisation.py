@@ -1,5 +1,7 @@
+import shutil
 from pathlib import Path
 
+import gemmi
 import pytest
 
 from pandora.canonicalisation import chain_copy_records, estimate_atom_count
@@ -1690,3 +1692,41 @@ def test_estimate_atom_count_without_expansion_is_asymmetric_unit():
 
 def test_policy_max_atoms_defaults_to_none():
     assert _size_policy("preserve_as_reported").max_atoms is None
+
+
+def _split_subchain_copy(tmp_path: Path) -> Path:
+    """1ar2 with chain B's atom rows moved into the middle of chain A's."""
+
+    doc = gemmi.cif.read(str(FIXTURES_DIR / "ar" / "1ar2.cif"))
+    block = doc.sole_block()
+    block.find_mmcif_category("_pdbx_sifts_xref_db.").erase()
+    table = block.find_mmcif_category("_atom_site.")
+    tags = [t.removeprefix("_atom_site.") for t in table.tags]
+    asym = tags.index("label_asym_id")
+    rows = [list(row) for row in table]
+    a_rows = [r for r in rows if r[asym] == "A"]
+    b_rows = [r for r in rows if r[asym] == "B"]
+    rest = [r for r in rows if r[asym] not in ("A", "B")]
+    half = len(a_rows) // 2
+    loop = block.init_mmcif_loop("_atom_site.", tags)
+    for row in a_rows[:half] + b_rows + a_rows[half:] + rest:
+        loop.add_row(row)
+    path = tmp_path / "1ar2.cif"
+    doc.write_file(str(path))
+    return path
+
+
+def test_estimate_atom_count_split_subchain(tmp_path):
+    path = _split_subchain_copy(tmp_path)
+    policy = _size_policy("standardize_biological_assembly")
+    parsed, _, _ = mmcif_to_structure(str(path))
+    canon, _, _ = canonicalise_structure(parsed, policy)
+    assert len(canon.atoms) == 1714
+    assert estimate_atom_count(path, policy) == 1714
+
+
+def test_estimate_atom_count_reads_any_extension_as_mmcif(tmp_path):
+    path = tmp_path / "1ar2.txt"
+    shutil.copy(FIXTURES_DIR / "ar" / "1ar2.cif", path)
+    policy = _size_policy("standardize_biological_assembly")
+    assert estimate_atom_count(path, policy) == 1714

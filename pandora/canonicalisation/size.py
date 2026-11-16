@@ -35,13 +35,16 @@ def estimate_atom_count(
         ValueError: If gemmi cannot read the file.
     """
 
-    st = gemmi.read_structure(str(path))
+    st = gemmi.read_structure(str(path), format=gemmi.CoorFormat.Mmcif)
     if len(st) == 0:
         return 0
     per_subchain: dict[str, int] = {}
     for chain in st[0]:
         for sub in chain.subchains():
-            per_subchain[sub.subchain_id()] = sum(len(res) for res in sub)
+            sid = sub.subchain_id()  # a subchain can come in several runs
+            per_subchain[sid] = per_subchain.get(sid, 0) + sum(
+                len(res) for res in sub
+            )
     total = sum(per_subchain.values())
 
     rules = policy.assembly_rules
