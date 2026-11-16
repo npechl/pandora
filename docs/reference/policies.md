@@ -17,6 +17,10 @@ policy = canonicalisationPolicy(
 )
 ```
 
+### `max_atoms`
+
+**`max_atoms`** (default `null`): the largest entry `pandora canonicalise` will parse. Before building the `Structure`, the command estimates the entry's atoms with `estimate_atom_count(path, policy)`: model 1, with each assembly generator's chains counted once per operator when `assembly_rules.strategy` is `standardize_biological_assembly`. An entry above the limit is skipped and gets a `TooLarge` line in `failures.jsonl`. The estimate includes waters, ligands and every altloc, so it is an upper bound and not the same number as curation's [`max_atoms`](#quality_rules), which counts atoms after canonicalisation and curation. `canonicalise_structure` itself ignores this field.
+
 ### `identifier_rules`
 
 **`chain_id.strategy`** (default `preserve`)

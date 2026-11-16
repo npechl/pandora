@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from pandora.canonicalisation import chain_copy_records
+from pandora.canonicalisation import chain_copy_records, estimate_atom_count
 from pandora.canonicalisation.altlocs import _resolve_altlocs
 from pandora.canonicalisation.assemblies import (
     _normalize_assemblies,
@@ -1649,3 +1649,44 @@ def test_chain_copy_records_skip_copies_removed_later():
     canon, mappings, _ = canonicalise_structure(structure, policy)
     rows = chain_copy_records(canon, mappings)
     assert [(r.chain_id, r.source_chain_id) for r in rows] == [("A-2", "A")]
+
+
+FIXTURES_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
+
+
+def _size_policy(strategy: str) -> canonicalisationPolicy:
+    return canonicalisationPolicy(
+        policy_id="t",
+        policy_name="t",
+        policy_version="1",
+        assembly_rules=AssemblyRules(
+            strategy=strategy, preferred_assembly_source="first"
+        ),
+        altloc_rules=AltlocRules(strategy="preserve"),
+    )
+
+
+def test_estimate_atom_count_expands_assembly():
+    # 1ar2: 857 asymmetric-unit atoms, assembly 1 = 2 operators over A, B.
+    path = FIXTURES_DIR / "ar" / "1ar2.cif"
+    policy = _size_policy("standardize_biological_assembly")
+    assert estimate_atom_count(path, policy) == 1714
+    parsed, _, _ = mmcif_to_structure(str(path))
+    canon, _, _ = canonicalise_structure(parsed, policy)
+    assert estimate_atom_count(path, policy) == len(canon.atoms)
+
+
+def test_estimate_atom_count_sixty_operators():
+    path = FIXTURES_DIR / "au" / "1auy.cif"  # 4045 atoms x 60 operators
+    policy = _size_policy("standardize_biological_assembly")
+    assert estimate_atom_count(path, policy) == 242700
+
+
+def test_estimate_atom_count_without_expansion_is_asymmetric_unit():
+    path = FIXTURES_DIR / "ar" / "1ar2.cif"
+    policy = _size_policy("preserve_as_reported")
+    assert estimate_atom_count(path, policy) == 857
+
+
+def test_policy_max_atoms_defaults_to_none():
+    assert _size_policy("preserve_as_reported").max_atoms is None

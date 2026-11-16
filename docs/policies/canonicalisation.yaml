@@ -4,6 +4,11 @@ CanonicalisationPolicy:
   policy_version: string
   description: string
 
+  max_atoms: integer | null
+  # Largest estimated atom count `pandora canonicalise` parses (model 1,
+  # after assembly expansion, before ligand/water/altloc filtering).
+  # null: no check. Entries above it are skipped as TooLarge.
+
   identifier_rules:
     chain_id:
       strategy: string

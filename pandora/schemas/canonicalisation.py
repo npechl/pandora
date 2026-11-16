@@ -531,6 +531,9 @@ class canonicalisationPolicy(BaseModel):
         modified_residue_rules: The modified-residue mapping rules.
         validation_rules: The validation strictness rules.
         provenance_rules: Which provenance is recorded for this run.
+        max_atoms: Skip an entry whose estimated atom count (model 1,
+            after assembly expansion, before ligand, water and altloc
+            filtering) is above this. None: no check.
     """
 
     policy_id: str
@@ -552,6 +555,7 @@ class canonicalisationPolicy(BaseModel):
     provenance_rules: canonicalisationProvenanceRules = Field(
         default_factory=canonicalisationProvenanceRules
     )
+    max_atoms: int | None = None
 
 
 class canonicalisationProvenance(BaseModel):
