@@ -29,13 +29,21 @@ from pandora.annotations.entry import CONTACT_ATOM_SETS
 from pandora.cli._io import (
     STEP_SUMMARIES,
     TABLE_FORMATS,
+    TableWriter,
     check_contact_layer,
     check_table_format,
+    contact_rows,
     copy_source,
+    entry_key,
     find_table,
     layer_origin,
     prepare_output_dir,
+    read_rows,
+    read_structure,
     read_structures_dir,
+    rows_by_entry,
+    structure_index,
+    table_columns,
     write_table,
 )
 from pandora.datasets import missing_positions
@@ -44,7 +52,6 @@ from pandora.ingestion import load_policy
 from pandora.provenance import build_step_summary
 from pandora.schemas.annotation import (
     LayerDescription,
-    LayerRow,
     ResidueContactRow,
 )
 from pandora.schemas.dataset import DatasetChainRecord
@@ -89,13 +96,16 @@ def _cmd_compute(args: argparse.Namespace) -> None:
     out = Path(args.output_dir)
     prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
     structures_dir = Path(args.structures_dir)
-    rows = []
     entries = 0
-    for structure in read_structures_dir(structures_dir):
-        entries += 1
-        rows.extend(function(structure, **settings))
-    rows.sort(key=lambda row: row.entry_id)  # stable: keeps per-entry order
-    write_table(rows, out, "layer", args.table_format)
+    with TableWriter(out, "layer", args.table_format) as writer:
+        for _, path in sorted(structure_index(structures_dir).items()):
+            structure = read_structure(path)
+            if structure is None:
+                continue
+            entries += 1
+            for row in function(structure, **settings):
+                writer.write(row.model_dump())
+    rows = writer.rows
     defaults = {
         name: param.default
         for name, param in inspect.signature(function).parameters.items()
@@ -115,12 +125,12 @@ def _cmd_compute(args: argparse.Namespace) -> None:
             input=structures_dir,
             output=out,
             started_at=started_at,
-            counts={"entries": entries, "rows": len(rows)},
+            counts={"entries": entries, "rows": rows},
             previous_summary=_previous_summary(structures_dir),
         ),
         out / "layer.json",
     )
-    print(f"computed: {len(rows)} rows for {entries} entries -> {out}")
+    print(f"computed: {rows} rows for {entries} entries -> {out}")
 
 
 def _previous_summary(structures_dir: Path) -> Path | None:
@@ -157,48 +167,38 @@ def _cmd_import(args: argparse.Namespace) -> None:
         description = load_policy(args.description, model=LayerDescription)
         if description.template == "similarity":
             check_layer_columns((), "similarity")
-        rows = [row.model_dump() for row in read_records(table, LayerRow)]
-        if rows:
-            columns = {column for row in rows for column in row}
+        columns = table_columns(table)
+        if columns:
             check_layer_columns(columns, description.template)
     except ValueError as exc:
         raise SystemExit(f"cannot import {table}: {exc}") from exc
 
     prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
     structures_dir = Path(args.structures_dir)
-    by_entry: dict[str, list[dict[str, Any]]] = {}
-    for row in rows:
-        entry = str(row.get("entry_id", "")).upper()
-        by_entry.setdefault(entry, []).append(row)
-    matched: list[dict[str, Any]] = []
-    unmatched: list[dict[str, Any]] = []
-    for structure in read_structures_dir(structures_dir):
-        entry_rows = by_entry.pop(structure.entry_id.upper(), [])
-        found, missed = resolve_layer_rows(
-            entry_rows, description.template, {structure.entry_id: structure}
-        )
-        matched.extend(found)
-        unmatched.extend(missed)
-    for entry_rows in by_entry.values():
-        unmatched.extend(
-            resolve_layer_rows(entry_rows, description.template, {})[1]
-        )
+    paths = structure_index(structures_dir)
+    counts: Counter[str] = Counter(rows_in=0)
+    with (
+        TableWriter(out, "layer", args.table_format) as layer,
+        TableWriter(out, "unmatched", args.table_format) as unmatched,
+    ):
+        for entry, rows in rows_by_entry(table):
+            path = paths.get(entry)
+            structure = read_structure(path) if path else None
+            found, missed = resolve_layer_rows(
+                rows,
+                description.template,
+                {structure.entry_id: structure} if structure else {},
+            )
+            for row in found:
+                layer.write(row)
+            for row in missed:
+                unmatched.write(row)
+                counts[f"unmatched:{row['reason']}"] += 1
+            counts["rows_in"] += len(rows)
+    counts["rows_matched"] = layer.rows
+    counts["rows_unmatched"] = unmatched.rows
     if args.source_files:
         copy_source(Path(args.source_files), out / "source")
-    for name, table_rows in (("layer", matched), ("unmatched", unmatched)):
-        write_table(
-            [LayerRow(**row) for row in _uniform_columns(table_rows)],
-            out,
-            name,
-            args.table_format,
-        )
-
-    counts = Counter(
-        rows_in=len(rows),
-        rows_matched=len(matched),
-        rows_unmatched=len(unmatched),
-    )
-    counts.update(f"unmatched:{r['reason']}" for r in unmatched)
     previous = _previous_summary(structures_dir)
     write_json(
         build_step_summary(
@@ -212,36 +212,7 @@ def _cmd_import(args: argparse.Namespace) -> None:
         ),
         out / "layer.json",
     )
-    print(f"imported: {len(matched)} rows, {len(unmatched)} unmatched -> {out}")
-
-
-def _uniform_columns(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Rows with every mixed-type column's values turned into strings.
-
-    User tables are often dirty (a number in one row, "n/a" in the
-    next); Parquet needs one type per column.
-    """
-
-    kinds: dict[str, set[str]] = {}
-    for row in rows:
-        for column, value in row.items():
-            if value is None:
-                continue
-            number = isinstance(value, int | float) and not isinstance(
-                value, bool
-            )
-            kind = "number" if number else type(value).__name__
-            kinds.setdefault(column, set()).add(kind)
-    mixed = {column for column, found in kinds.items() if len(found) > 1}
-    return [
-        {
-            column: str(value)
-            if column in mixed and value is not None
-            else value
-            for column, value in row.items()
-        }
-        for row in rows
-    ]
+    print(f"imported: {layer.rows} rows, {unmatched.rows} unmatched -> {out}")
 
 
 # --level -> (count function, template of the layer it writes).
@@ -266,8 +237,8 @@ def _cmd_count(args: argparse.Namespace) -> None:
             f"annotate count-contacts: {out} is the --contacts folder; "
             "choose another --output-dir"
         )
-    table = find_table(contacts, "layer")
-    rows = read_records(table, ResidueContactRow) if table else []
+    rows_in: Counter[str] = Counter()
+    rows = contact_rows(find_table(contacts, "layer"), rows_in)
     prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
     function, template = _COUNT[args.level]
     counted = function(rows)
@@ -286,13 +257,13 @@ def _cmd_count(args: argparse.Namespace) -> None:
             input=contacts,
             output=out,
             started_at=started_at,
-            counts={"rows_in": len(rows), "rows_out": len(counted)},
+            counts={"rows_in": rows_in["rows_in"], "rows_out": len(counted)},
             previous_summary=contacts / "layer.json",
         ),
         out / "layer.json",
     )
     print(
-        f"counted: {len(counted)} {args.level} rows from {len(rows)} "
+        f"counted: {len(counted)} {args.level} rows from {rows_in['rows_in']} "
         f"contacts -> {out}"
     )
 
@@ -343,14 +314,16 @@ def _cmd_filter(args: argparse.Namespace) -> None:
             "from the same structures folder"
         )
 
-    table = find_table(contacts, "layer")
-    rows = read_records(table, ResidueContactRow) if table else []
-    table = find_table(labels, "layer")
-    label_rows = read_records(table, LayerRow) if table else []
+    label_table = find_table(labels, "layer")
+    labels_by_entry: dict[str, list[dict[str, Any]]] = {}
+    for row in read_rows(label_table) if label_table else ():
+        labels_by_entry.setdefault(entry_key(row), []).append(row)
     drop = set(args.drop)
     # A label the layer can give (`parameters.labels`, recorded by Pandora's
     # labelling commands) is no typo even when no interface has it.
-    present = {row.label for row in label_rows}
+    present = {
+        row["label"] for rows in labels_by_entry.values() for row in rows
+    }
     known = (labels_policy.get("parameters") or {}).get("labels") or []
     unknown = drop - present - set(known)
     if unknown:
@@ -358,10 +331,14 @@ def _cmd_filter(args: argparse.Namespace) -> None:
             f"{command}: no interface has the label(s) {sorted(unknown)}; "
             "check for typos"
         )
-    kept = drop_labelled_interfaces(rows, label_rows, drop & present)
 
     prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
-    write_table(kept, out, "layer", args.table_format)
+    counts = _filter_entries(
+        find_table(contacts, "layer"),
+        labels_by_entry,
+        drop,
+        TableWriter(out, "layer", args.table_format),
+    )
     source = json.loads((contacts / "layer.json").read_text())["policy"]
     description = LayerDescription(
         name="filtered_contacts",
@@ -375,8 +352,6 @@ def _cmd_filter(args: argparse.Namespace) -> None:
             "drop": sorted(drop),
         },
     )
-    counts = count_interface_labels(rows, label_rows, drop)
-    counts |= {"rows_in": len(rows), "rows_out": len(kept)}
     write_json(
         build_step_summary(
             "annotation_filter",
@@ -395,6 +370,36 @@ def _cmd_filter(args: argparse.Namespace) -> None:
         f"{kept_interfaces} kept, {counts['interfaces_unlabelled']} "
         f"unlabelled -> {out}"
     )
+
+
+def _filter_entries(
+    table: Path | None,
+    labels_by_entry: dict[str, list[dict[str, Any]]],
+    drop: set[str],
+    writer: TableWriter,
+) -> Counter[str]:
+    """Write `table`'s contact rows minus dropped interfaces to `writer`,
+    one entry at a time; returns the filter's counts."""
+
+    counts: Counter[str] = Counter(rows_in=0)
+    with writer:
+        for entry, rows in rows_by_entry(table) if table else ():
+            entry_rows = [ResidueContactRow.model_validate(r) for r in rows]
+            entry_labels = labels_by_entry.pop(entry, [])
+            given = {row["label"] for row in entry_labels}
+            for row in drop_labelled_interfaces(
+                entry_rows, entry_labels, drop & given
+            ):
+                writer.write(row.model_dump())
+            counts.update(
+                count_interface_labels(entry_rows, entry_labels, drop)
+            )
+            counts["rows_in"] += len(rows)
+    # Labels of entries with no contacts only add to labels_unmatched.
+    leftover = [row for rows in labels_by_entry.values() for row in rows]
+    counts.update(count_interface_labels([], leftover, drop))
+    counts["rows_out"] = writer.rows
+    return counts
 
 
 def _cmd_label(args: argparse.Namespace) -> None:
@@ -430,8 +435,8 @@ def _cmd_label(args: argparse.Namespace) -> None:
         for chain in read_records(chains_table, DatasetChainRecord)
         if chain.seqres_length is not None
     }
-    table = find_table(contacts, "layer")
-    rows = read_records(table, ResidueContactRow) if table else []
+    rows_in: Counter[str] = Counter()
+    rows = contact_rows(find_table(contacts, "layer"), rows_in)
     labelled = label_interfaces(
         rows, lengths, args.min_residues_per_chain, args.max_total_residues
     )
@@ -454,7 +459,7 @@ def _cmd_label(args: argparse.Namespace) -> None:
     )
     labels = Counter(row.label for row in labelled)
     counts = {
-        "rows_in": len(rows),
+        "rows_in": rows_in["rows_in"],
         "interfaces": len(labelled),
         "ok": labels["ok"],
         "few_contacts": labels["few_contacts"],
@@ -502,8 +507,6 @@ def _cmd_gaps(args: argparse.Namespace) -> None:
             "came from; the paths in its layer.json may be relative to "
             "where `annotate compute` ran, so run from that folder"
         )
-    table = find_table(contacts, "layer")
-    rows = read_records(table, ResidueContactRow) if table else []
     missing: dict[tuple[str, str], set[int]] = {}
     unmeasured = 0
     for structure in read_structures_dir(origin):
@@ -511,6 +514,8 @@ def _cmd_gaps(args: argparse.Namespace) -> None:
         unmeasured += len(diagnostics.warnings)
         for chain_id, positions in chains.items():
             missing[(structure.entry_id.upper(), chain_id)] = positions
+    rows_in: Counter[str] = Counter()
+    rows = contact_rows(find_table(contacts, "layer"), rows_in)
     labelled = label_interface_gaps(rows, missing)
 
     prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
@@ -530,7 +535,7 @@ def _cmd_gaps(args: argparse.Namespace) -> None:
     )
     labels = Counter(row.label for row in labelled)
     counts = {
-        "rows_in": len(rows),
+        "rows_in": rows_in["rows_in"],
         "interfaces": len(labelled),
         "ok": labels["ok"],
         "interface_gap": labels["interface_gap"],

@@ -19,6 +19,7 @@ from pandora.cli._io import (
     STEP_SUMMARIES,
     ParquetSink,
     check_contact_layer,
+    contact_rows,
     copy_source,
     find_table,
     layer_origin,
@@ -27,8 +28,12 @@ from pandora.cli._io import (
     load_yaml_model,
     prepare_output_dir,
     read_columns,
+    read_structure,
     read_structures_dir,
+    rows_by_entry,
+    structure_index,
 )
+from pandora.datasets import interface_residue_pairs
 from pandora.export import (
     export_chain_mmcif,
     read_records,
@@ -553,31 +558,22 @@ def _interface_residues(
             "(the structures the --contacts layer was computed from)"
         )
     rows_file = _contact_layer("cluster", contacts)
-    rows = (
-        read_records(rows_file, ResidueContactRow)
-        if rows_file.name != "layer.json"
-        else []
-    )
-    by_entry: dict[str, list[ResidueContactRow]] = {}
-    for row in rows:
-        by_entry.setdefault(row.entry_id, []).append(row)
+    groups = rows_by_entry(rows_file) if rows_file.name != "layer.json" else ()
+    paths = structure_index(structures_dir)
     result: dict[str, set[int]] = {}
-    for structure in read_structures_dir(structures_dir):
-        entry_rows = by_entry.pop(structure.entry_id, [])
-        if entry_rows:
-            result.update(
-                interface_residues_from_annotation(
-                    {structure.entry_id: structure}, entry_rows
-                )
+    for entry, rows in groups:
+        entry_rows = [ResidueContactRow.model_validate(r) for r in rows]
+        if not interface_residue_pairs(entry_rows):
+            continue  # no inter-chain polymer contact: nothing to place
+        path = paths.get(entry)
+        structure = read_structure(path) if path else None
+        if structure is None:
+            raise SystemExit(
+                f"cluster: {contacts} names an entry missing from "
+                f"{structures_dir}: {entry!r}"
             )
-    leftover = [row for entry_rows in by_entry.values() for row in entry_rows]
-    try:  # raises only if a leftover row is an inter-chain contact
-        interface_residues_from_annotation({}, leftover)
-    except KeyError as exc:
-        raise SystemExit(
-            f"cluster: {contacts} names an entry missing from "
-            f"{structures_dir}: {exc}"
-        ) from exc
+        by_id = {row.entry_id: structure for row in entry_rows}
+        result.update(interface_residues_from_annotation(by_id, entry_rows))
     return result
 
 
@@ -843,15 +839,12 @@ def _interface_values(
         )
     table = _step_table(command, origin, "chains", "pandora curate")
     chains, non_copies = _chain_values(table, {"resolution"})
-    rows = (
-        read_records(rows_file, ResidueContactRow)
-        if rows_file.name != "layer.json"
-        else []
-    )
-    interfaces = set(interface_items(r.model_dump() for r in rows).ids.values())
+    table = rows_file if rows_file.name != "layer.json" else None
+    rows = (row.model_dump() for row in contact_rows(table, Counter()))
+    interfaces = set(interface_items(rows).ids.values())
     values: dict[str, dict[str, Any]] = {}
     eligible: set[str] = set()
-    for row in label_interfaces(rows, {}):
+    for row in label_interfaces(contact_rows(table, Counter()), {}):
         key = item_id("interface", row.entry_id, row.chain_id_1, row.chain_id_2)
         if key not in interfaces:
             continue
@@ -1063,8 +1056,8 @@ def _cmd_interfaces(args: argparse.Namespace) -> None:
             f"{command}: {clusters_file} must cluster chain items "
             f"(ENTRY_CHAIN): {exc}"
         ) from exc
-    table = find_table(contacts, "layer")
-    rows = read_records(table, ResidueContactRow) if table else []
+    rows_in: Counter[str] = Counter()
+    rows = contact_rows(find_table(contacts, "layer"), rows_in)
     scored, counts = interface_similarity(
         rows, clusters, sequences, args.min_identity
     )
@@ -1092,7 +1085,7 @@ def _cmd_interfaces(args: argparse.Namespace) -> None:
         input=contacts,
         out=out,
         started_at=started_at,
-        counts=Counter({"rows_in": len(rows)} | counts),
+        counts=Counter(rows_in | counts),
         previous=contacts / "layer.json",
     )
     print(

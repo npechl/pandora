@@ -14,9 +14,13 @@ from pandora.annotations import (
     drop_labelled_interfaces,
     label_interfaces,
 )
+from pandora.cli import _io
 from pandora.cli._io import (
+    TableWriter,
     layer_origin,
+    read_rows,
     read_structures_dir,
+    rows_by_entry,
     write_structures_dir,
 )
 from pandora.cli.app import _build_parser, main
@@ -511,6 +515,67 @@ def test_read_structures_dir_reads_flat_mirror_and_step_folders(tmp_path):
     shutil.copy(src, step / "structures" / "04" / "104m.cif")
     for folder in (flat, mirror, step):
         assert [s.entry_id for s in read_structures_dir(folder)] == ["104M"]
+
+
+_UNSORTED = [
+    {"entry_id": "2xyz", "n": 1},
+    {"entry_id": "1ABC", "n": 2},
+    {"entry_id": "2XYZ", "n": 3},
+    {"entry_id": None, "n": 4},
+    {"entry_id": "1abc", "n": 5},
+]
+
+
+@pytest.mark.parametrize("suffix", [".jsonl", ".parquet"])
+def test_rows_by_entry_groups_unsorted_rows(tmp_path, suffix):
+    path = tmp_path / f"rows{suffix}"
+    if suffix == ".jsonl":
+        path.write_text("".join(json.dumps(r) + "\n" for r in _UNSORTED))
+    else:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        pq.write_table(pa.Table.from_pylist(_UNSORTED), path)
+    groups = [
+        (entry, [row["n"] for row in rows])
+        for entry, rows in rows_by_entry(path)
+    ]
+    # Sorted by entry, case-insensitive, file order kept within an entry;
+    # a null entry_id groups as "NONE", as resolve_layer_rows sees it.
+    assert groups == [("1ABC", [2, 5]), ("2XYZ", [1, 3]), ("NONE", [4])]
+
+
+@pytest.mark.parametrize("table_format", ["jsonl", "parquet"])
+def test_table_writer_types_columns_across_chunks(
+    tmp_path, monkeypatch, table_format
+):
+    monkeypatch.setattr(_io, "_CHUNK_ROWS", 2)
+    rows = [
+        {"a": 1, "b": None, "c": "x"},
+        {"a": 2, "b": None, "c": "y"},
+        {"a": 3.5, "b": "late", "c": 7},  # c mixes text and numbers
+    ]
+    with TableWriter(tmp_path, "layer", table_format) as writer:
+        for row in rows:
+            writer.write(row)
+    assert writer.rows == 3
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        f"layer.{table_format}"
+    ]
+    assert list(read_rows(tmp_path / f"layer.{table_format}")) == [
+        {"a": 1, "b": None, "c": "x"},
+        {"a": 2, "b": None, "c": "y"},
+        {"a": 3.5, "b": "late", "c": "7"},
+    ]
+
+
+def test_table_writer_writes_no_file_without_rows_or_on_error(tmp_path):
+    with TableWriter(tmp_path, "empty", "parquet"):
+        pass
+    with pytest.raises(RuntimeError), TableWriter(tmp_path, "x", "jsonl") as w:
+        w.write({"a": 1})
+        raise RuntimeError
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_write_structures_dir_uses_mirror_layout(tmp_path):

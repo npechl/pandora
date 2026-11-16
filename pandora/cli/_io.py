@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import itertools
 import json
+import os
 import shutil
 import sys
+import tempfile
+from array import array
+from collections import Counter
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Any
@@ -15,7 +20,7 @@ from pydantic import BaseModel
 from pandora.export import structure_to_mmcif, write_records
 from pandora.ingestion import list_mirror_files, mirror_path
 from pandora.parsing import mmcif_to_structure
-from pandora.schemas.annotation import AnnotationLayer
+from pandora.schemas.annotation import AnnotationLayer, ResidueContactRow
 from pandora.schemas.structure import Structure
 
 TABLE_FORMATS = ("parquet", "jsonl")
@@ -212,11 +217,259 @@ def read_structures_dir(input_dir: Path) -> Iterator[Structure]:
     """
 
     for path in structure_files(input_dir):
-        structure, _, status = mmcif_to_structure(str(path))
-        if structure is None:
-            print(f"warning: failed to parse {path}: {status}", file=sys.stderr)
-            continue
-        yield structure
+        structure = read_structure(path)
+        if structure is not None:
+            yield structure
+
+
+def read_structure(path: Path) -> Structure | None:
+    """Parse one structure file; None, with a warning, if it fails."""
+
+    structure, _, status = mmcif_to_structure(str(path))
+    if structure is None:
+        print(f"warning: failed to parse {path}: {status}", file=sys.stderr)
+    return structure
+
+
+def structure_index(folder: Path) -> dict[str, Path]:
+    """Upper-cased entry ID (the file name up to its first dot) -> the
+    structure file in `folder` (see `structure_files`)."""
+
+    return {
+        path.name.split(".")[0].upper(): path
+        for path in structure_files(folder)
+    }
+
+
+def read_rows(path: Path) -> Iterator[dict[str, Any]]:
+    """Stream every row of a `.parquet`, `.jsonl` or `.json` table as a
+    dict; raises ValueError for another suffix."""
+
+    suffix = path.suffix.lower()
+    if suffix == ".parquet":
+        import pyarrow.parquet as pq
+
+        for batch in pq.ParquetFile(path).iter_batches():
+            yield from batch.to_pylist()
+    elif suffix == ".jsonl":
+        with path.open(encoding="utf-8") as handle:
+            for line in handle:
+                if line.strip():
+                    yield json.loads(line)
+    elif suffix == ".json":
+        yield from json.loads(path.read_text(encoding="utf-8"))
+    else:
+        raise ValueError(f"unsupported suffix {suffix!r}")
+
+
+def table_columns(path: Path) -> set[str]:
+    """Every column name of a table (see `read_rows`)."""
+
+    if path.suffix.lower() == ".parquet":
+        import pyarrow.parquet as pq
+
+        return set(pq.ParquetFile(path).schema_arrow.names)
+    return {column for row in read_rows(path) for column in row}
+
+
+def contact_rows(
+    path: Path | None, counts: Counter[str]
+) -> Iterator[ResidueContactRow]:
+    """Stream a `residue_contacts` table one row at a time (nothing if
+    `path` is None), counting rows in `counts["rows_in"]`."""
+
+    if path is None:
+        return
+    for row in read_rows(path):
+        counts["rows_in"] += 1
+        yield ResidueContactRow.model_validate(row)
+
+
+def entry_key(row: dict[str, Any]) -> str:
+    """The upper-cased entry ID a table row names."""
+
+    return str(row.get("entry_id", "")).upper()
+
+
+def rows_by_entry(path: Path) -> Iterator[tuple[str, list[dict[str, Any]]]]:
+    """A table's rows, one entry at a time: `(entry_key(row), rows)` in
+    sorted entry order, rows in file order within an entry.
+
+    Only one entry's rows are held as Python objects. A Parquet table is
+    sorted in columnar form; a JSON Lines file is indexed by byte offset
+    and read back an entry at a time.
+    """
+
+    suffix = path.suffix.lower()
+    if suffix == ".parquet":
+        yield from _parquet_by_entry(path)
+    elif suffix == ".jsonl":
+        yield from _jsonl_by_entry(path)
+    else:
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for row in read_rows(path):
+            grouped.setdefault(entry_key(row), []).append(row)
+        yield from sorted(grouped.items())
+
+
+def _parquet_by_entry(
+    path: Path,
+) -> Iterator[tuple[str, list[dict[str, Any]]]]:
+    """`rows_by_entry` for Parquet: a stable columnar sort by entry."""
+
+    import pyarrow.compute as pc
+    import pyarrow.parquet as pq
+
+    table = pq.read_table(path)
+    if table.num_rows == 0:
+        return
+    if "entry_id" not in table.column_names:
+        yield "", table.to_pylist()
+        return
+    ids = pc.cast(table.column("entry_id"), "string")
+    keys = pc.utf8_upper(pc.fill_null(ids, "NONE"))  # as entry_key(None)
+    order = pc.sort_indices(keys)  # Arrow's sort is stable
+    keys, table = keys.take(order), table.take(order)
+    entry, rows = None, []
+    for start in range(0, table.num_rows, _CHUNK_ROWS):
+        chunk = table.slice(start, _CHUNK_ROWS).to_pylist()
+        chunk_keys = keys.slice(start, _CHUNK_ROWS).to_pylist()
+        for key, row in zip(chunk_keys, chunk, strict=True):
+            if key != entry:
+                if rows:
+                    yield entry, rows
+                entry, rows = key, []
+            rows.append(row)
+    yield entry, rows
+
+
+def _jsonl_by_entry(
+    path: Path,
+) -> Iterator[tuple[str, list[dict[str, Any]]]]:
+    """`rows_by_entry` for JSON Lines: byte offsets per entry, then each
+    entry's lines read back with seek."""
+
+    offsets: dict[str, array[int]] = {}
+    with path.open("rb") as handle:
+        position = 0
+        for line in handle:
+            if line.strip():
+                key = entry_key(json.loads(line))
+                offsets.setdefault(key, array("q")).append(position)
+            position += len(line)
+        for key in sorted(offsets):
+            rows = []
+            for offset in offsets.pop(key):
+                handle.seek(offset)
+                rows.append(json.loads(handle.readline()))
+            yield key, rows
+
+
+_CHUNK_ROWS = 50_000
+
+
+class TableWriter:
+    """Stream dict rows into `folder/<name>.<table_format>`; no file if
+    no rows. A column holding mixed kinds (a number in one row, text in
+    the next) is written as text, since Parquet needs one type per column.
+
+    Rows are spooled to a JSON Lines file in `folder` first, so memory
+    stays at one chunk of rows whatever the table's size.
+    """
+
+    def __init__(self, folder: Path, name: str, table_format: str) -> None:
+        self.path = folder / f"{name}.{table_format}"
+        self.rows = 0
+        self._kinds: dict[str, set[str]] = {}
+        self._samples: dict[str, Any] = {}
+        handle, spool = tempfile.mkstemp(dir=folder, suffix=".spool")
+        self._spool = Path(spool)
+        self._handle = os.fdopen(handle, "w", encoding="utf-8")
+
+    def write(self, row: dict[str, Any]) -> None:
+        """Add one row."""
+
+        for column, value in row.items():
+            kinds = self._kinds.setdefault(column, set())
+            if value is not None:
+                kinds.add(type(value).__name__)
+                self._samples.setdefault(column, value)
+        self._handle.write(json.dumps(row) + "\n")
+        self.rows += 1
+
+    def close(self) -> None:
+        """Write the table from the spool and delete the spool."""
+
+        self._handle.close()
+        try:
+            if self.rows:
+                self._finish()
+        finally:
+            self._spool.unlink()
+
+    def _finish(self) -> None:
+        """Copy the spool into the table, mixed columns as text."""
+
+        mixed = {
+            column
+            for column, kinds in self._kinds.items()
+            if len({"number" if k in _NUMBERS else k for k in kinds}) > 1
+        }
+        with self._spool.open(encoding="utf-8") as handle:
+            rows = (
+                {
+                    column: str(value)
+                    if column in mixed and value is not None
+                    else value
+                    for column, value in json.loads(line).items()
+                }
+                for line in handle
+            )
+            if self.path.suffix == ".jsonl":
+                with self.path.open("w", encoding="utf-8") as out:
+                    for row in rows:
+                        out.write(json.dumps(row) + "\n")
+                return
+            import pyarrow as pa
+
+            schema = pa.schema(
+                (column, self._type(column, column in mixed))
+                for column in self._kinds
+            )
+            with ParquetSink(self.path) as sink:
+                while chunk := list(itertools.islice(rows, _CHUNK_ROWS)):
+                    sink.write(pa.RecordBatch.from_pylist(chunk, schema))
+
+    def _type(self, column: str, mixed: bool) -> Any:
+        """The Arrow type of one output column."""
+
+        import pyarrow as pa
+
+        kinds = self._kinds[column]
+        if mixed or kinds == {"str"}:
+            return pa.string()
+        if not kinds:
+            return pa.null()
+        if kinds == {"bool"}:
+            return pa.bool_()
+        if kinds == {"int"}:
+            return pa.int64()
+        if kinds <= {"int", "float"}:
+            return pa.float64()
+        return pa.infer_type([self._samples[column]])
+
+    def __enter__(self) -> TableWriter:
+        return self
+
+    def __exit__(self, exc_type: object, *exc: object) -> None:
+        if exc_type is None:
+            self.close()
+        else:  # failed part-way: leave no table behind
+            self._handle.close()
+            self._spool.unlink()
+
+
+_NUMBERS = {"int", "float"}
 
 
 def write_structures_dir(
