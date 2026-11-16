@@ -3361,3 +3361,78 @@ def test_assemble_same_file_other_spelling_no_warning(tmp_path, capsys):
     spelled = tmp_path / "sub" / ".." / reps.name
     _assemble(positives, negatives, splits, spelled, tm, tmp_path / "d")
     assert "assemble: warning" not in capsys.readouterr().err
+
+
+def _run_size_guard(tmp_path, limit=None, extra_files=()):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    for fixture in ("ar/1ar2.cif", "b6/1b6w.cif"):  # estimates 1714, 1064
+        shutil.copy(FIXTURES_DIR / fixture, raw)
+    for name, text in extra_files:
+        (raw / name).write_text(text)
+    policy = tmp_path / "policy.yaml"
+    policy.write_text(
+        "policy_id: t\npolicy_name: t\npolicy_version: '1'\n"
+        "assembly_rules:\n"
+        "  strategy: standardize_biological_assembly\n"
+        "  preferred_assembly_source: first\n"
+        + (f"max_atoms: {limit}\n" if limit is not None else "")
+    )
+    out = tmp_path / "out"
+    main(
+        [
+            "canonicalise",
+            "--input-dir",
+            str(raw),
+            "--policy",
+            str(policy),
+            "--output-dir",
+            str(out),
+            "--table-format",
+            "jsonl",
+        ]
+    )
+    return out
+
+
+def test_canonicalise_skips_entry_over_max_atoms(tmp_path):
+    out = _run_size_guard(tmp_path, limit=1500)
+    failures = _jsonl(out / "failures.jsonl")
+    assert [f["error_type"] for f in failures] == ["TooLarge"]
+    assert failures[0]["path"].endswith("1ar2.cif")
+    assert "1714" in failures[0]["message"]
+    assert "1500" in failures[0]["message"]
+    counts = json.loads((out / "canonicalisation.json").read_text())["counts"]
+    assert counts["entries_too_large"] == 1
+    assert counts["entries_failed"] == 1
+    assert counts["entries_kept"] == 1
+
+
+def test_canonicalise_keeps_entry_at_max_atoms(tmp_path):
+    out = _run_size_guard(tmp_path, limit=1714)
+    assert _jsonl(out / "failures.jsonl") == []
+
+
+def test_canonicalise_without_max_atoms_skips_estimate(tmp_path, monkeypatch):
+    def _fail(*args, **kwargs):
+        raise AssertionError("estimate_atom_count called without max_atoms")
+
+    monkeypatch.setattr(
+        "pandora.cli.canonicalisation.estimate_atom_count",
+        _fail,
+        raising=False,
+    )
+    out = _run_size_guard(tmp_path)
+    counts = json.loads((out / "canonicalisation.json").read_text())["counts"]
+    assert counts["entries_kept"] == 2
+    assert "entries_too_large" not in counts
+
+
+def test_canonicalise_unreadable_file_is_a_failure_line(tmp_path):
+    out = _run_size_guard(
+        tmp_path, limit=1500, extra_files=[("broken.cif", "not a cif\n")]
+    )
+    failures = _jsonl(out / "failures.jsonl")
+    broken = [f for f in failures if f["path"].endswith("broken.cif")]
+    assert len(broken) == 1
+    assert broken[0]["error_type"] != "TooLarge"

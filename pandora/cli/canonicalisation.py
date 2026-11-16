@@ -7,9 +7,14 @@ import argparse
 import json
 from collections import Counter
 from pathlib import Path
+from typing import TextIO
 
 from pandora._util import now_iso
-from pandora.canonicalisation import canonicalise_structure, chain_copy_records
+from pandora.canonicalisation import (
+    canonicalise_structure,
+    chain_copy_records,
+    estimate_atom_count,
+)
 from pandora.cli._io import (
     ENTRY_ERRORS,
     TABLE_FORMATS,
@@ -24,6 +29,33 @@ from pandora.export import structure_to_mmcif, write_json
 from pandora.ingestion import load_policy, mirror_path, read_entry_paths
 from pandora.parsing import mmcif_to_structure
 from pandora.provenance import build_step_summary, canonicalisation_entry_record
+from pandora.schemas.canonicalisation import canonicalisationPolicy
+
+
+def _skip_too_large(
+    path: Path,
+    policy: canonicalisationPolicy,
+    counts: Counter[str],
+    failures: TextIO,
+) -> bool:
+    """Record a `TooLarge` failure and return True when the entry's
+    estimated atom count is above `policy.max_atoms`."""
+
+    if policy.max_atoms is None:
+        return False
+    n_atoms = estimate_atom_count(path, policy)
+    if n_atoms <= policy.max_atoms:
+        return False
+    counts["entries_failed"] += 1
+    counts["entries_too_large"] += 1
+    failures.write(
+        failure_line(
+            path,
+            "TooLarge",
+            f"estimated {n_atoms} atoms > max_atoms {policy.max_atoms}",
+        )
+    )
+    return True
 
 
 def _cmd_canonicalise(args: argparse.Namespace) -> None:
@@ -45,7 +77,10 @@ def _cmd_canonicalise(args: argparse.Namespace) -> None:
 
     check_table_format(args.table_format)
     prepare_step_dir(out, "canonicalisation.json", args.overwrite)
-    counts: Counter[str] = Counter(entries_failed=0)
+    counts: Counter[str] = Counter(
+        entries_failed=0,
+        **({} if policy.max_atoms is None else {"entries_too_large": 0}),
+    )
     entries, copies = [], []
     seen: set[str] = set()
     with (
@@ -55,6 +90,8 @@ def _cmd_canonicalise(args: argparse.Namespace) -> None:
         for path in paths:
             counts["entries_in"] += 1
             try:
+                if _skip_too_large(path, policy, counts, failures):
+                    continue
                 parsed, _, _ = mmcif_to_structure(str(path))
                 if parsed is None:
                     raise ValueError(f"could not parse {path}")
