@@ -21,6 +21,7 @@ from pandora.cli._io import (
     load_yaml_model,
     prepare_output_dir,
     read_columns,
+    write_json_list,
     write_table,
 )
 from pandora.cli.similarity import (
@@ -36,7 +37,7 @@ from pandora.cli.similarity import (
     _require_pyarrow,
     _similarity_level,
 )
-from pandora.export import read_records, write_json, write_records
+from pandora.export import read_records, write_json
 from pandora.provenance import build_step_summary
 from pandora.schemas.annotation import LayerDescription, LayerRow
 from pandora.schemas.similarity import (
@@ -273,7 +274,7 @@ def _write_groups_and_kinds(
     `kinds/`, an interface_labels layer of homomer/heteromer."""
 
     kept = restrict_clusters(groups, {p.dimer for p in positives})
-    write_records(kept, out / "groups.json")
+    write_json_list(kept, out / "groups.json")
     kinds = out / "kinds"
     kinds.mkdir()
     rows = [

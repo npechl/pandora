@@ -32,6 +32,7 @@ from pandora.cli._io import (
     read_structures_dir,
     rows_by_entry,
     structure_index,
+    write_json_list,
 )
 from pandora.datasets import interface_residue_pairs
 from pandora.export import (
@@ -729,7 +730,7 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
     )
 
     output = Path(args.output)
-    write_records(clusters, output)
+    write_json_list(clusters, output)
     write_json(prov, output.parent / "cluster_provenance.json")
     print(f"{len(clusters)} clusters from {prov.n_edges} edges -> {output}")
 
@@ -965,7 +966,7 @@ def _cmd_representatives(args: argparse.Namespace) -> None:
         n_clusters_dropped=len(clusters_in) - len(clusters),
     )
     output = Path(args.output)
-    write_records(reps, output)
+    write_json_list(reps, output)
     write_json(prov, output.parent / "representatives_provenance.json")
     print(f"{len(reps)} representatives from {n_members} {items}s -> {output}")
 

@@ -2537,6 +2537,20 @@ def _iface_cluster(layer, contacts, output):
     return [c["components"] for c in json.loads(output.read_text())]
 
 
+def test_cluster_with_no_items_writes_an_empty_list(tmp_path):
+    # A contact layer with no rows (a sample where nothing touches) has
+    # no interface items, so there is nothing to cluster.
+    contacts = tmp_path / "contacts"
+    contacts.mkdir()
+    (contacts / "layer.json").write_text(
+        json.dumps({"policy": {"template": "residue_contacts"}})
+    )
+    layer = _similarity_layer(tmp_path / "iface_sim", None, "interface")
+    output = tmp_path / "clusters.json"
+
+    assert _iface_cluster(layer, contacts, output) == []
+
+
 def test_similarity_interfaces_writes_layer(tmp_path, capsys):
     step, contacts, clusters_file, seqs = _iface_inputs(tmp_path)
     out = tmp_path / "iface_jaccard"

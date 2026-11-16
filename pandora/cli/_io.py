@@ -499,6 +499,17 @@ def load_json_model(model_cls: type[BaseModel], path: Path) -> BaseModel:
     return model_cls.model_validate(json.loads(path.read_text()))
 
 
+def write_json_list(records: Sequence[BaseModel], path: Path) -> None:
+    """Write `records` as a JSON array to `path`, `[]` when there are
+    none (a small sample can leave a step with nothing to write)."""
+
+    if records:
+        write_records(records, path)
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("[]", encoding="utf-8")
+
+
 def load_json_list(model_cls: type[BaseModel], path: Path) -> list:
     """Load and validate a JSON array as a list of model instances."""
 
