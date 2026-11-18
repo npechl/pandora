@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 
+from pandora import __version__
 from pandora.cli import (
     annotate,
     canonicalisation,
@@ -37,6 +38,9 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="pandora",
         description="Pandora command-line tools for building ML-ready structure datasets.",
     )
+
+    parser.add_argument("-v", "--version", help="show Pandora's version number and exit", action="version", version=f"pandora {__version__}")
+
     subparsers = parser.add_subparsers(dest="command", required=True)
     for module in _MODULES:
         module.register(subparsers)

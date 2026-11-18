@@ -121,33 +121,16 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument("--allow-partial", action="store_true")
     p.set_defaults(func=_cmd_fetch)
 
-    p = subparsers.add_parser(
-        "ingest",
-        help="List an archive's mmCIF files into entries.txt, without "
-        "opening them.",
-    )
+    p = subparsers.add_parser("ingest", help="List an archive's mmCIF files into entries.txt, withoutopening them.")
     p.add_argument("--input-dir", required=True, help="the archive's root")
+    
     find = p.add_mutually_exclusive_group(required=True)
-    find.add_argument(
-        "--glob", help="glob pattern relative to --input-dir, e.g. '*/*.cif'"
-    )
-    find.add_argument(
-        "--path-template",
-        help="path relative to --input-dir with {id} and {mid}, e.g. "
-        "'{mid}/{id}/clean_mmcif/{id}_updated.cif.gz'; lists only the "
-        "folders above {id}",
-    )
-    p.add_argument(
-        "--ids",
-        help="file of entry IDs, one per line, to fill --path-template "
-        "with instead of listing",
-    )
+    find.add_argument("--glob", help="glob pattern relative to --input-dir, e.g. '*/*.cif'")
+    find.add_argument("--path-template", help="path relative to --input-dir with {id} and {mid}, e.g. '{mid}/{id}/clean_mmcif/{id}_updated.cif.gz'; lists only the folders above {id}")
+    
+    p.add_argument("--ids", help="file of entry IDs, one per line, to fill --path-template with instead of listing")
     p.add_argument("--source-label", help="free-text label for the source")
     p.add_argument("--release-date", help="the source's release date")
     p.add_argument("--output-dir", required=True)
-    p.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="replace entries.txt/ingestion.json in --output-dir",
-    )
+    p.add_argument("--overwrite", action="store_true", help="replace entries.txt/ingestion.json in --output-dir")
     p.set_defaults(func=_cmd_ingest)

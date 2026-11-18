@@ -139,30 +139,15 @@ def _cmd_canonicalise(args: argparse.Namespace) -> None:
 def register(subparsers: argparse._SubParsersAction) -> None:
     """Add this module's subcommands to the `pandora` parser."""
 
-    p = subparsers.add_parser(
-        "canonicalise",
-        help="Canonicalise mmCIF files into a step folder.",
-    )
+    p = subparsers.add_parser("canonicalise", help="Canonicalise mmCIF files into a step folder.")
+    
     source = p.add_mutually_exclusive_group(required=True)
-    source.add_argument(
-        "--input-dir", help="folder of mmCIF files (flat or mirror layout)"
-    )
-    source.add_argument(
-        "--entries", help="text file listing mmCIF paths, one per line"
-    )
-    p.add_argument(
-        "--policy", required=True, help="canonicalisationPolicy YAML"
-    )
+    source.add_argument("--input-dir", help="folder of mmCIF files (flat or mirror layout)")
+    source.add_argument("--entries", help="text file listing mmCIF paths, one per line")
+    
+    p.add_argument("--policy", required=True, help="canonicalisationPolicy YAML")
     p.add_argument("--output-dir", required=True)
-    p.add_argument(
-        "--table-format",
-        choices=TABLE_FORMATS,
-        default="parquet",
-        help="format of the entries/chain_copies tables",
-    )
-    p.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="replace step outputs already in --output-dir",
-    )
+    p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet", help="format of the entries/chain_copies tables")
+    p.add_argument("--overwrite", action="store_true", help="replace step outputs already in --output-dir",)
+    
     p.set_defaults(func=_cmd_canonicalise)
