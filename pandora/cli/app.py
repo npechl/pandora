@@ -39,7 +39,11 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Pandora command-line tools for building ML-ready structure datasets.",
     )
 
-    parser.add_argument("-v", "--version", help="show Pandora's version number and exit", action="version", version=f"pandora {__version__}")
+    parser.add_argument(
+        "-v", "--version", 
+        help="show Pandora's version number and exit", 
+        action="version", version=f"pandora {__version__}"
+    )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
     for module in _MODULES:
