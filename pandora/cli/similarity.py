@@ -16,12 +16,14 @@ from pandora import __version__
 from pandora._util import now_iso
 from pandora.annotations import label_interfaces
 from pandora.cli._io import (
-    STEP_SUMMARIES,
     ParquetSink,
     check_contact_layer,
     contact_rows,
     copy_source,
     find_table,
+    hit_filters,
+    input_summary,
+    layer_edges,
     layer_origin,
     load_json_list,
     load_pairs,
@@ -30,6 +32,7 @@ from pandora.cli._io import (
     read_columns,
     read_structure,
     read_structures_dir,
+    read_summary,
     rows_by_entry,
     structure_index,
     write_json_list,
@@ -52,7 +55,6 @@ from pandora.schemas.annotation import (
 from pandora.schemas.dataset import DatasetChainRecord
 from pandora.schemas.similarity import (
     ClusteredLayer,
-    HitFilter,
     RepresentativeCluster,
     RepresentativePolicy,
     RepresentativesProvenance,
@@ -76,7 +78,6 @@ from pandora.similarity import (
 from pandora.similarity.hits import (
     read_hit_tsv,
     read_similarity_table,
-    similarity_edges,
 )
 from pandora.similarity.layer import (
     ItemSet,
@@ -100,7 +101,6 @@ _LAYER_OUTPUTS = [
     "layer.json",
     "hits.tsv",
 ]
-_STEP_SUMMARIES = STEP_SUMMARIES
 _CONTACT_COLUMNS = (
     "entry_id",
     "chain_id_1",
@@ -134,11 +134,12 @@ def _step_table(command: str, folder: Path, name: str, writer: str) -> Path:
     return path
 
 
-def _contact_layer(command: str, folder: Path) -> Path:
-    """The rows file of a `residue_contacts` layer folder."""
+def _contact_layer(command: str, folder: Path) -> Path | None:
+    """The rows file of a `residue_contacts` layer folder; None if the
+    layer has no rows table."""
 
     check_contact_layer(command, folder)
-    return find_table(folder, "layer") or folder / "layer.json"
+    return find_table(folder, "layer")
 
 
 def _item_set(
@@ -159,20 +160,13 @@ def _item_set(
         rows_file = _contact_layer(command, contacts)
         rows = (
             read_columns(rows_file, _CONTACT_COLUMNS)
-            if rows_file.name != "layer.json"
+            if rows_file is not None
             else iter(())
         )
-        return interface_items(rows), contacts / "layer.json"
+        return interface_items(rows), input_summary(contacts)
     if structures_dir is None:
         raise SystemExit(f"{command}: {level} items need --structures-dir")
-    previous = next(
-        (
-            structures_dir / name
-            for name in _STEP_SUMMARIES
-            if (structures_dir / name).exists()
-        ),
-        None,
-    )
+    previous = input_summary(structures_dir)
     if level == "entry":
         table = _step_table(
             command, structures_dir, "entries", "pandora canonicalise"
@@ -291,7 +285,7 @@ def _cmd_search(args: argparse.Namespace) -> None:
             )
         chains = set(listed)
     out = Path(args.output_dir)
-    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    prepare_output_dir("similarity search", out, _LAYER_OUTPUTS, args.overwrite)
     hits = out / "hits.tsv"
     counts_extra: dict[str, int] = {}
     if args.engine == "mmseqs2":
@@ -423,7 +417,7 @@ def _cmd_import(args: argparse.Namespace) -> None:
         "similarity import", description.items, structures_dir, contacts
     )
     out = Path(args.output_dir)
-    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    prepare_output_dir("similarity import", out, _LAYER_OUTPUTS, args.overwrite)
     if args.source_files:
         copy_source(Path(args.source_files), out / "source")
     rest = [] if first is None else itertools.chain([first], batches)
@@ -446,70 +440,15 @@ def _cmd_import(args: argparse.Namespace) -> None:
     )
 
 
-def _per_layer(
-    flag: str, values: list[Any] | None, n: int, command: str = "cluster"
-) -> list[Any]:
-    """`values` of a repeatable flag, one per --similarity layer: absent,
-    given once for all layers, or once per layer in order."""
-
-    if not values:
-        return [None] * n
-    if len(values) == 1:
-        return values * n
-    if len(values) != n:
-        raise SystemExit(
-            f"{command}: give {flag} once (for every layer) or once per "
-            f"--similarity layer ({n}), not {len(values)} times"
-        )
-    return values
-
-
-def _hit_filters(
-    args: argparse.Namespace, n: int, command: str = "cluster"
-) -> list[HitFilter]:
-    """One HitFilter per layer, from --hit-filter with --min-score /
-    --min-coverage overriding it; exits if a layer has no threshold."""
-
-    filters = []
-    for path, min_score, min_coverage in zip(
-        _per_layer("--hit-filter", args.hit_filter, n, command),
-        _per_layer("--min-score", args.min_score, n, command),
-        _per_layer("--min-coverage", args.min_coverage, n, command),
-        strict=True,
-    ):
-        if path is None and min_score is None and min_coverage is None:
-            # Without a filter every reported hit would become an edge
-            # (the old --threshold defaulted to 0.9), merging clusters
-            # silently.
-            raise SystemExit(
-                f"{command}: set --min-score, --min-coverage or --hit-filter "
-                "for every layer; with no threshold every reported hit "
-                "becomes an edge"
-            )
-        hit_filter = (
-            load_yaml_model(HitFilter, Path(path)) if path else HitFilter()
-        )
-        overrides = {
-            field: value
-            for field, value in (
-                ("min_score", min_score),
-                ("min_coverage", min_coverage),
-            )
-            if value is not None
-        }
-        filters.append(hit_filter.model_copy(update=overrides))
-    return filters
-
-
 def _similarity_level(folder: Path) -> SimilarityItems:
     """The item level of a similarity layer folder."""
 
-    summary = folder / "layer.json"
-    if not summary.exists():
+    summary = read_summary(folder)
+    if summary is None:
         raise SystemExit(
-            f"cluster: {folder} is not a layer folder (no layer.json)"
+            f"cluster: {folder} is not a layer folder (no summary)"
         )
-    policy = json.loads(summary.read_text()).get("policy") or {}
+    policy = summary.get("policy") or {}
     if policy.get("template") != "similarity":
         raise SystemExit(
             f"cluster: {folder} is a {policy.get('template')} layer, "
@@ -559,7 +498,7 @@ def _interface_residues(
             "(the structures the --contacts layer was computed from)"
         )
     rows_file = _contact_layer("cluster", contacts)
-    groups = rows_by_entry(rows_file) if rows_file.name != "layer.json" else ()
+    groups = rows_by_entry(rows_file) if rows_file is not None else ()
     paths = structure_index(structures_dir)
     result: dict[str, set[int]] = {}
     for entry, rows in groups:
@@ -589,32 +528,6 @@ def _copy_links(structures_dir: Path) -> Iterator[tuple[str, str]]:
                 item_id("chain", row["entry_id"], row["chain_id"]),
                 item_id("chain", row["entry_id"], row["copy_of"]),
             )
-
-
-def _layer_edges(
-    layer: Path,
-    hit_filter: HitFilter,
-    interface_residues: dict[str, set[int]] | None,
-    counts: Counter[int],
-    index: int,
-    command: str = "cluster",
-) -> Iterator[Any]:
-    """The edges of one layer, counted into `counts[index]`; exits naming
-    the layer on a bad table or filter."""
-
-    table = layer / "layer.parquet"
-    if not table.exists():
-        return
-    try:
-        for edge in similarity_edges(
-            read_similarity_table(table),
-            hit_filter,
-            interface_residues=interface_residues,
-        ):
-            counts[index] += 1
-            yield edge
-    except ValueError as exc:
-        raise SystemExit(f"{command}: {layer}: {exc}") from exc
 
 
 def _chain_map(
@@ -665,7 +578,7 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
     of the union of one or more similarity layers."""
 
     layers = [Path(folder) for folder in args.similarity]
-    hit_filters = _hit_filters(args, len(layers))
+    filters = hit_filters(args, len(layers))
     _require_pyarrow("cluster")
     levels = [_similarity_level(layer) for layer in layers]
     items_level = _cluster_level(args, levels)
@@ -680,22 +593,22 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
     residues = None
     if any(
         level == "chain" and f.min_interface_coverage is not None
-        for level, f in zip(levels, hit_filters, strict=True)
+        for level, f in zip(levels, filters, strict=True)
     ):
         residues = _interface_residues(structures_dir, contacts)
     counts: Counter[int] = Counter()
     same_level: list[Iterator[Any]] = []
     chain_streams: list[Iterator[Any]] = []
     for index, (layer, level, hit_filter) in enumerate(
-        zip(layers, levels, hit_filters, strict=True)
+        zip(layers, levels, filters, strict=True)
     ):
         if level == "chain":
             chain_streams.append(
-                _layer_edges(layer, hit_filter, residues, counts, index)
+                layer_edges(layer, hit_filter, residues, counts, index)
             )
         else:
             same_level.append(
-                _layer_edges(layer, hit_filter, None, counts, index)
+                layer_edges(layer, hit_filter, None, counts, index)
             )
     chain_edges: Iterable[Any] = itertools.chain(*chain_streams)
     if chain_streams and structures_dir is not None:
@@ -719,7 +632,7 @@ def _cmd_cluster(args: argparse.Namespace) -> None:
             n_edges=counts[index],
         )
         for index, (layer, level, hit_filter) in enumerate(
-            zip(layers, levels, hit_filters, strict=True)
+            zip(layers, levels, filters, strict=True)
         )
     ]
     prov = prov.model_copy(
@@ -771,9 +684,10 @@ def _partition_labels(args: argparse.Namespace) -> dict[str, str] | None:
             f"{command}: --labels needs whole clusters; drop "
             "--no-keep-similar-items"
         )
-    if not (folder / "layer.json").exists():
+    summary = read_summary(folder)
+    if summary is None:
         raise SystemExit(f"{command}: {folder} is not a layer folder")
-    policy = json.loads((folder / "layer.json").read_text()).get("policy")
+    policy = summary.get("policy")
     template = (policy or {}).get("template")
     table = find_table(folder, "layer")
     rows = read_records(table, LayerRow) if table else []
@@ -840,12 +754,11 @@ def _interface_values(
         )
     table = _step_table(command, origin, "chains", "pandora curate")
     chains, non_copies = _chain_values(table, {"resolution"})
-    table = rows_file if rows_file.name != "layer.json" else None
-    rows = (row.model_dump() for row in contact_rows(table, Counter()))
+    rows = (row.model_dump() for row in contact_rows(rows_file, Counter()))
     interfaces = set(interface_items(rows).ids.values())
     values: dict[str, dict[str, Any]] = {}
     eligible: set[str] = set()
-    for row in label_interfaces(contact_rows(table, Counter()), {}):
+    for row in label_interfaces(contact_rows(rows_file, Counter()), {}):
         key = item_id("interface", row.entry_id, row.chain_id_1, row.chain_id_2)
         if key not in interfaces:
             continue
@@ -908,7 +821,7 @@ def _cmd_representatives(args: argparse.Namespace) -> None:
             "representatives: rank key n_hits needs --similarity (and a "
             "hit filter)"
         )
-    hit_filters = _hit_filters(args, len(layers), command) if layers else []
+    filters = hit_filters(args, len(layers), command) if layers else []
     if items == "interface":
         values, eligible, structures_dir = _interface_values(
             Path(args.contacts)
@@ -930,9 +843,9 @@ def _cmd_representatives(args: argparse.Namespace) -> None:
                 )
         edges = itertools.chain(
             *(
-                _layer_edges(layer, hit_filter, None, counts, index)
+                layer_edges(layer, hit_filter, None, counts, index)
                 for index, (layer, hit_filter) in enumerate(
-                    zip(layers, hit_filters, strict=True)
+                    zip(layers, filters, strict=True)
                 )
             )
         )
@@ -957,7 +870,7 @@ def _cmd_representatives(args: argparse.Namespace) -> None:
                 n_edges=counts[index],
             )
             for index, (layer, hit_filter) in enumerate(
-                zip(layers, hit_filters, strict=True)
+                zip(layers, filters, strict=True)
             )
         ],
         n_clusters=len(reps),
@@ -1063,10 +976,10 @@ def _cmd_interfaces(args: argparse.Namespace) -> None:
         rows, clusters, sequences, args.min_identity
     )
 
-    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
     if scored:
         write_records(scored, out / "layer.parquet")
-    source = json.loads((contacts / "layer.json").read_text())["policy"]
+    source = read_summary(contacts)["policy"]
     description = LayerDescription(
         name="iface_jaccard",
         template="similarity",
@@ -1087,7 +1000,7 @@ def _cmd_interfaces(args: argparse.Namespace) -> None:
         out=out,
         started_at=started_at,
         counts=Counter(rows_in | counts),
-        previous=contacts / "layer.json",
+        previous=input_summary(contacts),
     )
     print(
         f"scored: {counts['pairs_compared']} interface pairs "

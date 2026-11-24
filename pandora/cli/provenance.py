@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from pandora.cli._io import (
     find_table,
+    input_summary,
     load_annotations,
     load_json_dict,
     load_json_model,
@@ -53,7 +54,7 @@ def _step_entries(folder: str | None, summary: str, model: type[M]) -> list[M]:
 
     if folder is None:
         return []
-    if not (Path(folder) / summary).exists():
+    if input_summary(Path(folder)) is None:
         raise SystemExit(
             f"manifest: {folder} is not a step folder (no {summary})"
         )

@@ -21,6 +21,7 @@ from pandora.cli._io import (
     check_table_format,
     duplicate_line,
     failure_line,
+    input_summary,
     prepare_step_dir,
     structure_files,
     write_table,
@@ -69,14 +70,15 @@ def _cmd_canonicalise(args: argparse.Namespace) -> None:
     if args.entries:
         source = Path(args.entries)
         paths = read_entry_paths(source)
-        if (source.parent / "ingestion.json").exists():
-            previous = source.parent / "ingestion.json"
+        previous = input_summary(source.parent)
     else:
         source = Path(args.input_dir)
         paths = structure_files(source)
 
     check_table_format(args.table_format)
-    prepare_step_dir(out, "canonicalisation.json", args.overwrite)
+    prepare_step_dir(
+        "canonicalise", out, "canonicalisation.json", args.overwrite
+    )
     counts: Counter[str] = Counter(
         entries_failed=0,
         **({} if policy.max_atoms is None else {"entries_too_large": 0}),
@@ -139,15 +141,32 @@ def _cmd_canonicalise(args: argparse.Namespace) -> None:
 def register(subparsers: argparse._SubParsersAction) -> None:
     """Add this module's subcommands to the `pandora` parser."""
 
-    p = subparsers.add_parser("canonicalise", help="Canonicalise mmCIF files into a step folder.")
-    
+    p = subparsers.add_parser(
+        "canonicalise", help="Canonicalise mmCIF files into a step folder."
+    )
+
     source = p.add_mutually_exclusive_group(required=True)
-    source.add_argument("--input-dir", help="folder of mmCIF files (flat or mirror layout)")
-    source.add_argument("--entries", help="text file listing mmCIF paths, one per line")
-    
-    p.add_argument("--policy", required=True, help="canonicalisationPolicy YAML")
+    source.add_argument(
+        "--input-dir", help="folder of mmCIF files (flat or mirror layout)"
+    )
+    source.add_argument(
+        "--entries", help="text file listing mmCIF paths, one per line"
+    )
+
+    p.add_argument(
+        "--policy", required=True, help="canonicalisationPolicy YAML"
+    )
     p.add_argument("--output-dir", required=True)
-    p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet", help="format of the entries/chain_copies tables")
-    p.add_argument("--overwrite", action="store_true", help="replace step outputs already in --output-dir",)
-    
+    p.add_argument(
+        "--table-format",
+        choices=TABLE_FORMATS,
+        default="parquet",
+        help="format of the entries/chain_copies tables",
+    )
+    p.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="replace step outputs already in --output-dir",
+    )
+
     p.set_defaults(func=_cmd_canonicalise)

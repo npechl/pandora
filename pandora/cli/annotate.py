@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import inspect
-import json
 import sys
 from collections import Counter
 from pathlib import Path
@@ -27,7 +26,6 @@ from pandora.annotations import (
 )
 from pandora.annotations.entry import CONTACT_ATOM_SETS
 from pandora.cli._io import (
-    STEP_SUMMARIES,
     TABLE_FORMATS,
     TableWriter,
     check_contact_layer,
@@ -36,11 +34,13 @@ from pandora.cli._io import (
     copy_source,
     entry_key,
     find_table,
+    input_summary,
     layer_origin,
     prepare_output_dir,
     read_rows,
     read_structure,
     read_structures_dir,
+    read_summary,
     rows_by_entry,
     structure_index,
     table_columns,
@@ -94,7 +94,7 @@ def _cmd_compute(args: argparse.Namespace) -> None:
         if getattr(args, dest) is not None
     }
     out = Path(args.output_dir)
-    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    prepare_output_dir("annotate compute", out, _LAYER_OUTPUTS, args.overwrite)
     structures_dir = Path(args.structures_dir)
     entries = 0
     with TableWriter(out, "layer", args.table_format) as writer:
@@ -126,24 +126,11 @@ def _cmd_compute(args: argparse.Namespace) -> None:
             output=out,
             started_at=started_at,
             counts={"entries": entries, "rows": rows},
-            previous_summary=_previous_summary(structures_dir),
+            previous_summary=input_summary(structures_dir),
         ),
         out / "layer.json",
     )
     print(f"computed: {rows} rows for {entries} entries -> {out}")
-
-
-def _previous_summary(structures_dir: Path) -> Path | None:
-    """The step summary in `structures_dir`, if it has one."""
-
-    return next(
-        (
-            structures_dir / name
-            for name in _PREVIOUS_SUMMARIES
-            if (structures_dir / name).exists()
-        ),
-        None,
-    )
 
 
 # What `annotate import` writes: cleared by --overwrite.
@@ -152,7 +139,6 @@ _LAYER_OUTPUTS = [
     "source",
     "layer.json",
 ]
-_PREVIOUS_SUMMARIES = STEP_SUMMARIES
 
 
 def _cmd_import(args: argparse.Namespace) -> None:
@@ -173,7 +159,7 @@ def _cmd_import(args: argparse.Namespace) -> None:
     except ValueError as exc:
         raise SystemExit(f"cannot import {table}: {exc}") from exc
 
-    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    prepare_output_dir("annotate import", out, _LAYER_OUTPUTS, args.overwrite)
     structures_dir = Path(args.structures_dir)
     paths = structure_index(structures_dir)
     counts: Counter[str] = Counter(rows_in=0)
@@ -199,7 +185,7 @@ def _cmd_import(args: argparse.Namespace) -> None:
     counts["rows_unmatched"] = unmatched.rows
     if args.source_files:
         copy_source(Path(args.source_files), out / "source")
-    previous = _previous_summary(structures_dir)
+    previous = input_summary(structures_dir)
     write_json(
         build_step_summary(
             "annotation_import",
@@ -230,7 +216,7 @@ def _cmd_count(args: argparse.Namespace) -> None:
     check_table_format(args.table_format)
     contacts = Path(args.contacts_dir)
     check_contact_layer("annotate count-contacts", contacts)
-    source = json.loads((contacts / "layer.json").read_text())["policy"]
+    source = read_summary(contacts)["policy"]
     out = Path(args.output_dir)
     if out.resolve() == contacts.resolve():
         raise SystemExit(
@@ -239,7 +225,9 @@ def _cmd_count(args: argparse.Namespace) -> None:
         )
     rows_in: Counter[str] = Counter()
     rows = contact_rows(find_table(contacts, "layer"), rows_in)
-    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    prepare_output_dir(
+        "annotate count-contacts", out, _LAYER_OUTPUTS, args.overwrite
+    )
     function, template = _COUNT[args.level]
     counted = function(rows)
     write_table(counted, out, "layer", args.table_format)
@@ -258,7 +246,7 @@ def _cmd_count(args: argparse.Namespace) -> None:
             output=out,
             started_at=started_at,
             counts={"rows_in": rows_in["rows_in"], "rows_out": len(counted)},
-            previous_summary=contacts / "layer.json",
+            previous_summary=input_summary(contacts),
         ),
         out / "layer.json",
     )
@@ -279,11 +267,10 @@ def _cmd_filter(args: argparse.Namespace) -> None:
     labels = Path(args.labels_dir)
     out = Path(args.output_dir)
     check_contact_layer(command, contacts)
-    if not (labels / "layer.json").exists():
+    labels_summary = read_summary(labels)
+    if labels_summary is None:
         raise SystemExit(f"{command}: {labels} is not a layer folder")
-    labels_policy = (
-        json.loads((labels / "layer.json").read_text()).get("policy") or {}
-    )
+    labels_policy = labels_summary.get("policy") or {}
     if labels_policy.get("template") != "interface_labels":
         raise SystemExit(
             f"{command}: {labels} is a {labels_policy.get('template')} "
@@ -332,14 +319,14 @@ def _cmd_filter(args: argparse.Namespace) -> None:
             "check for typos"
         )
 
-    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
     counts = _filter_entries(
         find_table(contacts, "layer"),
         labels_by_entry,
         drop,
         TableWriter(out, "layer", args.table_format),
     )
-    source = json.loads((contacts / "layer.json").read_text())["policy"]
+    source = read_summary(contacts)["policy"]
     description = LayerDescription(
         name="filtered_contacts",
         template="residue_contacts",
@@ -360,7 +347,7 @@ def _cmd_filter(args: argparse.Namespace) -> None:
             output=out,
             started_at=started_at,
             counts=dict(sorted(counts.items())),
-            previous_summary=contacts / "layer.json",
+            previous_summary=input_summary(contacts),
         ),
         out / "layer.json",
     )
@@ -441,9 +428,9 @@ def _cmd_label(args: argparse.Namespace) -> None:
         rows, lengths, args.min_residues_per_chain, args.max_total_residues
     )
 
-    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
     write_table(labelled, out, "layer", args.table_format)
-    source = json.loads((contacts / "layer.json").read_text())["policy"]
+    source = read_summary(contacts)["policy"]
     description = LayerDescription(
         name="contact_labels",
         template="interface_labels",
@@ -474,7 +461,7 @@ def _cmd_label(args: argparse.Namespace) -> None:
             output=out,
             started_at=started_at,
             counts=counts,
-            previous_summary=contacts / "layer.json",
+            previous_summary=input_summary(contacts),
         ),
         out / "layer.json",
     )
@@ -518,9 +505,9 @@ def _cmd_gaps(args: argparse.Namespace) -> None:
     rows = contact_rows(find_table(contacts, "layer"), rows_in)
     labelled = label_interface_gaps(rows, missing)
 
-    prepare_output_dir(out, _LAYER_OUTPUTS, args.overwrite)
+    prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
     write_table(labelled, out, "layer", args.table_format)
-    source = json.loads((contacts / "layer.json").read_text())["policy"]
+    source = read_summary(contacts)["policy"]
     description = LayerDescription(
         name="interface_gaps",
         template="interface_labels",
@@ -550,7 +537,7 @@ def _cmd_gaps(args: argparse.Namespace) -> None:
             output=out,
             started_at=started_at,
             counts=counts,
-            previous_summary=contacts / "layer.json",
+            previous_summary=input_summary(contacts),
         ),
         out / "layer.json",
     )

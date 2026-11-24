@@ -17,6 +17,8 @@ from pandora.cli._io import (
     TABLE_FORMATS,
     check_table_format,
     find_table,
+    hit_filters,
+    layer_edges,
     load_json_list,
     load_yaml_model,
     prepare_output_dir,
@@ -28,12 +30,10 @@ from pandora.cli.similarity import (
     _CONTACT_COLUMNS,
     _chain_map,
     _contact_layer,
-    _hit_filters,
     _interface_chains,
     _interface_residues,
     _interface_values,
     _item_set,
-    _layer_edges,
     _require_pyarrow,
     _similarity_level,
 )
@@ -104,7 +104,7 @@ def _layers(
 
     _require_pyarrow(command)
     layers = [Path(folder) for folder in args.similarity]
-    filters = _hit_filters(args, len(layers), command)
+    filters = hit_filters(args, len(layers), command)
     levels = [_similarity_level(layer) for layer in layers]
     return layers, filters, levels
 
@@ -205,7 +205,7 @@ def _cmd_rebalance(args: argparse.Namespace) -> None:
         target = chain_edges if level == "chain" else dimer_edges
         scoped = residues if level == "chain" else None
         target.extend(
-            _layer_edges(layer, hit_filter, scoped, counts, index, command)
+            layer_edges(layer, hit_filter, scoped, counts, index, command)
         )
     adjacency = dimer_adjacency(dimers, chain_edges, dimer_edges, chain_map)
     try:
@@ -219,7 +219,7 @@ def _cmd_rebalance(args: argparse.Namespace) -> None:
         raise SystemExit(f"{command}: {exc}") from exc
 
     out = Path(args.output_dir)
-    prepare_output_dir(out, _REBALANCE_OUTPUTS, args.overwrite)
+    prepare_output_dir(command, out, _REBALANCE_OUTPUTS, args.overwrite)
     write_table(positives, out, "positives", args.table_format)
     write_table(dropped, out, "dropped", args.table_format)
     settings = RebalanceSettings(
@@ -331,7 +331,7 @@ def _binding_pairs(command: str, contacts: Path) -> list[tuple[str, str]]:
     """The chain item pairs in contact in a residue_contacts layer."""
 
     rows_file = _contact_layer(command, contacts)
-    if rows_file.name == "layer.json":
+    if rows_file is None:
         return []
     return sorted(
         {
@@ -363,7 +363,7 @@ def _cmd_negatives(args: argparse.Namespace) -> None:
     )
     counts: Counter[int] = Counter()
     tm_edges = list(
-        _layer_edges(layers[0], filters[0], None, counts, 0, command)
+        layer_edges(layers[0], filters[0], None, counts, 0, command)
     )
     binding = _binding_pairs(command, Path(args.contacts))
     try:
@@ -374,7 +374,7 @@ def _cmd_negatives(args: argparse.Namespace) -> None:
         raise SystemExit(f"{command}: {exc} in {args.representatives}") from exc
 
     out = Path(args.output_dir)
-    prepare_output_dir(out, _NEGATIVES_OUTPUTS, args.overwrite)
+    prepare_output_dir(command, out, _NEGATIVES_OUTPUTS, args.overwrite)
     write_table(negatives, out, "negatives", args.table_format)
     settings = NegativeSamplingSettings(
         seed=args.seed,
@@ -475,7 +475,7 @@ def _cmd_assemble(args: argparse.Namespace) -> None:
     )
     counts: Counter[int] = Counter()
     tm_edges = list(
-        _layer_edges(layers[0], filters[0], None, counts, 0, command)
+        layer_edges(layers[0], filters[0], None, counts, 0, command)
     )
     try:
         rows = assemble_pairs(
@@ -485,7 +485,7 @@ def _cmd_assemble(args: argparse.Namespace) -> None:
         raise SystemExit(f"{command}: {exc}") from exc
 
     out = Path(args.output_dir)
-    prepare_output_dir(out, _ASSEMBLE_OUTPUTS, args.overwrite)
+    prepare_output_dir(command, out, _ASSEMBLE_OUTPUTS, args.overwrite)
     write_table(rows, out, "pairs", args.table_format)
     tallies = Counter({f"pairs:{n}:{lab}": 0 for n in splits for lab in (0, 1)})
     tallies.update(f"pairs:{r.split}:{r.label}" for r in rows)

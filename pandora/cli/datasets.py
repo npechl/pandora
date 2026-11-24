@@ -16,6 +16,7 @@ from pandora.cli._io import (
     duplicate_line,
     failure_line,
     find_table,
+    input_summary,
     load_json_list,
     load_yaml_model,
     prepare_step_dir,
@@ -106,7 +107,7 @@ def _cmd_curate(args: argparse.Namespace) -> None:
     copies = _read_copies(in_dir)
 
     check_table_format(args.table_format)
-    prepare_step_dir(out, "curation.json", args.overwrite)
+    prepare_step_dir("curate", out, "curation.json", args.overwrite)
     counts: Counter[str] = Counter(entries_failed=0)
     entries: list[CurationEntryRecord] = []
     chains: list[DatasetChainRecord] = []
@@ -145,7 +146,6 @@ def _cmd_curate(args: argparse.Namespace) -> None:
     write_table(entries, out, "entries", args.table_format)
     write_table(chains, out, "chains", args.table_format)
     write_table(exclusions, out, "exclusions", args.table_format)
-    previous = in_dir / "canonicalisation.json"
     write_json(
         build_step_summary(
             "curation",
@@ -154,7 +154,7 @@ def _cmd_curate(args: argparse.Namespace) -> None:
             output=out,
             started_at=started_at,
             counts=dict(sorted(counts.items())),
-            previous_summary=previous if previous.exists() else None,
+            previous_summary=input_summary(in_dir),
         ),
         out / "curation.json",
     )
@@ -232,7 +232,7 @@ def _cmd_dedup_contained(args: argparse.Namespace) -> None:
     check_table_format(args.table_format)
     entries, chains = _read_step_tables(in_dir)
     clusters = load_json_list(SimilarityCluster, Path(args.clusters))
-    prepare_step_dir(out, "dedup.json", args.overwrite)
+    prepare_step_dir("dedup", out, "dedup.json", args.overwrite)
 
     counts, unclustered = _cluster_counts(chains, clusters)
     for entry in entries:
@@ -255,7 +255,6 @@ def _cmd_dedup_contained(args: argparse.Namespace) -> None:
     write_table(kept_chains, out, "chains", args.table_format)
     write_table(contained, out, "contained", args.table_format)
     (out / "failures.jsonl").write_text("")
-    previous = in_dir / "curation.json"
     write_json(
         build_step_summary(
             "dedup",
@@ -270,7 +269,7 @@ def _cmd_dedup_contained(args: argparse.Namespace) -> None:
                 "entries_in": len(entries),
                 "entries_kept": len(kept),
             },
-            previous_summary=previous if previous.exists() else None,
+            previous_summary=input_summary(in_dir),
         ),
         out / "dedup.json",
     )
@@ -319,21 +318,56 @@ def _cmd_dedup(args: argparse.Namespace) -> None:
 def register(subparsers: argparse._SubParsersAction) -> None:
     """Add this module's subcommands to the `pandora` parser."""
 
-    p = subparsers.add_parser("curate", help="Apply quality/organism/content rules; write a step folder.")
-    p.add_argument("--input-dir", required=True, help="a canonicalise step folder, or a folder of mmCIF files")
+    p = subparsers.add_parser(
+        "curate",
+        help="Apply quality/organism/content rules; write a step folder.",
+    )
+    p.add_argument(
+        "--input-dir",
+        required=True,
+        help="a canonicalise step folder, or a folder of mmCIF files",
+    )
     p.add_argument("--policy", required=True, help="DatasetCurationPolicy YAML")
     p.add_argument("--output-dir", required=True)
-    p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet", help="format of the entries/chains/exclusions tables")
-    p.add_argument("--overwrite", action="store_true", help="replace step outputs already in --output-dir")
+    p.add_argument(
+        "--table-format",
+        choices=TABLE_FORMATS,
+        default="parquet",
+        help="format of the entries/chains/exclusions tables",
+    )
+    p.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="replace step outputs already in --output-dir",
+    )
     p.set_defaults(func=_cmd_curate)
 
-    p = subparsers.add_parser("dedup", help="Remove structures sharing the same entry_id.")
+    p = subparsers.add_parser(
+        "dedup", help="Remove structures sharing the same entry_id."
+    )
     p.add_argument("--input-dir", required=True)
     p.add_argument("--output-dir", required=True)
-    p.add_argument("--disable", action="store_true", help="record but keep dupes")
-    p.add_argument("--contained", action="store_true", help="remove entries contained in another (by chain counts per cluster of --clusters); writes a step folder")
-    p.add_argument("--clusters", help="clusters.json from `pandora cluster` (chains)")
+    p.add_argument(
+        "--disable", action="store_true", help="record but keep dupes"
+    )
+    p.add_argument(
+        "--contained",
+        action="store_true",
+        help="remove entries contained in another (by chain counts per cluster of --clusters); writes a step folder",
+    )
+    p.add_argument(
+        "--clusters", help="clusters.json from `pandora cluster` (chains)"
+    )
     p.add_argument("--policy", help="DeduplicationRules YAML (contained_rank)")
-    p.add_argument("--table-format", choices=TABLE_FORMATS, default="parquet", help="format of the step folder tables (--contained)")
-    p.add_argument("--overwrite", action="store_true", help="replace step outputs already in --output-dir (--contained)")
+    p.add_argument(
+        "--table-format",
+        choices=TABLE_FORMATS,
+        default="parquet",
+        help="format of the step folder tables (--contained)",
+    )
+    p.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="replace step outputs already in --output-dir (--contained)",
+    )
     p.set_defaults(func=_cmd_dedup)

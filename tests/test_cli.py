@@ -1068,7 +1068,7 @@ def test_cluster_reads_contact_layer(tmp_path, monkeypatch):
         captured["residues"] = interface_residues
         raise _Captured
 
-    monkeypatch.setattr("pandora.cli.similarity.similarity_edges", fake_edges)
+    monkeypatch.setattr("pandora.cli._io.similarity_edges", fake_edges)
     hit_filter = tmp_path / "filter.yaml"
     hit_filter.write_text("min_interface_coverage: 0.5\n")
     with pytest.raises(_Captured):
@@ -3287,7 +3287,7 @@ def test_rebalance_passes_interface_residues_to_coverage_filter(
         captured["residues"] = interface_residues
         raise _Captured
 
-    monkeypatch.setattr("pandora.cli.similarity.similarity_edges", fake_edges)
+    monkeypatch.setattr("pandora.cli._io.similarity_edges", fake_edges)
     hit_filter = tmp_path / "filter.yaml"
     hit_filter.write_text("min_interface_coverage: 0.5\n")
     with pytest.raises(_Captured):
@@ -3515,3 +3515,179 @@ def test_canonicalise_unreadable_file_is_a_failure_line(tmp_path):
     broken = [f for f in failures if f["path"].endswith("broken.cif")]
     assert len(broken) == 1
     assert broken[0]["error_type"] != "TooLarge"
+
+
+# --- shared input and output helpers (pandora/cli/_io.py) ---
+
+
+def _ns(**overrides):
+    """An argparse.Namespace with the similarity flag defaults."""
+
+    import argparse
+
+    defaults = {
+        "similarity": [],
+        "similarity_items": None,
+        "hit_filter": None,
+        "min_score": None,
+        "min_coverage": None,
+    }
+    return argparse.Namespace(**(defaults | overrides))
+
+
+def _bare_layer(tmp_path):
+    """An entry-level layer.parquet moved out of its layer folder."""
+
+    layer = _similarity_layer(
+        tmp_path / "layer",
+        [{"item_id_1": "104M", "item_id_2": "112M", "score": 0.9}],
+        "entry",
+    )
+    bare = tmp_path / "bare.parquet"
+    (layer / "layer.parquet").rename(bare)
+    return bare
+
+
+def test_resolve_file_accepts_folder_or_file(tmp_path):
+    (tmp_path / "clusters.json").write_text("[]")
+    found = tmp_path / "clusters.json"
+    assert _io.resolve_file("x y", tmp_path, "clusters.json") == found
+    assert _io.resolve_file("x y", found, "clusters.json") == found
+    with pytest.raises(SystemExit, match="x y: .* has no clusters.json"):
+        _io.resolve_file("x y", tmp_path / "empty", "clusters.json")
+
+
+def test_resolve_table_accepts_folder_or_file(tmp_path):
+    _write_jsonl(tmp_path / "pairs.jsonl", [{"a": 1}])
+    found = tmp_path / "pairs.jsonl"
+    assert _io.resolve_table("x y", tmp_path, "pairs") == found
+    assert _io.resolve_table("x y", found, "pairs") == found
+    with pytest.raises(SystemExit, match="x y: .* has no pairs table"):
+        _io.resolve_table("x y", tmp_path / "empty", "pairs")
+
+
+def test_require_tables_names_curate(tmp_path):
+    with pytest.raises(
+        SystemExit, match="run `pandora structures curate` first"
+    ):
+        _io.require_tables("similarity mmseqs", tmp_path)
+    (tmp_path / "x").mkdir()
+    step, _ = _cluster_inputs(tmp_path / "x")
+    assert _io.require_tables("similarity mmseqs", step) == (
+        step / "entries.jsonl",
+        step / "chains.jsonl",
+    )
+
+
+def test_prepare_output_dir_names_the_command(tmp_path):
+    (tmp_path / "summary.json").write_text("{}")
+    with pytest.raises(SystemExit, match="^x y: .* already holds"):
+        _io.prepare_output_dir("x y", tmp_path, ["summary.json"], False)
+
+
+def test_read_summary_falls_back_to_legacy_names(tmp_path):
+    assert _io.read_summary(tmp_path) is None
+    assert _io.input_summary(tmp_path) is None
+    (tmp_path / "curation.json").write_text('{"step": "curation"}')
+    assert _io.read_summary(tmp_path) == {"step": "curation"}
+    assert _io.input_summary(tmp_path) == tmp_path / "curation.json"
+    (tmp_path / "summary.json").write_text('{"step": "new"}')
+    assert _io.read_summary(tmp_path) == {"step": "new"}
+    assert _io.input_summary(tmp_path) == tmp_path / "summary.json"
+
+
+def test_add_out_and_similarity_flags():
+    import argparse
+
+    p = argparse.ArgumentParser()
+    _io.add_out(p)
+    _io.add_similarity_inputs(p, positional=True)
+    args = p.parse_args(
+        ["out", "a", "b", "--similarity-items", "chain", "--min-score", "0.5"]
+    )
+    assert args.out == "out"
+    assert args.similarity == ["a", "b"]
+    assert args.table_format == "parquet"
+    assert not args.overwrite
+    assert args.similarity_items == ["chain"]
+    p = argparse.ArgumentParser()
+    _io.add_out(p, tables=False)
+    _io.add_similarity_inputs(p, positional=False)
+    args = p.parse_args(["out", "--similarity", "a", "--similarity", "b"])
+    assert args.similarity == ["a", "b"]
+    assert not hasattr(args, "table_format")
+
+
+def test_similarity_inputs_bare_table_needs_items(tmp_path):
+    bare = _bare_layer(tmp_path)
+    with pytest.raises(SystemExit, match="--similarity-items"):
+        _io.similarity_inputs(
+            "clusters build", _ns(similarity=[bare], min_score=[0.5])
+        )
+    (inp,) = _io.similarity_inputs(
+        "clusters build",
+        _ns(similarity=[bare], similarity_items=["entry"], min_score=[0.5]),
+    )
+    assert inp.table == bare
+    assert inp.items == "entry"
+    assert inp.hit_filter.min_score == 0.5
+
+
+def test_similarity_inputs_folder_without_summary_needs_items(tmp_path):
+    layer = _similarity_layer(
+        tmp_path / "l",
+        [{"item_id_1": "1A_A", "item_id_2": "1B_A", "score": 1.0}],
+        "chain",
+    )
+    (layer / "layer.json").unlink()
+    with pytest.raises(SystemExit, match="--similarity-items"):
+        _io.similarity_inputs(
+            "clusters build", _ns(similarity=[layer], min_score=[0.5])
+        )
+
+
+def test_similarity_inputs_items_disagreeing_with_summary_exits(tmp_path):
+    layer = _similarity_layer(tmp_path / "l", None, "chain")
+    args = _ns(similarity=[layer], similarity_items=["entry"], min_score=[1])
+    with pytest.raises(SystemExit, match="clusters build: .*entry.*chain"):
+        _io.similarity_inputs("clusters build", args)
+    (inp,) = _io.similarity_inputs(
+        "clusters build", _ns(similarity=[layer], min_score=[1])
+    )
+    assert inp.items == "chain"
+    assert inp.table is None  # an empty layer
+
+
+def test_similarity_inputs_items_once_or_per_input(tmp_path):
+    a = _bare_layer(tmp_path / "a")
+    b = _bare_layer(tmp_path / "b")
+    once = _ns(similarity=[a, b], similarity_items=["chain"], min_score=[1])
+    assert [i.items for i in _io.similarity_inputs("x y", once)] == [
+        "chain",
+        "chain",
+    ]
+    each = _ns(
+        similarity=[a, b], similarity_items=["chain", "entry"], min_score=[1]
+    )
+    assert [i.items for i in _io.similarity_inputs("x y", each)] == [
+        "chain",
+        "entry",
+    ]
+    three = _ns(
+        similarity=[a, b],
+        similarity_items=["chain", "entry", "chain"],
+        min_score=[1],
+    )
+    with pytest.raises(SystemExit, match="x y: give --similarity-items once"):
+        _io.similarity_inputs("x y", three)
+
+
+def test_structure_files_finds_gzipped_flat_files(tmp_path):
+    shutil.copy(FIXTURES_DIR / "04" / "104m.cif", tmp_path / "104m.cif")
+    with gzip.open(tmp_path / "112m.cif.gz", "wb") as handle:
+        handle.write((FIXTURES_DIR / "12" / "112m.cif").read_bytes())
+    assert _io.structure_files(tmp_path) == [
+        tmp_path / "104m.cif",
+        tmp_path / "112m.cif.gz",
+    ]
+    assert sorted(_io.structure_index(tmp_path)) == ["104M", "112M"]

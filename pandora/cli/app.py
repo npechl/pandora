@@ -40,9 +40,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "-v", "--version", 
-        help="show Pandora's version number and exit", 
-        action="version", version=f"pandora {__version__}"
+        "-v",
+        "--version",
+        help="show Pandora's version number and exit",
+        action="version",
+        version=f"pandora {__version__}",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
