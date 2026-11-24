@@ -19,7 +19,7 @@ import yaml
 from pydantic import BaseModel
 
 from pandora.export import structure_to_mmcif, write_json, write_records
-from pandora.ingestion import list_mirror_files, mirror_path
+from pandora.ingestion import list_mirror_files, mirror_path, read_entry_paths
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.annotation import (
     ResidueContactRow,
@@ -381,6 +381,32 @@ def structure_files(folder: Path) -> list[Path]:
             *list_mirror_files(folder, ".cif.gz"),
         }
     )
+
+
+def structure_inputs(
+    command: str, path: Path
+) -> tuple[list[Path], Path | None]:
+    """The mmCIF files `path` names (a structures folder, a flat or mirror
+    folder, an `entries.txt` list or one file) and the summary to record
+    as `previous_summary`; exits if `path` does not exist."""
+
+    if not path.exists():
+        raise SystemExit(f"{command}: {path} does not exist")
+    if path.is_dir():
+        return structure_files(path), input_summary(path)
+    if path.suffix == ".txt":
+        return read_entry_paths(path), input_summary(path.parent)
+    return [path], None
+
+
+def check_out(command: str, source: Path, out: Path) -> None:
+    """Exit if `out` is the folder the input `source` lives in."""
+
+    folder = source if source.is_dir() else source.parent
+    if folder.resolve() == out.resolve():
+        raise SystemExit(
+            f"{command}: {out} is the input folder; choose another OUT"
+        )
 
 
 def find_table(folder: Path, name: str) -> Path | None:

@@ -20,6 +20,7 @@ from pandora.canonicalisation import (
 from pandora.cli._io import (
     ENTRY_ERRORS,
     add_out,
+    check_out,
     check_table_format,
     duplicate_line,
     failure_line,
@@ -30,7 +31,7 @@ from pandora.cli._io import (
     prepare_step_dir,
     require_tables,
     resolve_file,
-    structure_files,
+    structure_inputs,
     write_summary,
     write_table,
 )
@@ -40,7 +41,7 @@ from pandora.datasets import (
     find_contained,
 )
 from pandora.export import read_records, structure_to_mmcif, write_json
-from pandora.ingestion import load_policy, mirror_path, read_entry_paths
+from pandora.ingestion import load_policy, mirror_path
 from pandora.metadata import collect_metadata
 from pandora.parsing import mmcif_to_structure
 from pandora.provenance import (
@@ -62,32 +63,6 @@ from pandora.schemas.provenance import CurationEntryRecord
 from pandora.schemas.similarity import SimilarityCluster
 from pandora.schemas.structure import Structure
 from pandora.similarity import item_id
-
-
-def _structure_inputs(
-    command: str, path: Path
-) -> tuple[list[Path], Path | None]:
-    """The mmCIF files `path` names (a structures folder, a flat or mirror
-    folder, an `entries.txt` list or one file) and the summary to record
-    as `previous_summary`; exits if `path` does not exist."""
-
-    if not path.exists():
-        raise SystemExit(f"{command}: {path} does not exist")
-    if path.is_dir():
-        return structure_files(path), input_summary(path)
-    if path.suffix == ".txt":
-        return read_entry_paths(path), input_summary(path.parent)
-    return [path], None
-
-
-def _check_out(command: str, source: Path, out: Path) -> None:
-    """Exit if `out` is the folder the input `source` lives in."""
-
-    folder = source if source.is_dir() else source.parent
-    if folder.resolve() == out.resolve():
-        raise SystemExit(
-            f"{command}: {out} is the input folder; choose another OUT"
-        )
 
 
 def _skip_too_large(
@@ -123,10 +98,10 @@ def _cmd_canonicalise(args: argparse.Namespace) -> None:
     started_at = now_iso()
     source, out = Path(args.structures), Path(args.out)
     policy = load_policy(args.policy)
-    paths, previous = _structure_inputs("structures canonicalise", source)
+    paths, previous = structure_inputs("structures canonicalise", source)
 
     check_table_format(args.table_format)
-    _check_out("structures canonicalise", source, out)
+    check_out("structures canonicalise", source, out)
     prepare_step_dir("structures canonicalise", out, args.overwrite)
     counts: Counter[str] = Counter(
         entries_failed=0,
@@ -236,11 +211,11 @@ def _cmd_curate(args: argparse.Namespace) -> None:
     started_at = now_iso()
     source, out = Path(args.structures), Path(args.out)
     policy = load_yaml_model(DatasetCurationPolicy, Path(args.policy))
-    paths, previous = _structure_inputs("structures curate", source)
+    paths, previous = structure_inputs("structures curate", source)
     copies = _read_copies(source)
 
     check_table_format(args.table_format)
-    _check_out("structures curate", source, out)
+    check_out("structures curate", source, out)
     prepare_step_dir("structures curate", out, args.overwrite)
     counts: Counter[str] = Counter(entries_failed=0)
     entries: list[CurationEntryRecord] = []

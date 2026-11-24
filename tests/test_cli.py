@@ -45,7 +45,7 @@ _SUBCOMMANDS = [
     "similarity",
     "cluster",
     "partition",
-    "annotate",
+    "annotations",
 ]
 
 
@@ -816,25 +816,26 @@ def _step_folder(tmp_path):
 
 def _compute(folder, out, *extra):
     main(
-        ["annotate", "compute", "--structures-dir", str(folder)]
-        + ["--output-dir", str(out), "--table-format", "jsonl", *extra]
+        ["annotations", "contacts", str(folder), str(out)]
+        + ["--table-format", "jsonl", *extra]
     )
 
 
-def test_annotate_compute_writes_contact_layer(tmp_path):
+def _compute_ligands(folder, out, *extra):
+    main(
+        ["annotations", "ligand-contacts", str(folder), str(out)]
+        + ["--table-format", "jsonl", *extra]
+    )
+
+
+def test_annotations_contacts_writes_contact_layer(tmp_path):
     out = tmp_path / "annotations" / "interfaces"
-    _compute(
-        _step_folder(tmp_path),
-        out,
-        "--layer",
-        "chain_interfaces",
-        "--atom-set",
-        "heavy",
-    )
+    _compute(_step_folder(tmp_path), out, "--atom-set", "heavy")
 
     rows = read_records(out / "layer.jsonl", ResidueContactRow)
     assert len(rows) == 74 + 21 + 25
-    summary = json.loads((out / "layer.json").read_text())
+    assert not (out / "layer.json").exists()
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["step"] == "annotation_compute"
     assert summary["policy"]["template"] == "residue_contacts"
     assert summary["policy"]["tool"] == "pandora"
@@ -846,19 +847,17 @@ def test_annotate_compute_writes_contact_layer(tmp_path):
     assert summary["counts"] == {"entries": 1, "rows": 120}
 
 
-def test_annotate_compute_ligand_layer_settings(tmp_path):
+def test_annotations_ligand_contacts_settings(tmp_path):
     out = tmp_path / "ligands"
-    _compute(
+    _compute_ligands(
         _step_folder(tmp_path),
         out,
-        "--layer",
-        "ligand_contacts",
         "--distance-cutoff",
         "5.0",
         "--include-waters",
     )
 
-    summary = json.loads((out / "layer.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["policy"]["parameters"] == {
         "distance_cutoff": 5.0,
         "include_waters": True,
@@ -866,32 +865,35 @@ def test_annotate_compute_ligand_layer_settings(tmp_path):
     assert read_records(out / "layer.jsonl", ResidueContactRow)
 
 
-def test_annotate_compute_rejects_flag_for_other_layer(tmp_path):
+def test_annotations_contacts_rejects_ligand_flag(tmp_path, capsys):
+    with pytest.raises(SystemExit) as exc:
+        _compute(_step_folder(tmp_path), tmp_path / "out", "--include-waters")
+    assert exc.value.code == 2
+
+
+def test_annotations_contacts_accepts_a_single_file(tmp_path):
     out = tmp_path / "out"
-    with pytest.raises(SystemExit, match="--include-waters"):
-        _compute(
-            _step_folder(tmp_path),
-            out,
-            "--layer",
-            "chain_interfaces",
-            "--include-waters",
-        )
-    assert not out.exists()
+    main(
+        ["annotations", "contacts", str(FIXTURES_DIR / "a2" / "1a2c.cif")]
+        + [str(out), "--table-format", "jsonl"]
+    )
+    summary = json.loads((out / "summary.json").read_text())
+    assert summary["counts"]["entries"] == 1
 
 
-def test_annotate_compute_refuses_existing_layer(tmp_path):
+def test_annotations_contacts_refuses_existing_layer(tmp_path):
     folder = _step_folder(tmp_path)
     out = tmp_path / "out"
-    _compute(folder, out, "--layer", "ligand_contacts")
-    with pytest.raises(SystemExit):
-        _compute(folder, out, "--layer", "ligand_contacts")
-    _compute(folder, out, "--layer", "ligand_contacts", "--overwrite")
+    _compute_ligands(folder, out)
+    with pytest.raises(SystemExit, match="annotations ligand-contacts"):
+        _compute_ligands(folder, out)
+    _compute_ligands(folder, out, "--overwrite")
 
 
 def test_compute_and_import_give_same_interface_records(tmp_path):
     folder = _step_folder(tmp_path)
     computed = tmp_path / "computed"
-    _compute(folder, computed, "--layer", "chain_interfaces")
+    _compute(folder, computed)
     # The same contacts as a tool would give them: author naming only,
     # lowercase entry id, sides swapped.
     table = tmp_path / "tool.jsonl"
@@ -917,9 +919,10 @@ def test_compute_and_import_give_same_interface_records(tmp_path):
     )
     imported = tmp_path / "imported"
     main(
-        ["annotate", "import", "--structures-dir", str(folder)]
-        + ["--table", str(table), "--description", str(tmp_path / "d.yaml")]
-        + ["--output-dir", str(imported), "--table-format", "jsonl"]
+        ["annotations", "import", str(table), str(imported)]
+        + ["--structures", str(folder)]
+        + ["--description", str(tmp_path / "d.yaml")]
+        + ["--table-format", "jsonl"]
     )
 
     a = extract_interface_records(
@@ -943,7 +946,7 @@ def test_cluster_reads_contact_layer(tmp_path, monkeypatch):
         [{"entry_id": "1A2C", "chain_id": c} for c in "ABCD"],
     )
     contacts = tmp_path / "interfaces"
-    _compute(folder, contacts, "--layer", "chain_interfaces")
+    _compute(folder, contacts)
     row = {
         "item_id_1": "1A2C_A",
         "item_id_2": "1A2C_B",
@@ -1211,19 +1214,6 @@ def test_cluster_entry_layer_needs_structures_dir(tmp_path):
         )
 
 
-def test_annotate_old_flat_form_is_gone(tmp_path):
-    with pytest.raises(SystemExit):
-        main(
-            [
-                "annotate",
-                "--input-dir",
-                str(tmp_path),
-                "--output-dir",
-                str(tmp_path),
-            ]
-        )
-
-
 _LAYER_ROWS = [
     '{"entry_id":"1a2c","auth_chain_id":"L","auth_seq_id":"1",'
     '"ins_code":"H","value":1.0}',
@@ -1250,23 +1240,21 @@ def _layer_inputs(tmp_path):
     (tmp_path / "raw" / "out.txt").write_text("raw tool output\n")
     (tmp_path / "t.jsonl").write_text("\n".join(_LAYER_ROWS) + "\n")
     return [
-        "--structures-dir",
-        str(tmp_path / "curated"),
-        "--table",
         str(tmp_path / "t.jsonl"),
+        str(tmp_path / "annotations" / "t"),
+        "--structures",
+        str(tmp_path / "curated"),
         "--description",
         str(tmp_path / "cocada.yaml"),
         "--source-files",
         str(tmp_path / "raw"),
-        "--output-dir",
-        str(tmp_path / "annotations" / "t"),
         "--table-format",
         "jsonl",
     ]
 
 
-def test_annotate_import_writes_layer_folder(tmp_path):
-    main(["annotate", "import", *_layer_inputs(tmp_path)])
+def test_annotations_import_writes_layer_folder(tmp_path):
+    main(["annotations", "import", *_layer_inputs(tmp_path)])
     out = tmp_path / "annotations" / "t"
     matched = read_records(out / "layer.jsonl", LayerRow)
     assert [r.model_dump()["seq_id"] for r in matched] == [1, 2]
@@ -1275,7 +1263,7 @@ def test_annotate_import_writes_layer_folder(tmp_path):
         for r in read_records(out / "unmatched.jsonl", LayerRow)
     ]
     assert unmatched == ["no_coordinates", "entry_not_found"]
-    summary = json.loads((out / "layer.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["step"] == "annotation_import"
     assert summary["policy"]["template"] == "residue_values"
     assert summary["counts"] == {
@@ -1289,35 +1277,35 @@ def test_annotate_import_writes_layer_folder(tmp_path):
     assert (out / "source" / "out.txt").exists()
 
 
-def test_annotate_import_refuses_existing_layer_without_overwrite(tmp_path):
+def test_annotations_import_refuses_existing_layer_without_overwrite(tmp_path):
     args = _layer_inputs(tmp_path)
-    main(["annotate", "import", *args])
+    main(["annotations", "import", *args])
     with pytest.raises(SystemExit):
-        main(["annotate", "import", *args])
-    main(["annotate", "import", *args, "--overwrite"])
+        main(["annotations", "import", *args])
+    main(["annotations", "import", *args, "--overwrite"])
 
 
-def test_annotate_import_missing_value_column_writes_nothing(tmp_path):
+def test_annotations_import_missing_value_column_writes_nothing(tmp_path):
     args = _layer_inputs(tmp_path)
     (tmp_path / "t.jsonl").write_text(
         '{"entry_id":"1A2C","chain_id":"A","seq_id":1}\n'
     )
     with pytest.raises(SystemExit, match="value"):
-        main(["annotate", "import", *args])
+        main(["annotations", "import", *args])
     assert not (tmp_path / "annotations" / "t").exists()
 
 
-def test_annotate_import_empty_table(tmp_path):
+def test_annotations_import_empty_table(tmp_path):
     args = _layer_inputs(tmp_path)
     (tmp_path / "t.jsonl").write_text("")
-    main(["annotate", "import", *args])
+    main(["annotations", "import", *args])
     out = tmp_path / "annotations" / "t"
-    summary = json.loads((out / "layer.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["counts"]["rows_in"] == 0
     assert not (out / "layer.jsonl").exists()
 
 
-def test_annotate_import_parquet_with_mixed_type_columns(tmp_path):
+def test_annotations_import_parquet_with_mixed_type_columns(tmp_path):
     args = _layer_inputs(tmp_path)[:-2]  # default --table-format parquet
     (tmp_path / "t.jsonl").write_text(
         '{"entry_id":"1A2C","chain_id":"A","seq_id":1,"value":1,"note":1}\n'
@@ -1325,24 +1313,24 @@ def test_annotate_import_parquet_with_mixed_type_columns(tmp_path):
         '"note":"a"}\n'
         '{"entry_id":"1A2C","chain_id":"A","seq_id":999,"value":"n/a"}\n'
     )
-    main(["annotate", "import", *args])
+    main(["annotations", "import", *args])
     out = tmp_path / "annotations" / "t"
     reasons = [
         r.model_dump()["reason"]
         for r in read_records(out / "unmatched.parquet", LayerRow)
     ]
     assert reasons == ["bad_value", "residue_not_found"]
-    assert (out / "layer.json").exists()
+    assert (out / "summary.json").exists()
 
 
-def test_annotate_import_refuses_similarity_layer(tmp_path):
+def test_annotations_import_refuses_similarity_layer(tmp_path):
     args = _layer_inputs(tmp_path)
     (tmp_path / "cocada.yaml").write_text(
         "name: s\ntemplate: similarity\nitems: chain\ntool: R\n"
     )
     (tmp_path / "t.jsonl").write_text("")
     with pytest.raises(SystemExit, match="pandora similarity import"):
-        main(["annotate", "import", *args])
+        main(["annotations", "import", *args])
     assert not (tmp_path / "annotations" / "t").exists()
 
 
@@ -1744,9 +1732,8 @@ def test_cluster_interface_filter_without_contacts_exits(tmp_path):
 
 def _count(contacts, out, level):
     main(
-        ["annotate", "count-contacts", "--contacts", str(contacts)]
-        + ["--level", level, "--output-dir", str(out)]
-        + ["--table-format", "jsonl"]
+        ["annotations", "contact-counts", str(contacts), str(out)]
+        + ["--level", level, "--table-format", "jsonl"]
     )
 
 
@@ -1757,11 +1744,11 @@ def _count(contacts, out, level):
         ("chain", "chain_values", count_chain_contacts),
     ],
 )
-def test_annotate_count_contacts_writes_value_layer(
+def test_annotations_contact_counts_writes_value_layer(
     tmp_path, level, template, function
 ):
     contacts = tmp_path / "interfaces"
-    _compute(_step_folder(tmp_path), contacts, "--layer", "chain_interfaces")
+    _compute(_step_folder(tmp_path), contacts)
     out = tmp_path / f"counts_{level}"
     _count(contacts, out, level)
 
@@ -1771,7 +1758,7 @@ def test_annotate_count_contacts_writes_value_layer(
     assert [r.model_dump() for r in written] == [
         r.model_dump() for r in function(rows)
     ]
-    summary = json.loads((out / "layer.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["step"] == "annotation_count"
     assert summary["policy"]["template"] == template
     assert summary["policy"]["name"] == "contact_count"
@@ -1784,12 +1771,12 @@ def test_annotate_count_contacts_writes_value_layer(
         "rows_in": len(rows),
         "rows_out": len(written),
     }
-    assert summary["previous_summary"] == str(contacts / "layer.json")
+    assert summary["previous_summary"] == str(contacts / "summary.json")
 
 
-def test_annotate_count_contacts_rejects_non_contact_layer(tmp_path):
+def test_annotations_contact_counts_rejects_non_contact_layer(tmp_path):
     contacts = tmp_path / "interfaces"
-    _compute(_step_folder(tmp_path), contacts, "--layer", "chain_interfaces")
+    _compute(_step_folder(tmp_path), contacts)
     counts = tmp_path / "counts"
     _count(contacts, counts, "chain")
     out = tmp_path / "again"
@@ -1798,28 +1785,27 @@ def test_annotate_count_contacts_rejects_non_contact_layer(tmp_path):
     assert not out.exists()
 
 
-def test_annotate_count_contacts_empty_layer(tmp_path):
+def test_annotations_contact_counts_empty_layer(tmp_path):
     contacts = tmp_path / "empty"
     contacts.mkdir()
-    (contacts / "layer.json").write_text(
+    (contacts / "summary.json").write_text(
         json.dumps({"policy": {"name": "x", "template": "residue_contacts"}})
     )
     out = tmp_path / "counts"
     _count(contacts, out, "residue")
-    assert sorted(p.name for p in out.iterdir()) == ["layer.json"]
-    summary = json.loads((out / "layer.json").read_text())
+    assert sorted(p.name for p in out.iterdir()) == ["summary.json"]
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["counts"] == {"rows_in": 0, "rows_out": 0}
 
 
-def test_annotate_count_contacts_refuses_its_input_as_output(tmp_path):
+def test_annotations_contact_counts_refuses_its_input_as_output(tmp_path):
     contacts = tmp_path / "interfaces"
-    _compute(_step_folder(tmp_path), contacts, "--layer", "chain_interfaces")
+    _compute(_step_folder(tmp_path), contacts)
     before = (contacts / "layer.jsonl").read_text()
-    with pytest.raises(SystemExit, match="is the --contacts folder"):
+    with pytest.raises(SystemExit, match="is the input folder"):
         main(
-            ["annotate", "count-contacts", "--contacts", str(contacts)]
-            + ["--level", "chain", "--output-dir", str(contacts)]
-            + ["--overwrite", "--table-format", "jsonl"]
+            ["annotations", "contact-counts", str(contacts), str(contacts)]
+            + ["--level", "chain", "--overwrite", "--table-format", "jsonl"]
         )
     assert (contacts / "layer.jsonl").read_text() == before
 
@@ -1833,9 +1819,9 @@ def _import_labels(tmp_path, step, rows, out, template="interface_labels"):
         'tool_version: "1"\n'
     )
     main(
-        ["annotate", "import", "--structures-dir", str(step)]
-        + ["--table", str(table), "--description", str(description)]
-        + ["--output-dir", str(out), "--table-format", "jsonl"]
+        ["annotations", "import", str(table), str(out)]
+        + ["--structures", str(step), "--description", str(description)]
+        + ["--table-format", "jsonl"]
     )
 
 
@@ -1861,7 +1847,7 @@ def _filter_inputs(tmp_path, labels_step=None):
     step = _step_folder(tmp_path)
     (step / "curation.json").write_text("{}")
     contacts = tmp_path / "annotations" / "interfaces"
-    _compute(step, contacts, "--layer", "chain_interfaces")
+    _compute(step, contacts)
     labels = tmp_path / "annotations" / "verdict"
     _import_labels(
         tmp_path,
@@ -1874,13 +1860,12 @@ def _filter_inputs(tmp_path, labels_step=None):
 
 def _filter(contacts, labels, out, *extra):
     main(
-        ["annotate", "filter-contacts", "--contacts", str(contacts)]
-        + ["--labels", str(labels), "--output-dir", str(out)]
-        + ["--table-format", "jsonl", *extra]
+        ["annotations", "filter", str(contacts), str(out)]
+        + ["--labels", str(labels), "--table-format", "jsonl", *extra]
     )
 
 
-def test_annotate_filter_contacts_writes_layer(tmp_path):
+def test_annotations_filter_writes_layer(tmp_path):
     _, contacts, labels = _filter_inputs(tmp_path)
     out = tmp_path / "filtered"
     _filter(contacts, labels, out, "--drop", "bad")
@@ -1893,17 +1878,17 @@ def test_annotate_filter_contacts_writes_layer(tmp_path):
     assert all({r.chain_id_1, r.chain_id_2} != bad for r in written)
     assert len(written) < len(rows)
 
-    summary = json.loads((out / "layer.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["step"] == "annotation_filter"
     assert summary["policy"]["name"] == "filtered_contacts"
     assert summary["policy"]["template"] == "residue_contacts"
     assert summary["policy"]["parameters"] == {
         "contacts_layer": "chain_interfaces",
-        "labels_layer": "verdict",
-        "labels_dir": str(labels),
+        "labels_layers": ["verdict"],
+        "labels_dirs": [str(labels)],
         "drop": ["bad"],
     }
-    assert summary["previous_summary"] == str(contacts / "layer.json")
+    assert summary["previous_summary"] == str(contacts / "summary.json")
     n = len(_contact_pairs(contacts))
     assert summary["counts"] == {
         "interfaces_dropped": 1,
@@ -1915,7 +1900,7 @@ def test_annotate_filter_contacts_writes_layer(tmp_path):
     }
 
 
-def test_annotate_filter_contacts_output_feeds_records(tmp_path):
+def test_annotations_filter_output_feeds_records(tmp_path):
     _, contacts, labels = _filter_inputs(tmp_path)
     out = tmp_path / "filtered"
     _filter(contacts, labels, out, "--drop", "bad")
@@ -1928,7 +1913,7 @@ def test_annotate_filter_contacts_output_feeds_records(tmp_path):
     assert frozenset(_contact_pairs(contacts)[0]) not in pairs
 
 
-def test_annotate_filter_contacts_chains(tmp_path):
+def test_annotations_filter_chains(tmp_path):
     _, contacts, labels = _filter_inputs(tmp_path)
     first = tmp_path / "first"
     _filter(contacts, labels, first, "--drop", "bad")
@@ -1937,12 +1922,12 @@ def test_annotate_filter_contacts_chains(tmp_path):
     assert (second / "layer.jsonl").read_text() == (
         first / "layer.jsonl"
     ).read_text()
-    counts = json.loads((second / "layer.json").read_text())["counts"]
+    counts = json.loads((second / "summary.json").read_text())["counts"]
     assert counts["interfaces_dropped"] == 0
     assert counts["labels_unmatched"] == 1
 
 
-def test_annotate_filter_contacts_rejects_wrong_labels_template(tmp_path):
+def test_annotations_filter_rejects_wrong_labels_template(tmp_path):
     step, contacts, _ = _filter_inputs(tmp_path)
     chain_labels = tmp_path / "chain_verdict"
     _import_labels(
@@ -1958,7 +1943,7 @@ def test_annotate_filter_contacts_rejects_wrong_labels_template(tmp_path):
     assert not out.exists()
 
 
-def test_annotate_filter_contacts_rejects_unknown_drop(tmp_path):
+def test_annotations_filter_rejects_unknown_drop(tmp_path):
     _, contacts, labels = _filter_inputs(tmp_path)
     out = tmp_path / "filtered"
     with pytest.raises(SystemExit, match="typo"):
@@ -1967,42 +1952,31 @@ def test_annotate_filter_contacts_rejects_unknown_drop(tmp_path):
 
 
 @pytest.mark.parametrize("which", ["contacts", "labels"])
-def test_annotate_filter_contacts_refuses_input_as_output(tmp_path, which):
+def test_annotations_filter_refuses_input_as_output(tmp_path, which):
     _, contacts, labels = _filter_inputs(tmp_path)
     target = contacts if which == "contacts" else labels
     before = (target / "layer.jsonl").read_text()
-    with pytest.raises(SystemExit, match=f"is the --{which} folder"):
+    with pytest.raises(SystemExit, match="input folder"):
         _filter(contacts, labels, target, "--drop", "bad", "--overwrite")
     assert (target / "layer.jsonl").read_text() == before
 
 
-def test_annotate_filter_contacts_rejects_different_origins(tmp_path):
+def test_annotations_filter_warns_when_inputs_differ(tmp_path, capsys):
     other = tmp_path / "other"
     shutil.copytree(FIXTURES_DIR / "a2", other / "structures" / "a2")
     (other / "curation.json").write_text("{}")
     _, contacts, labels = _filter_inputs(tmp_path, labels_step=other)
     out = tmp_path / "filtered"
-    with pytest.raises(SystemExit, match="same structures folder"):
-        _filter(contacts, labels, out, "--drop", "bad")
-    assert not out.exists()
-
-
-def test_annotate_filter_contacts_warns_without_origin(tmp_path, capsys):
-    other = tmp_path / "other"
-    (other / "structures" / "a2").mkdir(parents=True)
-    shutil.copy(FIXTURES_DIR / "a2" / "1a2c.cif", other / "structures" / "a2")
-    _, contacts, labels = _filter_inputs(tmp_path, labels_step=other)
-    out = tmp_path / "filtered"
     _filter(contacts, labels, out, "--drop", "bad")
     assert "warning" in capsys.readouterr().err
-    assert (out / "layer.json").exists()
+    assert (out / "summary.json").exists()
 
 
-def test_annotate_filter_contacts_empty_contacts(tmp_path):
+def test_annotations_filter_empty_contacts(tmp_path):
     step, _, labels = _filter_inputs(tmp_path)
     empty = tmp_path / "empty"
     empty.mkdir()
-    (empty / "layer.json").write_text(
+    (empty / "summary.json").write_text(
         json.dumps(
             {
                 "step": "annotation_compute",
@@ -2014,8 +1988,8 @@ def test_annotate_filter_contacts_empty_contacts(tmp_path):
     )
     out = tmp_path / "filtered"
     _filter(empty, labels, out, "--drop", "bad")
-    assert sorted(p.name for p in out.iterdir()) == ["layer.json"]
-    counts = json.loads((out / "layer.json").read_text())["counts"]
+    assert sorted(p.name for p in out.iterdir()) == ["summary.json"]
+    counts = json.loads((out / "summary.json").read_text())["counts"]
     n = len(read_records(labels / "layer.jsonl", LayerRow))
     assert counts == {
         "interfaces_dropped": 0,
@@ -2027,14 +2001,12 @@ def test_annotate_filter_contacts_empty_contacts(tmp_path):
     }
 
 
-def test_annotate_filter_contacts_from_another_cwd(
-    tmp_path, monkeypatch, capsys
-):
+def test_annotations_filter_works_from_another_cwd(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     step = _step_folder(Path("."))
     (step / "curation.json").write_text("{}")
     contacts = Path("annotations") / "interfaces"
-    _compute(step, contacts, "--layer", "chain_interfaces")
+    _compute(step, contacts)
     labels = Path("annotations") / "verdict"
     _import_labels(Path("."), step, _verdicts(_contact_pairs(contacts)), labels)
     _filter(contacts, labels, Path("first"), "--drop", "bad")
@@ -2042,11 +2014,14 @@ def test_annotate_filter_contacts_from_another_cwd(
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
-    capsys.readouterr()
     out = tmp_path / "second"
+    # the recorded relative paths no longer resolve; nothing may depend
+    # on them.
     _filter(tmp_path / "first", tmp_path / labels, out, "--drop", "bad")
-    assert "warning" in capsys.readouterr().err
-    assert (out / "layer.json").exists()
+    assert (out / "summary.json").exists()
+    assert (out / "layer.jsonl").read_text() == (
+        tmp_path / "first" / "layer.jsonl"
+    ).read_text()
 
 
 def test_layer_origin_stops_on_a_loop(tmp_path):
@@ -2185,10 +2160,17 @@ def test_partition_labels_rejects_no_keep(tmp_path):
     assert not (tmp_path / "out" / "splits.json").exists()
 
 
-def _label(contacts, out, *extra):
+def _interface_contacts(contacts, out, *extra):
     main(
-        ["annotate", "label-interfaces", "--contacts", str(contacts)]
-        + ["--output-dir", str(out), "--table-format", "jsonl", *extra]
+        ["annotations", "interface-contacts", str(contacts), str(out)]
+        + ["--table-format", "jsonl", *extra]
+    )
+
+
+def _dimer_length(contacts, out, structures, *extra):
+    main(
+        ["annotations", "dimer-length", str(contacts), str(out)]
+        + ["--structures", str(structures), "--table-format", "jsonl", *extra]
     )
 
 
@@ -2197,7 +2179,7 @@ def _label_inputs(tmp_path, skip=()):
 
     step = _step_folder(tmp_path)
     contacts = tmp_path / "interfaces"
-    _compute(step, contacts, "--layer", "chain_interfaces")
+    _compute(step, contacts)
     chains = sorted({c for pair in _contact_pairs(contacts) for c in pair})
     rows = [
         {"entry_id": "1A2C", "chain_id": c, "entity_id": "1"}
@@ -2208,34 +2190,31 @@ def _label_inputs(tmp_path, skip=()):
     (step / "chains.jsonl").write_text(
         "".join(json.dumps(r) + "\n" for r in rows)
     )
+    (step / "entries.jsonl").write_text("")
     return step, contacts
 
 
-def test_annotate_label_interfaces_writes_layer(tmp_path):
-    step, contacts = _label_inputs(tmp_path)
+def test_annotations_interface_contacts_labels_few_contacts(tmp_path):
+    _, contacts = _label_inputs(tmp_path)
     out = tmp_path / "labels"
-    _label(contacts, out, "--min-residues-per-chain", "5")
+    _interface_contacts(contacts, out, "--min-residues-per-chain", "5")
 
     rows = read_records(contacts / "layer.jsonl", ResidueContactRow)
-    lengths = {
-        ("1A2C", c): 100 for pair in _contact_pairs(contacts) for c in pair
-    }
     written = read_records(out / "layer.jsonl", LayerRow)
-    expected = label_interfaces(rows, lengths, 5, None)
+    expected = label_interfaces(rows, {}, 5, None)
     assert written
     assert [r.model_dump() for r in written] == [
         r.model_dump() for r in expected
     ]
-    summary = json.loads((out / "layer.json").read_text())
+    assert not (out / "layer.json").exists()
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["step"] == "annotation_label"
-    assert summary["policy"]["name"] == "contact_labels"
+    assert summary["policy"]["name"] == "interface_contacts"
     assert summary["policy"]["template"] == "interface_labels"
     assert summary["policy"]["parameters"] == {
         "contacts_layer": "chain_interfaces",
-        "structures_dir": str(step.resolve()),
         "min_residues_per_chain": 5,
-        "max_total_residues": None,
-        "labels": ["ok", "few_contacts", "too_large"],
+        "labels": ["ok", "few_contacts"],
     }
     labels = [r.label for r in written]
     assert summary["counts"] == {
@@ -2243,91 +2222,120 @@ def test_annotate_label_interfaces_writes_layer(tmp_path):
         "interfaces": len(written),
         "ok": labels.count("ok"),
         "few_contacts": labels.count("few_contacts"),
-        "too_large": 0,
+    }
+    assert summary["previous_summary"] == str(contacts / "summary.json")
+
+
+def test_annotations_dimer_length_labels_too_large(tmp_path):
+    step, contacts = _label_inputs(tmp_path)
+    out = tmp_path / "sizes"
+    _dimer_length(contacts, out, step, "--max-total-residues", "150")
+
+    rows = read_records(contacts / "layer.jsonl", ResidueContactRow)
+    lengths = {
+        ("1A2C", c): 100 for pair in _contact_pairs(contacts) for c in pair
+    }
+    written = read_records(out / "layer.jsonl", LayerRow)
+    expected = label_interfaces(rows, lengths, None, 150)
+    assert written and all(r.label == "too_large" for r in written)
+    assert [r.model_dump() for r in written] == [
+        r.model_dump() for r in expected
+    ]
+    summary = json.loads((out / "summary.json").read_text())
+    assert summary["policy"]["name"] == "dimer_length"
+    assert summary["policy"]["parameters"] == {
+        "contacts_layer": "chain_interfaces",
+        "structures_dir": str(step),
+        "max_total_residues": 150,
+        "labels": ["ok", "too_large"],
+    }
+    assert summary["counts"] == {
+        "rows_in": len(rows),
+        "interfaces": len(written),
+        "ok": 0,
+        "too_large": len(written),
         "unknown_length": 0,
     }
-    assert summary["previous_summary"] == str(contacts / "layer.json")
+    assert summary["previous_summary"] == str(contacts / "summary.json")
 
 
-def test_annotate_label_interfaces_feeds_filter(tmp_path):
+def test_annotations_interface_contacts_feeds_filter(tmp_path):
     _, contacts = _label_inputs(tmp_path)
     labels = tmp_path / "labels"
-    _label(contacts, labels, "--min-residues-per-chain", "1000")
+    _interface_contacts(contacts, labels, "--min-residues-per-chain", "1000")
     out = tmp_path / "real"
     _filter(contacts, labels, out, "--drop", "few_contacts")
-    # every interface dropped: filter-contacts writes no rows table
+    # every interface dropped: filter writes no rows table
     assert not (out / "layer.jsonl").exists()
-    counts = json.loads((out / "layer.json").read_text())["counts"]
+    counts = json.loads((out / "summary.json").read_text())["counts"]
     assert counts["interfaces_dropped"] == counts["interfaces_in"] > 0
 
 
-def test_annotate_filter_contacts_accepts_known_label_with_no_interface(
-    tmp_path,
-):
-    # too_large is a label label-interfaces can give, so dropping it is no
-    # typo even when no interface has it (the dev data has none).
+def test_annotations_filter_accepts_known_label_with_no_interface(tmp_path):
+    # few_contacts is a label interface-contacts can give, so dropping it
+    # is no typo even when no interface has it.
     _, contacts = _label_inputs(tmp_path)
     labels = tmp_path / "labels"
-    _label(contacts, labels, "--min-residues-per-chain", "1")
+    _interface_contacts(contacts, labels, "--min-residues-per-chain", "1")
     out = tmp_path / "sized"
-    _filter(
-        contacts, labels, out, "--drop", "few_contacts", "--drop", "too_large"
-    )
-    counts = json.loads((out / "layer.json").read_text())["counts"]
+    _filter(contacts, labels, out, "--drop", "few_contacts")
+    counts = json.loads((out / "summary.json").read_text())["counts"]
     assert counts["interfaces_dropped"] == 0
     assert counts["rows_out"] == counts["rows_in"]
     with pytest.raises(SystemExit, match="typo"):
         _filter(contacts, labels, tmp_path / "typo", "--drop", "too_larg")
 
 
-def test_annotate_label_interfaces_untraceable_origin_exits(tmp_path):
-    _, contacts = _label_inputs(tmp_path)
-    summary = json.loads((contacts / "layer.json").read_text())
-    summary["input"] = str(tmp_path / "gone")
-    (contacts / "layer.json").write_text(json.dumps(summary))
-    with pytest.raises(SystemExit, match="relative to where"):
-        _label(contacts, tmp_path / "labels")
-    assert not (tmp_path / "labels").exists()
-
-
-def test_annotate_label_interfaces_missing_chain_has_unknown_length(
-    tmp_path,
-):
+def test_annotations_dimer_length_missing_chain_has_unknown_length(tmp_path):
     _, probe = _label_inputs(tmp_path / "probe")
     first = _contact_pairs(probe)[0][0]
-    _, contacts = _label_inputs(tmp_path, skip={first})
+    step, contacts = _label_inputs(tmp_path, skip={first})
     out = tmp_path / "labels"
-    _label(contacts, out, "--max-total-residues", "150")
+    _dimer_length(contacts, out, step, "--max-total-residues", "150")
     written = read_records(out / "layer.jsonl", LayerRow)
     unknown = [r for r in written if first in (r.chain_id_1, r.chain_id_2)]
     assert unknown and all(r.total_residues is None for r in unknown)
     assert all(r.label == "ok" for r in unknown)
     assert all(r.label == "too_large" for r in written if r not in unknown)
-    counts = json.loads((out / "layer.json").read_text())["counts"]
+    counts = json.loads((out / "summary.json").read_text())["counts"]
     assert counts["unknown_length"] == len(unknown)
 
 
-def test_annotate_label_interfaces_without_chains_table_exits(tmp_path):
+def test_annotations_dimer_length_needs_tables(tmp_path):
     step, contacts = _label_inputs(tmp_path)
     (step / "chains.jsonl").unlink()
-    with pytest.raises(SystemExit, match="pandora curate"):
-        _label(contacts, tmp_path / "labels")
+    with pytest.raises(SystemExit, match="pandora structures curate"):
+        _dimer_length(
+            contacts, tmp_path / "labels", step, "--max-total-residues", "1"
+        )
     assert not (tmp_path / "labels").exists()
 
 
-def _gaps(contacts, out):
+def test_annotations_dimer_length_rejects_bare_structures(tmp_path):
+    _, contacts = _label_inputs(tmp_path)
+    with pytest.raises(SystemExit, match="annotations dimer-length"):
+        _dimer_length(
+            contacts,
+            tmp_path / "labels",
+            FIXTURES_DIR / "a2" / "1a2c.cif",
+            "--max-total-residues",
+            "1",
+        )
+
+
+def _gaps(contacts, out, structures):
     main(
-        ["annotate", "interface-gaps", "--contacts", str(contacts)]
-        + ["--output-dir", str(out), "--table-format", "jsonl"]
+        ["annotations", "interface-gaps", str(contacts), str(out)]
+        + ["--structures", str(structures), "--table-format", "jsonl"]
     )
 
 
-def test_annotate_interface_gaps_writes_layer(tmp_path):
+def test_annotations_interface_gaps_writes_layer(tmp_path):
     step = _step_folder(tmp_path)
     contacts = tmp_path / "interfaces"
-    _compute(step, contacts, "--layer", "chain_interfaces")
+    _compute(step, contacts)
     out = tmp_path / "gaps"
-    _gaps(contacts, out)
+    _gaps(contacts, out, step)
 
     written = read_records(out / "layer.jsonl", LayerRow)
     # 1a2c: heavy chain B (auth H) has a missing loop inside both of
@@ -2340,12 +2348,12 @@ def test_annotate_interface_gaps_writes_layer(tmp_path):
         ("B", "C", 0, 0, "ok"),
         ("B", "D", 7, 0, "interface_gap"),
     ]
-    summary = json.loads((out / "layer.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["policy"]["name"] == "interface_gaps"
     assert summary["policy"]["template"] == "interface_labels"
     assert summary["policy"]["parameters"] == {
         "contacts_layer": "chain_interfaces",
-        "structures_dir": str(step.resolve()),
+        "structures_dir": str(step),
         "missing_residue_definition": "incomplete_backbone",
         "labels": ["ok", "interface_gap", "unknown"],
     }
@@ -2365,12 +2373,55 @@ def test_annotate_interface_gaps_writes_layer(tmp_path):
     }
 
 
-def test_annotate_label_interfaces_output_is_contacts_exits(tmp_path):
+def test_annotations_filter_two_label_layers_one_pass(tmp_path):
+    step, contacts = _label_inputs(tmp_path)
+    few = tmp_path / "few"
+    gaps = tmp_path / "gaps"
+    _interface_contacts(contacts, few, "--min-residues-per-chain", "1000")
+    _gaps(contacts, gaps, step)
+
+    # one pass over two label layers equals the two single passes
+    ok = tmp_path / "ok"
+    _interface_contacts(contacts, ok, "--min-residues-per-chain", "1")
+    one, two = tmp_path / "one_b", tmp_path / "two_b"
+    _filter(contacts, ok, one, "--labels", str(gaps), "--drop", "interface_gap")
+    _filter(contacts, gaps, two, "--drop", "interface_gap")
+    assert (one / "layer.jsonl").read_text() == (
+        two / "layer.jsonl"
+    ).read_text()
+    assert {tuple(sorted(pair)) for pair in _contact_pairs(one)} == {("B", "C")}
+    counts = json.loads((one / "summary.json").read_text())["counts"]
+    assert counts["interfaces_dropped"] == 2
+
+
+def test_annotations_filter_rejects_label_layer_of_wrong_template(tmp_path):
+    step, contacts, labels = _filter_inputs(tmp_path)
+    other = tmp_path / "other"
+    _import_labels(
+        tmp_path,
+        step,
+        [{"entry_id": "1a2c", "chain_id": "A", "label": "bad"}],
+        other,
+        template="chain_labels",
+    )
+    with pytest.raises(SystemExit, match="annotations filter: .*needs"):
+        _filter(
+            contacts,
+            labels,
+            tmp_path / "out",
+            "--labels",
+            str(other),
+            "--drop",
+            "bad",
+        )
+
+
+def test_annotations_interface_contacts_output_is_contacts_exits(tmp_path):
     _, contacts = _label_inputs(tmp_path)
-    before = (contacts / "layer.json").read_text()
-    with pytest.raises(SystemExit, match="--contacts folder"):
-        _label(contacts, contacts)
-    assert (contacts / "layer.json").read_text() == before
+    before = (contacts / "summary.json").read_text()
+    with pytest.raises(SystemExit, match="is the input folder"):
+        _interface_contacts(contacts, contacts, "--min-residues-per-chain", "1")
+    assert (contacts / "summary.json").read_text() == before
 
 
 def _iface_inputs(tmp_path, clusters=None):
@@ -2381,7 +2432,7 @@ def _iface_inputs(tmp_path, clusters=None):
 
     step = _step_folder(tmp_path)
     contacts = tmp_path / "interfaces"
-    _compute(step, contacts, "--layer", "chain_interfaces")
+    _compute(step, contacts)
     letters: dict[str, dict[int, str]] = {}
     for r in _jsonl(contacts / "layer.jsonl"):
         for side in ("1", "2"):
@@ -2473,7 +2524,7 @@ def test_similarity_interfaces_writes_layer(tmp_path, capsys):
     assert summary["counts"] == dict(
         sorted(({"rows_in": len(rows)} | counts).items())
     )
-    assert summary["previous_summary"] == str(contacts / "layer.json")
+    assert summary["previous_summary"] == str(contacts / "summary.json")
     assert f"scored: {counts['pairs_compared']} interface pairs" in (
         capsys.readouterr().out
     )
@@ -2503,9 +2554,9 @@ def test_similarity_interfaces_no_pairs(tmp_path):
 
 def test_similarity_interfaces_untraceable_origin_exits(tmp_path):
     _, contacts, clusters_file, _ = _iface_inputs(tmp_path)
-    summary = json.loads((contacts / "layer.json").read_text())
+    summary = json.loads((contacts / "summary.json").read_text())
     summary["input"] = str(tmp_path / "gone")
-    (contacts / "layer.json").write_text(json.dumps(summary))
+    (contacts / "summary.json").write_text(json.dumps(summary))
     with pytest.raises(SystemExit, match="relative to where"):
         _iface_sim(contacts, clusters_file, tmp_path / "out")
     assert not (tmp_path / "out").exists()
@@ -2521,10 +2572,10 @@ def test_similarity_interfaces_no_chains_table_exits(tmp_path):
 
 def test_similarity_interfaces_output_is_contacts_exits(tmp_path):
     _, contacts, clusters_file, _ = _iface_inputs(tmp_path)
-    before = (contacts / "layer.json").read_text()
+    before = (contacts / "summary.json").read_text()
     with pytest.raises(SystemExit, match="--contacts folder"):
         _iface_sim(contacts, clusters_file, contacts)
-    assert (contacts / "layer.json").read_text() == before
+    assert (contacts / "summary.json").read_text() == before
 
 
 def test_similarity_interfaces_wrong_level_clusters_exits(tmp_path):
@@ -2963,8 +3014,8 @@ def test_layer_on_dedup_step_folder_links_its_summary(tmp_path):
     curated = tmp_path / "curated"
     (curated / "curation.json").rename(curated / "dedup.json")
     out = tmp_path / "layer"
-    main(["annotate", "import", *args, "--output-dir", str(out)])
-    summary = json.loads((out / "layer.json").read_text())
+    main(["annotations", "import", args[0], str(out), *args[2:]])
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["previous_summary"].endswith("dedup.json")
 
 
@@ -3027,7 +3078,7 @@ def test_rebalance_writes_positives_and_dropped(tmp_path):
     assert len(flat) == len(set(flat))
     summary = json.loads((out / "rebalance.json").read_text())
     assert summary["step"] == "rebalance"
-    assert summary["previous_summary"] == str(contacts / "layer.json")
+    assert summary["previous_summary"] == str(contacts / "summary.json")
     assert summary["counts"]["groups"] == 1
     assert summary["counts"]["dimers_in"] == len(dimers)
     assert summary["counts"]["positives:heteromer"] == len(positives)
@@ -3595,10 +3646,10 @@ def test_structure_files_finds_gzipped_flat_files(tmp_path):
     assert sorted(_io.structure_index(tmp_path)) == ["104M", "112M"]
 
 
-def test_annotate_compute_reads_real_structures_curate_folder(tmp_path):
+def test_annotations_contacts_reads_real_structures_curate_folder(tmp_path):
     _, curated = _canonicalise_and_curate(tmp_path)
     out = tmp_path / "contacts"
-    _compute(curated, out, "--layer", "chain_interfaces")
-    summary = json.loads((out / "layer.json").read_text())
+    _compute(curated, out)
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["counts"]["entries"] == 1
     assert summary["previous_summary"] == str(curated / "summary.json")

@@ -4,15 +4,19 @@ library area (see `pandora/cli/README.md` for the I/O convention)."""
 from __future__ import annotations
 
 import argparse
+import importlib
 
 from pandora import __version__
 from pandora.cli import (
-    annotate,
     entries,
     sampling,
     similarity,
     structures,
 )
+
+# `from pandora.cli import annotations` gives `__future__`'s feature, which
+# `pandora/cli/__init__.py` imports under that name.
+annotations_group = importlib.import_module("pandora.cli.annotations")
 
 # Order of the subcommands in `pandora --help`.
 _MODULES = (
@@ -20,7 +24,7 @@ _MODULES = (
     structures,
     similarity,
     sampling,
-    annotate,
+    annotations_group,
 )
 
 
@@ -61,7 +65,7 @@ def app() -> None:
 
     Parses arguments from `sys.argv` and dispatches to the selected
     subcommand's handler (`entries`, `structures`, `similarity`,
-    `cluster`, `partition`, `annotate`, ...);
+    `cluster`, `partition`, `annotations`, ...);
     see `pandora/cli/README.md` for the
     I/O convention between subcommands. Takes no arguments and returns
     nothing — each subcommand handler writes its output to disk and
