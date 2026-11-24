@@ -1705,8 +1705,31 @@ def test_similarity_import_interface_level_needs_contacts(tmp_path):
 def test_similarity_import_chain_level_without_chains_table(tmp_path):
     folder = _similarity_step(tmp_path)
     (folder / "chains.jsonl").unlink()
-    with pytest.raises(SystemExit, match="pandora curate"):
+    with pytest.raises(
+        SystemExit,
+        match="similarity import: .* has no chains table; run "
+        "`pandora structures curate` first",
+    ):
         _import(tmp_path, "items: chain\n", "--structures", str(folder))
+
+
+def test_similarity_import_chain_level_needs_structures(tmp_path):
+    with pytest.raises(
+        SystemExit, match="similarity import: chain items need --structures"
+    ):
+        _import(tmp_path, "items: chain\n")
+
+
+@pytest.mark.parametrize("engine", ["mmseqs", "foldseek"])
+def test_similarity_search_without_tables_exits(tmp_path, engine):
+    folder = _similarity_step(tmp_path)
+    (folder / "chains.jsonl").unlink()
+    with pytest.raises(
+        SystemExit,
+        match=f"similarity {engine}: .* has no chains table; run "
+        "`pandora structures curate` first",
+    ):
+        main(["similarity", engine, str(folder), str(tmp_path / "o")])
 
 
 def test_similarity_import_missing_items_stops_before_writing(tmp_path):

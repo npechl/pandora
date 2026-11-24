@@ -287,6 +287,7 @@ def _search(args: argparse.Namespace, command: str, engine: str) -> None:
             "drop --chain-files"
         )
     structures, out = Path(args.structures), Path(args.out)
+    require_tables(command, structures)
     items, previous = _item_set(command, "chain", structures, None)
     check_out(command, structures, out)
     chains: set[str] | None = None
@@ -433,6 +434,8 @@ def _cmd_import(args: argparse.Namespace) -> None:
         raise SystemExit(
             f"{command}: {description.items} items need --structures"
         )
+    if structures is not None and description.items != "interface":
+        require_tables(command, structures)
     items, previous = _item_set(
         command, description.items, structures, contacts
     )
