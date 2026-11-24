@@ -8,23 +8,19 @@ import argparse
 from pandora import __version__
 from pandora.cli import (
     annotate,
-    canonicalisation,
-    datasets,
     entries,
-    export,
     sampling,
     similarity,
+    structures,
 )
 
 # Order of the subcommands in `pandora --help`.
 _MODULES = (
     entries,
-    canonicalisation,
-    datasets,
+    structures,
     similarity,
     sampling,
     annotate,
-    export,
 )
 
 
@@ -64,8 +60,8 @@ def app() -> None:
     """Pandora CLI entry point (the `pandora` console script).
 
     Parses arguments from `sys.argv` and dispatches to the selected
-    subcommand's handler (`fetch`, `canonicalise`, `curate`, `dedup`,
-    `similarity`, `cluster`, `partition`, `annotate`, or `export`);
+    subcommand's handler (`entries`, `structures`, `similarity`,
+    `cluster`, `partition`, `annotate`, ...);
     see `pandora/cli/README.md` for the
     I/O convention between subcommands. Takes no arguments and returns
     nothing — each subcommand handler writes its output to disk and

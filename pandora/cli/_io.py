@@ -84,13 +84,11 @@ def prepare_output_dir(
     out.mkdir(parents=True, exist_ok=True)
 
 
-def prepare_step_dir(
-    command: str, out: Path, summary: str, overwrite: bool
-) -> None:
-    """Create a step's output folder. Refuse one that already holds step
-    outputs unless `overwrite`; then delete only those outputs."""
+def prepare_step_dir(command: str, out: Path, overwrite: bool) -> None:
+    """Create a structures step's output folder. Refuse one that already
+    holds step outputs unless `overwrite`; then delete only those."""
 
-    outputs = ["structures", summary, *_STEP_FILES]
+    outputs = ["structures", SUMMARY, *_STEP_FILES]
     outputs += [
         f"{table}.{fmt}" for table in _STEP_TABLES for fmt in TABLE_FORMATS
     ]

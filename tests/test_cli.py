@@ -41,14 +41,11 @@ CANON_POLICY = (
 _SUBCOMMANDS = [
     "entries",
     "representatives",
-    "canonicalise",
-    "curate",
-    "dedup",
+    "structures",
     "similarity",
     "cluster",
     "partition",
     "annotate",
-    "export",
 ]
 
 
@@ -104,23 +101,9 @@ def test_entries_scan_path_template_feeds_canonicalise(tmp_path, monkeypatch):
     assert summary["policy"]["path_template"] == PDBE_TEMPLATE
     assert summary["policy"]["source_label"] == "lbl"
 
-    main(
-        [
-            "canonicalise",
-            "--entries",
-            "ing/entries.txt",
-            "--policy",
-            str(CANON_POLICY),
-            "--output-dir",
-            "canon",
-            "--table-format",
-            "jsonl",
-        ]
-    )
+    _canonicalise("ing/entries.txt", "canon")
     assert (tmp_path / "canon" / "structures" / "04" / "104m.cif").exists()
-    canon = json.loads(
-        (tmp_path / "canon" / "canonicalisation.json").read_text()
-    )
+    canon = json.loads((tmp_path / "canon" / "summary.json").read_text())
     assert canon["previous_summary"].endswith("ing/summary.json")
 
 
@@ -165,21 +148,8 @@ def test_canonicalise_overwrite_keeps_entries_txt(tmp_path):
     _pdbe_tree(tmp_path / "entry")
     out = tmp_path / "work"
     _scan(str(tmp_path / "entry"), str(out), "--path-template", PDBE_TEMPLATE)
-    for extra in ([], ["--overwrite"]):
-        main(
-            [
-                "canonicalise",
-                "--entries",
-                str(out / "entries.txt"),
-                "--policy",
-                str(CANON_POLICY),
-                "--output-dir",
-                str(out),
-                "--table-format",
-                "jsonl",
-                *extra,
-            ]
-        )
+    for extra in (["--overwrite"], ["--overwrite"]):
+        _canonicalise(out / "entries.txt", out, *extra)
     assert len(read_entry_paths(out / "entries.txt")) == 2
 
 
@@ -193,28 +163,15 @@ def _canonicalise_and_curate(tmp_path, fixture="04/104m.cif", canon=None):
     )
     canonical_dir = tmp_path / "canonical"
     curated_dir = tmp_path / "curated"
+    _canonicalise(raw, canonical_dir, policy=canon)
     main(
         [
-            "canonicalise",
-            "--input-dir",
-            str(raw),
-            "--policy",
-            str(canon or CANON_POLICY),
-            "--output-dir",
-            str(canonical_dir),
-            "--table-format",
-            "jsonl",
-        ]
-    )
-    main(
-        [
+            "structures",
             "curate",
-            "--input-dir",
             str(canonical_dir),
+            str(curated_dir),
             "--policy",
             str(curation_policy),
-            "--output-dir",
-            str(curated_dir),
             "--table-format",
             "jsonl",
         ]
@@ -222,42 +179,41 @@ def _canonicalise_and_curate(tmp_path, fixture="04/104m.cif", canon=None):
     return canonical_dir, curated_dir
 
 
-def test_canonicalise_curate_dedup_export_chain(tmp_path):
+def test_canonicalise_curate_convert_chain(tmp_path):
     canonical_dir, curated_dir = _canonicalise_and_curate(tmp_path)
     assert (curated_dir / "structures" / "04" / "104m.cif").exists()
     chains = _jsonl(curated_dir / "chains.jsonl")
     assert chains and all(c["entry_id"] == "104M" for c in chains)
     assert all("copy_of" in c for c in chains)
-    summary = json.loads((curated_dir / "curation.json").read_text())
-    assert summary["previous_summary"] == str(
-        canonical_dir / "canonicalisation.json"
-    )
+    summary = json.loads((curated_dir / "summary.json").read_text())
+    assert summary["previous_summary"] == str(canonical_dir / "summary.json")
     assert not (curated_dir / "curation_provenance.json").exists()
     assert not (curated_dir / "curation_exclusions.json").exists()
-
-    deduped_dir = tmp_path / "deduped"
-    main(
-        [
-            "dedup",
-            "--input-dir",
-            str(curated_dir),
-            "--output-dir",
-            str(deduped_dir),
-        ]
-    )
-    assert (deduped_dir / "04" / "104m.cif").exists()
 
     exported = tmp_path / "104m.json"
     main(
         [
-            "export",
-            "--input",
-            str(deduped_dir / "04" / "104m.cif"),
-            "--output",
+            "structures",
+            "convert",
+            str(curated_dir / "structures" / "04" / "104m.cif"),
             str(exported),
         ]
     )
     assert json.loads(exported.read_text())["entry_id"] == "104M"
+
+
+def test_structures_convert_unparsable_file_exits(tmp_path):
+    bad = tmp_path / "bad.cif"
+    bad.write_text("garbage\n")
+    with pytest.raises(SystemExit, match="structures convert: "):
+        main(["structures", "convert", str(bad), str(tmp_path / "o.cif")])
+
+
+def test_plain_dedup_is_gone(tmp_path, capsys):
+    with pytest.raises(SystemExit) as exc:
+        main(["dedup", "--input-dir", str(tmp_path)])
+    assert exc.value.code == 2
+    assert "invalid choice" in capsys.readouterr().err
 
 
 def _similarity_layer(folder, rows, items):
@@ -557,25 +513,24 @@ def _jsonl(path):
     return [json.loads(line) for line in path.read_text().splitlines()]
 
 
+def test_structures_canonicalise_single_file_input(tmp_path):
+    out = tmp_path / "canon"
+    main(
+        ["structures", "canonicalise", str(FIXTURES_DIR / "04/104m.cif")]
+        + [str(out), "--policy", str(CANON_POLICY)]
+        + ["--table-format", "jsonl"]
+    )
+    assert (out / "structures/04/104m.cif").exists()
+    assert (out / "summary.json").exists()
+
+
 def test_canonicalise_writes_step_folder(tmp_path):
     raw = tmp_path / "raw"
     raw.mkdir()
     shutil.copy(FIXTURES_DIR / "04" / "104m.cif", raw / "104m.cif")
     (raw / "bad.cif").write_text("garbage\n")
     out = tmp_path / "canon"
-    main(
-        [
-            "canonicalise",
-            "--input-dir",
-            str(raw),
-            "--policy",
-            str(CANON_POLICY),
-            "--output-dir",
-            str(out),
-            "--table-format",
-            "jsonl",
-        ]
-    )
+    _canonicalise(raw, out)
     assert (out / "structures" / "04" / "104m.cif").exists()
     entries = _jsonl(out / "entries.jsonl")
     assert [e["entry_id"] for e in entries] == ["104M"]
@@ -585,7 +540,7 @@ def test_canonicalise_writes_step_folder(tmp_path):
     assert mappings[0]["chain_id_mapping"]["items"]
     failures = _jsonl(out / "failures.jsonl")
     assert [Path(f["path"]).name for f in failures] == ["bad.cif"]
-    summary = json.loads((out / "canonicalisation.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["counts"] == {
         "entries_failed": 1,
         "entries_in": 2,
@@ -600,19 +555,12 @@ def test_canonicalise_reads_entries_file_and_writes_parquet(tmp_path):
     entries.write_text(str(FIXTURES_DIR / "04" / "104m.cif") + "\n")
     out = tmp_path / "canon"
     main(
-        [
-            "canonicalise",
-            "--entries",
-            str(entries),
-            "--policy",
-            str(CANON_POLICY),
-            "--output-dir",
-            str(out),
-        ]
+        ["structures", "canonicalise", str(entries), str(out)]
+        + ["--policy", str(CANON_POLICY)]
     )
     rows = read_records(out / "entries.parquet", CanonicalisationEntryRecord)
     assert [r.entry_id for r in rows] == ["104M"]
-    summary = json.loads((out / "canonicalisation.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["input"] == str(entries)
 
 
@@ -627,23 +575,14 @@ def test_curate_flat_folder_and_everything_excluded(tmp_path):
     )
     out = tmp_path / "strict"
     main(
-        [
-            "curate",
-            "--input-dir",
-            str(raw),
-            "--policy",
-            str(strict),
-            "--output-dir",
-            str(out),
-            "--table-format",
-            "jsonl",
-        ]
+        ["structures", "curate", str(raw), str(out), "--policy", str(strict)]
+        + ["--table-format", "jsonl"]
     )
     assert not (out / "entries.jsonl").exists()
     assert not (out / "chains.jsonl").exists()
     exclusions = _jsonl(out / "exclusions.jsonl")
     assert exclusions[0]["reason_code"] == "RESOLUTION_THRESHOLD"
-    summary = json.loads((out / "curation.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["counts"]["entries_kept"] == 0
     assert summary["previous_summary"] is None
 
@@ -675,20 +614,11 @@ def test_steps_accept_relative_output_dirs(tmp_path, monkeypatch):
     )
 
 
-def _canonicalise(raw, out, *extra):
+def _canonicalise(raw, out, *extra, policy=None):
     main(
-        [
-            "canonicalise",
-            "--input-dir",
-            str(raw),
-            "--policy",
-            str(CANON_POLICY),
-            "--output-dir",
-            str(out),
-            "--table-format",
-            "jsonl",
-            *extra,
-        ]
+        ["structures", "canonicalise", str(raw), str(out)]
+        + ["--policy", str(policy or CANON_POLICY)]
+        + ["--table-format", "jsonl", *extra]
     )
 
 
@@ -717,15 +647,8 @@ def test_step_checks_parquet_support_before_running(tmp_path, monkeypatch):
     out = tmp_path / "canon"
     with pytest.raises(SystemExit) as exc:
         main(
-            [
-                "canonicalise",
-                "--input-dir",
-                str(raw),
-                "--policy",
-                str(CANON_POLICY),
-                "--output-dir",
-                str(out),
-            ]
+            ["structures", "canonicalise", str(raw), str(out)]
+            + ["--policy", str(CANON_POLICY)]
         )
     assert "--table-format jsonl" in str(exc.value)
     assert not (out / "structures").exists()
@@ -750,19 +673,7 @@ def test_step_names_outputs_by_entry_id(tmp_path):
     (raw / "104m_updated.cif.gz").write_bytes(gzip.compress(data))
     (raw / "entries.txt").write_text("104m_updated.cif.gz\n")
     canon = tmp_path / "canon"
-    main(
-        [
-            "canonicalise",
-            "--entries",
-            str(raw / "entries.txt"),
-            "--policy",
-            str(CANON_POLICY),
-            "--output-dir",
-            str(canon),
-            "--table-format",
-            "jsonl",
-        ]
-    )
+    _canonicalise(raw / "entries.txt", canon)
     assert (canon / "structures" / "04" / "104m.cif").exists()
     assert [e["entry_id"] for e in _jsonl(canon / "entries.jsonl")] == ["104M"]
 
@@ -870,8 +781,8 @@ def test_curate_duplicate_check_ignores_case(tmp_path):
     policy.write_text("policy_id: c\npolicy_name: c\npolicy_version: '1'\n")
     out = tmp_path / "curated"
     main(
-        ["curate", "--input-dir", str(raw), "--policy", str(policy)]
-        + ["--output-dir", str(out), "--table-format", "jsonl"]
+        ["structures", "curate", str(raw), str(out)]
+        + ["--policy", str(policy), "--table-format", "jsonl"]
     )
     failures = _jsonl(out / "failures.jsonl")
     assert [f["error_type"] for f in failures] == ["DuplicateEntry"]
@@ -2659,9 +2570,8 @@ def _contained_inputs(tmp_path, clusters=None):
 
 def _dedup_contained(step, clusters, out, *extra):
     main(
-        ["dedup", "--contained", "--input-dir", str(step)]
-        + ["--clusters", str(clusters), "--output-dir", str(out)]
-        + ["--table-format", "jsonl", *extra]
+        ["structures", "drop-contained", str(step), str(out)]
+        + ["--clusters", str(clusters), "--table-format", "jsonl", *extra]
     )
 
 
@@ -2682,7 +2592,7 @@ def test_dedup_contained_writes_step_folder(tmp_path):
     assert (out / "structures/bb/2bbb.cif").exists()
     assert not (out / "structures/aa/1aaa.cif").exists()
     assert (out / "failures.jsonl").read_text() == ""
-    summary = json.loads((out / "dedup.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["counts"]["entries_contained"] == 1
     assert summary["counts"]["entries_kept"] == 2
     assert summary["counts"]["chains_kept"] == 3
@@ -2695,7 +2605,7 @@ def test_dedup_contained_counts_unclustered_chains(tmp_path, capsys):
     )
     out = tmp_path / "uncontained"
     _dedup_contained(step, clusters, out)
-    summary = json.loads((out / "dedup.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["counts"]["chains_unclustered"] == 1
     entries = [row["entry_id"] for row in _jsonl(out / "entries.jsonl")]
     assert "3CCC" in entries
@@ -2711,12 +2621,44 @@ def test_dedup_contained_disable_keeps_everything(tmp_path):
     assert (out / "structures/aa/1aaa.cif").exists()
 
 
-def test_dedup_contained_needs_clusters(tmp_path):
-    with pytest.raises(SystemExit, match="--clusters"):
+def test_structures_drop_contained_needs_tables(tmp_path):
+    folder = tmp_path / "bare"
+    folder.mkdir()
+    shutil.copy(FIXTURES_DIR / "04" / "104m.cif", folder)
+    (tmp_path / "clusters.json").write_text("[]")
+    with pytest.raises(
+        SystemExit,
+        match="structures drop-contained: .*run `pandora structures curate`",
+    ):
         main(
-            ["dedup", "--contained", "--input-dir", str(tmp_path)]
-            + ["--output-dir", str(tmp_path / "o")]
+            ["structures", "drop-contained", str(folder), str(tmp_path / "o")]
+            + ["--clusters", str(tmp_path / "clusters.json")]
         )
+
+
+def test_structures_drop_contained_accepts_clusters_folder(tmp_path):
+    step, clusters = _contained_inputs(tmp_path)
+    holder = tmp_path / "clusters_folder"
+    holder.mkdir()
+    shutil.copy(clusters, holder / "clusters.json")
+    out = tmp_path / "o"
+    _dedup_contained(step, holder, out)
+    assert [r["entry_id"] for r in _jsonl(out / "contained.jsonl")] == ["1AAA"]
+
+
+def test_structures_overwrite_keeps_unrelated_files(tmp_path):
+    _, curated = _canonicalise_and_curate(tmp_path)
+    (curated / "notes.txt").write_text("mine")
+    stale = curated / "structures" / "04" / "stale.cif"
+    stale.write_text("x")
+    main(
+        ["structures", "curate", str(tmp_path / "canonical"), str(curated)]
+        + ["--policy", str(tmp_path / "curation.yaml"), "--overwrite"]
+        + ["--table-format", "jsonl"]
+    )
+    assert (curated / "structures" / "04" / "104m.cif").exists()
+    assert not stale.exists()
+    assert (curated / "notes.txt").read_text() == "mine"
 
 
 def test_dedup_contained_rejects_unknown_rank_key(tmp_path):
@@ -2755,7 +2697,7 @@ def test_dedup_contained_refuses_existing_output(tmp_path):
     with pytest.raises(SystemExit):
         _dedup_contained(step, clusters, out)
     _dedup_contained(step, clusters, out, "--overwrite")
-    assert (out / "dedup.json").exists()
+    assert (out / "summary.json").exists()
 
 
 def _rep_inputs(tmp_path, missing, hits, clusters=None):
@@ -3007,15 +2949,6 @@ def test_layer_on_dedup_step_folder_links_its_summary(tmp_path):
     main(["annotate", "import", *args, "--output-dir", str(out)])
     summary = json.loads((out / "layer.json").read_text())
     assert summary["previous_summary"].endswith("dedup.json")
-
-
-def test_plain_dedup_rejects_contained_only_flags(tmp_path):
-    for flag in (["--clusters", "c.json"], ["--policy", "p.yaml"]):
-        with pytest.raises(SystemExit, match="--contained"):
-            main(
-                ["dedup", "--input-dir", str(tmp_path)]
-                + ["--output-dir", str(tmp_path / "o"), *flag]
-            )
 
 
 def _rebalance_inputs(tmp_path, homomers=False, groups=None):
@@ -3422,19 +3355,7 @@ def _run_size_guard(tmp_path, limit=None, extra_files=()):
         + (f"max_atoms: {limit}\n" if limit is not None else "")
     )
     out = tmp_path / "out"
-    main(
-        [
-            "canonicalise",
-            "--input-dir",
-            str(raw),
-            "--policy",
-            str(policy),
-            "--output-dir",
-            str(out),
-            "--table-format",
-            "jsonl",
-        ]
-    )
+    _canonicalise(raw, out, policy=policy)
     return out
 
 
@@ -3445,7 +3366,7 @@ def test_canonicalise_skips_entry_over_max_atoms(tmp_path):
     assert failures[0]["path"].endswith("1ar2.cif")
     assert "1714" in failures[0]["message"]
     assert "1500" in failures[0]["message"]
-    counts = json.loads((out / "canonicalisation.json").read_text())["counts"]
+    counts = json.loads((out / "summary.json").read_text())["counts"]
     assert counts["entries_too_large"] == 1
     assert counts["entries_failed"] == 1
     assert counts["entries_kept"] == 1
@@ -3461,12 +3382,12 @@ def test_canonicalise_without_max_atoms_skips_estimate(tmp_path, monkeypatch):
         raise AssertionError("estimate_atom_count called without max_atoms")
 
     monkeypatch.setattr(
-        "pandora.cli.canonicalisation.estimate_atom_count",
+        "pandora.cli.structures.estimate_atom_count",
         _fail,
         raising=False,
     )
     out = _run_size_guard(tmp_path)
-    counts = json.loads((out / "canonicalisation.json").read_text())["counts"]
+    counts = json.loads((out / "summary.json").read_text())["counts"]
     assert counts["entries_kept"] == 2
     assert "entries_too_large" not in counts
 
