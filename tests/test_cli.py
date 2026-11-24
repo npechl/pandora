@@ -3286,6 +3286,10 @@ def _four_entry_inputs(tmp_path):
 
 
 def test_pairs_positives_groups_match_clusters_build(tmp_path):
+    # The groups match `clusters build --items interface` on the same
+    # similarity inputs WITHOUT --structures: `pairs positives` does not
+    # link symmetry copies to their source chain, while `clusters build
+    # --structures` does.
     tables, contacts, seq90, reps, iface, chain = _four_entry_inputs(tmp_path)
     grp, pos = tmp_path / "groups", tmp_path / "positives"
     shared = ["--contacts", str(contacts), "--chain-representatives", str(reps)]
@@ -3557,6 +3561,17 @@ def test_pairs_negatives_needs_positives_table(tmp_path):
         SystemExit, match="pairs negatives: .* has no positives table"
     ):
         _negatives(tmp_path / "tm", reps, tm, contacts, tmp_path / "out")
+
+
+def test_pairs_negatives_empty_positives_folder(tmp_path):
+    positives, reps, tm, contacts = _negatives_inputs(tmp_path)
+    (positives / "positives.jsonl").unlink()  # no positives kept
+    out = tmp_path / "negatives"
+    _negatives(positives, reps, tm, contacts, out)
+    summary = json.loads((out / "summary.json").read_text())
+    assert summary["counts"]["positives"] == 0
+    assert summary["counts"]["negatives"] == 0
+    assert not (out / "negatives.jsonl").exists()
 
 
 def test_pairs_negatives_refuses_existing_output(tmp_path):

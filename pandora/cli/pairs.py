@@ -574,6 +574,10 @@ def register(subparsers: argparse._SubParsersAction) -> None:
         help="Group the dimers of --contacts by the similarity inputs, then "
         "keep one homomer per homomer-only group, else mutually dissimilar "
         "heteromers.",
+        description="The dimer groups are the connected components of the "
+        "dimer graph of the similarity inputs. They match `pandora clusters "
+        "build --items interface` run on the same similarity inputs without "
+        "--structures: symmetry copies are not linked to their source chain.",
     )
     add_similarity_inputs(p, positional=True)
     add_out(p)
