@@ -327,7 +327,10 @@ pandora <group> <command> MAIN_INPUT... OUT [options]
   goes away.
 - **Check before relying on it:** a test runs `clusters build --items
   interface` and `pairs positives` on the same fixture inputs and
-  asserts the groups are identical.
+  asserts the groups are identical. They match when `clusters build`
+  is run without `--structures`: `pairs positives` does not link
+  symmetry copies, as today's `rebalance` doesn't **(my call, during
+  implementation)**.
 - `pairs assemble` keeps warning when `--representatives` or
   `--similarity` differ from what `pairs negatives` used.
 
