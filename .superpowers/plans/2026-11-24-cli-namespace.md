@@ -142,19 +142,33 @@ that fallback.
 ```python
 def test_resolve_file_accepts_folder_or_file(tmp_path):
     (tmp_path / "clusters.json").write_text("[]")
-    assert _io.resolve_file("x y", tmp_path, "clusters.json") == tmp_path / "clusters.json"
-    assert _io.resolve_file("x y", tmp_path / "clusters.json", "clusters.json") == tmp_path / "clusters.json"
+    assert (
+        _io.resolve_file("x y", tmp_path, "clusters.json")
+        == tmp_path / "clusters.json"
+    )
+    assert (
+        _io.resolve_file("x y", tmp_path / "clusters.json", "clusters.json")
+        == tmp_path / "clusters.json"
+    )
     with pytest.raises(SystemExit, match="x y: .* has no clusters.json"):
         _io.resolve_file("x y", tmp_path / "empty", "clusters.json")
 
+
 def test_require_tables_names_curate(tmp_path):
-    with pytest.raises(SystemExit, match="run `pandora structures curate` first"):
+    with pytest.raises(
+        SystemExit, match="run `pandora structures curate` first"
+    ):
         _io.require_tables("similarity mmseqs", tmp_path)
+
 
 def test_similarity_inputs_bare_table_needs_items(tmp_path):
     # a layer.parquet copied out of its folder, no --similarity-items
     with pytest.raises(SystemExit, match="--similarity-items"):
-        _io.similarity_inputs("clusters build", _ns(similarity=[bare], similarity_items=None, min_score=[0.5]))
+        _io.similarity_inputs(
+            "clusters build",
+            _ns(similarity=[bare], similarity_items=None, min_score=[0.5]),
+        )
+
 
 def test_similarity_inputs_items_disagreeing_with_summary_exits(tmp_path): ...
 def test_similarity_inputs_items_once_or_per_input(tmp_path): ...
@@ -481,13 +495,25 @@ Behaviour:
 def test_pairs_positives_groups_match_clusters_build(tmp_path):
     # same contacts, seq90 representatives, interface and chain layers
     # and hit filters as examples/ppi/v2.1 steps 5-7, on the 1a2c fixture
-    main(["clusters", "build", iface, chain, str(grp), "--items", "interface", ...])
+    main(
+        [
+            "clusters",
+            "build",
+            iface,
+            chain,
+            str(grp),
+            "--items",
+            "interface",
+            ...,
+        ]
+    )
     main(["pairs", "positives", iface, chain, str(pos), ...])
     built = json.loads((grp / "clusters.json").read_text())
     kept = {p["dimer"] for p in _jsonl(pos / "positives.jsonl")}
     restricted = [sorted(set(c["components"]) & kept) for c in built]
     assert sorted(c for c in restricted if c) == sorted(
-        sorted(c["components"]) for c in json.loads((pos / "clusters.json").read_text())
+        sorted(c["components"])
+        for c in json.loads((pos / "clusters.json").read_text())
     )
 ```
 
