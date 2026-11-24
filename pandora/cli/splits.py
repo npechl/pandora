@@ -12,6 +12,7 @@ from pandora.cli._io import (
     SUMMARY,
     add_out,
     check_out,
+    find_table,
     input_summary,
     load_json_list,
     prepare_output_dir,
@@ -36,8 +37,14 @@ def _partition_labels(
 
     if source is None:
         return None, None
-    table = resolve_table(command, Path(source), "layer")
-    summary = read_summary(table.parent)
+    path = Path(source)
+    if path.is_dir():
+        table = find_table(path, "layer")  # an empty layer has no table
+        folder = path
+    else:
+        table = resolve_table(command, path, "layer")
+        folder = path.parent
+    summary = read_summary(folder)
     if summary is None:
         raise SystemExit(
             f"{command}: {source} needs a labels layer folder "
@@ -45,7 +52,8 @@ def _partition_labels(
         )
     template = (summary.get("policy") or {}).get("template")
     try:
-        return item_labels(read_records(table, LayerRow), template), table
+        rows = read_records(table, LayerRow) if table else []
+        return item_labels(rows, template), table
     except ValueError as exc:
         raise SystemExit(f"{command}: {source}: {exc}") from exc
 

@@ -2181,8 +2181,8 @@ def _kinds_clusters(tmp_path, groups):
     return path
 
 
-def _labels_layer(tmp_path, template, rows):
-    folder = tmp_path / "labels"
+def _labels_layer(tmp_path, template, rows, name="labels"):
+    folder = tmp_path / name
     folder.mkdir(parents=True)
     (folder / "summary.json").write_text(
         json.dumps({"policy": {"name": "kinds", "template": template}})
@@ -2271,7 +2271,7 @@ def test_partition_labels_wrong_level(tmp_path, capsys):
 
 def test_partition_labels_empty_layer(tmp_path, capsys):
     clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
-    labels = _labels_layer(tmp_path, "chain_labels", [])
+    labels = _labels_layer(tmp_path, "chain_labels", None)
     _partition(tmp_path, clusters, labels)
     assert "unlabelled items: 16 of 16" in capsys.readouterr().out
 
@@ -2305,7 +2305,10 @@ def test_splits_assign_rejects_bare_labels_table(tmp_path):
 def test_splits_assign_takes_positives_folder(tmp_path):
     positives = tmp_path / "positives"
     kinds = _labels_layer(
-        positives, "chain_labels", _kind_rows(_KIND_GROUPS, {"1H0"})
+        positives,
+        "chain_labels",
+        _kind_rows(_KIND_GROUPS, {"1H0"}),
+        "kinds",
     )
     _kinds_clusters(positives, _KIND_GROUPS)
     main(
