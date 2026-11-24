@@ -38,14 +38,9 @@ ENTRY_ERRORS = (ValueError, OSError, RuntimeError, KeyError, IndexError)
 
 # What a step writes besides its tables: cleared by --overwrite.
 _STEP_FILES = ("failures.jsonl", "mappings.jsonl")
-# Step summaries a structures folder can hold, at most one per folder.
-STEP_SUMMARIES = ("dedup.json", "curation.json", "canonicalisation.json")
 _STEP_TABLES = ("entries", "chain_copies", "chains", "exclusions", "contained")
 # Every output folder's summary.
 SUMMARY = "summary.json"
-# ponytail: legacy summary names, read until Task 9 of the CLI namespace
-# plan removes them.
-_LEGACY_SUMMARIES = ("layer.json", *STEP_SUMMARIES, "ingestion.json")
 
 
 def failure_line(path: Path, error_type: str, message: str) -> str:
@@ -99,15 +94,13 @@ def input_summary(folder: Path) -> Path | None:
     """The summary file of an input folder, for `previous_summary` (a
     record only, never followed); None if it has none."""
 
-    for name in (SUMMARY, *_LEGACY_SUMMARIES):
-        if (folder / name).is_file():
-            return folder / name
-    return None
+    path = folder / SUMMARY
+    return path if path.is_file() else None
 
 
 def read_summary(folder: Path) -> dict[str, Any] | None:
-    """The parsed summary of `folder` (`summary.json`, or a legacy step
-    or layer summary name); None if it has none."""
+    """The parsed summary of `folder` (`summary.json`); None if it has
+    none."""
 
     path = input_summary(folder)
     return None if path is None else json.loads(path.read_text())
@@ -782,17 +775,6 @@ def write_structures_dir(
         structure_to_mmcif(structure, mirror_path(output_dir, entry_id.lower()))
 
 
-def write_json_dict(data: dict[str, BaseModel], path: Path) -> None:
-    """Write a dict of pydantic models as one pretty-printed JSON object,
-    keyed by dict key."""
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({k: v.model_dump() for k, v in data.items()}, indent=2),
-        encoding="utf-8",
-    )
-
-
 def write_json_list(records: Sequence[BaseModel], path: Path) -> None:
     """Write `records` as a JSON array to `path`, `[]` when there are
     none (a small sample can leave a step with nothing to write)."""
@@ -817,56 +799,3 @@ def load_yaml_model(model_cls: type[BaseModel], path: Path) -> BaseModel:
     with path.open() as stream:
         data = yaml.safe_load(stream)
     return model_cls.model_validate(data)
-
-
-def load_pairs(path: Path) -> list[tuple[str, str]]:
-    """Load a JSON array of [item_id_1, item_id_2] pairs."""
-
-    data = json.loads(path.read_text())
-    return [(item_1, item_2) for item_1, item_2 in data]
-
-
-def layer_origin(folder: Path) -> Path | None:
-    """The structures folder a layer was made from, or None if unknown.
-
-    Follows `previous_summary` back through layer summaries (a filtered
-    layer points at its parent layer) to the structures folder's step
-    summary. Recorded paths may be relative to wherever the step ran, so
-    a path that can't be read from here, or a loop, means unknown.
-    """
-
-    path = input_summary(folder)
-    seen: set[Path] = set()
-    while path is not None and path.resolve() not in seen:
-        seen.add(path.resolve())
-        summary = _read_json(path)
-        if summary is None:
-            return None
-        previous = summary.get("previous_summary")
-        if previous is None:
-            if summary.get("step") != "annotation_compute":
-                return None
-            origin = Path(summary["input"])
-            return origin.resolve() if origin.is_dir() else None
-        path = Path(previous)
-        if not _is_layer_summary(path):
-            return path.parent.resolve() if path.exists() else None
-    return None
-
-
-def _read_json(path: Path) -> dict[str, Any] | None:
-    """A JSON file's content, or None if it can't be read."""
-
-    try:
-        return json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
-        return None
-
-
-def _is_layer_summary(path: Path) -> bool:
-    """Whether `path` is a layer's summary (its policy has a template)."""
-
-    if path.name == "layer.json":
-        return True
-    summary = _read_json(path) if path.name == SUMMARY else None
-    return "template" in ((summary or {}).get("policy") or {})

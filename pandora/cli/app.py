@@ -20,11 +20,11 @@ from pandora.cli import (
 _MODULES = (
     entries,
     structures,
+    annotations,
     similarity,
     clusters,
     splits,
     pairs,
-    annotations,
 )
 
 
@@ -64,12 +64,11 @@ def app() -> None:
     """Pandora CLI entry point (the `pandora` console script).
 
     Parses arguments from `sys.argv` and dispatches to the selected
-    subcommand's handler (`entries`, `structures`, `similarity`,
-    `clusters`, `splits`, `pairs`, `annotations`);
-    see `pandora/cli/README.md` for the
-    I/O convention between subcommands. Takes no arguments and returns
-    nothing — each subcommand handler writes its output to disk and
-    prints a summary.
+    group's handler (`entries`, `structures`, `annotations`,
+    `similarity`, `clusters`, `splits`, `pairs`); see
+    `pandora/cli/README.md` for the I/O convention between subcommands.
+    Takes no arguments and returns nothing: each handler writes its
+    output to disk and prints a summary.
     """
 
     main()

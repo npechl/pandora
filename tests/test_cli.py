@@ -1,3 +1,4 @@
+import argparse
 import gzip
 import json
 import shutil
@@ -17,7 +18,6 @@ from pandora.annotations import (
 from pandora.cli import _io
 from pandora.cli._io import (
     TableWriter,
-    layer_origin,
     read_rows,
     read_structures_dir,
     rows_by_entry,
@@ -38,28 +38,75 @@ CANON_POLICY = (
     Path(__file__).parent.parent / "datasets" / "canonicalisation.yaml"
 )
 
-_SUBCOMMANDS = [
+_GROUPS = [
     "entries",
     "structures",
+    "annotations",
     "similarity",
     "clusters",
     "splits",
-    "annotations",
+    "pairs",
+]
+_GONE = [
+    "manifest",
+    "reproduce",
+    "rebalance",
+    "partition",
+    "ingest",
+    "fetch",
+    "canonicalise",
+    "curate",
+    "dedup",
+    "export",
+    "annotate",
+    "cluster",
+    "representatives",
+    "negatives",
+    "assemble",
 ]
 
 
-def test_parser_registers_all_subcommands():
-    help_text = _build_parser().format_help()
-    for name in _SUBCOMMANDS:
+def test_parser_registers_the_groups():
+    parser = _build_parser()
+    help_text = parser.format_help()
+    for name in _GROUPS:
         assert name in help_text
+    choices = next(
+        a.choices
+        for a in parser._actions
+        if isinstance(a, argparse._SubParsersAction)
+    )
+    assert list(choices) == _GROUPS
 
 
-@pytest.mark.parametrize("gone", ["manifest", "reproduce"])
-def test_manifest_commands_are_gone(gone, capsys):
+@pytest.mark.parametrize("gone", _GONE)
+def test_removed_commands_are_gone(gone, capsys):
     with pytest.raises(SystemExit) as exc:
         main([gone])
     assert exc.value.code == 2
     assert "invalid choice" in capsys.readouterr().err
+
+
+def _walk(parser):
+    """Every parser under `parser`, itself included."""
+
+    yield parser
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            for sub in action.choices.values():
+                yield from _walk(sub)
+
+
+def test_every_flag_has_help():
+    missing = [
+        f"{parser.prog} {action.option_strings}"
+        for parser in _walk(_build_parser())
+        for action in parser._actions
+        if action.option_strings
+        and not isinstance(action, argparse._HelpAction)
+        and not (action.help or "").strip()
+    ]
+    assert not missing
 
 
 PDBE_TEMPLATE = "{mid}/{id}/clean_mmcif/{id}_updated.cif.gz"
@@ -241,7 +288,7 @@ def _similarity_layer(folder, rows, items):
     folder.mkdir(parents=True)
     if rows:
         pq.write_table(pa.Table.from_pylist(rows), folder / "layer.parquet")
-    (folder / "layer.json").write_text(
+    (folder / "summary.json").write_text(
         json.dumps({"policy": {"template": "similarity", "items": items}})
     )
     return folder
@@ -439,7 +486,7 @@ def test_cluster_rejects_non_similarity_layer(tmp_path):
     step, _ = _cluster_inputs(tmp_path)
     labels = tmp_path / "labels"
     labels.mkdir()
-    (labels / "layer.json").write_text(
+    (labels / "summary.json").write_text(
         json.dumps({"policy": {"template": "chain_labels"}})
     )
     with pytest.raises(SystemExit, match="similarity"):
@@ -861,7 +908,6 @@ def test_annotations_contacts_writes_contact_layer(tmp_path):
 
     rows = read_records(out / "layer.jsonl", ResidueContactRow)
     assert len(rows) == 74 + 21 + 25
-    assert not (out / "layer.json").exists()
     summary = json.loads((out / "summary.json").read_text())
     assert summary["step"] == "annotation_compute"
     assert summary["policy"]["template"] == "residue_contacts"
@@ -1017,7 +1063,7 @@ def test_cluster_interface_layer_takes_items_from_contacts(tmp_path):
             for a, b in (("A", "B"), ("B", "C"), ("B", "D"))
         ],
     )
-    (contacts / "layer.json").write_text(
+    (contacts / "summary.json").write_text(
         json.dumps({"policy": {"template": "residue_contacts"}})
     )
     layer = _similarity_layer(
@@ -1052,7 +1098,7 @@ def _rollup_contacts(tmp_path):
             + (("3CCC", "E", "F"),)
         ],
     )
-    (contacts / "layer.json").write_text(
+    (contacts / "summary.json").write_text(
         json.dumps({"policy": {"template": "residue_contacts"}})
     )
     return contacts
@@ -1240,7 +1286,7 @@ def test_cluster_rejects_non_contact_layer(tmp_path):
     step, layer = _cluster_inputs(tmp_path, _chain_rows(), items="chain")
     labels = tmp_path / "labels"
     labels.mkdir()
-    (labels / "layer.json").write_text(
+    (labels / "summary.json").write_text(
         json.dumps({"policy": {"template": "chain_labels"}})
     )
     with pytest.raises(SystemExit, match="residue_contacts"):
@@ -1288,7 +1334,7 @@ def _layer_inputs(tmp_path):
     structures = tmp_path / "curated" / "structures" / "a2"
     structures.mkdir(parents=True)
     shutil.copy(FIXTURES_DIR / "a2" / "1a2c.cif", structures / "1a2c.cif")
-    (tmp_path / "curated" / "curation.json").write_text("{}")
+    (tmp_path / "curated" / "summary.json").write_text("{}")
     (tmp_path / "cocada.yaml").write_text(
         "name: t\ntemplate: residue_values\ntool: T\n"
         'tool_version: "1"\nparameters: {cutoff: 5.0}\n'
@@ -1330,7 +1376,7 @@ def test_annotations_import_writes_layer_folder(tmp_path):
         "unmatched:entry_not_found": 1,
         "unmatched:no_coordinates": 1,
     }
-    assert summary["previous_summary"].endswith("curation.json")
+    assert summary["previous_summary"].endswith("summary.json")
     assert (out / "source" / "out.txt").exists()
 
 
@@ -1437,7 +1483,7 @@ def _similarity_step(tmp_path):
             },
         ],
     )
-    (folder / "curation.json").write_text("{}")
+    (folder / "summary.json").write_text("{}")
     return folder
 
 
@@ -1484,14 +1530,13 @@ def test_similarity_search_mmseqs_writes_layer_without_copies(tmp_path):
     unmatched = _parquet_rows(out / "unmatched.parquet")
     assert [r["reason"] for r in unmatched] == ["entry_not_found"]
     assert not (out / "hits.tsv").exists()
-    assert not (out / "layer.json").exists()
     summary = json.loads((out / "summary.json").read_text())
     assert summary["step"] == "similarity_search"
     assert summary["policy"]["items"] == "chain"
     assert summary["policy"]["tool"] == "MMseqs2"
     assert summary["policy"]["parameters"]["max_seqs"] == 500
     assert summary["input"] == str((tmp_path / "curated").resolve())
-    assert summary["previous_summary"].endswith("curation.json")
+    assert summary["previous_summary"].endswith("summary.json")
     assert summary["counts"] == {
         "chains_searched": 2,
         "rows_in": 2,
@@ -1725,7 +1770,7 @@ def test_similarity_import_interface_level_from_contacts(tmp_path):
             }
         ],
     )
-    (contacts / "layer.json").write_text(
+    (contacts / "summary.json").write_text(
         json.dumps({"policy": {"template": "residue_contacts"}})
     )
     out = _import(
@@ -1746,7 +1791,7 @@ def test_similarity_import_interface_level_from_contacts(tmp_path):
         "interface_not_found"
     ]
     summary = json.loads((out / "summary.json").read_text())
-    assert summary["previous_summary"] == str(contacts / "layer.json")
+    assert summary["previous_summary"] == str(contacts / "summary.json")
 
 
 def test_similarity_import_interface_level_needs_contacts(tmp_path):
@@ -1941,7 +1986,7 @@ def _filter_inputs(tmp_path, labels_step=None):
     interface `bad`; returns (step, contacts, labels)."""
 
     step = _step_folder(tmp_path)
-    (step / "curation.json").write_text("{}")
+    (step / "summary.json").write_text("{}")
     contacts = tmp_path / "annotations" / "interfaces"
     _compute(step, contacts)
     labels = tmp_path / "annotations" / "verdict"
@@ -2060,7 +2105,7 @@ def test_annotations_filter_refuses_input_as_output(tmp_path, which):
 def test_annotations_filter_warns_when_inputs_differ(tmp_path, capsys):
     other = tmp_path / "other"
     shutil.copytree(FIXTURES_DIR / "a2", other / "structures" / "a2")
-    (other / "curation.json").write_text("{}")
+    (other / "summary.json").write_text("{}")
     _, contacts, labels = _filter_inputs(tmp_path, labels_step=other)
     out = tmp_path / "filtered"
     _filter(contacts, labels, out, "--drop", "bad")
@@ -2159,17 +2204,6 @@ def test_annotations_filter_works_from_another_cwd(
     assert (out / "layer.jsonl").read_text() == (
         tmp_path / "first" / "layer.jsonl"
     ).read_text()
-
-
-def test_layer_origin_stops_on_a_loop(tmp_path):
-    for name, other in (("a", "b"), ("b", "a")):
-        (tmp_path / name).mkdir()
-        (tmp_path / name / "layer.json").write_text(
-            json.dumps(
-                {"previous_summary": str(tmp_path / other / "layer.json")}
-            )
-        )
-    assert layer_origin(tmp_path / "a") is None
 
 
 def _kinds_clusters(tmp_path, groups):
@@ -2364,7 +2398,6 @@ def test_annotations_interface_contacts_labels_few_contacts(tmp_path):
     assert [r.model_dump() for r in written] == [
         r.model_dump() for r in expected
     ]
-    assert not (out / "layer.json").exists()
     summary = json.loads((out / "summary.json").read_text())
     assert summary["step"] == "annotation_label"
     assert summary["policy"]["name"] == "interface_contacts"
@@ -2647,7 +2680,7 @@ def test_cluster_with_no_items_writes_an_empty_list(tmp_path):
     # no interface items, so there is nothing to cluster.
     contacts = tmp_path / "contacts"
     contacts.mkdir()
-    (contacts / "layer.json").write_text(
+    (contacts / "summary.json").write_text(
         json.dumps({"policy": {"template": "residue_contacts"}})
     )
     layer = _similarity_layer(tmp_path / "iface_sim", None, "interface")
@@ -3219,16 +3252,6 @@ def test_representatives_rejects_unknown_rank_key(tmp_path):
         )
 
 
-def test_layer_on_dedup_step_folder_links_its_summary(tmp_path):
-    args = _layer_inputs(tmp_path)
-    curated = tmp_path / "curated"
-    (curated / "curation.json").rename(curated / "dedup.json")
-    out = tmp_path / "layer"
-    main(["annotations", "import", args[0], str(out), *args[2:]])
-    summary = json.loads((out / "summary.json").read_text())
-    assert summary["previous_summary"].endswith("dedup.json")
-
-
 _FOUR = ("1A2C", "2A2C", "3A2C", "4A2C")
 
 
@@ -3364,7 +3387,7 @@ def test_pairs_positives_writes_positives_and_dropped(tmp_path):
     summary = json.loads((out / "summary.json").read_text())
     assert summary["step"] == "rebalance"
     assert summary["input"] == str(iface.resolve())
-    assert summary["previous_summary"] == str(iface / "layer.json")
+    assert summary["previous_summary"] == str(iface / "summary.json")
     assert summary["counts"]["groups"] == 1
     assert summary["counts"]["dimers_in"] == len(dimers)
     assert summary["counts"]["positives:heteromer"] == len(positives)
@@ -3907,12 +3930,11 @@ def test_prepare_output_dir_names_the_command(tmp_path):
         _io.prepare_output_dir("x y", tmp_path, ["summary.json"], False)
 
 
-def test_read_summary_falls_back_to_legacy_names(tmp_path):
+def test_read_summary_reads_only_summary_json(tmp_path):
     assert _io.read_summary(tmp_path) is None
     assert _io.input_summary(tmp_path) is None
-    (tmp_path / "curation.json").write_text('{"step": "curation"}')
-    assert _io.read_summary(tmp_path) == {"step": "curation"}
-    assert _io.input_summary(tmp_path) == tmp_path / "curation.json"
+    (tmp_path / "layer.jsonl").write_text("{}")
+    assert _io.read_summary(tmp_path) is None
     (tmp_path / "summary.json").write_text('{"step": "new"}')
     assert _io.read_summary(tmp_path) == {"step": "new"}
     assert _io.input_summary(tmp_path) == tmp_path / "summary.json"
@@ -3961,7 +3983,7 @@ def test_similarity_inputs_folder_without_summary_needs_items(tmp_path):
         [{"item_id_1": "1A_A", "item_id_2": "1B_A", "score": 1.0}],
         "chain",
     )
-    (layer / "layer.json").unlink()
+    (layer / "summary.json").unlink()
     with pytest.raises(SystemExit, match="--similarity-items"):
         _io.similarity_inputs(
             "clusters build", _ns(similarity=[layer], min_score=[0.5])
