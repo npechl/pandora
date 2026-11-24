@@ -18,7 +18,7 @@ hit-filter and layer-edge helpers that `cluster` already uses.
 **Tech Stack:** Python 3, pydantic v2, argparse, pyarrow (Parquet
 tables), pytest, Ruff, Zensical.
 
-**Spec:** `docs/superpowers/specs/2026-11-10-contained-dedup-representatives-design.md`
+**Spec:** `.superpowers/specs/2026-11-10-contained-dedup-representatives-design.md`
 
 ## Global Constraints
 

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3, pydantic v2, argparse, pytest.
 
-**Spec:** `docs/superpowers/specs/2026-11-10-ppi-splits-assembly-design.md`
+**Spec:** `.superpowers/specs/2026-11-10-ppi-splits-assembly-design.md`
 
 ## Global Constraints
 

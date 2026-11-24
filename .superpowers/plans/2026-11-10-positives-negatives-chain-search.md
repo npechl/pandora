@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3, pydantic v2, argparse, pytest, stdlib `random`.
 
-**Spec:** `docs/superpowers/specs/2026-11-10-positives-negatives-chain-search-design.md`
+**Spec:** `.superpowers/specs/2026-11-10-positives-negatives-chain-search-design.md`
 
 ## Global Constraints
 
