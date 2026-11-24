@@ -19,6 +19,7 @@ from pandora.cli._io import (
     find_table,
     hit_filters,
     layer_edges,
+    layer_origin,
     load_json_list,
     load_yaml_model,
     prepare_output_dir,
@@ -26,16 +27,19 @@ from pandora.cli._io import (
     write_json_list,
     write_table,
 )
-from pandora.cli.similarity import (
-    _CONTACT_COLUMNS,
+from pandora.cli.clusters import (
     _chain_map,
-    _contact_layer,
     _interface_chains,
     _interface_residues,
     _interface_values,
+)
+from pandora.cli.similarity import (
+    _CONTACT_COLUMNS,
+    _contact_layer,
     _item_set,
     _require_pyarrow,
     _similarity_level,
+    _step_table,
 )
 from pandora.export import read_records, write_json
 from pandora.provenance import build_step_summary
@@ -159,6 +163,24 @@ def _rank_policy(args: argparse.Namespace) -> RepresentativePolicy:
     return policy
 
 
+def _origin_values(
+    contacts: Path, command: str
+) -> tuple[dict[str, dict[str, Any]], set[str], Path]:
+    """`_interface_values` with the chains table of the structures folder
+    `contacts` traces to, and that folder."""
+
+    origin = layer_origin(contacts)
+    if origin is None:
+        raise SystemExit(
+            f"{command}: cannot tell which structures folder {contacts} "
+            "came from; the paths in its layer.json may be relative to "
+            "where `annotate compute` ran, so run from that folder"
+        )
+    table = _step_table(command, origin, "chains", "pandora curate")
+    values, eligible = _interface_values(command, contacts, table)
+    return values, eligible, origin
+
+
 def _cmd_rebalance(args: argparse.Namespace) -> None:
     """Handle `rebalance`: keep the positive dimers of each dimer group
     and write them as a step folder."""
@@ -176,7 +198,7 @@ def _cmd_rebalance(args: argparse.Namespace) -> None:
     missing = next((d for d in dimers if d not in known), None)
     if missing is not None:
         raise SystemExit(f"{command}: dimer {missing} is not in {contacts}")
-    values, _, origin = _interface_values(contacts, command)
+    values, _, origin = _origin_values(contacts, command)
     homomers = _homomers(Path(args.chain_clusters), dimers)
     chain_map = (
         _chain_map(
@@ -193,7 +215,7 @@ def _cmd_rebalance(args: argparse.Namespace) -> None:
         level == "chain" and f.min_interface_coverage is not None
         for level, f in zip(levels, filters, strict=True)
     ):
-        residues = _interface_residues(origin, contacts)
+        residues = _interface_residues(command, origin, contacts)
     counts: Counter[int] = Counter()
     chain_edges: list[Any] = []
     dimer_edges: list[Any] = []

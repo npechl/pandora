@@ -8,6 +8,7 @@ import argparse
 from pandora import __version__
 from pandora.cli import (
     annotations,
+    clusters,
     entries,
     sampling,
     similarity,
@@ -19,6 +20,7 @@ _MODULES = (
     entries,
     structures,
     similarity,
+    clusters,
     sampling,
     annotations,
 )
@@ -61,7 +63,7 @@ def app() -> None:
 
     Parses arguments from `sys.argv` and dispatches to the selected
     subcommand's handler (`entries`, `structures`, `similarity`,
-    `cluster`, `partition`, `annotations`, ...);
+    `clusters`, `partition`, `annotations`, ...);
     see `pandora/cli/README.md` for the
     I/O convention between subcommands. Takes no arguments and returns
     nothing — each subcommand handler writes its output to disk and

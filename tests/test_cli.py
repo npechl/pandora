@@ -40,10 +40,9 @@ CANON_POLICY = (
 
 _SUBCOMMANDS = [
     "entries",
-    "representatives",
     "structures",
     "similarity",
-    "cluster",
+    "clusters",
     "partition",
     "annotations",
 ]
@@ -284,48 +283,76 @@ def _cluster_inputs(tmp_path, rows=None, items="entry"):
     return step, layer
 
 
-def _cluster(step, layer, output, *extra):
+def _cluster(step, layer, out, *extra):
     main(
-        ["cluster", "--similarity", str(layer), "--structures-dir", str(step)]
-        + ["--output", str(output), *extra]
+        ["clusters", "build", str(layer), str(out)]
+        + ["--structures", str(step), *extra]
     )
-    return [c["components"] for c in json.loads(output.read_text())]
+    return [
+        c["components"] for c in json.loads((out / "clusters.json").read_text())
+    ]
 
 
-def test_cluster_with_pairs(tmp_path):
+def _summary_policy(out):
+    return json.loads((out / "summary.json").read_text())["policy"]
+
+
+def test_clusters_build_writes_folder(tmp_path, capsys):
     step, layer = _cluster_inputs(tmp_path)
-    pairs = tmp_path / "pairs.json"
-    pairs.write_text(json.dumps([["104M", "112M"], ["104M", "118L"]]))
-    output = tmp_path / "clusters.json"
+    out = tmp_path / "out"
+    clusters = _cluster(step, layer, out, "--min-score", "0.9")
+    assert clusters == [["104M", "112M"], ["118L"]]
+    summary = json.loads((out / "summary.json").read_text())
+    assert summary["step"] == "cluster"
+    assert summary["input"] == str(layer.resolve())
+    assert sorted(p.name for p in out.iterdir()) == [
+        "clusters.json",
+        "summary.json",
+    ]
+    assert f"-> {out}" in capsys.readouterr().out
 
-    _cluster(step, layer, output, "--min-score", "0.9", "--pairs", str(pairs))
 
-    cluster_pairs = json.loads(
-        (output.parent / "cluster_pairs.json").read_text()
+def test_clusters_build_has_no_pairs_flag(tmp_path, capsys):
+    step, layer = _cluster_inputs(tmp_path)
+    with pytest.raises(SystemExit) as exc:
+        _cluster(step, layer, tmp_path / "o", "--pairs", "x.json")
+    assert exc.value.code == 2
+
+
+def test_clusters_build_accepts_bare_similarity_table(tmp_path):
+    step, layer = _cluster_inputs(tmp_path)
+    out = tmp_path / "out"
+    main(
+        ["clusters", "build", str(layer / "layer.parquet"), str(out)]
+        + ["--structures", str(step), "--min-score", "0.9"]
+        + ["--similarity-items", "entry"]
     )
-    by_pair = {(p["item_id_1"], p["item_id_2"]): p for p in cluster_pairs}
-    same = by_pair[("104M", "112M")]
-    assert same["cluster_id_1"] == same["cluster_id_2"]
-    different = by_pair[("104M", "118L")]
-    assert different["cluster_id_1"] != different["cluster_id_2"]
+    assert json.loads((out / "clusters.json").read_text())
+
+
+def test_clusters_build_refuses_existing_output(tmp_path):
+    step, layer = _cluster_inputs(tmp_path)
+    out = tmp_path / "out"
+    _cluster(step, layer, out, "--min-score", "0.9")
+    with pytest.raises(SystemExit, match="clusters build: "):
+        _cluster(step, layer, out, "--min-score", "0.9")
+    _cluster(step, layer, out, "--min-score", "0.9", "--overwrite")
 
 
 def test_cluster_reads_hit_filter_yaml_and_records_it(tmp_path):
     step, layer = _cluster_inputs(tmp_path)
     hit_filter = tmp_path / "filter.yaml"
     hit_filter.write_text("min_score: 0.99\nmin_coverage: 0.5\n")
-    output = tmp_path / "clusters.json"
+    output = tmp_path / "out"
 
     clusters = _cluster(step, layer, output, "--hit-filter", str(hit_filter))
 
     assert clusters == [["104M"], ["112M"], ["118L"]]  # 0.95 < 0.99
-    provenance = json.loads(
-        (output.parent / "cluster_provenance.json").read_text()
-    )
+    provenance = _summary_policy(output)
     [recorded] = provenance["layers"]
     assert recorded["hit_filter"]["min_score"] == 0.99
     assert recorded["hit_filter"]["min_coverage"] == 0.5
-    assert recorded["similarity_layer"] == str(layer / "layer.json")
+    assert recorded["similarity_layer"] == str(layer.resolve())
     assert recorded["items"] == "entry"
     assert "search" not in provenance
 
@@ -338,7 +365,7 @@ def test_cluster_flag_overrides_hit_filter_yaml(tmp_path):
     clusters = _cluster(
         step,
         layer,
-        tmp_path / "clusters.json",
+        tmp_path / "out",
         "--hit-filter",
         str(hit_filter),
         "--min-score",
@@ -352,7 +379,7 @@ def test_cluster_requires_a_threshold(tmp_path):
     step, layer = _cluster_inputs(tmp_path)
 
     with pytest.raises(SystemExit, match="--min-score"):
-        _cluster(step, layer, tmp_path / "clusters.json")
+        _cluster(step, layer, tmp_path / "out")
 
 
 def _chain_rows(*pairs):
@@ -364,7 +391,7 @@ def test_cluster_chain_layer_with_copies_and_singletons(tmp_path):
         tmp_path, _chain_rows(("104M_A", "112M_A")), items="chain"
     )
 
-    clusters = _cluster(step, layer, tmp_path / "c.json", "--min-score", "0.5")
+    clusters = _cluster(step, layer, tmp_path / "out", "--min-score", "0.5")
 
     assert clusters == [["104M_A", "112M_A", "112M_B"], ["118L_A"]]
 
@@ -377,7 +404,7 @@ def test_cluster_rolls_chain_layer_up_to_entries(tmp_path):
     clusters = _cluster(
         step,
         layer,
-        tmp_path / "c.json",
+        tmp_path / "out",
         "--min-score",
         "0.5",
         "--items",
@@ -390,7 +417,7 @@ def test_cluster_rolls_chain_layer_up_to_entries(tmp_path):
 def test_cluster_layer_with_no_matched_rows_gives_singletons(tmp_path):
     step, layer = _cluster_inputs(tmp_path, rows=[], items="entry")
 
-    clusters = _cluster(step, layer, tmp_path / "c.json", "--min-score", "0.5")
+    clusters = _cluster(step, layer, tmp_path / "out", "--min-score", "0.5")
 
     assert clusters == [["104M"], ["112M"], ["118L"]]
 
@@ -400,11 +427,11 @@ def test_cluster_drops_edges_outside_smaller_item_list(tmp_path):
         tmp_path,
         [{"item_id_1": "104M", "item_id_2": "999X", "score": 0.9}],
     )
-    output = tmp_path / "c.json"
+    output = tmp_path / "out"
 
     _cluster(step, layer, output, "--min-score", "0.5")
 
-    provenance = json.loads((tmp_path / "cluster_provenance.json").read_text())
+    provenance = _summary_policy(output)
     assert provenance["n_edges_unknown_ids"] == 1
 
 
@@ -416,7 +443,7 @@ def test_cluster_rejects_non_similarity_layer(tmp_path):
         json.dumps({"policy": {"template": "chain_labels"}})
     )
     with pytest.raises(SystemExit, match="similarity"):
-        _cluster(step, labels, tmp_path / "c.json", "--min-score", "0.5")
+        _cluster(step, labels, tmp_path / "out", "--min-score", "0.5")
 
 
 @pytest.mark.parametrize("items", ["interface", "chain"])
@@ -426,7 +453,7 @@ def test_cluster_rejects_items_other_than_entry_rollup(tmp_path, items):
         _cluster(
             step,
             layer,
-            tmp_path / "c.json",
+            tmp_path / "out",
             "--min-score",
             "0.5",
             "--items",
@@ -941,6 +968,7 @@ class _Captured(Exception):
 
 def test_cluster_reads_contact_layer(tmp_path, monkeypatch):
     folder = _step_folder(tmp_path)
+    _write_jsonl(folder / "entries.jsonl", [{"entry_id": "1A2C"}])
     _write_jsonl(
         folder / "chains.jsonl",
         [{"entry_id": "1A2C", "chain_id": c} for c in "ABCD"],
@@ -968,10 +996,9 @@ def test_cluster_reads_contact_layer(tmp_path, monkeypatch):
     hit_filter.write_text("min_interface_coverage: 0.5\n")
     with pytest.raises(_Captured):
         main(
-            ["cluster", "--similarity", str(layer)]
+            ["clusters", "build", str(layer), str(tmp_path / "out")]
             + ["--hit-filter", str(hit_filter)]
-            + ["--contacts", str(contacts), "--structures-dir", str(folder)]
-            + ["--output", str(tmp_path / "c.json")]
+            + ["--contacts", str(contacts), "--structures", str(folder)]
         )
 
     residues = captured["residues"]
@@ -998,13 +1025,16 @@ def test_cluster_interface_layer_takes_items_from_contacts(tmp_path):
         [{"item_id_1": "1A2C_A_B", "item_id_2": "1A2C_B_C", "score": 0.9}],
         "interface",
     )
-    output = tmp_path / "c.json"
+    output = tmp_path / "out"
     main(
-        ["cluster", "--similarity", str(layer), "--min-score", "0.5"]
-        + ["--contacts", str(contacts), "--output", str(output)]
+        ["clusters", "build", str(layer), str(output), "--min-score", "0.5"]
+        + ["--contacts", str(contacts)]
     )
 
-    clusters = [c["components"] for c in json.loads(output.read_text())]
+    clusters = [
+        c["components"]
+        for c in json.loads((output / "clusters.json").read_text())
+    ]
     assert clusters == [["1A2C_A_B", "1A2C_B_C"], ["1A2C_B_D"]]
 
 
@@ -1028,14 +1058,14 @@ def _rollup_contacts(tmp_path):
     return contacts
 
 
-def _rollup_cluster(tmp_path, contacts, *extra):
-    output = tmp_path / "c.json"
+def _rollup_cluster(tmp_path, contacts, layers, *extra):
+    output = tmp_path / "out"
     main(
-        ["cluster", "--items", "interface", "--contacts", str(contacts)]
-        + ["--output", str(output), *extra]
+        ["clusters", "build", *map(str, layers), str(output)]
+        + ["--items", "interface", "--contacts", str(contacts), *extra]
     )
-    provenance = json.loads((tmp_path / "cluster_provenance.json").read_text())
-    return [c["components"] for c in json.loads(output.read_text())], provenance
+    clusters = json.loads((output / "clusters.json").read_text())
+    return [c["components"] for c in clusters], _summary_policy(output)
 
 
 def test_cluster_rolls_chain_layer_up_to_interfaces(tmp_path):
@@ -1048,7 +1078,7 @@ def test_cluster_rolls_chain_layer_up_to_interfaces(tmp_path):
     )
 
     clusters, provenance = _rollup_cluster(
-        tmp_path, contacts, "--similarity", str(tm), "--min-score", "0.5"
+        tmp_path, contacts, [tm], "--min-score", "0.5"
     )
 
     # 9ZZZ_A is in no interface, so it does not join 3CCC_E_F.
@@ -1089,12 +1119,31 @@ def test_cluster_chain_representatives_joins_members(tmp_path):
     clusters, provenance = _rollup_cluster(
         tmp_path,
         contacts,
-        *["--similarity", str(tm), "--min-score", "0.5"],
-        *["--chain-representatives", str(reps)],
+        [tm],
+        *["--min-score", "0.5", "--chain-representatives", str(reps)],
     )
 
     assert clusters == [["1AAA_A_B", "2BBB_C_D"], ["3CCC_E_F"]]
-    assert provenance["chain_representatives"] == str(reps)
+    assert provenance["chain_representatives"] == str(reps.resolve())
+
+
+def test_clusters_build_chain_representatives_accepts_folder(tmp_path):
+    contacts = _rollup_contacts(tmp_path)
+    mapping = dict(zip(_ROLLUP_CHAINS, _ROLLUP_CHAINS, strict=True))
+    mapping["2BBB_C"] = "1AAA_A"
+    folder = tmp_path / "reps"
+    folder.mkdir()
+    _chain_reps(folder / "representatives.json", mapping)
+    iface = _similarity_layer(tmp_path / "iface", None, "interface")
+
+    clusters, _ = _rollup_cluster(
+        tmp_path,
+        contacts,
+        [iface],
+        *["--min-score", "0.5", "--chain-representatives", str(folder)],
+    )
+
+    assert clusters == [["1AAA_A_B", "2BBB_C_D"], ["3CCC_E_F"]]
 
 
 def test_cluster_chain_representatives_without_chain_layer(tmp_path):
@@ -1108,8 +1157,8 @@ def test_cluster_chain_representatives_without_chain_layer(tmp_path):
     clusters, _ = _rollup_cluster(
         tmp_path,
         contacts,
-        *["--similarity", str(iface), "--min-score", "0.5"],
-        *["--chain-representatives", str(reps)],
+        [iface],
+        *["--min-score", "0.5", "--chain-representatives", str(reps)],
     )
 
     assert clusters == [["1AAA_A_B", "2BBB_C_D"], ["3CCC_E_F"]]
@@ -1124,8 +1173,8 @@ def test_cluster_chain_representatives_missing_chain_exits(tmp_path):
         _rollup_cluster(
             tmp_path,
             contacts,
-            *["--similarity", str(tm), "--min-score", "0.5"],
-            *["--chain-representatives", str(reps)],
+            [tm],
+            *["--min-score", "0.5", "--chain-representatives", str(reps)],
         )
 
 
@@ -1138,7 +1187,7 @@ def test_cluster_chain_representatives_needs_interface_items(tmp_path):
         _cluster(
             step,
             layer,
-            tmp_path / "c.json",
+            tmp_path / "out",
             *["--min-score", "0.5", "--chain-representatives", str(reps)],
         )
 
@@ -1152,10 +1201,11 @@ def test_cluster_joins_several_layers(tmp_path):
         {"item_id_1": "2BBB_C_D", "item_id_2": "3CCC_E_F", "score": 0.3},
     ]
     iface = _similarity_layer(tmp_path / "iface", rows, "interface")
-    args = ["--similarity", str(tm), "--min-score", "0.5"]
-    args += ["--similarity", str(iface), "--min-score", "0.2"]
+    args = ["--min-score", "0.5", "--min-score", "0.2"]
 
-    clusters, provenance = _rollup_cluster(tmp_path, contacts, *args)
+    clusters, provenance = _rollup_cluster(
+        tmp_path, contacts, [tm, iface], *args
+    )
 
     assert clusters == [["1AAA_A_B", "2BBB_C_D", "3CCC_E_F"]]
     assert [
@@ -1167,8 +1217,8 @@ def test_cluster_joins_several_layers(tmp_path):
     clusters, _ = _rollup_cluster(
         tmp_path,
         contacts,
-        *["--similarity", str(tm), "--similarity", str(iface)],
-        *["--min-score", "0.5"],
+        [tm, iface],
+        *["--min-score", "0.5", "--overwrite"],
     )
     assert clusters == [["1AAA_A_B", "2BBB_C_D"], ["3CCC_E_F"]]
 
@@ -1176,11 +1226,11 @@ def test_cluster_joins_several_layers(tmp_path):
 def test_cluster_threshold_count_must_match_layers(tmp_path):
     contacts = _rollup_contacts(tmp_path)
     tm = _similarity_layer(tmp_path / "tm", _chain_rows(), "chain")
-    with pytest.raises(SystemExit, match="once per --similarity"):
+    with pytest.raises(SystemExit, match="once per"):
         _rollup_cluster(
             tmp_path,
             contacts,
-            *["--similarity", str(tm), "--similarity", str(tm)],
+            [tm, tm],
             *["--min-score", "0.5", "--min-score", "0.5"],
             *["--min-score", "0.5"],
         )
@@ -1197,7 +1247,7 @@ def test_cluster_rejects_non_contact_layer(tmp_path):
         _cluster(
             step,
             layer,
-            tmp_path / "c.json",
+            tmp_path / "out",
             "--min-score",
             "0.5",
             "--contacts",
@@ -1205,13 +1255,20 @@ def test_cluster_rejects_non_contact_layer(tmp_path):
         )
 
 
-def test_cluster_entry_layer_needs_structures_dir(tmp_path):
+def test_cluster_entry_layer_needs_structures(tmp_path):
     _, layer = _cluster_inputs(tmp_path)
-    with pytest.raises(SystemExit, match="--structures-dir"):
+    with pytest.raises(SystemExit, match="clusters build: .*--structures"):
         main(
-            ["cluster", "--similarity", str(layer), "--min-score", "0.5"]
-            + ["--output", str(tmp_path / "c.json")]
+            ["clusters", "build", str(layer), str(tmp_path / "out")]
+            + ["--min-score", "0.5"]
         )
+
+
+def test_cluster_structures_without_tables_exits(tmp_path):
+    step, layer = _cluster_inputs(tmp_path)
+    (step / "chains.jsonl").unlink()
+    with pytest.raises(SystemExit, match="no chains table; run `pandora"):
+        _cluster(step, layer, tmp_path / "out", "--min-score", "0.5")
 
 
 _LAYER_ROWS = [
@@ -1766,9 +1823,7 @@ def test_cluster_interface_filter_without_contacts_exits(tmp_path):
     hit_filter = tmp_path / "filter.yaml"
     hit_filter.write_text("min_interface_coverage: 0.5\n")
     with pytest.raises(SystemExit, match="interface_residues"):
-        _cluster(
-            step, layer, tmp_path / "c.json", "--hit-filter", str(hit_filter)
-        )
+        _cluster(step, layer, tmp_path / "out", "--hit-filter", str(hit_filter))
 
 
 def _count(contacts, out, level):
@@ -2556,11 +2611,14 @@ def _iface_sim(step, contacts, clusters_file, out, *extra):
 
 def _iface_cluster(layer, contacts, output):
     main(
-        ["cluster", "--similarity", str(layer), "--items", "interface"]
-        + ["--contacts", str(contacts), "--min-score", "0"]
-        + ["--output", str(output)]
+        ["clusters", "build", str(layer), str(output)]
+        + ["--items", "interface", "--contacts", str(contacts)]
+        + ["--min-score", "0"]
     )
-    return [c["components"] for c in json.loads(output.read_text())]
+    return [
+        c["components"]
+        for c in json.loads((output / "clusters.json").read_text())
+    ]
 
 
 def test_cluster_with_no_items_writes_an_empty_list(tmp_path):
@@ -2853,6 +2911,11 @@ def _rep_inputs(tmp_path, missing, hits, clusters=None):
 
     step = tmp_path / "step"
     step.mkdir()
+    _write_jsonl(
+        step / "entries.jsonl",
+        [{"entry_id": e, "structure_path": None} for e in ("104M", "112M")]
+        + [{"entry_id": "118L", "structure_path": None}],
+    )
     chains = [("104M", "A", None), ("112M", "A", None)]
     chains += [("112M", "B", "A"), ("118L", "A", None)]
     _write_jsonl(
@@ -2884,10 +2947,60 @@ def _rep_inputs(tmp_path, missing, hits, clusters=None):
 
 def _representatives(step, clusters, out, *extra):
     main(
-        ["representatives", "--clusters", str(clusters)]
-        + ["--structures-dir", str(step), "--output", str(out), *extra]
+        ["clusters", "representatives", str(clusters), str(out)]
+        + ["--structures", str(step), *extra]
     )
-    return json.loads(out.read_text())
+    return json.loads((out / "representatives.json").read_text())
+
+
+def test_clusters_representatives_accepts_bare_clusters_file(tmp_path, capsys):
+    step, clusters, _ = _rep_inputs(tmp_path, _MISSING, _ALL_HITS)
+    assert clusters.is_file()
+    out = tmp_path / "out"
+    reps = _representatives(
+        step, clusters, out, "--policy", _rank_missing(tmp_path)
+    )
+    assert reps[0]["representative"] == "118L_A"
+    summary = json.loads((out / "summary.json").read_text())
+    assert summary["step"] == "representatives"
+    assert summary["input"] == str(clusters.resolve())
+    assert sorted(p.name for p in out.iterdir()) == [
+        "representatives.json",
+        "summary.json",
+    ]
+    assert f"-> {out}" in capsys.readouterr().out
+
+
+def test_clusters_representatives_accepts_clusters_folder(tmp_path):
+    step, clusters, _ = _rep_inputs(tmp_path, _MISSING, _ALL_HITS)
+    folder = tmp_path / "clusters_dir"
+    folder.mkdir()
+    shutil.copy(clusters, folder / "clusters.json")
+    reps = _representatives(
+        step, folder, tmp_path / "out", "--policy", _rank_missing(tmp_path)
+    )
+    assert reps[0]["representative"] == "118L_A"
+
+
+def _rank_missing(tmp_path):
+    policy = tmp_path / "rank_missing.yaml"
+    policy.write_text("rank:\n  - key: missing_residues\n")
+    return str(policy)
+
+
+def test_clusters_representatives_needs_structures_tables(tmp_path):
+    step, clusters, _ = _rep_inputs(tmp_path, _MISSING, _ALL_HITS)
+    (step / "entries.jsonl").unlink()
+    with pytest.raises(
+        SystemExit, match="clusters representatives: .*no entries table"
+    ):
+        _representatives(
+            step,
+            clusters,
+            tmp_path / "out",
+            "--policy",
+            _rank_missing(tmp_path),
+        )
 
 
 _MISSING = {"104M_A": 2, "112M_A": 2, "112M_B": 0, "118L_A": 0}
@@ -2896,7 +3009,7 @@ _ALL_HITS = [("104M_A", "112M_A"), ("104M_A", "118L_A"), ("112M_A", "118L_A")]
 
 def test_representatives_default_policy(tmp_path):
     step, clusters, layer = _rep_inputs(tmp_path, _MISSING, _ALL_HITS)
-    out = tmp_path / "reps" / "representatives.json"
+    out = tmp_path / "reps"
     reps = _representatives(
         step, clusters, out, "--similarity", str(layer), "--min-score", "0.9"
     )
@@ -2907,9 +3020,7 @@ def test_representatives_default_policy(tmp_path):
             "n_members": 4,
         }
     ]
-    prov = json.loads(
-        (out.parent / "representatives_provenance.json").read_text()
-    )
+    prov = _summary_policy(out)
     assert prov["n_clusters"] == 1 and prov["items"] == "chain"
     assert prov["n_members"] == 4 and len(prov["layers"]) == 1
 
@@ -2921,7 +3032,7 @@ def test_representatives_n_hits_breaks_tie(tmp_path):
     reps = _representatives(
         step,
         clusters,
-        tmp_path / "r.json",
+        tmp_path / "out",
         "--similarity",
         str(layer),
         "--min-score",
@@ -2938,14 +3049,12 @@ def test_representatives_drops_chains_outside_step_folder(tmp_path):
         clusters=[["104M_A", "112M_A", "112M_B", "118L_A", "999X_A"]]
         + [["999Y_A"]],
     )
-    out = tmp_path / "r.json"
+    out = tmp_path / "out"
     reps = _representatives(
         step, clusters, out, "--similarity", str(layer), "--min-score", "0.9"
     )
     assert len(reps) == 1 and "999X_A" not in reps[0]["members"]
-    prov = json.loads(
-        (tmp_path / "representatives_provenance.json").read_text()
-    )
+    prov = _summary_policy(out)
     assert prov["n_members_dropped"] == 2
     assert prov["n_clusters_dropped"] == 1
 
@@ -2953,7 +3062,7 @@ def test_representatives_drops_chains_outside_step_folder(tmp_path):
 def test_representatives_n_hits_needs_similarity(tmp_path):
     step, clusters, _ = _rep_inputs(tmp_path, _MISSING, _ALL_HITS)
     with pytest.raises(SystemExit, match="n_hits"):
-        _representatives(step, clusters, tmp_path / "r.json")
+        _representatives(step, clusters, tmp_path / "out")
 
 
 def test_representatives_policy_without_n_hits_needs_no_layer(tmp_path):
@@ -2961,17 +3070,9 @@ def test_representatives_policy_without_n_hits_needs_no_layer(tmp_path):
     policy = tmp_path / "reps.yaml"
     policy.write_text("rank:\n  - key: missing_residues\n")
     reps = _representatives(
-        step, clusters, tmp_path / "r.json", "--policy", str(policy)
+        step, clusters, tmp_path / "out", "--policy", str(policy)
     )
     assert reps[0]["representative"] == "118L_A"
-
-
-def test_representatives_interface_items_need_contacts(tmp_path):
-    step, clusters, _ = _rep_inputs(tmp_path, _MISSING, _ALL_HITS)
-    with pytest.raises(SystemExit, match="--contacts"):
-        _representatives(
-            step, clusters, tmp_path / "r.json", "--items", "interface"
-        )
 
 
 def _iface_rep_inputs(tmp_path, copies=()):
@@ -2979,6 +3080,7 @@ def _iface_rep_inputs(tmp_path, copies=()):
     copies) and one cluster of all its interfaces, largest first."""
 
     step, contacts, _, seqs = _iface_inputs(tmp_path)
+    _write_jsonl(step / "entries.jsonl", [{"entry_id": "1A2C"}])
     _write_jsonl(
         step / "chains.jsonl",
         [
@@ -2997,43 +3099,40 @@ def _iface_rep_inputs(tmp_path, copies=()):
     clusters.write_text(
         json.dumps([{"components": sorted(ids), "n_components": len(ids)}])
     )
-    return contacts, clusters, labelled
+    return step, contacts, clusters, labelled
 
 
-def _iface_reps(contacts, clusters, out, *extra):
+def _iface_reps(step, contacts, clusters, out, *extra):
     main(
-        ["representatives", "--items", "interface"]
-        + ["--clusters", str(clusters), "--contacts", str(contacts)]
-        + ["--output", str(out), *extra]
+        ["clusters", "representatives", str(clusters), str(out)]
+        + ["--structures", str(step), "--contacts", str(contacts), *extra]
     )
-    return json.loads(out.read_text())
+    return json.loads((out / "representatives.json").read_text())
 
 
 def test_representatives_interfaces_pick_largest_interface(tmp_path):
-    contacts, clusters, labelled = _iface_rep_inputs(tmp_path)
+    step, contacts, clusters, labelled = _iface_rep_inputs(tmp_path)
     best = labelled[0]
     assert best.residues_1 + best.residues_2 > (
         labelled[1].residues_1 + labelled[1].residues_2
     )
-    out = tmp_path / "reps.json"
-    reps = _iface_reps(contacts, clusters, out)
+    out = tmp_path / "reps"
+    reps = _iface_reps(step, contacts, clusters, out)
     assert reps[0]["representative"] == (
         f"1A2C_{best.chain_id_1}_{best.chain_id_2}"
     )
     assert reps[0]["n_members"] == len(labelled)
-    prov = json.loads(
-        (tmp_path / "representatives_provenance.json").read_text()
-    )
+    prov = _summary_policy(out)
     assert prov["items"] == "interface"
     assert prov["contacts"] == str(contacts)
     assert prov["policy"]["rank"][0]["key"] == "interface_residues"
 
 
 def test_representatives_interfaces_skip_symmetry_copies(tmp_path):
-    _, _, labelled = _iface_rep_inputs(tmp_path / "probe")
+    _, _, _, labelled = _iface_rep_inputs(tmp_path / "probe")
     copy = labelled[0].chain_id_1
-    contacts, clusters, _ = _iface_rep_inputs(tmp_path, copies={copy})
-    reps = _iface_reps(contacts, clusters, tmp_path / "reps.json")
+    step, contacts, clusters, _ = _iface_rep_inputs(tmp_path, copies={copy})
+    reps = _iface_reps(step, contacts, clusters, tmp_path / "reps")
     # The largest interface without the copy, not the lowest such id.
     rest = [r for r in labelled if copy not in (r.chain_id_1, r.chain_id_2)]
     best = f"1A2C_{rest[0].chain_id_1}_{rest[0].chain_id_2}"
@@ -3042,7 +3141,7 @@ def test_representatives_interfaces_skip_symmetry_copies(tmp_path):
 
 
 def test_representatives_interfaces_n_hits_from_interface_layer(tmp_path):
-    contacts, clusters, labelled = _iface_rep_inputs(tmp_path)
+    step, contacts, clusters, labelled = _iface_rep_inputs(tmp_path)
     a, b = (f"1A2C_{r.chain_id_1}_{r.chain_id_2}" for r in labelled[-2:])
     layer = _similarity_layer(
         tmp_path / "layer",
@@ -3052,9 +3151,10 @@ def test_representatives_interfaces_n_hits_from_interface_layer(tmp_path):
     policy = tmp_path / "rank.yaml"
     policy.write_text("rank:\n  - key: n_hits\n    order: max\n")
     reps = _iface_reps(
+        step,
         contacts,
         clusters,
-        tmp_path / "reps.json",
+        tmp_path / "reps",
         "--policy",
         str(policy),
         "--similarity",
@@ -3065,16 +3165,27 @@ def test_representatives_interfaces_n_hits_from_interface_layer(tmp_path):
     assert reps[0]["representative"] == min(a, b)
 
 
-def test_representatives_interfaces_reject_structures_dir(tmp_path):
-    contacts, clusters, _ = _iface_rep_inputs(tmp_path)
-    with pytest.raises(SystemExit, match="not --structures-dir"):
-        _iface_reps(
-            contacts,
-            clusters,
-            tmp_path / "reps.json",
-            "--structures-dir",
-            str(tmp_path),
+def test_clusters_representatives_interface_level_from_contacts(tmp_path):
+    step, contacts, clusters, labelled = _iface_rep_inputs(tmp_path)
+    reps = _iface_reps(step, contacts, clusters, tmp_path / "out")
+    assert reps[0]["n_members"] == len(labelled)
+    assert _summary_policy(tmp_path / "out")["items"] == "interface"
+
+
+def test_clusters_representatives_items_flag_is_gone(tmp_path):
+    step, clusters, _ = _rep_inputs(tmp_path, _MISSING, _ALL_HITS)
+    with pytest.raises(SystemExit) as exc:
+        _representatives(step, clusters, tmp_path / "out", "--items", "chain")
+    assert exc.value.code == 2
+
+
+def test_clusters_representatives_needs_structures(tmp_path):
+    _, clusters, _ = _rep_inputs(tmp_path, _MISSING, _ALL_HITS)
+    with pytest.raises(SystemExit) as exc:
+        main(
+            ["clusters", "representatives", str(clusters), str(tmp_path / "o")]
         )
+    assert exc.value.code == 2
 
 
 def test_representatives_rejects_unknown_rank_key(tmp_path):
@@ -3083,7 +3194,7 @@ def test_representatives_rejects_unknown_rank_key(tmp_path):
     policy.write_text("rank:\n  - key: bogus\n")
     with pytest.raises(SystemExit, match="bogus"):
         _representatives(
-            step, clusters, tmp_path / "r.json", "--policy", str(policy)
+            step, clusters, tmp_path / "out", "--policy", str(policy)
         )
 
 
@@ -3102,7 +3213,7 @@ def _rebalance_inputs(tmp_path, homomers=False, groups=None):
     one with `homomers`), dimer groups (default: one of every dimer)
     and an empty interface layer."""
 
-    contacts, _, labelled = _iface_rep_inputs(tmp_path)
+    _, contacts, _, labelled = _iface_rep_inputs(tmp_path)
     dimers = sorted(f"1A2C_{r.chain_id_1}_{r.chain_id_2}" for r in labelled)
     chains = sorted(
         {f"1A2C_{c}" for r in labelled for c in (r.chain_id_1, r.chain_id_2)}
