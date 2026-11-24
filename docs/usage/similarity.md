@@ -1,14 +1,14 @@
 # Similarity
 
-`pandora.similarity` finds similar items and turns them into leakage-safe dataset splits. Similarity is a [layer](annotation.md): a `similarity` table of hits between two items. Pandora's own MMseqs2 and Foldseek searches write one, and `pandora similarity import` turns anyone else's edge list (another tool, or your own script) into the same layer. `pandora cluster` clusters any similarity layer, and `partition_dataset()` turns clusters into splits. See [Functions](../reference/functions.md#pandora.similarity) for full signatures.
+`pandora.similarity` finds similar items and turns them into leakage-safe dataset splits. Similarity is a [layer](annotation.md): a `similarity` table of hits between two items. Pandora's own MMseqs2 and Foldseek searches write one, and `pandora similarity import` turns anyone else's edge list (another tool, or your own script) into the same layer. `pandora clusters build` clusters any similarity layer, and `partition_dataset()` turns clusters into splits. See [Functions](../reference/functions.md#pandora.similarity) for full signatures.
 
 Everything here is built to run on the whole PDB archive: layers are Parquet, read batch by batch, thresholds are applied to whole columns at once, and the list of valid items comes from a step folder's tables, never from parsing structures again. Similarity layers need pyarrow, the `export` extra.
 
 The examples below start from a `curated/` step folder holding 104M, 112M, 118L, 138L and 1AYI (one polymer chain each):
 
 ```bash
-pandora canonicalise --input-dir raw/ --policy datasets/canonicalisation.yaml --output-dir canonical/
-pandora curate --input-dir canonical/ --policy curate.yaml --output-dir curated/
+pandora structures canonicalise raw/ canonical/ --policy datasets/canonicalisation.yaml
+pandora structures curate canonical/ curated/ --policy curate.yaml
 ```
 
 ## The `similarity` layer
@@ -31,8 +31,8 @@ Each layer holds one level of item, set by `items` in its description:
 
 | `items` | ID form | Example | Valid items come from |
 |---|---|---|---|
-| `entry` | `{entry}` | `1ABC` | the step folder's `entries` table (entries with a structure), `--structures-dir` |
-| `chain` | `{entry}_{chain}` | `1ABC_A` | the step folder's `chains` table, written by `pandora curate`, `--structures-dir` |
+| `entry` | `{entry}` | `1ABC` | the structures folder's `entries` table (entries with a structure), `--structures` |
+| `chain` | `{entry}_{chain}` | `1ABC_A` | the structures folder's `chains` table, written by `pandora structures curate`, `--structures` |
 | `interface` | `{entry}_{chain1}_{chain2}` | `1ABC_A_B` | a [`residue_contacts` layer](annotation.md#contacts-are-one-layer): its pairs of polymer chains in contact, `--contacts` |
 
 Chains are Pandora's chain IDs (`label_asym_id`). The entry part matches case-insensitively and is stored as Pandora spells it; chain IDs are case-sensitive. Interface IDs are stored with their two chains sorted, so `1ABC_B_A` becomes `1ABC_A_B`. An interface is an item only if a contact layer found it, so similarity never recomputes contacts. In Python, `item_id()` and `parse_item_id()` build and split these IDs.
@@ -41,12 +41,12 @@ A row naming something that isn't an item goes to `unmatched.parquet` with a `re
 
 ## Sequence similarity (MMseqs2)
 
-`pandora similarity search --engine mmseqs2` runs an all-vs-all `mmseqs easy-search` over the step folder's chains, with sequences taken from its `chains` table, and writes the hits as a chain-level layer folder: `layer.parquet`, `unmatched.parquet` (if any) and `layer.json`. Symmetry copies (`copy_of` set in the `chains` table) are left out of the search: identical copies would take up the per-query hit slots and push out real homologues. They are still items, and `pandora cluster` puts each copy in its source chain's cluster.
+`pandora similarity mmseqs` runs an all-vs-all `mmseqs easy-search` over a curate folder's chains, with sequences taken from its `chains` table, and writes the hits as a chain-level layer folder: `layer.parquet`, `unmatched.parquet` (if any) and `summary.json`. Symmetry copies (`copy_of` set in the `chains` table) are left out of the search: identical copies would take up the per-query hit slots and push out real homologues. They are still items, and `pandora clusters build` puts each copy in its source chain's cluster.
 
 === "`cli`"
 
     ```bash
-    pandora similarity search --engine mmseqs2 --structures-dir curated/ --max-seqs 300 --output-dir similarity/seq
+    pandora similarity mmseqs curated/ similarity/seq --max-seqs 300
     ```
 
     ```text
@@ -64,7 +64,7 @@ A row naming something that isn't an item goes to `unmatched.parquet` with a `re
     ...
     ```
 
-    `layer.json` records the search as the layer's description: `{"name": "mmseqs2", "template": "similarity", "items": "chain", "tool": "MMseqs2", "tool_version": "18.8cc5c", "parameters": {"mmseqs_bin": "mmseqs", "sensitivity": 5.7, "max_seqs": 300, "mmseqs_options": []}}`, plus the counts and the step folder's summary as `previous_summary`.
+    `summary.json` records the search as the layer's description: `{"name": "mmseqs2", "template": "similarity", "items": "chain", "tool": "MMseqs2", "tool_version": "18.8cc5c", "parameters": {"mmseqs_bin": "mmseqs", "sensitivity": 5.7, "max_seqs": 300, "mmseqs_options": []}}`, plus the counts and the step folder's summary as `previous_summary`.
 
 === "`library`"
 
@@ -113,7 +113,7 @@ A row naming something that isn't an item goes to `unmatched.parquet` with a `re
 
 ## Structural similarity (Foldseek)
 
-`pandora similarity search --engine foldseek` runs an all-vs-all `foldseek easy-search` over one structure file per chain. By default Pandora writes these files itself, one mmCIF per chain of `--structures-dir` (symmetry copies left out), into a temporary folder, named so that the file names are chain item IDs. `--input-dir` takes a folder of files you already have instead, named `{entry}_{chain}.cif`. In Python, `export_chain_mmcif()` writes them, for the chains in the step folder's `chains` table:
+`pandora similarity foldseek` runs an all-vs-all `foldseek easy-search` over one structure file per chain. By default Pandora writes these files itself, one mmCIF per chain of the structures folder (symmetry copies left out), into a temporary folder, named so that the file names are chain item IDs. `--chain-files` takes a folder of files you already have instead, named `{entry}_{chain}.cif`. In Python, `export_chain_mmcif()` writes them, for the chains in the step folder's `chains` table:
 
 ```python
 from pathlib import Path
@@ -140,7 +140,7 @@ print(sorted(p.name for p in Path("chains").iterdir()))
 ```
 
 ```bash
-pandora similarity search --engine foldseek --input-dir chains/ --structures-dir curated/ --output-dir similarity/struct
+pandora similarity foldseek curated/ similarity/struct --chain-files chains/
 ```
 
 ```text
@@ -158,14 +158,12 @@ item_id_1  item_id_2  identity  coverage_1  coverage_2  qtmscore  ttmscore  star
 
 ### Searching a list of chains
 
-`--chains` limits the search to the chain item IDs listed in a file, one per line (blank lines and `#` comments are skipped), for either engine. Every listed ID must be a chain of `--structures-dir`. PPI v2.1 runs Foldseek on the 90% sequence representatives only:
+`--chains` limits the search to a list of chain item IDs, for either engine: a text file with one ID per line (blank lines and `#` comments are skipped), or the representatives folder or `representatives.json` of `pandora clusters representatives`, whose representatives become the list. Every listed ID must be a chain of the structures folder. PPI v2.1 runs Foldseek on the 90% sequence representatives only:
 
 ```bash
-jq -r '.[].representative' clusters/seq90/representatives.json > clusters/seq90/representatives.txt
-pandora similarity search --engine foldseek --structures-dir work/uncontained \
-  --chains clusters/seq90/representatives.txt --exhaustive-search \
-  --output-dir layers/tm
-jq -c .counts layers/tm/layer.json
+pandora similarity foldseek work/uncontained layers/tm \
+  --chains clusters/seq90_reps --exhaustive-search
+jq -c .counts layers/tm/summary.json
 ```
 
 ```text
@@ -173,7 +171,7 @@ searched: 522 hits, 0 unmatched -> layers/tm
 {"chains_searched":31,"rows_in":522,"rows_matched":522,"rows_unmatched":0}
 ```
 
-The layer's items are still every chain of the step folder; only the listed chains were searched. `--chains` can't be combined with `--input-dir`. To use a representatives-only layer over every chain, map each chain to its representative with `cluster --chain-representatives` ([below](#chain-layers-over-representatives-only)).
+The layer's items are still every chain of the step folder; only the listed chains were searched. `--chains` can't be combined with `--chain-files`. To use a representatives-only layer over every chain, map each chain to its representative with `clusters build --chain-representatives` ([below](#chain-layers-over-representatives-only)).
 
 In Python, `compute_structure_similarity(paths, hits_path)` runs the search and `read_hit_tsv(hits_path, "Foldseek")` reads it, as for MMseqs2 above.
 
@@ -202,14 +200,14 @@ In Python, `compute_structure_similarity(paths, hits_path)` runs the search and 
     ```
 
     ```bash
-    pandora similarity import --table r_graph_edges.tsv --description r_graph.yaml --structures-dir curated/ --output-dir similarity/r_graph
+    pandora similarity import r_graph_edges.tsv similarity/r_graph --description r_graph.yaml --structures curated/
     ```
 
     ```text
     imported: 2 rows, 1 unmatched -> similarity/r_graph
     ```
 
-    `layer.parquet` holds `104M`–`112M` (the entry ID as Pandora spells it) and `118L`–`138L`, with `method` kept as given. `unmatched.parquet` holds the `9XYZ` row with reason `entry_not_found`. `--source-files` copies the original output into `source/`, as in [`annotate import`](annotation.md). A description without `items`, or a table without `item_id_1`, `item_id_2` or `score`, stops the command before anything is written.
+    `layer.parquet` holds `104M`–`112M` (the entry ID as Pandora spells it) and `118L`–`138L`, with `method` kept as given. `unmatched.parquet` holds the `9XYZ` row with reason `entry_not_found`. `--source-files` copies the original output into `source/`, as in [`annotations import`](annotation.md). A description without `items`, or a table without `item_id_1`, `item_id_2` or `score`, stops the command before anything is written.
 
 === "`library`"
 
@@ -239,8 +237,8 @@ In Python, `compute_structure_similarity(paths, hits_path)` runs the search and 
 For interfaces, the valid items are the chain pairs of a contact layer, given with `--contacts`. Here `annotations/interfaces` is the `chain_interfaces` layer of 1A2C, whose interfaces are A–B, B–C and B–D:
 
 ```bash
-pandora annotate compute --layer chain_interfaces --structures-dir curated2/ --output-dir annotations/interfaces
-pandora similarity import --table iface_edges.tsv --description iface.yaml --contacts annotations/interfaces --output-dir similarity/iface
+pandora annotations contacts curated2/ annotations/interfaces
+pandora similarity import iface_edges.tsv similarity/iface --description iface.yaml --contacts annotations/interfaces
 ```
 
 ```text
@@ -269,15 +267,15 @@ A `HitFilter` decides which rows of a similarity layer become edges. A pair of i
 
 ### Interface-restricted coverage (PPI pairs)
 
-For PPI work, whole-chain coverage can hide that two complexes only resemble each other away from the interface (or vice versa). On a chain layer with alignment ranges (a Foldseek layer), `pandora cluster --contacts` takes a `residue_contacts` layer folder and, with `--structures-dir`, works out each chain's interface residues in the per-chain files' own numbering (`interface_residues_from_annotation()`), so `min_interface_coverage` can be tested:
+For PPI work, whole-chain coverage can hide that two complexes only resemble each other away from the interface (or vice versa). On a chain layer with alignment ranges (a Foldseek layer), `pandora clusters build --contacts` takes a `residue_contacts` layer folder and, with `--structures`, works out each chain's interface residues in the per-chain files' own numbering (`interface_residues_from_annotation()`), so `min_interface_coverage` can be tested:
 
 ```bash
-pandora cluster --similarity similarity/struct2 --structures-dir curated2/ --contacts annotations/interfaces --hit-filter filter.yaml --output clusters/interface_cov.json
+pandora clusters build similarity/struct2 clusters/interface_cov --structures curated2/ --contacts annotations/interfaces --hit-filter filter.yaml
 # filter.yaml: min_interface_coverage: 0.5
 ```
 
 ```text
-4 clusters from 0 edges -> clusters/interface_cov.json
+4 clusters from 0 edges -> clusters/interface_cov
 ```
 
 (1A2C's four chains share no fold, so the only hits are self-hits.) A pair gets an interface coverage only when both its chains have interface residues; otherwise it fails `min_interface_coverage`. Coverage is computed when the layer is read, so you can try different interface definitions without re-running the search. This is the one step that parses the structures again, so it doesn't reach whole-archive scale.
@@ -287,16 +285,16 @@ pandora cluster --similarity similarity/struct2 --structures-dir curated2/ --con
 
 ## Clustering
 
-`pandora cluster` groups items into connected-component clusters: two items land in the same cluster if they are connected through a chain of edges that pass the `HitFilter`. Every valid item appears exactly once, so items with no hits are single-item clusters. Edges naming an item outside the list are dropped and counted (`n_edges_unknown_ids`), so you can search the whole archive once and cluster any curated subset of it.
+`pandora clusters build` groups items into connected-component clusters: two items land in the same cluster if they are connected through a chain of edges that pass the `HitFilter`. Every valid item appears exactly once, so items with no hits are single-item clusters. Edges naming an item outside the list are dropped and counted (`n_edges_unknown_ids`), so you can search the whole archive once and cluster any curated subset of it.
 
 === "`cli`"
 
     ```bash
-    pandora cluster --similarity similarity/seq --structures-dir curated/ --min-score 0.9 --output clusters/chains.json
+    pandora clusters build similarity/seq clusters/chains --structures curated/ --min-score 0.9
     ```
 
     ```text
-    3 clusters from 4 edges -> clusters/chains.json
+    3 clusters from 4 edges -> clusters/chains
     ```
 
     ```text
@@ -305,7 +303,7 @@ pandora cluster --similarity similarity/struct2 --structures-dir curated2/ --con
     ['1AYI_A']
     ```
 
-    `--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score` and `--min-coverage` override its fields. At least one of the three is required: with no threshold every hit would become an edge. `cluster_provenance.json`, next to `--output`, records each layer under `layers` (its `layer.json`, item level, hit filter and edge count) and the total edge and cluster counts.
+    `--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score` and `--min-coverage` override its fields. At least one of the three is required: with no threshold every hit would become an edge. `clusters/chains/summary.json` records each layer under `policy.layers` (its folder, item level, hit filter and edge count) and the total edge and cluster counts. A layer's item level comes from its `summary.json`; for a bare table or a folder without one, pass `--similarity-items {entry,chain,interface}`. The groups are written to `clusters.json` inside the output folder.
 
 === "`library`"
 
@@ -343,11 +341,11 @@ Splits are usually made by entry, so that chains of one entry never land in diff
 === "`cli`"
 
     ```bash
-    pandora cluster --similarity similarity/seq --structures-dir curated/ --items entry --min-score 0.9 --output clusters/entries.json
+    pandora clusters build similarity/seq clusters/entries --structures curated/ --items entry --min-score 0.9
     ```
 
     ```text
-    3 clusters from 4 edges -> clusters/entries.json
+    3 clusters from 4 edges -> clusters/entries
     ```
 
     ```text
@@ -379,11 +377,11 @@ Splits are usually made by entry, so that chains of one entry never land in diff
 An interface layer clusters interfaces, with the items from `--contacts`:
 
 ```bash
-pandora cluster --similarity similarity/iface --contacts annotations/interfaces --min-score 0.5 --output clusters/iface.json
+pandora clusters build similarity/iface clusters/iface --contacts annotations/interfaces --min-score 0.5
 ```
 
 ```text
-2 clusters from 1 edges -> clusters/iface.json
+2 clusters from 1 edges -> clusters/iface
 ```
 
 ```text
@@ -402,22 +400,21 @@ The examples use `1a3n` (deoxyhemoglobin) from [Comparing interfaces](#comparing
 === "`cli`"
 
     ```bash
-    pandora cluster --items interface --contacts annotations/interfaces \
-      --similarity similarity/iface_jaccard --min-score 0.1 \
-      --similarity similarity/struct --min-score 0.5 \
-      --structures-dir curated/ --output clusters/dimers.json
-    jq -c '.[].components' clusters/dimers.json
-    jq -c '.layers[] | [.similarity_layer, .items, .n_edges]' clusters/cluster_provenance.json
+    pandora clusters build similarity/iface_jaccard similarity/struct clusters/dimers \
+      --items interface --contacts annotations/interfaces \
+      --min-score 0.1 --min-score 0.5 --structures curated/
+    jq -c '.[].components' clusters/dimers/clusters.json
+    jq -c '.policy.layers[] | [.similarity_layer, .items, .n_edges]' clusters/dimers/summary.json
     ```
 
     ```text
-    1 clusters from 18 edges -> clusters/dimers.json
+    1 clusters from 18 edges -> clusters/dimers
     ["1A3N_A_B","1A3N_A_C","1A3N_A_D","1A3N_B_C","1A3N_B_D"]
-    ["similarity/iface_jaccard/layer.json","interface",2]
-    ["similarity/struct/layer.json","chain",12]
+    ["similarity/iface_jaccard","interface",2]
+    ["similarity/struct","chain",12]
     ```
 
-    The interface layer alone gives three clusters; α and β are both globins (TM-score above 0.9), so the chain layer joins them. The 18 edges are the interface layer's 2, the 10 chain hits between chains of different interfaces, and 6 links between interfaces sharing a chain. `--structures-dir` is optional here; when given, symmetry copies are linked to their source chain as for chain clustering.
+    The interface layer alone gives three clusters; α and β are both globins (TM-score above 0.9), so the chain layer joins them. The 18 edges are the interface layer's 2, the 10 chain hits between chains of different interfaces, and 6 links between interfaces sharing a chain. `--structures` is optional here; when given, symmetry copies are linked to their source chain as for chain clustering.
 
 === "`library`"
 
@@ -451,19 +448,18 @@ The examples use `1a3n` (deoxyhemoglobin) from [Comparing interfaces](#comparing
 
 #### Chain layers over representatives only
 
-When the chain layer covers only representative chains (a `--chains` search, above), a dimer whose chains aren't representatives would get no edges. `--chain-representatives <representatives.json>` maps every chain to its representative (through `members`) before the roll-up, so a hit between two representatives links every dimer built from their members, and dimers whose chains share a representative are linked too. It needs `--items interface`; a dimer chain in no `members` list is an error.
+When the chain layer covers only representative chains (a `--chains` search, above), a dimer whose chains aren't representatives would get no edges. `--chain-representatives <representatives folder or .json>` maps every chain to its representative (through `members`) before the roll-up, so a hit between two representatives links every dimer built from their members, and dimers whose chains share a representative are linked too. It needs `--items interface`; a dimer chain in no `members` list is an error.
 
 ```bash
-pandora cluster --items interface --contacts layers/contacts \
-  --similarity layers/iface_sim --hit-filter policies/same_proteins.yaml \
-  --similarity layers/tm --hit-filter policies/tm.yaml \
-  --chain-representatives clusters/seq90/representatives.json \
-  --output clusters/dimer_groups/clusters.json
+pandora clusters build layers/iface_sim layers/tm clusters/dimer_groups \
+  --items interface --contacts layers/contacts \
+  --hit-filter policies/same_proteins.yaml --hit-filter policies/tm.yaml \
+  --chain-representatives clusters/seq90_reps
 jq -c '.[].components' clusters/dimer_groups/clusters.json | head -2
 ```
 
 ```text
-12 clusters from 41 edges -> clusters/dimer_groups/clusters.json
+12 clusters from 41 edges -> clusters/dimer_groups
 ["1A3E_A_B"]
 ["1A3N_A_B","1A3N_A_D","1A3N_B_C","1A3N_C_D","1ABW_A_B","1ABW_A_C"]
 ```
@@ -481,30 +477,29 @@ keys = pair_cluster_keys([("104M_A", "112M_A")], clusters)
 # {('104M_A', '112M_A'): ('104M_A', '104M_A')}
 ```
 
-Each cluster's own lexicographically smallest member is its key, so keys are stable regardless of clustering order. On the command line, `pandora cluster --pairs pairs.json` (a JSON array of `[item_id_1, item_id_2]`) writes the keys to `cluster_pairs.json` next to `--output`.
+Each cluster's own lexicographically smallest member is its key, so keys are stable regardless of clustering order. There is no CLI command for this: `clusters build` no longer writes paired keys.
 
 ### Representatives
 
-`pandora representatives` picks one item per cluster, ranked by a `RepresentativePolicy`: by default the chain with the fewest missing residues, then the most hits inside its own cluster, then the lowest id. With `--items interface` it picks one dimer per interface cluster instead (see [Interface representatives](#interface-representatives)).
+`pandora clusters representatives` picks one item per cluster, ranked by a `RepresentativePolicy`: by default the chain with the fewest missing residues, then the most hits inside its own cluster, then the lowest id. With `--contacts` it picks one dimer per interface cluster instead (see [Interface representatives](#interface-representatives)).
 
 === "`cli`"
 
     ```bash
-    pandora representatives --clusters clusters/seq90/clusters.json \
-      --structures-dir work/uncontained \
-      --similarity layers/seq --hit-filter policies/seq90.yaml \
-      --output clusters/seq90/representatives.json
+    pandora clusters representatives clusters/seq90 clusters/seq90_reps \
+      --structures work/uncontained \
+      --similarity layers/seq --hit-filter policies/seq90.yaml
     ```
 
     ```text
-    31 representatives from 51 chains -> clusters/seq90/representatives.json
+    31 representatives from 51 chains -> clusters/seq90_reps
     ```
 
     ```json
     {"representative": "1ABW_B", "members": ["1A3N_B", "1A3N_D", "1ABW_B", "1ABW_C"], "n_members": 4}
     ```
 
-    Clusters are first limited to the chains of `--structures-dir` (e.g. after `dedup --contained`); clusters left empty are dropped. Symmetry copies stay among the members but are never picked. `missing_residues` is the absolute count from the `chains` table; `n_hits` counts the chains of the same (limited) cluster linked by a hit that passes the filter, so it needs `--similarity` with `--hit-filter` or `--min-score`/`--min-coverage`, as for `cluster`. `--policy` takes a `RepresentativePolicy` YAML; a policy without `n_hits` needs no layer. `representatives_provenance.json`, next to `--output`, records the policy, inputs, layers and counts, including the members and clusters dropped by the limit.
+    Clusters are first limited to the chains of `--structures` (e.g. after `structures drop-contained`); clusters left empty are dropped. Symmetry copies stay among the members but are never picked. `missing_residues` is the absolute count from the `chains` table; `n_hits` counts the chains of the same (limited) cluster linked by a hit that passes the filter, so it needs `--similarity` with `--hit-filter` or `--min-score`/`--min-coverage`, as for `clusters build`. `--policy` takes a `RepresentativePolicy` YAML; a policy without `n_hits` needs no layer. `representatives_provenance.json`, next to `--output`, records the policy, inputs, layers and counts, including the members and clusters dropped by the limit.
 
 === "`library`"
 
@@ -540,24 +535,22 @@ Each cluster's own lexicographically smallest member is its key, so keys are sta
 
 #### Interface representatives
 
-The same command picks one dimer per cluster of interfaces, e.g. one per protein pair from a `cluster --items interface --min-score 0` run over a `similarity interfaces` layer. By default the dimer with the most residues in contact (both sides) wins, then the best resolution, then the fewest missing residues (both chains), then the lowest id.
+The same command picks one dimer per cluster of interfaces, e.g. one per protein pair from a `clusters build --items interface --min-score 0` run over a `similarity interface-overlap` layer. By default the dimer with the most residues in contact (both sides) wins, then the best resolution, then the fewest missing residues (both chains), then the lowest id.
 
 === "`cli`"
 
     ```bash
-    pandora representatives --items interface \
-      --clusters clusters/dimers_pairs.json \
-      --contacts layers/contacts_real \
-      --output clusters/dimers_pairs_reps.json
-    cat clusters/dimers_pairs_reps.json
+    pandora clusters representatives clusters/dimers_pairs clusters/dimers_pairs_reps \
+      --structures work/uncontained --contacts layers/contacts_real
+    cat clusters/dimers_pairs_reps/representatives.json
     ```
 
     ```text
-    1 representatives from 3 interfaces -> clusters/dimers_pairs_reps.json
+    1 representatives from 3 interfaces -> clusters/dimers_pairs_reps
     [{"representative":"1A2C_A_B","members":["1A2C_A_B","1A2C_B_C","1A2C_B_D"],"n_members":3}]
     ```
 
-    `--contacts` (a `residue_contacts` layer folder) replaces `--structures-dir`: clusters are limited to the layer's interfaces, residues in contact are counted as in `annotate label-interfaces`, and resolution and missing residues come from the `chains` table of the structures folder the layer traces to. A dimer with a symmetry-copy chain is never picked, unless every dimer of its cluster has one. `n_hits` needs an interface `--similarity` layer. Each representative's `members` are every dimer of its cluster, so on protein-pair clusters they are the link from the representative to its complete-set dimers.
+    `--contacts` (a `residue_contacts` layer folder) switches the level from chains to interfaces: clusters are limited to the layer's interfaces, residues in contact are counted as in `annotations interface-contacts`, and resolution and missing residues come from the `chains` table of `--structures` (a curate folder, needed at both levels). A dimer with a symmetry-copy chain is never picked, unless every dimer of its cluster has one. `n_hits` needs an interface `--similarity` layer. Each representative's `members` are every dimer of its cluster, so on protein-pair clusters they are the link from the representative to its complete-set dimers.
 
 === "`library`"
 
@@ -565,13 +558,13 @@ The same command picks one dimer per cluster of interfaces, e.g. one per protein
 
 ## Comparing interfaces
 
-Two dimers are redundant when they are the same two proteins touching at the same spot. `pandora similarity interfaces` scores that for every pair of interfaces in a contact layer, and writes the scores as a similarity layer with `items: interface`, ready for `pandora cluster --items interface`.
+Two dimers are redundant when they are the same two proteins touching at the same spot. `pandora similarity interface-overlap` scores that for every pair of interfaces in a contact layer, and writes the scores as a similarity layer with `items: interface`, ready for `pandora clusters build --items interface`.
 
-- **Same two proteins.** Two interfaces are compared only when their chains fall in the same chain clusters, for example 90% sequence clusters from `similarity search` + `cluster` (a hit filter with `min_identity: 0.9`, `min_coverage: 0.9` and `coverage_of: both`). Clusters only decide which pairs are looked at. Each chain must also be at least `--min-identity` (default 0.9) identical to its counterpart on a pairwise alignment, since connected components can join chains less similar than that.
+- **Same two proteins.** Two interfaces are compared only when their chains fall in the same chain clusters, for example 90% sequence clusters from `similarity mmseqs` + `clusters build` (a hit filter with `min_identity: 0.9`, `min_coverage: 0.9` and `coverage_of: both`). Clusters only decide which pairs are looked at. Each chain must also be at least `--min-identity` (default 0.9) identical to its counterpart on a pairwise alignment, since connected components can join chains less similar than that.
 - **Both chain orders.** For a homomer, (A, B) lines up with (A′, B′) and with (B′, A′). Both are scored and the better one is kept; `chain_order` says which (`direct` or `swapped`).
 - **Per side.** `jaccard_1` compares the interface residues of the first chain of `item_id_1` with those of its counterpart; `jaccard_2` the other chain. Residues are matched through the alignment, and a residue it can't place counts as not shared.
 - **`score` is the smaller side.** Both proteins must touch with the same residues. One protein reusing a patch to bind its partner at two different places scores 0.
-- **Every compared pair is written**, zeros included, so you can look at the distribution before choosing a cut-off. `cluster --min-score` keeps scores at or above it.
+- **Every compared pair is written**, zeros included, so you can look at the distribution before choosing a cut-off. `clusters build --min-score` keeps scores at or above it.
 
 The residue numbers must be positions in the chain's sequence: canonicalise with `residue_numbering: preserve` (renumbering moves them). Each standard residue in the contact rows is checked against the sequence (modified residues such as `MSE` are not, since the sequence may give their parent), and an interface that disagrees is skipped and counted as `interfaces_sequence_mismatch`, never matched by guess.
 
@@ -579,36 +572,36 @@ The examples use `1a3n` (deoxyhemoglobin): chains A and B are α, C and D are β
 
 === "`cli`"
 
-    The chain clusters are written by hand here; normally they come from `pandora cluster` on a sequence layer.
+    The chain clusters are written by hand here; normally they come from `pandora clusters build` on a sequence layer.
 
     ```bash
-    pandora annotate compute --layer chain_interfaces --structures-dir curated/ \
-      --output-dir annotations/interfaces
-    cat > clusters/seq90.json <<'EOF'
+    pandora annotations contacts curated/ annotations/interfaces
+    mkdir -p clusters/seq90
+    cat > clusters/seq90/clusters.json <<'EOF'
     [
       {"components": ["1A3N_A", "1A3N_B"], "n_components": 2},
       {"components": ["1A3N_C", "1A3N_D"], "n_components": 2}
     ]
     EOF
-    pandora similarity interfaces --contacts annotations/interfaces \
-      --chain-clusters clusters/seq90.json --output-dir similarity/iface_jaccard
-    pandora cluster --similarity similarity/iface_jaccard --items interface \
-      --contacts annotations/interfaces --min-score 0.1 --output clusters/dimers.json
-    jq -c '.counts' similarity/iface_jaccard/layer.json
-    jq -c '.[].components' clusters/dimers.json
+    pandora similarity interface-overlap annotations/interfaces similarity/iface_jaccard \
+      --chain-clusters clusters/seq90 --structures curated/
+    pandora clusters build similarity/iface_jaccard clusters/dimers --items interface \
+      --contacts annotations/interfaces --min-score 0.1
+    jq -c '.counts' similarity/iface_jaccard/summary.json
+    jq -c '.[].components' clusters/dimers/clusters.json
     ```
 
     ```text
     computed: 135 rows for 1 entries -> annotations/interfaces
     scored: 6 interface pairs (4 zero, 0 below identity) from 5 interfaces -> similarity/iface_jaccard
-    3 clusters from 2 edges -> clusters/dimers.json
+    3 clusters from 2 edges -> clusters/dimers
     {"alignments":0,"interfaces":5,"interfaces_sequence_mismatch":0,"interfaces_without_cluster":0,"interfaces_without_sequence":0,"pairs_below_identity":0,"pairs_compared":6,"pairs_swapped":0,"pairs_zero_score":4,"rows_ignored":0,"rows_in":135}
     ["1A3N_A_B"]
     ["1A3N_A_C","1A3N_B_D"]
     ["1A3N_A_D","1A3N_B_C"]
     ```
 
-    The structures folder and its `chains` table (sequences) are found from the contact layer's `layer.json`, as for `annotate label-interfaces`. `alignments` is 0 because identical sequences match by position without aligning. `layer.json` records the contact layer, the structures folder, the clusters file and `--min-identity` under `policy.parameters`.
+    The chain sequences come from the `chains` table of `--structures`; nothing follows the contact layer's `summary.json` to find them. `alignments` is 0 because identical sequences match by position without aligning. `summary.json` records the contact layer, the structures folder, the clusters file and `--min-identity` under `policy.parameters`.
 
 === "`library`"
 
@@ -651,48 +644,47 @@ The examples use `1a3n` (deoxyhemoglobin): chains A and B are α, C and D are β
 
 ## Migrating from hit-file searches
 
-Up to this release the searches kept a raw hit TSV with a `SimilaritySearch` record, and `pandora cluster` read only that. Similarity is now a layer:
+Up to this release the searches kept a raw hit TSV with a `SimilaritySearch` record, and the clustering command read only that. Similarity is now a layer:
 
 | Before | After |
 |---|---|
-| `pandora similarity --engine mmseqs2 --input-dir d/ --output hits.tsv` | `pandora similarity search --engine mmseqs2 --structures-dir curated/ --output-dir similarity/seq` (searches chains) |
-| `pandora similarity --precomputed-hits hits.tsv ...` | `pandora similarity import --table hits.tsv ...`, with a header row in the template's names |
-| `pandora cluster --input-dir d/ --search hits.tsv.search.json` | `pandora cluster --similarity similarity/seq --structures-dir curated/` |
+| `similarity --engine mmseqs2 --input-dir d/ --output hits.tsv` | `pandora similarity mmseqs curated/ similarity/seq` (searches chains) |
+| `similarity --precomputed-hits hits.tsv ...` | `pandora similarity import hits.tsv similarity/seq ...`, with a header row in the template's names |
+| `cluster --input-dir d/ --search hits.tsv.search.json` | `pandora clusters build similarity/seq clusters/seq --structures curated/` |
 | entry-level search (each entry's longest chain, `entry_sequences()`) | chain search plus `--items entry` / `entry_edges()` |
 | `compute_*_similarity()` returning `SimilaritySearch` | returning the layer's `LayerDescription`; read the TSV with `read_hit_tsv()` |
 | `iter_edges()`, `cluster_similar_items()` | `similarity_edges()` + `cluster_edges()` |
 | `HitFilter.tm_normalisation` | `HitFilter.score_column` (`qtmscore`, `ttmscore`; no `max`) |
 | `HitFilter.coverage_of: query / target` | `side_1` / `side_2` |
 | `ClusteringProvenance.search` | `ClusteringProvenance.layers[].similarity_layer` |
-| `ClusteringProvenance.hit_filter`, `.similarity_layer` (one layer) | `ClusteringProvenance.layers` (one entry per `--similarity`) |
+| `ClusteringProvenance.hit_filter`, `.similarity_layer` (one layer) | `ClusteringProvenance.layers` (one entry per similarity input) |
 | `annotate_pairwise_sequence_identity()` | removed: use an MMseqs2 search |
 
 `reproduce_dataset()` no longer replays similarity or clustering.
 
 ## Positives and negatives (PPI)
 
-Two commands build a protein–protein interaction set from dimer groups (PPI v2.1 Steps 7 and 8). Both write a step folder: the tables (`--table-format`), and a summary JSON with the settings and counts. `--overwrite` replaces an earlier run.
+Three commands build a protein–protein interaction set (PPI v2.1 Steps 7 and 8, plus the final table): `pairs positives`, `pairs negatives` and `pairs assemble`. Each writes an `OUT` folder: the tables (`--table-format`), and a `summary.json` with the settings and counts. `--overwrite` replaces an earlier run.
 
 ### Rebalancing homomers and heteromers
 
-`pandora rebalance` picks the positive dimers of each dimer group (`cluster --items interface`). A dimer is a **homomer** when both chains are in the same `--chain-clusters` cluster (90% sequence clusters), otherwise a **heteromer**. A group of homomers only keeps its most connected dimer. A group with any heteromer drops its homomers, then repeatedly keeps the heteromer with the fewest remaining heteromer neighbours and drops those neighbours, recounting every round, so it keeps as many mutually dissimilar heteromers as it can.
+`pandora pairs positives` builds the dimer groups and picks the positive dimers of each. The groups are the connected components of the dimer graph of its similarity inputs, the same groups `pandora clusters build --items interface` gives when run on those inputs without `--structures`: `pairs positives` doesn't link symmetry copies to their source chain, so a dimer group never includes a copy-chain link that `clusters build --structures` would add. A dimer is a **homomer** when both chains are in the same `--chain-clusters` cluster (90% sequence clusters), otherwise a **heteromer**. A group of homomers only keeps its most connected dimer. A group with any heteromer drops its homomers, then repeatedly keeps the heteromer with the fewest remaining heteromer neighbours and drops those neighbours, recounting every round, so it keeps as many mutually dissimilar heteromers as it can.
 
-"Connected" is the degree in the dimer graph rebuilt from the same `--similarity` layers, hit filters and `--chain-representatives` as the `cluster` run that made the groups: two dimers are neighbours when they share a chain (or a representative), when a chain-level hit links a chain of each, or when an interface-level hit links them. An edge between two groups means the inputs don't match that run, and is an error. Ties go to `--policy` (a `RepresentativePolicy`; default most residues in contact, best resolution, fewest missing residues, then the lowest id).
+"Connected" is the degree in the dimer graph of the similarity layers (given positionally, each with its hit filter) and `--chain-representatives`: two dimers are neighbours when they share a chain (or a representative), when a chain-level hit links a chain of each, or when an interface-level hit links them. Ties go to `--policy` (a `RepresentativePolicy`; default most residues in contact, best resolution, fewest missing residues, then the lowest id).
 
 === "`cli`"
 
     ```bash
-    pandora rebalance --clusters clusters/dimer_groups/clusters.json \
-      --contacts layers/contacts \
-      --chain-clusters clusters/seq90/clusters.json \
-      --chain-representatives clusters/seq90/representatives.json \
-      --similarity layers/iface_sim --hit-filter policies/same_proteins.yaml \
-      --similarity layers/tm --hit-filter policies/tm.yaml \
+    pandora pairs positives layers/iface_sim layers/tm work/positives \
+      --contacts layers/contacts --structures work/uncontained \
+      --chain-clusters clusters/seq90 \
+      --chain-representatives clusters/seq90_reps \
+      --hit-filter policies/same_proteins.yaml --hit-filter policies/tm.yaml \
       --policy policies/dimer_representatives.yaml \
-      --table-format jsonl --output-dir work/positives
+      --table-format jsonl
     jq -c '[.dimer, .kind, .degree]' work/positives/positives.jsonl | head -3
     jq -c '[.dimer, .reason, .kept]' work/positives/dropped.jsonl | head -3
-    jq -c .counts work/positives/rebalance.json
+    jq -c .counts work/positives/summary.json
     ```
 
     ```text
@@ -771,7 +763,7 @@ Two commands build a protein–protein interaction set from dimer groups (PPI v2
 
 ### Sampling negatives
 
-`pandora negatives` draws one negative chain pair per positive. Every chain is looked up through its 90% representative (`--representatives`, whose `members` give the mapping). The pool is every representative minus those of the positives' chains. For each positive, in dimer-id order, it picks one of the two chains, A, at random, and leaves out for this pick:
+`pandora pairs negatives` draws one negative chain pair per positive. Every chain is looked up through its 90% representative (`--representatives`, whose `members` give the mapping). The pool is every representative minus those of the positives' chains. For each positive, in dimer-id order, it picks one of the two chains, A, at random, and leaves out for this pick:
 
 1. A and the chains structurally similar to it (`--similarity`, one chain layer, through its hit filter);
 2. the chains in contact with any of those, in the "any contact" `--contacts` layer;
@@ -782,13 +774,13 @@ It draws C from the rest and removes C from the pool for good. One generator see
 === "`cli`"
 
     ```bash
-    pandora negatives --positives work/positives \
-      --representatives clusters/seq90/representatives.json \
+    pandora pairs negatives work/positives work/negatives \
+      --representatives clusters/seq90_reps \
       --similarity layers/tm --hit-filter policies/tm.yaml \
       --contacts layers/contacts_any --seed 0 \
-      --table-format jsonl --output-dir work/negatives
+      --table-format jsonl
     head -3 work/negatives/negatives.jsonl
-    jq -c .counts work/negatives/negatives.json
+    jq -c .counts work/negatives/summary.json
     ```
 
     ```text
@@ -799,7 +791,7 @@ It draws C from the rest and removes C from the pool for good. One generator see
     {"pool":17,"positives":12,"negatives":12,"unpaired":0,"similarity_edges":12}
     ```
 
-    `chain_1` is the positive's chain A (it can be a symmetry copy, like `1AYI_A-2`); `chain_2` is a representative chain. `negatives.json` records the seed, the hit filter, the inputs and the unpaired positives.
+    `chain_1` is the positive's chain A (it can be a symmetry copy, like `1AYI_A-2`); `chain_2` is a representative chain. `summary.json` records the seed, the hit filter, the inputs and the unpaired positives.
 
 === "`library`"
 
@@ -850,27 +842,27 @@ It draws C from the rest and removes C from the pool for good. One generator see
 
 ### Splits and the final table
 
-The groups go to train/val/test whole, so similar positives never straddle a split, and each negative follows its positive. `rebalance` also writes what `partition` needs: `groups.json` (the dimer groups limited to the positives) and `kinds/`, an `interface_labels` layer marking each positive `homomer` or `heteromer`. `partition --stratify` ([below](#keeping-the-mix-in-every-split)) keeps the homomer:heteromer mix in every split. `pandora assemble` then writes the final table to a step folder: `pairs` and an `assemble.json` summary.
+The groups go to train/val/test whole, so similar positives never straddle a split, and each negative follows its positive. `pairs positives` also writes what `splits assign` needs: `clusters.json` (the dimer groups limited to the positives) and `kinds/`, an `interface_labels` layer marking each positive `homomer` or `heteromer`, so `splits assign` takes the positives folder directly. `splits assign --stratify work/positives/kinds` ([below](#keeping-the-mix-in-every-split)) keeps the homomer:heteromer mix in every split. `pandora pairs assemble` then writes the final table to an `OUT` folder: `pairs` and a `summary.json`.
 
 === "`cli`"
 
     ```bash
-    pandora partition --clusters work/positives/groups.json \
-      --labels work/positives/kinds --stratify --output splits.json
-    jq -c .label_counts partition_provenance.json
-    pandora assemble --positives work/positives --negatives work/negatives \
-      --splits splits.json \
-      --representatives clusters/seq90/representatives.json \
+    pandora splits assign work/positives splits/dimers \
+      --stratify work/positives/kinds
+    jq -c .policy.label_counts splits/dimers/summary.json
+    pandora pairs assemble work/positives work/dataset --negatives work/negatives \
+      --splits splits/dimers \
+      --representatives clusters/seq90_reps \
       --similarity layers/tm --hit-filter policies/tm.yaml \
-      --table-format jsonl --output-dir work/dataset
+      --table-format jsonl
     jq -c '[.chain_a, .chain_b, .label, .split, .c_leak_negative]' work/dataset/pairs.jsonl | sed -n '1p;12,13p'
-    jq -c .counts work/dataset/assemble.json
+    jq -c .counts work/dataset/summary.json
     ```
 
     ```text
-    partition: warning: val has no item labelled heteromer
-    partition: warning: test has no item labelled heteromer
-    split sizes: {'train': 7, 'val': 2, 'test': 2} -> splits.json
+    splits assign: warning: val has no item labelled heteromer
+    splits assign: warning: test has no item labelled heteromer
+    split sizes: {'train': 7, 'val': 2, 'test': 2} -> splits/dimers
     unlabelled items: 0 of 11
     {"train":{"heteromer":1,"homomer":6},"val":{"homomer":2},"test":{"homomer":2}}
     22 pairs -> work/dataset
@@ -885,7 +877,7 @@ The groups go to train/val/test whole, so similar positives never straddle a spl
     - `c_leak_positive`: the negative's C is structurally similar (through `--similarity` and its hit filter, chains mapped to their representatives) to a positive's chain in another split;
     - `c_leak_negative`: C is similar to another split's negative C.
 
-    Negatives can't be prevented from leaking this way without sampling them per split; the counts measure how often it happens (here 2 negatives). `assemble` warns if `--representatives` or `--similarity` are not the files `negatives` used. A positive in no split or two, a split item that's not a positive, or a negative whose positive is unknown is an error.
+    Negatives can't be prevented from leaking this way without sampling them per split; the counts measure how often it happens (here 2 negatives). `pairs assemble` warns if `--representatives` or `--similarity` are not the files `pairs negatives` used. A positive in no split or two, a split item that's not a positive, or a negative whose positive is unknown is an error.
 
 === "`library`"
 
@@ -912,7 +904,7 @@ The groups go to train/val/test whole, so similar positives never straddle a spl
     negatives = read_records("work/negatives/negatives.jsonl", NegativePair)
     groups = [
         SimilarityCluster(**g)
-        for g in json.load(open("work/positives/groups.json"))
+        for g in json.load(open("work/positives/clusters.json"))
     ]
     kinds = {p.dimer: p.kind for p in positives}
     splits, prov = partition_dataset(groups, labels=kinds, stratify=True)
@@ -959,14 +951,14 @@ The groups go to train/val/test whole, so similar positives never straddle a spl
 === "`cli`"
 
     ```bash
-    pandora partition --clusters clusters/entries.json --pct-train 0.6 --pct-val 0.2 --pct-test 0.2 --output splits.json
+    pandora splits assign clusters/entries splits/entries --pct-train 0.6 --pct-val 0.2 --pct-test 0.2
     ```
 
     ```text
-    split sizes: {'train': 4, 'val': 1, 'test': 0} -> splits.json
+    split sizes: {'train': 4, 'val': 1, 'test': 0} -> splits/entries
     ```
 
-    `--no-keep-similar-items` is the CLI form of `keep_similar_items=False`.
+    `splits assign` always keeps clusters whole: `keep_similar_items=False` has no CLI form. The folder holds `splits.json` and `summary.json`.
 
 ### Every kind in every split
 
@@ -1001,23 +993,23 @@ Symmetry copies sit in their source chain's cluster as items of their own, so la
 === "`cli`"
 
     ```bash
-    pandora annotate import --structures-dir curated/ --table kinds.parquet \
-      --description kinds.yaml --output-dir annotations/kinds
-    pandora partition --clusters clusters/chains.json \
-      --labels annotations/kinds --output splits.json
-    jq -c '.label_counts, .missing_labels' partition_provenance.json
+    pandora annotations import kinds.parquet annotations/kinds \
+      --structures curated/ --description kinds.yaml
+    pandora splits assign clusters/chains splits/chains \
+      --labels annotations/kinds
+    jq -c '.policy.label_counts, .policy.missing_labels' splits/chains/summary.json
     ```
 
     ```text
     imported: 5 rows, 0 unmatched -> annotations/kinds
-    split sizes: {'train': 2, 'val': 2, 'test': 1} -> splits.json
+    split sizes: {'train': 2, 'val': 2, 'test': 1} -> splits/chains
     unlabelled items: 0 of 5
-    partition: warning: test has no item labelled kind_b
+    splits assign: warning: test has no item labelled kind_b
     {"train":{"kind_a":1,"kind_b":1},"val":{"kind_a":1,"kind_b":1},"test":{"kind_a":1}}
     {"test":["kind_b"]}
     ```
 
-    Without `--labels`, the same clusters split as `{'train': 4, 'val': 1, 'test': 0}`: test gets nothing. With labels, `kind_b` sits in two clusters, so it reaches only two splits; the warning and `missing_labels` say which split it misses. `--labels` can't be combined with `--no-keep-similar-items`. A clusters file of another level than the labels (chain clusters, interface labels) runs with every item unlabelled, and the `unlabelled items` line shows it.
+    Without `--labels`, the same clusters split as `{'train': 4, 'val': 1, 'test': 0}`: test gets nothing. With labels, `kind_b` sits in two clusters, so it reaches only two splits; the warning and `missing_labels` say which split it misses. A clusters file of another level than the labels (chain clusters, interface labels) runs with every item unlabelled, and the `unlabelled items` line shows it.
 
 === "`library`"
 
@@ -1048,4 +1040,4 @@ Symmetry copies sit in their source chain's cluster as items of their own, so la
 
 ### Keeping the mix in every split
 
-`--labels` only makes sure each label reaches each split; the rest is placed by size, so a rare label can end up almost all in train. `--stratify` (with `--labels`) splits each label's clusters on their own, with the same fractions, and merges the result, so every split keeps about the overall mix. Every cluster must carry one label; a cluster with two is an error. `partition_provenance.json` records `stratify: true` and the achieved `label_counts`. In Python: `partition_dataset(clusters, labels=labels, stratify=True)`. See [Splits and the final table](#splits-and-the-final-table) for a run.
+`--labels` only makes sure each label reaches each split; the rest is placed by size, so a rare label can end up almost all in train. `--stratify <layer folder>` (instead of `--labels`) splits each label's clusters on their own, with the same fractions, and merges the result, so every split keeps about the overall mix. Every cluster must carry one label; a cluster with two is an error. `summary.json` records `stratify: true` and the achieved `label_counts`. In Python: `partition_dataset(clusters, labels=labels, stratify=True)`. See [Splits and the final table](#splits-and-the-final-table) for a run.

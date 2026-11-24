@@ -28,7 +28,7 @@ For the underlying pydantic models, see [Schemas](../reference/schemas.md); for 
 
 | Term | Definition |
 |------|------------|
-| **Annotation / annotation layer**{: #annotation } | A typed table of derived values about the structures of a step folder, in one of the layer templates (`residue_contacts`, `residue_values`, `chain_labels`, `similarity`, ...): e.g. chain-chain interfaces, ligand contacts, or another tool's per-residue values. Pandora's own `annotate_*()` functions produce layers directly, and `pandora annotate import` / `pandora similarity import` bring in another tool's output as the same layers. See [Annotation](../usage/annotation.md). |
+| **Annotation / annotation layer**{: #annotation } | A typed table of derived values about the structures of a step folder, in one of the layer templates (`residue_contacts`, `residue_values`, `chain_labels`, `similarity`, ...): e.g. chain-chain interfaces, ligand contacts, or another tool's per-residue values. Pandora's own `annotate_*()` functions produce layers directly, and `pandora annotations import` / `pandora similarity import` bring in another tool's output as the same layers. See [Annotation](../usage/annotation.md). |
 
 ## Curation, similarity & datasets
 
@@ -36,8 +36,8 @@ For the underlying pydantic models, see [Schemas](../reference/schemas.md); for 
 |------|------------|
 | **Curation**{: #curation } | Policy-driven filtering of a dataset — dropping structures that fail quality/size/resolution rules — via `curate_structure()`. See [Curate one structure](../usage/datasets.md#curate-one-structure). |
 | **Deduplication**{: #deduplication } | Removing structures that share the same `entry_id` from a batch, via `deduplicate_structures()`. Distinct from [clustering](#clustering), which groups by *similarity* rather than identical id. |
-| **Similarity hit / edge**{: #similarity-relationship } | A *hit* is one row of a [similarity layer](../usage/similarity.md#the-similarity-layer): two items (entries, chains or interfaces) and a score, from Pandora's MMseqs2/Foldseek search (`pandora similarity search`) or any other source (`pandora similarity import`). An *edge* is a pair of items with at least one hit that passes a `HitFilter`; edges are what [clustering](#clustering) connects. See [Filtering hits](../usage/similarity.md#filtering-hits-hitfilter). |
-| **Cluster / clustering**{: #clustering } | Grouping items (entries, chains, ...) that [similarity edges](#similarity-relationship) connect into connected components, so that near-duplicates land in the same dataset split. Done by `pandora cluster` (`cluster_edges()`); see [Clustering](../usage/similarity.md#clustering). |
+| **Similarity hit / edge**{: #similarity-relationship } | A *hit* is one row of a [similarity layer](../usage/similarity.md#the-similarity-layer): two items (entries, chains or interfaces) and a score, from Pandora's MMseqs2/Foldseek search (`pandora similarity mmseqs` / `pandora similarity foldseek`) or any other source (`pandora similarity import`). An *edge* is a pair of items with at least one hit that passes a `HitFilter`; edges are what [clustering](#clustering) connects. See [Filtering hits](../usage/similarity.md#filtering-hits-hitfilter). |
+| **Cluster / clustering**{: #clustering } | Grouping items (entries, chains, ...) that [similarity edges](#similarity-relationship) connect into connected components, so that near-duplicates land in the same dataset split. Done by `pandora clusters build` (`cluster_edges()`); see [Clustering](../usage/similarity.md#clustering). |
 | **Partition / split**{: #partition } | Assigning clustered items to `train`/`val`/`test` sets such that no [cluster](#clustering) straddles a split boundary ("leakage-safe"), via `partition_dataset()`. See [Leakage-safe partitioning](../usage/similarity.md#leakage-safe-partitioning) and the worked example in the [PPI recipe](../recipes/ppi-01.md). |
 
 ## Provenance

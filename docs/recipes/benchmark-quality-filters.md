@@ -6,7 +6,7 @@ The test suite runs both the library and the CLI version below and checks they s
 
 ## The policies
 
-Both files are in the repository, so you can pass them straight to `pandora curate --policy` or load them in Python.
+Both files are in the repository, so you can pass them straight to `pandora structures curate --policy` or load them in Python.
 
 === "PPI v2.1"
 
@@ -138,10 +138,10 @@ Both versions map MSE to MET during canonicalisation, then curate the same eight
     modified_residue_rules:
       strategy: map_to_parent
     EOF
-    pandora canonicalise --input-dir raw/ --policy mse.yaml --output-dir mapped/ --table-format jsonl
+    pandora structures canonicalise raw/ mapped/ --policy mse.yaml --table-format jsonl
     for name in atom3d-pip-quality ppi-v2.1-quality; do
-      pandora curate --input-dir mapped/ \
-        --policy "datasets/policies/$name.yaml" --output-dir "$name/" --table-format jsonl
+      pandora structures curate mapped/ "$name/" \
+        --policy "datasets/policies/$name.yaml" --table-format jsonl
       jq -r '"  \(.entry_id) \(.chain_id // "entry") \(.reason_code)"' \
         "$name/exclusions.jsonl"
     done

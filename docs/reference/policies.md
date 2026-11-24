@@ -19,7 +19,7 @@ policy = canonicalisationPolicy(
 
 ### `max_atoms`
 
-**`max_atoms`** (default `null`): the largest entry `pandora canonicalise` will parse. Before building the `Structure`, the command estimates the entry's atoms with `estimate_atom_count(path, policy)`: model 1, with each assembly generator's chains counted once per operator when `assembly_rules.strategy` is `standardize_biological_assembly`. An entry above the limit is skipped and gets a `TooLarge` line in `failures.jsonl`. The estimate includes waters, ligands and every altloc, so it is an upper bound and not the same number as curation's [`max_atoms`](#quality_rules), which counts atoms after canonicalisation and curation. `canonicalise_structure` itself ignores this field.
+**`max_atoms`** (default `null`): the largest entry `pandora structures canonicalise` will parse. Before building the `Structure`, the command estimates the entry's atoms with `estimate_atom_count(path, policy)`: model 1, with each assembly generator's chains counted once per operator when `assembly_rules.strategy` is `standardize_biological_assembly`. An entry above the limit is skipped and gets a `TooLarge` line in `failures.jsonl`. The estimate includes waters, ligands and every altloc, so it is an upper bound and not the same number as curation's [`max_atoms`](#quality_rules), which counts atoms after canonicalisation and curation. `canonicalise_structure` itself ignores this field.
 
 ### `identifier_rules`
 
@@ -317,7 +317,7 @@ When a missing-fraction rule is set, a chain whose completeness can't be measure
 
 ## Similarity hit filter
 
-`HitFilter` (`pandora.schemas.similarity.HitFilter`) decides which rows of a [similarity layer](../usage/similarity.md#the-similarity-layer) become edges when clustering (`pandora cluster`, `similarity_edges()`). A pair of items is an edge if any single row passes every threshold. `None` thresholds aren't applied; the others are inclusive (`>=`). A null or NaN value fails. A threshold on a column the layer doesn't have raises `ValueError` before any row is read. See [Similarity](../usage/similarity.md#filtering-hits-hitfilter) for usage.
+`HitFilter` (`pandora.schemas.similarity.HitFilter`) decides which rows of a [similarity layer](../usage/similarity.md#the-similarity-layer) become edges when clustering (`pandora clusters build`, `similarity_edges()`). A pair of items is an edge if any single row passes every threshold. `None` thresholds aren't applied; the others are inclusive (`>=`). A null or NaN value fails. A threshold on a column the layer doesn't have raises `ValueError` before any row is read. See [Similarity](../usage/similarity.md#filtering-hits-hitfilter) for usage.
 
 | Field | Default | Description |
 |---|---|---|
@@ -326,7 +326,7 @@ When a missing-fraction rule is set, a chain whose completeness can't be measure
 | `min_identity` | `None` | Minimum `identity` (fraction of identical aligned residues). |
 | `min_coverage` | `None` | Minimum alignment coverage (see `coverage_of`). |
 | `coverage_of` | `both` | Which coverage is tested: `both` (the smaller of `coverage_1` and `coverage_2`), `side_1`, `side_2`, or `either` (the larger). |
-| `min_interface_coverage` | `None` | Minimum fraction of each side's interface residues inside the alignment. Needs the alignment ranges (`start_1`, `end_1`, `start_2`, `end_2`) and interface residues (`pandora cluster --contacts`), otherwise `similarity_edges()` raises `ValueError`. |
+| `min_interface_coverage` | `None` | Minimum fraction of each side's interface residues inside the alignment. Needs the alignment ranges (`start_1`, `end_1`, `start_2`, `end_2`) and interface residues (`pandora clusters build --contacts`), otherwise `similarity_edges()` raises `ValueError`. |
 
 ```yaml
 min_score: 0.5
@@ -337,18 +337,18 @@ coverage_of: both
 
 ## Deduplication
 
-`DeduplicationRules` (`pandora.schemas.dataset`), read by `pandora dedup --policy`.
+`DeduplicationRules` (`pandora.schemas.dataset`), read by `pandora structures drop-contained --policy` (only `contained_rank`).
 
 | Field | Default | Description |
 |---|---|---|
-| `enabled` | `false` | Whether `deduplicate_structures()` removes structures sharing an `entry_id`. The `dedup` command uses `--disable` instead, and `dedup --contained` ignores this field. |
+| `enabled` | `false` | Whether `deduplicate_structures()` removes structures sharing an `entry_id`. `structures drop-contained` ignores this field (it has `--disable` instead), and `structures canonicalise` and `structures curate` always drop repeated entry IDs. |
 | `contained_rank` | `[{key: resolution, order: min}]` | Which entry `find_contained()` keeps among entries with the same chain counts per cluster, best first. Keys: `resolution`, `chain_count` (columns of the `entries` table). `order` is `min` or `max`. A null value ranks last; the lowest entry id breaks the last tie. |
 
 Containment counts chains per cluster: X is contained in Y when Y has at least as many chains as X in every cluster, so a homodimer is never removed in favour of a monomer of the same protein.
 
 ## Cluster representatives
 
-`RepresentativePolicy` (`pandora.schemas.similarity`), read by `pandora representatives --policy`, and by `pandora rebalance --policy` to break ties between equally connected dimers (interface keys except `n_hits`).
+`RepresentativePolicy` (`pandora.schemas.similarity`), read by `pandora clusters representatives --policy`, and by `pandora pairs positives --policy` to break ties between equally connected dimers (interface keys except `n_hits`).
 
 | Field | Default | Description |
 |---|---|---|
@@ -360,14 +360,14 @@ Chain rank keys:
 | Key | Meaning |
 |---|---|
 | `missing_residues` | `missing_n_term + missing_c_term + missing_middle` from the `chains` table: an absolute count, measured by `curate` before any residue rebuilding. Null if any part is null. |
-| `n_hits` | Distinct chains of the same cluster (after limiting it to `--structures-dir`) linked to this chain by a hit that passes the hit filter. Needs `--similarity`. |
+| `n_hits` | Distinct chains of the same cluster (after limiting it to `--structures`) linked to this chain by a hit that passes the hit filter. Needs `--similarity`. |
 | `residue_count`, `atom_count`, `seqres_length`, `missing_n_term`, `missing_c_term`, `missing_middle`, `resolution` | That column of the `chains` table. |
 
-Interface rank keys (`--items interface`; chain values come from the `chains` table of the structures folder the `--contacts` layer traces to):
+Interface rank keys (with `--contacts`; chain values come from the `chains` table of `--structures`):
 
 | Key | Meaning |
 |---|---|
-| `interface_residues` | Distinct residues in contact, summed over both sides, as `residues_1 + residues_2` of `annotate label-interfaces`. |
+| `interface_residues` | Distinct residues in contact, summed over both sides, as `residues_1 + residues_2` of `annotations interface-contacts`. |
 | `resolution` | The entry's resolution (the first chain's that is not null). |
 | `missing_residues` | The chain `missing_residues` of both chains, summed. Null if either is null. |
 | `n_hits` | Distinct interfaces of the same cluster linked by a hit that passes the hit filter. Needs an interface `--similarity` layer. |

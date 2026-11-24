@@ -34,11 +34,11 @@ canonical, _, _ = canonicalise_structure(structure, policy)
 
 ## Contacts are one layer
 
-Pandora's contact annotations return a `residue_contacts` layer: a list of `ResidueContactRow`s, one per pair of residues in contact. It is the same table shape that [`pandora annotate import`](#importing-a-layer-from-another-tool) stores for another tool's contacts (COCaDA, for example). Everything that reads contacts ([`extract_interface_records()`](datasets.md#reshape-into-flat-records), [interface clustering](similarity.md)) takes any `residue_contacts` layer, whoever produced it.
+Pandora's contact annotations return a `residue_contacts` layer: a list of `ResidueContactRow`s, one per pair of residues in contact. It is the same table shape that [`pandora annotations import`](#importing-a-layer-from-another-tool) stores for another tool's contacts (COCaDA, for example). Everything that reads contacts ([`extract_interface_records()`](datasets.md#reshape-into-flat-records), [interface clustering](similarity.md)) takes any `residue_contacts` layer, whoever produced it.
 
 Each row names both residues in both namings (`chain_id_1`, `seq_id_1`, `auth_chain_id_1`, `auth_seq_id_1`, `ins_code_1`, `comp_id_1`, and the same with `_2`), plus `contact_type` and `distance` when known. Ligand residues have no `seq_id`.
 
-On the command line, `pandora annotate compute` computes one layer for every structure of a step folder and writes the same layer folder as `annotate import`: `layer.<fmt>` with the rows and a `layer.json` step summary whose `parameters` record the settings used.
+On the command line, `pandora annotations contacts` computes one layer for every structure of a structures folder and writes the same layer folder as `annotations import`: `layer.<fmt>` with the rows and a `summary.json` step summary whose `parameters` record the settings used.
 
 ## Chain-chain interfaces
 
@@ -99,9 +99,9 @@ On the command line, `pandora annotate compute` computes one layer for every str
 === "`cli`"
 
     ```bash
-    pandora annotate compute --layer chain_interfaces --structures-dir curated/ \
-      --distance-cutoff 4.0 --atom-set heavy --output-dir annotations/interfaces
-    jq -c '.counts, .policy.parameters' annotations/interfaces/layer.json
+    pandora annotations contacts curated/ annotations/interfaces \
+      --distance-cutoff 4.0 --atom-set heavy
+    jq -c '.counts, .policy.parameters' annotations/interfaces/summary.json
     ```
 
     ```text
@@ -165,23 +165,23 @@ Side 1 is the polymer residue, side 2 the ligand, named by its author IDs (it ha
 === "`cli`"
 
     ```bash
-    pandora annotate compute --layer ligand_contacts --structures-dir curated/ \
-      --distance-cutoff 4.0 --output-dir annotations/ligands
+    pandora annotations ligand-contacts curated/ annotations/ligands \
+      --distance-cutoff 4.0
     ```
 
     ```text
     computed: 74 rows for 1 entries -> annotations/ligands
     ```
 
-    `--include-waters` counts waters. A flag that belongs to the other layer (`--atom-set` here) is an error.
+    `--include-waters` counts waters. Each layer is its own command, so `--atom-set` and `--polymer-types` exist only on `annotations contacts`.
 
 ## Sequence similarity
 
-Pairwise sequence identity is no longer an annotation: similarity is its own [layer](similarity.md#the-similarity-layer), computed with MMseqs2 (`pandora similarity search`) or imported from any other source (`pandora similarity import`).
+Pairwise sequence identity is no longer an annotation: similarity is its own [layer](similarity.md#the-similarity-layer), computed with MMseqs2 (`pandora similarity mmseqs`) or imported from any other source (`pandora similarity import`).
 
 ## Importing a layer from another tool
 
-Pandora doesn't run tools such as COCaDA, FreeSASA or DSSP. You run the tool on the structures of a step folder (for example the output of `pandora curate`), convert its output into one of Pandora's layer templates, and import it. Pandora links every row to the residue or chain it names, reports the rows it can't link, and records where the data came from.
+Pandora doesn't run tools such as COCaDA, FreeSASA or DSSP. You run the tool on the structures of a step folder (for example the output of `pandora structures curate`), convert its output into one of Pandora's layer templates, and import it. Pandora links every row to the residue or chain it names, reports the rows it can't link, and records where the data came from.
 
 ### Templates
 
@@ -266,11 +266,11 @@ The stored layer carries **both** namings, filled in from the structure, so late
     Then import the converted table (Parquet or JSON Lines) against the step folder the tool ran on:
 
     ```bash
-    pandora annotate import --structures-dir curated/ \
-      --table cocada_contacts.jsonl --description cocada.yaml \
-      --source-files cocada_out/ --output-dir annotations/cocada
+    pandora annotations import cocada_contacts.jsonl annotations/cocada \
+      --structures curated/ --description cocada.yaml \
+      --source-files cocada_out/
     # imported: 1 rows, 1 unmatched -> annotations/cocada
-    jq -c '.counts' annotations/cocada/layer.json
+    jq -c '.counts' annotations/cocada/summary.json
     # {"rows_in":2,"rows_matched":1,"rows_unmatched":1,"unmatched:no_coordinates":1}
     ```
 
@@ -281,7 +281,7 @@ The stored layer carries **both** namings, filled in from the structure, so late
 | `layer.<fmt>` | rows that matched, with both namings filled in and every other column kept |
 | `unmatched.<fmt>` | rows that didn't match, with a `reason` column |
 | `source/` | the tool's original files (only with `--source-files`) |
-| `layer.json` | step summary: the description, Pandora version, counts, and `previous_summary` pointing to the step folder's `curation.json` or `canonicalisation.json` |
+| `summary.json` | step summary: the description, Pandora version, counts, and `previous_summary` pointing to the step folder's `summary.json` |
 
 Unmatched rows don't stop the import. A table that lacks a required column altogether, or a description naming an unknown template, stops it before anything is written. `--overwrite` replaces an existing layer.
 
@@ -419,28 +419,27 @@ There is no join function; these are plain pandas joins. The example uses `1a2c`
 
 === "`cli`"
 
-    `pandora annotate count-contacts` writes a count layer folder (`layer.<fmt>`, `layer.json`) from a contact layer folder, one level per run:
+    `pandora annotations contact-counts` writes a count layer folder (`layer.<fmt>`, `summary.json`) from a contact layer folder, one level per run:
 
     ```bash
-    pandora annotate compute --layer chain_interfaces --structures-dir curated/ \
-      --output-dir annotations/interfaces
-    pandora annotate count-contacts --contacts annotations/interfaces \
-      --level residue --output-dir annotations/residue_contacts
-    pandora annotate count-contacts --contacts annotations/interfaces \
-      --level chain --output-dir annotations/chain_contacts
-    jq -c '.counts, .policy.template, .policy.parameters' annotations/chain_contacts/layer.json
+    pandora annotations contacts curated/ annotations/interfaces
+    pandora annotations contact-counts annotations/interfaces \
+      annotations/residue_contacts --level residue
+    pandora annotations contact-counts annotations/interfaces \
+      annotations/chain_contacts --level chain
+    jq -c '.counts, .policy.template, .policy.parameters' annotations/chain_contacts/summary.json
     ```
 
     ```text
     computed: 120 rows for 1 entries -> annotations/interfaces
-    counted: 104 residue rows from 120 contacts -> annotations/residue_contacts
+    counted: 102 residue rows from 120 contacts -> annotations/residue_contacts
     counted: 4 chain rows from 120 contacts -> annotations/chain_contacts
     {"rows_in":120,"rows_out":4}
     "chain_values"
     {"level":"chain","contacts_layer":"chain_interfaces"}
     ```
 
-    Then join the layer onto `curated/chains.parquet` (written by `pandora curate`):
+    Then join the layer onto `curated/chains.parquet` (written by `pandora structures curate`):
 
     ```python
     import pandas as pd
@@ -462,8 +461,8 @@ To drop interfaces from a dataset, for example those with too few hydrogen bonds
 
 - An interface is an entry's chain pair in either order: a label on B–A also drops rows written A–B.
 - Only interfaces carrying a dropped label go. Interfaces without a label are kept, and their number is reported.
-- An interface has one label (import rejects a second). For several criteria, either fold them into one label in pandas, or make one labels layer per criterion and filter once per layer, each output feeding the next.
-- Both layers must come from the same structures folder, because chain ids can differ between step folders.
+- An interface has one label (import rejects a second). For several criteria, either fold them into one label in pandas, or make one labels layer per criterion and pass them all as `--labels` (repeatable) to one `annotations filter`.
+- Both layers must come from the same structures folder, because chain ids can differ between step folders. The command compares the inputs recorded in the layers' `summary.json` files and warns when they differ.
 
 The example uses `1a2c` again. Pandora's own contact layers leave `contact_type` empty, so here pairs closer than 3.2 Å stand in for COCaDA's hydrogen bonds.
 
@@ -555,15 +554,13 @@ The example uses `1a2c` again. Pandora's own contact layers leave `contact_type`
     Import it against the same step folder, then filter:
 
     ```bash
-    pandora annotate compute --layer chain_interfaces --structures-dir curated/ \
-      --output-dir annotations/interfaces
+    pandora annotations contacts curated/ annotations/interfaces
     python verdict.py
-    pandora annotate import --structures-dir curated/ --table verdict.parquet \
-      --description verdict.yaml --output-dir annotations/hbond_verdict
-    pandora annotate filter-contacts --contacts annotations/interfaces \
-      --labels annotations/hbond_verdict --drop low_hbond \
-      --output-dir annotations/interfaces_strong
-    jq -c '.counts' annotations/interfaces_strong/layer.json
+    pandora annotations import verdict.parquet annotations/hbond_verdict \
+      --structures curated/ --description verdict.yaml
+    pandora annotations filter annotations/interfaces annotations/interfaces_strong \
+      --labels annotations/hbond_verdict --drop low_hbond
+    jq -c '.counts' annotations/interfaces_strong/summary.json
     ```
 
     ```text
@@ -573,10 +570,10 @@ The example uses `1a2c` again. Pandora's own contact layers leave `contact_type`
     {"interfaces_dropped":1,"interfaces_in":3,"interfaces_unlabelled":0,"labels_unmatched":0,"rows_in":120,"rows_out":99}
     ```
 
-    Pass `annotations/interfaces_strong` wherever a contact layer goes, for example `cluster --contacts`. A `--drop` label that no interface has is an error, before anything is written. The exception is a label the layer can give but no interface happens to have: `label-interfaces` and `interface-gaps` list their labels in `layer.json` (`parameters.labels`), so `--drop too_large` works on a layer with no `too_large` interface. An imported layer can list its labels the same way in its description's `parameters`.
+    Pass `annotations/interfaces_strong` wherever a contact layer goes, for example `clusters build --contacts`. A `--drop` label that no interface has is an error, before anything is written. The exception is a label the layer can give but no interface happens to have: `interface-contacts`, `dimer-length` and `interface-gaps` list their labels in `summary.json` (`policy.parameters.labels`), so `--drop too_large` works on a layer with no `too_large` interface. An imported layer can list its labels the same way in its description's `parameters`.
 
     ```text
-    annotate filter-contacts: no interface has the label(s) ['typo']; check for typos
+    annotations filter: no interface has the label(s) ['typo']; check for typos
     ```
 
 ### Labelling interfaces by contacts and size
@@ -584,7 +581,7 @@ The example uses `1a2c` again. Pandora's own contact layers leave `contact_type`
 PPI-style benchmarks keep only chain pairs that touch enough and are not too big. `label_interfaces` writes that verdict for you as an `interface_labels` layer, so you can drop interfaces with it as above without writing the pandas yourself. Each chain pair gets one row with:
 
 - `residues_1`, `residues_2`: how many residues of each chain touch the other chain. A pair of residues listed several times, or in either order, counts once.
-- `length_1`, `length_2`, `total_residues`: the chains' full sequence lengths (`seqres_length` in the `chains` table that `pandora curate` writes) and their sum. A chain missing from that table has no length, and its pair is never `too_large`.
+- `length_1`, `length_2`, `total_residues`: the chains' full sequence lengths (`seqres_length` in the `chains` table that `pandora structures curate` writes) and their sum. A chain missing from that table has no length, and its pair is never `too_large`.
 - `label`, the first that applies: `too_large` if `total_residues` is over the maximum, `few_contacts` if either side has fewer residues in contact than the minimum, else `ok`.
 
 Leaving a threshold out turns its rule off. With neither, every pair is `ok`, which is a quick way to look at the counts before choosing cut-offs. PPI v2.1 uses 4 residues per chain and 5,000 residues per pair; the example below uses smaller values so that the one entry, `1a2c`, shows all three labels.
@@ -623,32 +620,34 @@ Leaving a threshold out turns its rule off. With neither, every pair is `ok`, wh
 
 === "`cli`"
 
-    `pandora annotate label-interfaces` reads the lengths from the `chains` table of the step folder the contact layer was computed from, and stops if that folder has none. Its output is an `interface_labels` layer folder, ready for `filter-contacts --labels` or `partition --labels`:
+    The two rules are two commands, each writing its own `interface_labels` layer folder, ready for `annotations filter --labels` or `splits assign --labels`. `annotations interface-contacts` needs only the contact layer and labels `few_contacts` or `ok`. `annotations dimer-length` reads the lengths from the `chains` table of `--structures` (a curate folder), stops if that folder has none, and labels `too_large` or `ok`. `annotations filter` takes `--labels` once per layer and drops an interface when any of them gives it a `--drop` label:
 
     ```bash
-    pandora annotate compute --layer chain_interfaces --structures-dir curated/ \
-      --output-dir annotations/interfaces
-    pandora annotate label-interfaces --contacts annotations/interfaces \
-      --min-residues-per-chain 5 --max-total-residues 290 \
-      --output-dir annotations/dimer_labels
-    pandora annotate filter-contacts --contacts annotations/interfaces \
-      --labels annotations/dimer_labels --drop few_contacts --drop too_large \
-      --output-dir annotations/contacts_real
-    jq -c '.counts' annotations/dimer_labels/layer.json
+    pandora annotations contacts curated/ annotations/interfaces
+    pandora annotations interface-contacts annotations/interfaces \
+      annotations/few_contacts --min-residues-per-chain 5
+    pandora annotations dimer-length annotations/interfaces \
+      annotations/dimer_length --structures curated/ --max-total-residues 290
+    pandora annotations filter annotations/interfaces annotations/contacts_real \
+      --labels annotations/few_contacts --labels annotations/dimer_length \
+      --drop few_contacts --drop too_large
+    jq -c '.counts' annotations/few_contacts/summary.json annotations/dimer_length/summary.json
     ```
 
     ```text
     computed: 120 rows for 1 entries -> annotations/interfaces
-    labelled: 3 interfaces (1 ok, 1 few_contacts, 1 too_large) -> annotations/dimer_labels
+    labelled: 3 interfaces (2 ok, 1 few_contacts) -> annotations/few_contacts
+    labelled: 3 interfaces (1 ok, 2 too_large) -> annotations/dimer_length
     filtered: 2 interfaces dropped, 1 kept, 0 unlabelled -> annotations/contacts_real
-    {"rows_in":120,"interfaces":3,"ok":1,"few_contacts":1,"too_large":1,"unknown_length":0}
+    {"few_contacts":1,"interfaces":3,"ok":2,"rows_in":120}
+    {"interfaces":3,"ok":1,"rows_in":120,"too_large":2,"unknown_length":0}
     ```
 
-    `annotations/interfaces` stays the "any contact" set and `annotations/contacts_real` is the "real interaction" set. The thresholds are recorded in `annotations/dimer_labels/layer.json` under `policy.parameters`.
+    `annotations/interfaces` stays the "any contact" set and `annotations/contacts_real` is the "real interaction" set. Each threshold is recorded in its layer's `summary.json` under `policy.parameters`.
 
 ### Labelling interfaces with a hole
 
-PPI v2.1 drops dimers with a hole in the binding site: a residue missing from the model that lies between two residues in contact. `label_interface_gaps` finds them and writes an `interface_labels` layer, which you can then use to drop interfaces as above. A residue is missing if it is a SEQRES position without all of its backbone atoms (N, CA, C, O), the same rule `pandora curate` uses for `incomplete_backbone`. On each side of a chain pair, the span runs from the first to the last residue in contact with the other chain that is not missing, in sequence order. Each chain pair gets one row with:
+PPI v2.1 drops dimers with a hole in the binding site: a residue missing from the model that lies between two residues in contact. `label_interface_gaps` finds them and writes an `interface_labels` layer, which you can then use to drop interfaces as above. A residue is missing if it is a SEQRES position without all of its backbone atoms (N, CA, C, O), the same rule `pandora structures curate` uses for `incomplete_backbone`. On each side of a chain pair, the span runs from the first to the last residue in contact with the other chain that is not missing, in sequence order. Each chain pair gets one row with:
 
 - `gaps_1`, `gaps_2`: how many missing positions of each chain lie inside its span.
 - `label`: `interface_gap` if either side has a gap, `unknown` if a chain could not be measured, else `ok`.
@@ -687,17 +686,15 @@ A chain can't be measured if its entity has no SEQRES (`_entity_poly_seq`), or i
 
 === "`cli`"
 
-    `pandora annotate interface-gaps` reads the structures of the step folder the contact layer was computed from. Its output is an `interface_labels` layer folder:
+    `pandora annotations interface-gaps` reads the structures given with `--structures` (any structures form; use the folder the contact layer was computed from). Its output is an `interface_labels` layer folder:
 
     ```bash
-    pandora annotate compute --layer chain_interfaces --structures-dir curated/ \
-      --output-dir annotations/interfaces
-    pandora annotate interface-gaps --contacts annotations/interfaces \
-      --output-dir annotations/interface_gaps
-    pandora annotate filter-contacts --contacts annotations/interfaces \
-      --labels annotations/interface_gaps --drop interface_gap \
-      --output-dir annotations/contacts_nogap
-    jq -c '.counts' annotations/interface_gaps/layer.json
+    pandora annotations contacts curated/ annotations/interfaces
+    pandora annotations interface-gaps annotations/interfaces \
+      annotations/interface_gaps --structures curated/
+    pandora annotations filter annotations/interfaces annotations/contacts_nogap \
+      --labels annotations/interface_gaps --drop interface_gap
+    jq -c '.counts' annotations/interface_gaps/summary.json
     ```
 
     ```text

@@ -61,9 +61,8 @@ print(len(stamps), stamps[0])
 
 `build_provenance_bundle()` assembles a `ProvenanceBundle` from
 whichever stage provenance you pass — every argument is optional. There's
-no single-structure CLI subcommand for this; the CLI only builds
-bundles as part of a full [`pandora manifest`](cli.md#manifest) run,
-below.
+no CLI subcommand for this; provenance bundles and manifests are
+library-only.
 
 ```python
 from pandora.provenance import build_provenance_bundle
@@ -86,84 +85,44 @@ actual rules), exclusions, dedup/clustering/partition provenance, the
 split assignment — plus every retained structure's `ProvenanceBundle`
 into one `DatasetManifest`.
 
-=== "`library`"
+```python
+from pandora.provenance import build_dataset_manifest
+from pandora.export import write_json
 
-    ```python
-    from pandora.provenance import build_dataset_manifest
-    from pandora.export import write_json
-
-    bundles = [
-        build_provenance_bundle(
-            structures[entry_id],
-            ingestion=ingestion_prov[entry_id],
-            canonicalisation=canon_prov[entry_id],
-        )
-        for entry_id in structures
-    ]
-    manifest = build_dataset_manifest(
-        dataset_id="demo",
-        dataset_name="Demo",
-        dataset_version="1.0.0",
-        canonicalisation_policy=policy,
-        curation_policy=curation_policy,
-        structures=bundles,
+bundles = [
+    build_provenance_bundle(
+        structures[entry_id],
+        ingestion=ingestion_prov[entry_id],
+        canonicalisation=canon_prov[entry_id],
     )
-    manifest_path = write_json(manifest, output_dir / "manifest.json")
-    print(manifest.dataset_id, len(manifest.structures), "structures")
-    # demo 2 structures
-    ```
-
-    Reach for the library form when you're scripting a whole workflow
-    in one process, as above; reach for the CLI when you're assembling a
-    manifest from already-written stage outputs on disk.
-
-=== "`cli`"
-
-    ```bash
-    pandora manifest \
-      --dataset-id dev-cli-demo \
-      --dataset-name "CLI demo dataset" \
-      --dataset-version 1.0.0 \
-      --structures-dir deduped/ \
-      --canonicalisation-policy datasets/canonicalisation.yaml \
-      --curation-policy curation.yaml \
-      --ingestion-provenance raw/ingestion_provenance.json \
-      --canonicalisation-dir canonical/ \
-      --curation-dir curated/ \
-      --output manifest.json
-    # manifest for 5 structures -> manifest.json
-    ```
-
-    Every `--*-provenance`/`--*-policy` flag is optional — only pass
-    what the earlier stages actually produced. `--ingestion-provenance`
-    is the one flag worth not skipping: without it, `reproduce` (below)
-    can't re-fetch that structure later. See [`pandora
-    manifest`](cli.md#manifest) for the full flag list.
+    for entry_id in structures
+]
+manifest = build_dataset_manifest(
+    dataset_id="demo",
+    dataset_name="Demo",
+    dataset_version="1.0.0",
+    canonicalisation_policy=policy,
+    curation_policy=curation_policy,
+    structures=bundles,
+)
+manifest_path = write_json(manifest, output_dir / "manifest.json")
+print(manifest.dataset_id, len(manifest.structures), "structures")
+# demo 2 structures
+```
 
 ## Replay a manifest from scratch
 
 `reproduce_dataset()` re-fetches every structure via its bundle's
 `ingestion` provenance, then replays canonicalisation, curation and dedup as the manifest recorded them. Similarity, clustering, partitioning and annotation layers are not replayed: the reproduced manifest has no `clustering`, `partition` or `splits`.
 
-=== "`library`"
+```python
+from pandora.provenance import reproduce_dataset
 
-    ```python
-    from pandora.provenance import reproduce_dataset
-
-    reproduced, new_manifest = reproduce_dataset(
-        manifest, output_dir / "reproduced"
-    )
-    print(len(reproduced), "structures reproduced")
-    # 2 structures reproduced
-    ```
-
-=== "`cli`"
-
-    ```bash
-    pandora reproduce --manifest manifest.json --output-dir reproduced/
-    # reproduced 5 structures -> reproduced/
-    ```
-
-    `--no-cache` skips the ingestion cache and always re-downloads.
+reproduced, new_manifest = reproduce_dataset(
+    manifest, output_dir / "reproduced"
+)
+print(len(reproduced), "structures reproduced")
+# 2 structures reproduced
+```
 
 It's a best-effort re-run, not a guaranteed byte-identical rebuild — diff the reproduced manifest against the input to see what changed. Every structure's bundle needs `ingestion` provenance, otherwise it raises `ValueError` (this is why the walkthrough above fetches for real, unlike the other usage pages).

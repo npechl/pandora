@@ -23,9 +23,9 @@ Every operation that a `pandora` subcommand wraps is shown twice:
 
 === "`cli`"
     ```sh
-    The equivalent pandora <subcommand> invocation — for running a
+    The equivalent pandora <group> <command> invocation — for running a
     stage from the shell over a directory of files, chaining it with
-    the next stage's --input-dir.
+    the next command's input.
     ```
 
 Both call the same underlying function; the CLI just reads/writes

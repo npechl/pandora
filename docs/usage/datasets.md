@@ -2,7 +2,7 @@
 
 `pandora.datasets` filters structures for inclusion (`curate_structure`, `deduplicate_structures`), measures chain completeness (`chain_completeness`), and reshapes a canonical `Structure` into flat, ML-friendlier records (`extract_*_records`). See [Functions](../reference/functions.md#pandora.datasets) for full signatures.
 
-Each curation section applies one kind of rule to fixtures from `datasets/dev/mmcif/`. The `library` tab is the Python code and what it prints; the `cli` tab does the same with `pandora curate`, writing the policy as YAML and reading `exclusions.jsonl` with [`jq`](https://jqlang.org/). Run the CLI examples from the repository root. The test suite runs every example on this page and checks it still prints what is shown. The [curation policy reference](../reference/policies.md#curation) lists every field.
+Each curation section applies one kind of rule to fixtures from `datasets/dev/mmcif/`. The `library` tab is the Python code and what it prints; the `cli` tab does the same with `pandora structures curate`, writing the policy as YAML and reading `exclusions.jsonl` with [`jq`](https://jqlang.org/). Run the CLI examples from the repository root. The test suite runs every example on this page and checks it still prints what is shown. The [curation policy reference](../reference/policies.md#curation) lists every field.
 
 The sections after curation use this setup:
 
@@ -72,8 +72,8 @@ metadata = collect_metadata(canonical)
     quality_rules:
       max_resolution: 1.0
     EOF
-    pandora curate --input-dir raw/ --policy default.yaml --output-dir default/ --table-format jsonl
-    pandora curate --input-dir raw/ --policy strict.yaml --output-dir strict/ --table-format jsonl
+    pandora structures curate raw/ default/ --policy default.yaml --table-format jsonl
+    pandora structures curate raw/ strict/ --policy strict.yaml --table-format jsonl
     jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' strict/exclusions.jsonl
     ```
 
@@ -154,8 +154,8 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
         X-RAY DIFFRACTION: 2.5
         ELECTRON MICROSCOPY: 2.0
     EOF
-    pandora curate --input-dir raw/ --policy one_limit.yaml --output-dir one_limit/ --table-format jsonl
-    pandora curate --input-dir raw/ --policy by_method.yaml --output-dir by_method/ --table-format jsonl
+    pandora structures curate raw/ one_limit/ --policy one_limit.yaml --table-format jsonl
+    pandora structures curate raw/ by_method/ --policy by_method.yaml --table-format jsonl
     jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' by_method/exclusions.jsonl
     ```
 
@@ -253,9 +253,9 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
       max_r_free: 0.25
       null_rfactor_behavior: exclude
     EOF
-    pandora curate --input-dir raw/ --policy rsym.yaml --output-dir rsym/ --table-format jsonl
+    pandora structures curate raw/ rsym/ --policy rsym.yaml --table-format jsonl
     jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' rsym/exclusions.jsonl
-    pandora curate --input-dir raw/ --policy rfree.yaml --output-dir rfree/ --table-format jsonl
+    pandora structures curate raw/ rfree/ --policy rfree.yaml --table-format jsonl
     jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' rfree/exclusions.jsonl
     ```
 
@@ -353,12 +353,12 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
       exclude_nonstandard_residues: true
       allowed_nonstandard_residues: [ACE, DIP, FTY]
     EOF
-    pandora canonicalise --input-dir raw/ --policy mse.yaml --output-dir mapped/ --table-format jsonl
-    pandora curate --input-dir raw/ --policy reject.yaml --output-dir reject/ --table-format jsonl
+    pandora structures canonicalise raw/ mapped/ --policy mse.yaml --table-format jsonl
+    pandora structures curate raw/ reject/ --policy reject.yaml --table-format jsonl
     jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' reject/exclusions.jsonl
-    pandora curate --input-dir raw/ --policy allow.yaml --output-dir allow/ --table-format jsonl
+    pandora structures curate raw/ allow/ --policy allow.yaml --table-format jsonl
     jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' allow/exclusions.jsonl
-    pandora curate --input-dir mapped/ --policy reject.yaml --output-dir mapped_reject/ --table-format jsonl
+    pandora structures curate mapped/ mapped_reject/ --policy reject.yaml --table-format jsonl
     jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' mapped_reject/exclusions.jsonl
     ```
 
@@ -451,9 +451,9 @@ Removing a chain keeps the rest of the entry. `min_polymer_chains` and `min_chai
       max_missing_middle_fraction: 0.1
       min_polymer_chains: 2
     EOF
-    pandora curate --input-dir raw/ --policy chains.yaml --output-dir chains/ --table-format jsonl
+    pandora structures curate raw/ chains/ --policy chains.yaml --table-format jsonl
     jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' chains/exclusions.jsonl
-    pandora curate --input-dir raw/ --policy two_chains.yaml --output-dir two_chains/ --table-format jsonl
+    pandora structures curate raw/ two_chains/ --policy two_chains.yaml --table-format jsonl
     jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' two_chains/exclusions.jsonl
     ```
 
@@ -526,9 +526,9 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
     quality_rules:
       max_chain_length: 300
     EOF
-    pandora curate --input-dir raw/ --policy atoms.yaml --output-dir atoms/ --table-format jsonl
+    pandora structures curate raw/ atoms/ --policy atoms.yaml --table-format jsonl
     jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' atoms/exclusions.jsonl
-    pandora curate --input-dir raw/ --policy length.yaml --output-dir length/ --table-format jsonl
+    pandora structures curate raw/ length/ --policy length.yaml --table-format jsonl
     jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' length/exclusions.jsonl
     ```
 
@@ -584,7 +584,7 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
     organism_rules:
       include_taxa: ["9606"]
     EOF
-    pandora curate --input-dir raw/ --policy human.yaml --output-dir human/ --table-format jsonl
+    pandora structures curate raw/ human/ --policy human.yaml --table-format jsonl
     jq -r '"\(.entry_id) \(.chain_id // "entry"): \(.reason_code) - \(.message)"' human/exclusions.jsonl
     ```
 
@@ -635,9 +635,9 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
       keep_waters: false
       keep_ions: false
     EOF
-    pandora curate --input-dir raw/ --policy protein.yaml --output-dir protein/ --table-format jsonl
-    pandora export --input raw/104m.cif --output before.json
-    pandora export --input protein/structures/04/104m.cif --output after.json
+    pandora structures curate raw/ protein/ --policy protein.yaml --table-format jsonl
+    pandora structures convert raw/104m.cif before.json
+    pandora structures convert protein/structures/04/104m.cif after.json
     jq '.atoms | length' before.json after.json
     ```
 
@@ -712,7 +712,7 @@ Curating many entries, extend one list with every call's records. It then holds 
       max_resolution: 2.5
       max_missing_middle_fraction: 0.1
     EOF
-    pandora curate --input-dir raw/ --policy policy.yaml --output-dir curated/ --table-format jsonl
+    pandora structures curate raw/ curated/ --policy policy.yaml --table-format jsonl
     jq -r 'select(.chain_id == null)
       | "entry excluded: \(.entry_id) \(.reason_code)"' curated/exclusions.jsonl
     jq -r 'select(.chain_id != null)
@@ -796,15 +796,7 @@ given `entry_id`:
     `DeduplicationRules(enabled=False)` (the default) is a no-op — every
     structure passes through, `removed` is always `[]`.
 
-=== "`cli`"
-
-    ```bash
-    pandora dedup --input-dir curated/ --output-dir deduped/
-    # dedup: 5 retained, 0 removed -> deduped/
-    ```
-
-    `--disable` runs `DeduplicationRules(enabled=False)` instead — every
-    structure passes through, but dedup provenance is still recorded.
+The CLI has no plain dedup command: `pandora structures canonicalise` and `pandora structures curate` already skip a second input with the same entry ID and record it in `failures.jsonl` as `DuplicateEntry`.
 
 ### Contained biounits
 
@@ -813,21 +805,21 @@ given `entry_id`:
 === "`cli`"
 
     ```bash
-    pandora dedup --contained --input-dir work/curation \
-      --clusters clusters/seq90/clusters.json --output-dir work/uncontained
+    pandora structures drop-contained work/curation work/uncontained \
+      --clusters clusters/seq90
     ```
 
     ```text
-    dedup: 29 retained, 2 contained -> work/uncontained
+    29 retained, 2 contained -> work/uncontained
     ```
 
-    `--clusters` is the `clusters.json` of `pandora cluster` over the same step folder's chains, so symmetry copies count in their source chain's cluster. The output is a step folder like `curate`'s: the kept entries' `structures/` (copied as they are), `entries` and `chains` tables, `contained` (one row per removed entry: `entry_id`, `contained_in`, the lowest-id kept entry containing it, and `equal`, true when the two have the same counts), `failures.jsonl` and a `dedup.json` step summary. Its counts:
+    `--clusters` is the `clusters.json` of `pandora clusters build` (or the folder holding it) over the same step folder's chains, so symmetry copies count in their source chain's cluster. The output is a step folder like `curate`'s: the kept entries' `structures/` (copied as they are), `entries` and `chains` tables, `contained` (one row per removed entry: `entry_id`, `contained_in`, the lowest-id kept entry containing it, and `equal`, true when the two have the same counts), `failures.jsonl` and a `summary.json` step summary. Its counts:
 
     ```text
     {'chains_kept': 51, 'chains_unclustered': 0, 'entries_contained': 2, 'entries_in': 31, 'entries_kept': 29}
     ```
 
-    A chain missing from `--clusters` counts as its own cluster; the run warns and counts them as `chains_unclustered`. `--policy` takes a `DeduplicationRules` YAML (`contained_rank`); `--disable` writes the `contained` table but keeps every entry. `--table-format` and `--overwrite` work as for `curate`.
+    A chain missing from `--clusters` counts as its own cluster; the run warns and counts them as `chains_unclustered`. `--policy` takes a `DeduplicationRules` YAML (`contained_rank`); `--disable` writes the `contained` table but keeps every entry. `--table-format` and `--overwrite` work as for `structures curate`.
 
 === "`library`"
 
@@ -892,4 +884,4 @@ print(
 # 5 A B 35
 ```
 
-`extract_residue_records()` carries each residue's full atom list (coordinates, B-factor, ...) rather than a bare count — residue-level ML use cases (contact maps, solvent exposure) don't need to go back to the structure. Each residue record carries both namings (`chain_id`/`seq_id` and `auth_chain_id`/`auth_seq_id`/`ins_code`), so [layers join onto it](annotation.md#using-layers-in-a-dataset) by either. `extract_interface_records()` takes any [`residue_contacts` layer](annotation.md#contacts-are-one-layer) — Pandora's [`annotate_chain_interfaces()`](annotation.md#chain-chain-interfaces) or another tool's contacts imported with `pandora annotate import` — and groups it into one record per polymer chain pair; it doesn't compute contacts itself. Pairs are unordered, a residue pair reported on several rows counts once, and ligand and same-chain rows are skipped. Pass `distance_cutoff` and `atom_set` to record the settings the contacts were computed with; they stay `None` when unknown. Each `InterfaceRecord` carries the `residue_pairs`.
+`extract_residue_records()` carries each residue's full atom list (coordinates, B-factor, ...) rather than a bare count — residue-level ML use cases (contact maps, solvent exposure) don't need to go back to the structure. Each residue record carries both namings (`chain_id`/`seq_id` and `auth_chain_id`/`auth_seq_id`/`ins_code`), so [layers join onto it](annotation.md#using-layers-in-a-dataset) by either. `extract_interface_records()` takes any [`residue_contacts` layer](annotation.md#contacts-are-one-layer) — Pandora's [`annotate_chain_interfaces()`](annotation.md#chain-chain-interfaces) or another tool's contacts imported with `pandora annotations import` — and groups it into one record per polymer chain pair; it doesn't compute contacts itself. Pairs are unordered, a residue pair reported on several rows counts once, and ligand and same-chain rows are skipped. Pass `distance_cutoff` and `atom_set` to record the settings the contacts were computed with; they stay `None` when unknown. Each `InterfaceRecord` carries the `residue_pairs`.

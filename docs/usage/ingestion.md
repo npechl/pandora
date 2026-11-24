@@ -39,14 +39,16 @@ signatures.
     Download raw mmCIF files (with on-disk caching):
 
     ```bash
-    pandora fetch 104m 112m 118l 138l 1ayi --output-dir raw/
+    pandora entries fetch 104m 112m 118l 138l 1ayi raw/
     # fetched 5/5 entries -> raw/
     ```
 
     `raw/entries.txt` lists the saved files, ready for
-    `pandora canonicalise --entries raw/entries.txt`.
-    `raw/ingestion_provenance.json` is written alongside the files — keep
-    it, `manifest` needs it later if you want `reproduce` to work.
+    `pandora structures canonicalise raw/entries.txt canonical/`.
+    `raw/ingestion_provenance.json` and `raw/summary.json` are written
+    alongside the files. Fetching again into `raw/` downloads only the
+    missing files and merges the lists. IDs can also come from
+    `--ids FILE` (one per line).
 
 ## Find entry ids to fetch
 
@@ -110,7 +112,7 @@ Pandora has no bulk-download step of its own — for a full PDB snapshot,
 use an existing mirror (e.g. `rsync.rcsb.org`) or an archive on a shared
 file system. `template_entry_paths()` lists such an archive's files from
 a path template, and `write_entry_paths()` saves them as the list that
-`pandora canonicalise --entries` reads. Nothing is fetched, copied or
+`pandora structures canonicalise` reads. Nothing is fetched, copied or
 opened.
 
 The template is a path relative to the archive's root, with `{id}` (the
@@ -133,24 +135,24 @@ paths without listing anything.
 === "`cli`"
 
     ```bash
-    pandora ingest --input-dir datasets/dev/mmcif --path-template '{mid}/{id}.cif' \
-      --source-label dev-fixtures --output-dir ingest/
-    # ingested 100 entries -> ingest
-    jq .counts ingest/ingestion.json
+    pandora entries scan datasets/dev/mmcif ingest/ --path-template '{mid}/{id}.cif' \
+      --source-label dev-fixtures
+    # scanned 100 entries -> ingest
+    jq .counts ingest/summary.json
     # {
     #   "entries_found": 100
     # }
-    pandora canonicalise --entries ingest/entries.txt --policy datasets/canonicalisation.yaml \
-      --output-dir canonical/
+    pandora structures canonicalise ingest/entries.txt canonical/ \
+      --policy datasets/canonicalisation.yaml
     ```
 
     `ingest/entries.txt` holds one absolute path per line.
-    `ingest/ingestion.json` is the step summary: the input root, the
+    `ingest/summary.json` is the step summary: the input root, the
     template or glob, `--source-label` and `--release-date` as given, and
-    the count. `canonicalise --entries` links to it as its
-    `previous_summary`. `--glob '*/*.cif'` lists files by pattern
+    the count. `--glob '*/*.cif'` lists files by pattern
     instead, for layouts a template can't describe. `--ids ids.txt`
-    builds the paths from a list of entry IDs without listing anything.
+    builds the paths from a list of entry IDs without listing anything
+    (with `--glob`, it keeps only those entries).
 
 On a large archive on a network file system, use a template rather than
 a glob: a glob opens every folder it passes through, and the template
@@ -158,9 +160,9 @@ stops above the ID. For the PDBe release tree (about 230k entries) that
 is about 1,300 folder reads instead of several hundred thousand:
 
 ```bash
-pandora ingest --input-dir /nfs/production/gerard/pdbe/release/data/entry \
+pandora entries scan /nfs/production/gerard/pdbe/release/data/entry ingest/ \
   --path-template '{mid}/{id}/clean_mmcif/{id}_updated.cif.gz' \
-  --source-label pdbe_release --output-dir ingest/
+  --source-label pdbe_release
 ```
 
 Paths are not checked: a missing or broken file shows up later in
@@ -218,7 +220,7 @@ Paths are not checked for existence; a missing file fails when it is parsed.
     `--allow-partial` skips entries that fail instead of aborting the batch:
 
     ```bash
-    pandora fetch 1crn not-a-real-id --allow-partial --output-dir raw/
+    pandora entries fetch 1crn not-a-real-id raw/ --allow-partial
     # warning: failed to fetch not-a-real-id: ...
     # fetched 1/2 entries -> raw/
     ```
@@ -236,10 +238,10 @@ the cache entirely and always re-downloads.
 ## Load a policy
 
 `load_policy()` reads a policy YAML file into a validated
-`canonicalisationPolicy` — the same object the `pandora canonicalise`
+`canonicalisationPolicy` — the same object the `pandora structures canonicalise`
 CLI subcommand builds internally, and what
 [`canonicalise_structure()`](canonicalisation.md) expects. There's no
-standalone CLI subcommand for this step — `pandora canonicalise` calls
+standalone CLI subcommand for this step — `pandora structures canonicalise` calls
 it internally from its `--policy` flag.
 
 ```python
