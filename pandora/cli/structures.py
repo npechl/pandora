@@ -80,6 +80,16 @@ def _structure_inputs(
     return [path], None
 
 
+def _check_out(command: str, source: Path, out: Path) -> None:
+    """Exit if `out` is the folder the input `source` lives in."""
+
+    folder = source if source.is_dir() else source.parent
+    if folder.resolve() == out.resolve():
+        raise SystemExit(
+            f"{command}: {out} is the input folder; choose another OUT"
+        )
+
+
 def _skip_too_large(
     path: Path,
     policy: canonicalisationPolicy,
@@ -116,6 +126,7 @@ def _cmd_canonicalise(args: argparse.Namespace) -> None:
     paths, previous = _structure_inputs("structures canonicalise", source)
 
     check_table_format(args.table_format)
+    _check_out("structures canonicalise", source, out)
     prepare_step_dir("structures canonicalise", out, args.overwrite)
     counts: Counter[str] = Counter(
         entries_failed=0,
@@ -229,6 +240,7 @@ def _cmd_curate(args: argparse.Namespace) -> None:
     copies = _read_copies(source)
 
     check_table_format(args.table_format)
+    _check_out("structures curate", source, out)
     prepare_step_dir("structures curate", out, args.overwrite)
     counts: Counter[str] = Counter(entries_failed=0)
     entries: list[CurationEntryRecord] = []

@@ -144,13 +144,30 @@ def test_entries_scan_nothing_found(tmp_path):
     assert summary["counts"] == {"entries_found": 0}
 
 
-def test_canonicalise_overwrite_keeps_entries_txt(tmp_path):
+def test_canonicalise_from_scan_into_separate_out(tmp_path):
     _pdbe_tree(tmp_path / "entry")
-    out = tmp_path / "work"
-    _scan(str(tmp_path / "entry"), str(out), "--path-template", PDBE_TEMPLATE)
-    for extra in (["--overwrite"], ["--overwrite"]):
-        _canonicalise(out / "entries.txt", out, *extra)
-    assert len(read_entry_paths(out / "entries.txt")) == 2
+    scan = tmp_path / "scan"
+    _scan(str(tmp_path / "entry"), str(scan), "--path-template", PDBE_TEMPLATE)
+    _canonicalise(scan / "entries.txt", tmp_path / "canon")
+    summary = json.loads((tmp_path / "canon" / "summary.json").read_text())
+    assert summary["previous_summary"] == str(scan / "summary.json")
+    assert len(read_entry_paths(scan / "entries.txt")) == 2
+
+
+@pytest.mark.parametrize("command", ["canonicalise", "curate"])
+def test_structures_refuse_out_that_is_the_input_folder(tmp_path, command):
+    _pdbe_tree(tmp_path / "entry")
+    scan = tmp_path / "scan"
+    _scan(str(tmp_path / "entry"), str(scan), "--path-template", PDBE_TEMPLATE)
+    policy = tmp_path / "p.yaml"
+    policy.write_text("policy_id: p\npolicy_name: p\npolicy_version: '1'\n")
+    for source in (scan / "entries.txt", scan):
+        with pytest.raises(SystemExit, match="is the input folder"):
+            main(
+                ["structures", command, str(source), str(scan)]
+                + ["--policy", str(policy), "--overwrite"]
+            )
+    assert (scan / "summary.json").exists()
 
 
 def _canonicalise_and_curate(tmp_path, fixture="04/104m.cif", canon=None):
@@ -3576,3 +3593,12 @@ def test_structure_files_finds_gzipped_flat_files(tmp_path):
         tmp_path / "112m.cif.gz",
     ]
     assert sorted(_io.structure_index(tmp_path)) == ["104M", "112M"]
+
+
+def test_annotate_compute_reads_real_structures_curate_folder(tmp_path):
+    _, curated = _canonicalise_and_curate(tmp_path)
+    out = tmp_path / "contacts"
+    _compute(curated, out, "--layer", "chain_interfaces")
+    summary = json.loads((out / "layer.json").read_text())
+    assert summary["counts"]["entries"] == 1
+    assert summary["previous_summary"] == str(curated / "summary.json")
