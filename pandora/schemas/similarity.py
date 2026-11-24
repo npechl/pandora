@@ -294,14 +294,17 @@ class DroppedDimer(BaseModel):
 
 
 class RebalanceSettings(BaseModel):
-    """What one `rebalance` run used, recorded as its summary's policy.
+    """What one `pairs positives` run used, recorded as its summary's
+    policy.
 
     Attributes:
         rank: The ranking that breaks ties between equally connected
             dimers.
         layers: The similarity layers and hit filters of the dimer
-            graph (the same as the Step 5 `cluster` run).
-        clusters: The dimer groups file.
+            graph, whose connected components are the dimer groups.
+        contacts: The residue_contacts layer folder (the dimers).
+        structures_dir: The structures folder whose chains table gave
+            the rank values.
         chain_clusters: The 90% chain clusters file (homomer test).
         chain_representatives: The representatives JSON mapping chains
             to their representative, if any.
@@ -309,7 +312,8 @@ class RebalanceSettings(BaseModel):
 
     rank: RepresentativePolicy
     layers: list[ClusteredLayer] = Field(default_factory=list)
-    clusters: str
+    contacts: str
+    structures_dir: str
     chain_clusters: str
     chain_representatives: str | None = None
 
@@ -330,13 +334,14 @@ class NegativePair(BaseModel):
 
 
 class NegativeSamplingSettings(BaseModel):
-    """What one `negatives` run used, recorded as its summary's policy.
+    """What one `pairs negatives` run used, recorded as its summary's
+    policy.
 
     Attributes:
         seed: Seed of the random generator (A's and C's draws).
         hit_filter: The filter that makes a structure-similarity hit
             count as "similar" (e.g. TM-score >= 0.5).
-        similarity_layer: The chain similarity layer's `layer.json`.
+        similarity_layer: The chain similarity layer folder or table.
         contacts: The "any contact" residue_contacts layer folder.
         representatives: The representatives JSON (pool and chain
             mapping).
@@ -383,14 +388,15 @@ class DatasetPair(BaseModel):
 
 
 class AssemblySettings(BaseModel):
-    """What one `assemble` run used, recorded as its summary's policy.
+    """What one `pairs assemble` run used, recorded as its summary's
+    policy.
 
     Attributes:
-        positives: The `rebalance` step folder.
-        negatives: The `negatives` step folder.
-        splits: The `partition` splits file.
+        positives: The `pairs positives` table.
+        negatives: The `pairs negatives` table.
+        splits: The `splits assign` splits file.
         representatives: The representatives JSON (chain mapping).
-        similarity_layer: The chain similarity layer's `layer.json`.
+        similarity_layer: The chain similarity layer folder or table.
         hit_filter: The filter that makes a hit count as "similar".
     """
 

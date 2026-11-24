@@ -3229,12 +3229,92 @@ def test_layer_on_dedup_step_folder_links_its_summary(tmp_path):
     assert summary["previous_summary"].endswith("dedup.json")
 
 
-def _rebalance_inputs(tmp_path, homomers=False, groups=None):
-    """1a2c contact layer, chain clusters (every chain alone, or all in
-    one with `homomers`), dimer groups (default: one of every dimer)
-    and an empty interface layer."""
+_FOUR = ("1A2C", "2A2C", "3A2C", "4A2C")
 
-    _, contacts, _, labelled = _iface_rep_inputs(tmp_path)
+
+def _four_entry_inputs(tmp_path):
+    """The 1a2c contact layer and chains table copied to four entries,
+    chain clusters (2A2C_B and 2A2C_C one protein), chain representatives
+    (4A2C_C maps to 4A2C_D), and interface and chain layers linking
+    1A2C with 2A2C and 3A2C with 4A2C (plus hits below 0.5)."""
+
+    step, contacts, _, _ = _iface_rep_inputs(tmp_path)
+    rows = _jsonl(contacts / "layer.jsonl")
+    chains = _jsonl(step / "chains.jsonl")
+    contacts4 = tmp_path / "contacts4"
+    contacts4.mkdir()
+    shutil.copy(contacts / "summary.json", contacts4)
+    _write_jsonl(
+        contacts4 / "layer.jsonl",
+        [r | {"entry_id": e} for e in _FOUR for r in rows],
+    )
+    tables = tmp_path / "tables4"
+    tables.mkdir()
+    _write_jsonl(tables / "entries.jsonl", [{"entry_id": e} for e in _FOUR])
+    _write_jsonl(
+        tables / "chains.jsonl",
+        [c | {"entry_id": e} for e in _FOUR for c in chains],
+    )
+    ids = [f"{e}_{c['chain_id']}" for e in _FOUR for c in chains]
+    seq90 = tmp_path / "seq90_4.json"
+    groups = [[i] for i in ids if i not in ("2A2C_B", "2A2C_C")]
+    groups.append(["2A2C_B", "2A2C_C"])
+    seq90.write_text(
+        json.dumps([{"components": g, "n_components": len(g)} for g in groups])
+    )
+    reps = _chain_reps(
+        tmp_path / "reps4.json",
+        {i: "4A2C_D" if i == "4A2C_C" else i for i in ids},
+    )
+    iface = _similarity_layer(
+        tmp_path / "iface4",
+        [
+            {"item_id_1": "1A2C_A_B", "item_id_2": "2A2C_B_D", "score": 0.9},
+            {"item_id_1": "3A2C_A_B", "item_id_2": "1A2C_B_C", "score": 0.2},
+        ],
+        "interface",
+    )
+    chain = _similarity_layer(
+        tmp_path / "chain4",
+        [
+            {"item_id_1": "3A2C_A", "item_id_2": "4A2C_A", "score": 0.8},
+            {"item_id_1": "2A2C_C", "item_id_2": "4A2C_C", "score": 0.1},
+        ],
+        "chain",
+    )
+    return tables, contacts4, seq90, reps, iface, chain
+
+
+def test_pairs_positives_groups_match_clusters_build(tmp_path):
+    tables, contacts, seq90, reps, iface, chain = _four_entry_inputs(tmp_path)
+    grp, pos = tmp_path / "groups", tmp_path / "positives"
+    shared = ["--contacts", str(contacts), "--chain-representatives", str(reps)]
+    shared += ["--min-score", "0.5"]
+    main(
+        ["clusters", "build", str(iface), str(chain), str(grp)]
+        + ["--items", "interface", *shared]
+    )
+    main(
+        ["pairs", "positives", str(iface), str(chain), str(pos), *shared]
+        + ["--structures", str(tables), "--chain-clusters", str(seq90)]
+        + ["--table-format", "jsonl"]
+    )
+    built = json.loads((grp / "clusters.json").read_text())
+    assert len(built) == 2  # 1A2C+2A2C and 3A2C+4A2C
+    kept = {p["dimer"] for p in _jsonl(pos / "positives.jsonl")}
+    restricted = [sorted(set(c["components"]) & kept) for c in built]
+    assert sorted(c for c in restricted if c) == sorted(
+        sorted(c["components"])
+        for c in json.loads((pos / "clusters.json").read_text())
+    )
+
+
+def _pairs_inputs(tmp_path, homomers=False):
+    """1a2c structures tables and contact layer, chain clusters (every
+    chain alone, or all in one with `homomers`) and an empty interface
+    layer."""
+
+    step, contacts, _, labelled = _iface_rep_inputs(tmp_path)
     dimers = sorted(f"1A2C_{r.chain_id_1}_{r.chain_id_2}" for r in labelled)
     chains = sorted(
         {f"1A2C_{c}" for r in labelled for c in (r.chain_id_1, r.chain_id_2)}
@@ -3246,32 +3326,23 @@ def _rebalance_inputs(tmp_path, homomers=False, groups=None):
             [{"components": c, "n_components": len(c)} for c in chain_groups]
         )
     )
-    groups_file = tmp_path / "groups.json"
-    groups_file.write_text(
-        json.dumps(
-            [
-                {"components": g, "n_components": len(g)}
-                for g in (groups or [dimers])
-            ]
-        )
-    )
     iface = _similarity_layer(tmp_path / "iface", None, "interface")
-    return contacts, seq90, groups_file, iface, dimers
+    return step, contacts, seq90, iface, dimers
 
 
-def _rebalance(contacts, seq90, groups, iface, out, *extra):
+def _positives(step, contacts, seq90, iface, out, *extra):
     main(
-        ["rebalance", "--clusters", str(groups), "--contacts", str(contacts)]
-        + ["--chain-clusters", str(seq90), "--similarity", str(iface)]
-        + ["--min-score", "0.5", "--output-dir", str(out)]
+        ["pairs", "positives", str(iface), str(out)]
+        + ["--contacts", str(contacts), "--structures", str(step)]
+        + ["--chain-clusters", str(seq90), "--min-score", "0.5"]
         + ["--table-format", "jsonl", *extra]
     )
 
 
-def test_rebalance_writes_positives_and_dropped(tmp_path):
-    contacts, seq90, groups, iface, dimers = _rebalance_inputs(tmp_path)
+def test_pairs_positives_writes_positives_and_dropped(tmp_path):
+    step, contacts, seq90, iface, dimers = _pairs_inputs(tmp_path)
     out = tmp_path / "positives"
-    _rebalance(contacts, seq90, groups, iface, out)
+    _positives(step, contacts, seq90, iface, out)
 
     positives = _jsonl(out / "positives.jsonl")
     dropped = (
@@ -3286,21 +3357,28 @@ def test_rebalance_writes_positives_and_dropped(tmp_path):
     sides = [(p["chain_id_1"], p["chain_id_2"]) for p in positives]
     flat = [c for pair in sides for c in pair]
     assert len(flat) == len(set(flat))
-    summary = json.loads((out / "rebalance.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["step"] == "rebalance"
-    assert summary["previous_summary"] == str(contacts / "summary.json")
+    assert summary["input"] == str(iface.resolve())
+    assert summary["previous_summary"] == str(iface / "layer.json")
     assert summary["counts"]["groups"] == 1
     assert summary["counts"]["dimers_in"] == len(dimers)
     assert summary["counts"]["positives:heteromer"] == len(positives)
-    assert summary["policy"]["rank"]["items"] == "interface"
+    policy = summary["policy"]
+    assert policy["rank"]["items"] == "interface"
+    assert "clusters" not in policy
+    assert policy["layers"][0]["similarity_layer"] == str(iface.resolve())
+    assert policy["contacts"] == str(contacts.resolve())
+    assert policy["structures_dir"] == str(step.resolve())
+    assert policy["chain_clusters"] == str(seq90.resolve())
 
 
-def test_rebalance_homomer_only_group_keeps_one(tmp_path):
-    contacts, seq90, groups, iface, dimers = _rebalance_inputs(
+def test_pairs_positives_homomer_only_group_keeps_one(tmp_path):
+    step, contacts, seq90, iface, dimers = _pairs_inputs(
         tmp_path, homomers=True
     )
     out = tmp_path / "positives"
-    _rebalance(contacts, seq90, groups, iface, out)
+    _positives(step, contacts, seq90, iface, out)
 
     positives = _jsonl(out / "positives.jsonl")
     assert [p["kind"] for p in positives] == ["homomer"]
@@ -3309,56 +3387,92 @@ def test_rebalance_homomer_only_group_keeps_one(tmp_path):
     assert len(dropped) == len(dimers) - 1
 
 
-def test_rebalance_chain_missing_from_chain_clusters_exits(tmp_path):
-    contacts, seq90, groups, iface, _ = _rebalance_inputs(tmp_path)
+def test_pairs_positives_chain_missing_from_chain_clusters_exits(tmp_path):
+    step, contacts, seq90, iface, _ = _pairs_inputs(tmp_path)
     clusters = json.loads(seq90.read_text())
     missing = clusters.pop()["components"][0]
     seq90.write_text(json.dumps(clusters))
-    with pytest.raises(SystemExit, match=missing):
-        _rebalance(contacts, seq90, groups, iface, tmp_path / "out")
+    with pytest.raises(SystemExit, match=f"pairs positives: chain {missing}"):
+        _positives(step, contacts, seq90, iface, tmp_path / "out")
 
 
-def test_rebalance_dimer_missing_from_contacts_exits(tmp_path):
-    contacts, seq90, _, iface, dimers = _rebalance_inputs(tmp_path, groups=None)
-    groups = tmp_path / "groups2.json"
-    groups.write_text(
-        json.dumps([{"components": [*dimers, "9ZZZ_A_B"], "n_components": 99}])
-    )
-    with pytest.raises(SystemExit, match="9ZZZ_A_B"):
-        _rebalance(contacts, seq90, groups, iface, tmp_path / "out")
+def test_pairs_positives_needs_structures_tables(tmp_path):
+    step, contacts, seq90, iface, _ = _pairs_inputs(tmp_path)
+    bare = tmp_path / "bare"
+    bare.mkdir()
+    with pytest.raises(
+        SystemExit, match="pairs positives: .* run `pandora structures curate`"
+    ):
+        _positives(bare, contacts, seq90, iface, tmp_path / "out")
 
 
-def test_rebalance_refuses_existing_output(tmp_path):
-    contacts, seq90, groups, iface, _ = _rebalance_inputs(tmp_path)
+def test_pairs_positives_needs_contacts_and_structures_flags(tmp_path):
+    step, contacts, seq90, iface, _ = _pairs_inputs(tmp_path)
+    for missing in ("--contacts", "--structures"):
+        argv = ["pairs", "positives", str(iface), str(tmp_path / "out")]
+        argv += ["--contacts", str(contacts), "--structures", str(step)]
+        argv += ["--chain-clusters", str(seq90), "--min-score", "0.5"]
+        i = argv.index(missing)
+        del argv[i : i + 2]
+        with pytest.raises(SystemExit) as exc:
+            main(argv)
+        assert exc.value.code == 2
+
+
+def test_pairs_positives_rejects_entry_layer(tmp_path):
+    step, contacts, seq90, _, _ = _pairs_inputs(tmp_path)
+    entry = _similarity_layer(tmp_path / "entry", None, "entry")
+    with pytest.raises(SystemExit, match="pairs positives: .* entry layer"):
+        _positives(step, contacts, seq90, entry, tmp_path / "out")
+
+
+def test_pairs_positives_bare_table_needs_similarity_items(tmp_path):
+    step, contacts, seq90, _, _ = _pairs_inputs(tmp_path)
+    row = {"item_id_1": "1A2C_A", "item_id_2": "1A2C_C", "score": 0.9}
+    table = _similarity_layer(tmp_path / "tm", [row], "chain") / "layer.parquet"
+    with pytest.raises(SystemExit, match="--similarity-items"):
+        _positives(step, contacts, seq90, table, tmp_path / "out")
+    out = tmp_path / "out"
+    _positives(step, contacts, seq90, table, out, "--similarity-items", "chain")
+    assert _summary_policy(out)["layers"][0]["items"] == "chain"
+
+
+def test_pairs_positives_rejects_n_hits_rank(tmp_path):
+    step, contacts, seq90, iface, _ = _pairs_inputs(tmp_path)
+    policy = tmp_path / "rank.yaml"
+    policy.write_text("rank:\n  - key: n_hits\n")
+    with pytest.raises(SystemExit, match="pairs positives: rank key 'n_hits'"):
+        _positives(
+            step,
+            contacts,
+            seq90,
+            iface,
+            tmp_path / "out",
+            "--policy",
+            str(policy),
+        )
+
+
+def test_pairs_positives_refuses_existing_output(tmp_path):
+    step, contacts, seq90, iface, _ = _pairs_inputs(tmp_path)
     out = tmp_path / "positives"
-    _rebalance(contacts, seq90, groups, iface, out)
+    _positives(step, contacts, seq90, iface, out)
     with pytest.raises(SystemExit, match="overwrite"):
-        _rebalance(contacts, seq90, groups, iface, out)
-    _rebalance(contacts, seq90, groups, iface, out, "--overwrite")
-    assert (out / "rebalance.json").exists()
-
-
-def test_rebalance_inputs_mismatch_exits(tmp_path):
-    # Each dimer in its own group, but dimers sharing a chain are similar.
-    contacts, seq90, _, iface, dimers = _rebalance_inputs(tmp_path)
-    groups = tmp_path / "split.json"
-    groups.write_text(
-        json.dumps([{"components": [d], "n_components": 1} for d in dimers])
-    )
-    with pytest.raises(SystemExit, match="different groups"):
-        _rebalance(contacts, seq90, groups, iface, tmp_path / "out")
+        _positives(step, contacts, seq90, iface, out)
+    _positives(step, contacts, seq90, iface, out, "--overwrite")
+    assert (out / "summary.json").exists()
 
 
 _OUTSIDE = [f"{n}XXX_A" for n in range(2, 10)]
 
 
 def _negatives_inputs(tmp_path):
-    """A rebalance step folder over 1a2c, representatives (every chain
-    its own, plus eight outside proteins) and an empty TM layer."""
+    """A positives folder over 1a2c, representatives (every chain its
+    own, plus eight outside proteins) and an empty TM layer."""
 
-    contacts, seq90, groups, iface, _ = _rebalance_inputs(tmp_path)
+    step, contacts, seq90, iface, _ = _pairs_inputs(tmp_path)
     positives = tmp_path / "positives"
-    _rebalance(contacts, seq90, groups, iface, positives)
+    _positives(step, contacts, seq90, iface, positives)
     chains = [c for g in json.loads(seq90.read_text()) for c in g["components"]]
     reps = _chain_reps(
         tmp_path / "reps.json",
@@ -3370,25 +3484,26 @@ def _negatives_inputs(tmp_path):
 
 def _negatives(positives, reps, tm, contacts, out, *extra):
     main(
-        ["negatives", "--positives", str(positives)]
+        ["pairs", "negatives", str(positives), str(out)]
         + ["--representatives", str(reps), "--similarity", str(tm)]
         + ["--min-score", "0.5", "--contacts", str(contacts)]
-        + ["--output-dir", str(out), "--table-format", "jsonl", *extra]
+        + ["--table-format", "jsonl", *extra]
     )
 
 
-def test_negatives_writes_pairs_and_summary(tmp_path):
+def test_pairs_negatives_writes_pairs_and_summary(tmp_path):
     positives, reps, tm, contacts = _negatives_inputs(tmp_path)
     out = tmp_path / "negatives"
     _negatives(positives, reps, tm, contacts, out, "--seed", "3")
 
     n_positives = len(_jsonl(positives / "positives.jsonl"))
     pairs = _jsonl(out / "negatives.jsonl")
-    summary = json.loads((out / "negatives.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["step"] == "negatives"
     assert summary["policy"]["seed"] == 3
     assert summary["policy"]["hit_filter"]["min_score"] == 0.5
-    assert summary["previous_summary"] == str(positives / "rebalance.json")
+    assert summary["input"] == str((positives / "positives.jsonl").resolve())
+    assert summary["previous_summary"] == str(positives / "summary.json")
     rows = _jsonl(positives / "positives.jsonl")
     in_positives = {
         f"1A2C_{r[side]}" for r in rows for side in ("chain_id_1", "chain_id_2")
@@ -3405,42 +3520,46 @@ def test_negatives_writes_pairs_and_summary(tmp_path):
     assert len({p["chain_2"] for p in pairs}) == len(pairs)
 
 
-def test_negatives_same_seed_reproduces(tmp_path):
+def test_pairs_negatives_takes_positives_table(tmp_path):
     positives, reps, tm, contacts = _negatives_inputs(tmp_path)
     _negatives(positives, reps, tm, contacts, tmp_path / "n1")
-    _negatives(positives, reps, tm, contacts, tmp_path / "n2")
+    _negatives(
+        positives / "positives.jsonl", reps, tm, contacts, tmp_path / "n2"
+    )
     assert _jsonl(tmp_path / "n1" / "negatives.jsonl") == _jsonl(
         tmp_path / "n2" / "negatives.jsonl"
     )
 
 
-def test_negatives_needs_chain_layer(tmp_path):
+def test_pairs_negatives_needs_chain_layer(tmp_path):
     positives, reps, _, contacts = _negatives_inputs(tmp_path)
     iface = _similarity_layer(tmp_path / "iface2", None, "interface")
-    with pytest.raises(SystemExit, match="chain layer"):
+    with pytest.raises(SystemExit, match="pairs negatives: .*chain layer"):
         _negatives(positives, reps, iface, contacts, tmp_path / "out")
 
 
-def test_negatives_empty_contacts_layer(tmp_path):
+def test_pairs_negatives_empty_contacts_layer(tmp_path):
     positives, reps, tm, _ = _negatives_inputs(tmp_path)
     empty = tmp_path / "no_contacts"
     empty.mkdir()
-    (empty / "layer.json").write_text(
+    (empty / "summary.json").write_text(
         json.dumps({"policy": {"template": "residue_contacts"}})
     )
     out = tmp_path / "negatives"
     _negatives(positives, reps, tm, empty, out)
-    summary = json.loads((out / "negatives.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["counts"]["unpaired"] == 0
 
 
-def test_negatives_needs_rebalance_folder(tmp_path):
+def test_pairs_negatives_needs_positives_table(tmp_path):
     _, reps, tm, contacts = _negatives_inputs(tmp_path)
-    with pytest.raises(SystemExit, match="pandora rebalance"):
-        _negatives(tmp_path, reps, tm, contacts, tmp_path / "out")
+    with pytest.raises(
+        SystemExit, match="pairs negatives: .* has no positives table"
+    ):
+        _negatives(tmp_path / "tm", reps, tm, contacts, tmp_path / "out")
 
 
-def test_negatives_refuses_existing_output(tmp_path):
+def test_pairs_negatives_refuses_existing_output(tmp_path):
     positives, reps, tm, contacts = _negatives_inputs(tmp_path)
     out = tmp_path / "negatives"
     _negatives(positives, reps, tm, contacts, out)
@@ -3448,11 +3567,12 @@ def test_negatives_refuses_existing_output(tmp_path):
         _negatives(positives, reps, tm, contacts, out)
 
 
-def test_rebalance_passes_interface_residues_to_coverage_filter(
+def test_pairs_positives_passes_interface_residues_to_coverage_filter(
     tmp_path, monkeypatch
 ):
-    # A chain layer filtered by min_interface_coverage, as `cluster` takes.
-    contacts, seq90, groups, _, _ = _rebalance_inputs(tmp_path)
+    # A chain layer filtered by min_interface_coverage, as `clusters
+    # build` takes.
+    step, contacts, seq90, _, _ = _pairs_inputs(tmp_path)
     row = {"item_id_1": "1A2C_A", "item_id_2": "1A2C_B", "score": 0.9}
     row |= {"start_1": 1, "end_1": 50, "start_2": 1, "end_2": 50}
     tm = _similarity_layer(tmp_path / "tm", [row], "chain")
@@ -3467,23 +3587,23 @@ def test_rebalance_passes_interface_residues_to_coverage_filter(
     hit_filter.write_text("min_interface_coverage: 0.5\n")
     with pytest.raises(_Captured):
         main(
-            ["rebalance", "--clusters", str(groups)]
-            + ["--contacts", str(contacts), "--chain-clusters", str(seq90)]
-            + ["--similarity", str(tm), "--hit-filter", str(hit_filter)]
-            + ["--output-dir", str(tmp_path / "out")]
+            ["pairs", "positives", str(tm), str(tmp_path / "out")]
+            + ["--contacts", str(contacts), "--structures", str(step)]
+            + ["--chain-clusters", str(seq90), "--hit-filter", str(hit_filter)]
         )
 
     assert captured["residues"]
     assert "1A2C_A" in captured["residues"]
 
 
-def test_rebalance_writes_groups_and_kinds(tmp_path):
-    contacts, seq90, groups, iface, _ = _rebalance_inputs(tmp_path)
+def test_pairs_positives_writes_clusters_json_and_kinds(tmp_path):
+    step, contacts, seq90, iface, _ = _pairs_inputs(tmp_path)
     out = tmp_path / "positives"
-    _rebalance(contacts, seq90, groups, iface, out)
+    _positives(step, contacts, seq90, iface, out)
 
     positives = _jsonl(out / "positives.jsonl")
-    kept = json.loads((out / "groups.json").read_text())
+    kept = json.loads((out / "clusters.json").read_text())
+    assert not (out / "groups.json").exists()
     assert sorted(d for g in kept for d in g["components"]) == sorted(
         p["dimer"] for p in positives
     )
@@ -3493,25 +3613,34 @@ def test_rebalance_writes_groups_and_kinds(tmp_path):
         f"{r['entry_id']}_{r['chain_id_1']}_{r['chain_id_2']}": r["label"]
         for r in kinds
     } == {p["dimer"]: p["kind"] for p in positives}
-    summary = json.loads((out / "kinds" / "layer.json").read_text())
+    summary = json.loads((out / "kinds" / "summary.json").read_text())
     assert summary["policy"]["template"] == "interface_labels"
-    assert summary["previous_summary"] == str(out / "rebalance.json")
+    assert summary["previous_summary"] == str(out / "summary.json")
 
+    # The positives folder is a clusters input as it is.
     main(
-        ["splits", "assign", str(out / "groups.json")]
-        + [str(tmp_path / "split"), "--labels", str(out / "kinds")]
+        ["splits", "assign", str(out), str(tmp_path / "split")]
+        + ["--labels", str(out / "kinds")]
     )
     assert (tmp_path / "split" / "splits.json").exists()
 
 
-def test_rebalance_overwrite_clears_groups_and_kinds(tmp_path):
-    contacts, seq90, groups, iface, _ = _rebalance_inputs(tmp_path)
+def test_pairs_positives_overwrite_clears_clusters_and_kinds(tmp_path):
+    step, contacts, seq90, iface, _ = _pairs_inputs(tmp_path)
     out = tmp_path / "positives"
-    _rebalance(contacts, seq90, groups, iface, out)
+    _positives(step, contacts, seq90, iface, out)
     (out / "kinds" / "stale.txt").write_text("x")
-    _rebalance(contacts, seq90, groups, iface, out, "--overwrite")
+    _positives(step, contacts, seq90, iface, out, "--overwrite")
     assert not (out / "kinds" / "stale.txt").exists()
-    assert (out / "groups.json").exists()
+    assert (out / "clusters.json").exists()
+
+
+def test_old_pairs_commands_are_gone(capsys):
+    for old in ("rebalance", "negatives", "assemble"):
+        with pytest.raises(SystemExit) as exc:
+            main([old, "--help"])
+        assert exc.value.code == 2
+    assert "invalid choice" in capsys.readouterr().err
 
 
 def test_splits_stratify_records_flag(tmp_path):
@@ -3528,30 +3657,29 @@ def test_splits_stratify_records_flag(tmp_path):
 
 def _assemble_inputs(tmp_path):
     """Positives, negatives (seed 0), stratified splits and the inputs
-    `negatives` used."""
+    `pairs negatives` used."""
 
     positives, reps, tm, contacts = _negatives_inputs(tmp_path)
     negatives = tmp_path / "negatives"
     _negatives(positives, reps, tm, contacts, negatives)
     main(
-        ["splits", "assign", str(positives / "groups.json")]
+        ["splits", "assign", str(positives)]
         + [str(tmp_path / "splits"), "--stratify", str(positives / "kinds")]
     )
-    splits = tmp_path / "splits" / "splits.json"
+    splits = tmp_path / "splits"
     return positives, negatives, splits, reps, tm
 
 
 def _assemble(positives, negatives, splits, reps, tm, out, *extra):
     main(
-        ["assemble", "--positives", str(positives)]
+        ["pairs", "assemble", str(positives), str(out)]
         + ["--negatives", str(negatives), "--splits", str(splits)]
         + ["--representatives", str(reps), "--similarity", str(tm)]
-        + ["--min-score", "0.5", "--output-dir", str(out)]
-        + ["--table-format", "jsonl", *extra]
+        + ["--min-score", "0.5", "--table-format", "jsonl", *extra]
     )
 
 
-def test_assemble_writes_pairs_and_summary(tmp_path, capsys):
+def test_pairs_assemble_writes_pairs_and_summary(tmp_path, capsys):
     positives, negatives, splits, reps, tm = _assemble_inputs(tmp_path)
     out = tmp_path / "dataset"
     _assemble(positives, negatives, splits, reps, tm, out)
@@ -3562,13 +3690,19 @@ def test_assemble_writes_pairs_and_summary(tmp_path, capsys):
     assert [r["label"] for r in rows] == [1] * n_pos + [0] * n_neg
     split_of = {
         d: name
-        for name, members in json.loads(splits.read_text()).items()
+        for name, members in json.loads(
+            (splits / "splits.json").read_text()
+        ).items()
         for d in members
     }
     assert all(r["split"] == split_of[r["positive"]] for r in rows)
-    summary = json.loads((out / "assemble.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["step"] == "assemble"
-    assert summary["previous_summary"] == str(negatives / "negatives.json")
+    assert summary["input"] == str((positives / "positives.jsonl").resolve())
+    assert summary["previous_summary"] == str(positives / "summary.json")
+    assert summary["policy"]["splits"] == str(
+        (splits / "splits.json").resolve()
+    )
     counts = summary["counts"]
     assert sum(v for k, v in counts.items() if k.startswith("pairs:")) == len(
         rows
@@ -3576,22 +3710,42 @@ def test_assemble_writes_pairs_and_summary(tmp_path, capsys):
     assert counts["negatives_c_leak_positive"] == 0
     assert counts["negatives_c_leak_negative"] == 0
     assert counts["positives_unpaired"] == n_pos - n_neg
-    assert "assemble: warning" not in capsys.readouterr().err
+    assert "pairs assemble: warning" not in capsys.readouterr().err
     # Every split and label has a count, zero included.
     for split in ("train", "val", "test"):
         for label in (0, 1):
             assert f"pairs:{split}:{label}" in counts
 
 
-def test_assemble_warns_on_other_representatives(tmp_path, capsys):
+def test_pairs_assemble_warns_on_other_representatives(tmp_path, capsys):
     positives, negatives, splits, reps, tm = _assemble_inputs(tmp_path)
     other = tmp_path / "other_reps.json"
     other.write_text(reps.read_text())
     _assemble(positives, negatives, splits, other, tm, tmp_path / "d")
-    assert "assemble: warning" in capsys.readouterr().err
+    assert "pairs assemble: warning" in capsys.readouterr().err
 
 
-def test_assemble_refuses_existing_output(tmp_path):
+def test_pairs_assemble_no_warning_without_negatives_summary(tmp_path, capsys):
+    positives, negatives, splits, reps, tm = _assemble_inputs(tmp_path)
+    (negatives / "summary.json").unlink()
+    other = tmp_path / "other_reps.json"
+    other.write_text(reps.read_text())
+    capsys.readouterr()
+    _assemble(positives, negatives, splits, other, tm, tmp_path / "d")
+    assert "warning" not in capsys.readouterr().err
+    assert (tmp_path / "d" / "pairs.jsonl").exists()
+
+
+def test_pairs_assemble_empty_negatives_folder(tmp_path):
+    positives, negatives, splits, reps, tm = _assemble_inputs(tmp_path)
+    (negatives / "negatives.jsonl").unlink()  # no negatives drawn
+    out = tmp_path / "dataset"
+    _assemble(positives, negatives, splits, reps, tm, out)
+    rows = _jsonl(out / "pairs.jsonl")
+    assert {r["label"] for r in rows} == {1}
+
+
+def test_pairs_assemble_refuses_existing_output(tmp_path):
     positives, negatives, splits, reps, tm = _assemble_inputs(tmp_path)
     out = tmp_path / "dataset"
     _assemble(positives, negatives, splits, reps, tm, out)
@@ -3599,12 +3753,12 @@ def test_assemble_refuses_existing_output(tmp_path):
         _assemble(positives, negatives, splits, reps, tm, out)
 
 
-def test_assemble_same_file_other_spelling_no_warning(tmp_path, capsys):
+def test_pairs_assemble_same_file_other_spelling_no_warning(tmp_path, capsys):
     positives, negatives, splits, reps, tm = _assemble_inputs(tmp_path)
     (tmp_path / "sub").mkdir()
     spelled = tmp_path / "sub" / ".." / reps.name
     _assemble(positives, negatives, splits, spelled, tm, tmp_path / "d")
-    assert "assemble: warning" not in capsys.readouterr().err
+    assert "pairs assemble: warning" not in capsys.readouterr().err
 
 
 def _run_size_guard(tmp_path, limit=None, extra_files=()):

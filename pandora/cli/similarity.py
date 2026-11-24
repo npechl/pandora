@@ -436,23 +436,6 @@ def _cmd_import(args: argparse.Namespace) -> None:
     )
 
 
-def _similarity_level(folder: Path) -> SimilarityItems:
-    """The item level of a similarity layer folder."""
-
-    summary = read_summary(folder)
-    if summary is None:
-        raise SystemExit(
-            f"cluster: {folder} is not a layer folder (no summary)"
-        )
-    policy = summary.get("policy") or {}
-    if policy.get("template") != "similarity":
-        raise SystemExit(
-            f"cluster: {folder} is a {policy.get('template')} layer, "
-            "--similarity needs a similarity layer"
-        )
-    return policy["items"]
-
-
 def _cmd_interface_overlap(args: argparse.Namespace) -> None:
     """Handle `similarity interface-overlap`: score pairs of a contact
     layer's interfaces by per-side Jaccard, as a similarity layer
