@@ -1972,6 +1972,44 @@ def test_annotations_filter_warns_when_inputs_differ(tmp_path, capsys):
     assert (out / "summary.json").exists()
 
 
+def test_annotations_filter_derived_labels_do_not_warn(tmp_path, capsys):
+    _, contacts = _label_inputs(tmp_path)
+    labels = tmp_path / "labels"
+    _interface_contacts(contacts, labels, "--min-residues-per-chain", "1")
+    capsys.readouterr()
+    _filter(contacts, labels, tmp_path / "out", "--drop", "few_contacts")
+    assert "different inputs" not in capsys.readouterr().err
+
+
+def test_annotations_filter_skips_check_without_recorded_input(
+    tmp_path, capsys
+):
+    other = tmp_path / "other"
+    shutil.copytree(FIXTURES_DIR / "a2", other / "structures" / "a2")
+    _, contacts, labels = _filter_inputs(tmp_path, labels_step=other)
+    summary = json.loads((labels / "summary.json").read_text())
+    del summary["input"]
+    (labels / "summary.json").write_text(json.dumps(summary))
+    capsys.readouterr()
+    _filter(contacts, labels, tmp_path / "out", "--drop", "bad")
+    assert "different inputs" not in capsys.readouterr().err
+
+
+def test_annotations_filter_warns_on_labels_of_other_structures(
+    tmp_path, capsys
+):
+    _, contacts = _label_inputs(tmp_path)
+    other = tmp_path / "other"
+    shutil.copytree(FIXTURES_DIR / "a2", other / "structures" / "a2")
+    other_contacts = tmp_path / "other_contacts"
+    _compute(other, other_contacts)
+    labels = tmp_path / "labels"
+    _interface_contacts(other_contacts, labels, "--min-residues-per-chain", "1")
+    capsys.readouterr()
+    _filter(contacts, labels, tmp_path / "out", "--drop", "few_contacts")
+    assert "different inputs" in capsys.readouterr().err
+
+
 def test_annotations_filter_empty_contacts(tmp_path):
     step, _, labels = _filter_inputs(tmp_path)
     empty = tmp_path / "empty"
@@ -2001,23 +2039,26 @@ def test_annotations_filter_empty_contacts(tmp_path):
     }
 
 
-def test_annotations_filter_works_from_another_cwd(tmp_path, monkeypatch):
+def test_annotations_filter_works_from_another_cwd(
+    tmp_path, monkeypatch, capsys
+):
     monkeypatch.chdir(tmp_path)
     step = _step_folder(Path("."))
-    (step / "curation.json").write_text("{}")
     contacts = Path("annotations") / "interfaces"
     _compute(step, contacts)
-    labels = Path("annotations") / "verdict"
-    _import_labels(Path("."), step, _verdicts(_contact_pairs(contacts)), labels)
-    _filter(contacts, labels, Path("first"), "--drop", "bad")
+    labels = Path("annotations") / "few"
+    _interface_contacts(contacts, labels, "--min-residues-per-chain", "1")
+    _filter(contacts, labels, Path("first"), "--drop", "few_contacts")
 
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
     out = tmp_path / "second"
-    # the recorded relative paths no longer resolve; nothing may depend
-    # on them.
-    _filter(tmp_path / "first", tmp_path / labels, out, "--drop", "bad")
+    capsys.readouterr()
+    _filter(
+        tmp_path / "first", tmp_path / labels, out, "--drop", "few_contacts"
+    )
+    assert "different inputs" not in capsys.readouterr().err
     assert (out / "summary.json").exists()
     assert (out / "layer.jsonl").read_text() == (
         tmp_path / "first" / "layer.jsonl"

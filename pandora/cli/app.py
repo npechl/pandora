@@ -4,19 +4,15 @@ library area (see `pandora/cli/README.md` for the I/O convention)."""
 from __future__ import annotations
 
 import argparse
-import importlib
 
 from pandora import __version__
 from pandora.cli import (
+    annotations,
     entries,
     sampling,
     similarity,
     structures,
 )
-
-# `from pandora.cli import annotations` gives `__future__`'s feature, which
-# `pandora/cli/__init__.py` imports under that name.
-annotations_group = importlib.import_module("pandora.cli.annotations")
 
 # Order of the subcommands in `pandora --help`.
 _MODULES = (
@@ -24,7 +20,7 @@ _MODULES = (
     structures,
     similarity,
     sampling,
-    annotations_group,
+    annotations,
 )
 
 

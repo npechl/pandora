@@ -97,7 +97,7 @@ def _write_layer_summary(
         build_step_summary(
             step,
             description,
-            input=source,
+            input=source.resolve(),
             output=out,
             started_at=started_at,
             counts=dict(sorted(counts.items())),
@@ -461,7 +461,10 @@ def _source_of(
     seen: set[int] = set()
     while summary.get("input") is not None and id(summary) not in seen:
         seen.add(id(summary))
-        recorded = Path(summary["input"]).resolve()
+        recorded = Path(summary["input"])
+        if not recorded.is_absolute() and not recorded.exists():
+            return None  # relative to where an older step ran
+        recorded = recorded.resolve()
         if recorded not in by_folder:
             return recorded
         summary = by_folder[recorded]
