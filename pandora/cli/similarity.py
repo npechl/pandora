@@ -16,20 +16,20 @@ from pandora.cli._io import (
     SUMMARY,
     ParquetSink,
     add_out,
-    check_contact_layer,
     check_out,
     contact_rows,
+    contact_table,
     copy_source,
-    find_table,
+    error_message,
     input_summary,
+    layer_name,
     load_json_list,
+    load_yaml_model,
     prepare_output_dir,
     read_columns,
     read_structures_dir,
-    read_summary,
     require_tables,
     resolve_file,
-    resolve_table,
     write_summary,
 )
 from pandora.export import (
@@ -37,7 +37,6 @@ from pandora.export import (
     read_records,
     write_records,
 )
-from pandora.ingestion import load_policy
 from pandora.provenance import build_step_summary
 from pandora.schemas.annotation import (
     LayerDescription,
@@ -91,27 +90,6 @@ def _require_pyarrow(command: str) -> None:
         ) from exc
 
 
-def _step_table(command: str, folder: Path, name: str, writer: str) -> Path:
-    """`folder`'s `<name>.<fmt>` table, or exit naming the step that
-    writes it."""
-
-    path = find_table(folder, name)
-    if path is None:
-        raise SystemExit(
-            f"{command}: {folder} has no {name} table; it is written by "
-            f"`{writer}`"
-        )
-    return path
-
-
-def _contact_layer(command: str, folder: Path) -> Path | None:
-    """The rows file of a `residue_contacts` layer folder; None if the
-    layer has no rows table."""
-
-    check_contact_layer(command, folder)
-    return find_table(folder, "layer")
-
-
 _CONTACT_COLUMNS = (
     "entry_id",
     "chain_id_1",
@@ -135,9 +113,9 @@ def _item_set(
         if contacts is None:
             raise SystemExit(
                 f"{command}: interface items come from --contacts "
-                "(a residue_contacts layer folder)"
+                "(a residue_contacts layer folder or table)"
             )
-        rows_file = _contact_layer(command, contacts)
+        rows_file = contact_table(command, contacts)
         rows = (
             read_columns(rows_file, _CONTACT_COLUMNS)
             if rows_file is not None
@@ -237,7 +215,7 @@ def _chains_arg(command: str, path: Path) -> list[str]:
 
     if path.is_dir() or path.suffix == ".json":
         file = resolve_file(command, path, "representatives.json")
-        clusters = load_json_list(RepresentativeCluster, file)
+        clusters = load_json_list(command, RepresentativeCluster, file)
         return [cluster.representative for cluster in clusters]
     if not path.is_file():
         raise SystemExit(f"{command}: {path} does not exist")
@@ -257,9 +235,14 @@ def _search(args: argparse.Namespace, command: str, engine: str) -> None:
             "drop --chain-files"
         )
     structures, out = Path(args.structures), Path(args.out)
+    check_out(
+        command,
+        out,
+        structures,
+        *(Path(p) for p in (args.chains, chain_files) if p is not None),
+    )
     require_tables(command, structures)
     items, previous = _item_set(command, "chain", structures, None)
-    check_out(command, structures, out)
     chains: set[str] | None = None
     if args.chains is not None:
         known = set(items.ids.values())
@@ -329,7 +312,7 @@ def _chain_files(
     """Write one mmCIF per non-copy chain of the step folder (or only
     `chains`) into `out`; returns item id -> file."""
 
-    table = _step_table(command, structures_dir, "chains", "pandora curate")
+    table = require_tables(command, structures_dir)[1]
     wanted = {
         item_id("chain", r["entry_id"], r["chain_id"]): r
         for r in read_columns(table, ("entry_id", "chain_id", "copy_of"))
@@ -358,7 +341,7 @@ def _chain_sequences(command: str, structures_dir: Path) -> dict[str, str]:
     """Item ID -> sequence for the step folder's chains, without
     symmetry copies (they would crowd out real homologues)."""
 
-    table = _step_table(command, structures_dir, "chains", "pandora curate")
+    table = require_tables(command, structures_dir)[1]
     columns = ("entry_id", "chain_id", "sequence", "copy_of")
     return {
         item_id("chain", r["entry_id"], r["chain_id"]): r["sequence"]
@@ -367,13 +350,11 @@ def _chain_sequences(command: str, structures_dir: Path) -> dict[str, str]:
     }
 
 
-def _import_error(table: Path, exc: Exception) -> str:
-    """The import's error message, naming `table` once."""
+def _import_error(command: str, table: Path, exc: Exception) -> SystemExit:
+    """The import's one-line exit, naming `table` once."""
 
-    message = str(exc)
-    if message.startswith(str(table)):
-        return f"cannot import {message}"
-    return f"cannot import {table}: {message}"
+    message = error_message(exc).removeprefix(f"{table}: ")
+    return SystemExit(f"{command}: cannot import {table}: {message}")
 
 
 def _cmd_import(args: argparse.Namespace) -> None:
@@ -383,9 +364,14 @@ def _cmd_import(args: argparse.Namespace) -> None:
     command = "similarity import"
     started_at = now_iso()
     _require_pyarrow(command)
-    table = Path(args.table)
+    table, out = Path(args.table), Path(args.out)
+    structures = Path(args.structures) if args.structures else None
+    contacts = Path(args.contacts) if args.contacts else None
+    check_out(command, out, table, structures, contacts)
+    description = load_yaml_model(
+        command, LayerDescription, Path(args.description)
+    )
     try:
-        description = load_policy(args.description, model=LayerDescription)
         if description.template != "similarity":
             raise ValueError(
                 f"template is {description.template!r}; `similarity "
@@ -395,11 +381,9 @@ def _cmd_import(args: argparse.Namespace) -> None:
         first = next(batches, None)
         if first is not None:
             check_similarity_columns(first.schema.names)
-    except (ValueError, FileNotFoundError) as exc:
-        raise SystemExit(_import_error(table, exc)) from exc
+    except (OSError, ValueError) as exc:
+        raise _import_error(command, table, exc) from exc
 
-    structures = Path(args.structures) if args.structures else None
-    contacts = Path(args.contacts) if args.contacts else None
     if description.items != "interface" and structures is None:
         raise SystemExit(
             f"{command}: {description.items} items need --structures"
@@ -409,10 +393,6 @@ def _cmd_import(args: argparse.Namespace) -> None:
     items, previous = _item_set(
         command, description.items, structures, contacts
     )
-    out = Path(args.out)
-    for source in (structures, contacts):
-        if source is not None:
-            check_out(command, source, out)
     prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
     if args.source_files:
         copy_source(Path(args.source_files), out / "source")
@@ -420,7 +400,7 @@ def _cmd_import(args: argparse.Namespace) -> None:
     try:
         counts = _write_layer(rest, items, out)
     except ValueError as exc:
-        raise SystemExit(_import_error(table, exc)) from exc
+        raise _import_error(command, table, exc) from exc
     _write_summary(
         "similarity_import",
         description,
@@ -445,13 +425,9 @@ def _cmd_interface_overlap(args: argparse.Namespace) -> None:
     started_at = now_iso()
     _require_pyarrow(command)
     contacts, out = Path(args.contacts), Path(args.out)
-    if contacts.is_dir():
-        check_contact_layer(command, contacts)
-        table = find_table(contacts, "layer")
-    else:
-        table = resolve_table(command, contacts, "layer")
-    check_out(command, contacts, out)
     structures = Path(args.structures)
+    check_out(command, out, contacts, structures, Path(args.chain_clusters))
+    table = contact_table(command, contacts)
     _, chains_table = require_tables(command, structures)
     sequences = {
         (chain.entry_id.upper(), chain.chain_id): chain.sequence
@@ -461,7 +437,7 @@ def _cmd_interface_overlap(args: argparse.Namespace) -> None:
     clusters_file = resolve_file(
         command, Path(args.chain_clusters), "clusters.json"
     )
-    clusters = load_json_list(SimilarityCluster, clusters_file)
+    clusters = load_json_list(command, SimilarityCluster, clusters_file)
     try:
         for cluster in clusters:
             for component in cluster.components:
@@ -479,7 +455,6 @@ def _cmd_interface_overlap(args: argparse.Namespace) -> None:
     prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
     if scored:
         write_records(scored, out / "layer.parquet")
-    source = ((read_summary(contacts) or {}).get("policy")) or {}
     description = LayerDescription(
         name="iface_jaccard",
         template="similarity",
@@ -487,7 +462,7 @@ def _cmd_interface_overlap(args: argparse.Namespace) -> None:
         tool="pandora",
         tool_version=__version__,
         parameters={
-            "contacts_layer": source.get("name"),
+            "contacts_layer": layer_name(contacts),
             "structures": str(structures.resolve()),
             "chain_clusters": str(clusters_file.resolve()),
             "min_identity": args.min_identity,
@@ -655,7 +630,8 @@ def register(subparsers: argparse._SubParsersAction) -> None:
         help="structures folder with tables, for entry or chain items",
     )
     p.add_argument(
-        "--contacts", help="contact layer folder, for interface items"
+        "--contacts",
+        help="residue_contacts layer folder or table, for interface items",
     )
     p.add_argument(
         "--source-files",

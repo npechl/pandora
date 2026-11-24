@@ -5,7 +5,6 @@ them, and write the final pairs table (PPI v2.1 Steps 7 and 8)."""
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from collections import Counter
 from pathlib import Path
@@ -19,11 +18,12 @@ from pandora.cli._io import (
     SimilarityInput,
     add_out,
     add_similarity_inputs,
-    check_contact_layer,
     check_out,
     check_table_format,
+    contact_table,
     input_summary,
     layer_edges,
+    load_json,
     load_json_list,
     prepare_output_dir,
     read_columns,
@@ -45,7 +45,6 @@ from pandora.cli.clusters import (
 )
 from pandora.cli.similarity import (
     _CONTACT_COLUMNS,
-    _contact_layer,
     _item_set,
     _require_pyarrow,
 )
@@ -103,7 +102,9 @@ def _homomers(command: str, path: Path, dimers: list[str]) -> set[str]:
 
     cluster_of = {
         member: index
-        for index, cluster in enumerate(load_json_list(SimilarityCluster, path))
+        for index, cluster in enumerate(
+            load_json_list(command, SimilarityCluster, path)
+        )
         for member in cluster.components
     }
     missing = next(
@@ -169,17 +170,23 @@ def _cmd_positives(args: argparse.Namespace) -> None:
 
     command = "pairs positives"
     started_at = now_iso()
-    check_table_format(args.table_format)
+    out, structures = Path(args.out), Path(args.structures)
+    contacts = Path(args.contacts)
+    reps = args.chain_representatives
+    check_out(
+        command,
+        out,
+        *(Path(p) for p in args.similarity),
+        contacts,
+        structures,
+        Path(args.chain_clusters),
+        Path(reps) if reps else None,
+    )
+    check_table_format(command, args.table_format)
     _require_pyarrow(command)
     inputs = similarity_inputs(command, args)
     policy = _positives_policy(command, args)
-    out = Path(args.out)
-    for source in inputs:
-        check_out(command, source.path, out)
-    structures = Path(args.structures)
     _, chains_table = require_tables(command, structures)
-    contacts = Path(args.contacts)
-    check_contact_layer(command, contacts)
     items, _ = _item_set(command, "interface", None, contacts)
     dimers = sorted(set(items.ids.values()))
     values, _ = _interface_values(command, contacts, chains_table)
@@ -346,7 +353,7 @@ def _representatives(command: str, path: str) -> tuple[dict[str, str], Path]:
     the file."""
 
     file = resolve_file(command, Path(path), "representatives.json")
-    clusters = load_json_list(RepresentativeCluster, file)
+    clusters = load_json_list(command, RepresentativeCluster, file)
     return member_representatives(clusters), file
 
 
@@ -356,7 +363,7 @@ _NEGATIVES_OUTPUTS = [f"negatives.{fmt}" for fmt in TABLE_FORMATS] + [SUMMARY]
 def _binding_pairs(command: str, contacts: Path) -> list[tuple[str, str]]:
     """The chain item pairs in contact in a residue_contacts layer."""
 
-    rows_file = _contact_layer(command, contacts)
+    rows_file = contact_table(command, contacts)
     if rows_file is None:
         return []
     return sorted(
@@ -376,15 +383,22 @@ def _cmd_negatives(args: argparse.Namespace) -> None:
 
     command = "pairs negatives"
     started_at = now_iso()
-    check_table_format(args.table_format)
+    out, contacts = Path(args.out), Path(args.contacts)
+    check_out(
+        command,
+        out,
+        Path(args.positives),
+        Path(args.representatives),
+        contacts,
+        *(Path(p) for p in args.similarity or []),
+    )
+    check_table_format(command, args.table_format)
     source = _one_chain_input(
         command, args, "structure similarity, e.g. Foldseek"
     )
     positives, pos_path, pos_folder = _step_rows(
         command, Path(args.positives), "positives", "rebalance", PositiveDimer
     )
-    out = Path(args.out)
-    check_out(command, pos_folder, out)
     representative_of, reps_file = _representatives(
         command, args.representatives
     )
@@ -399,7 +413,6 @@ def _cmd_negatives(args: argparse.Namespace) -> None:
             command,
         )
     )
-    contacts = Path(args.contacts)
     binding = _binding_pairs(command, contacts)
     try:
         negatives, unpaired = sample_negatives(
@@ -457,6 +470,13 @@ def _same_path(recorded: str | None, given: Path) -> bool:
     return recorded is not None and Path(recorded).resolve() == given.resolve()
 
 
+def _layer_file(path: Path) -> Path:
+    """A similarity input as its table: a folder's `layer.parquet`, or
+    the bare table itself."""
+
+    return path / "layer.parquet" if path.is_dir() else path
+
+
 def _warn_other_inputs(
     command: str, folder: Path, reps_file: Path, similarity: Path
 ) -> None:
@@ -468,8 +488,9 @@ def _warn_other_inputs(
     if summary is None or summary.get("step") != "negatives":
         return
     used = summary.get("policy") or {}
+    recorded = used.get("similarity_layer")
     if not _same_path(used.get("representatives"), reps_file) or not _same_path(
-        used.get("similarity_layer"), similarity
+        recorded and str(_layer_file(Path(recorded))), _layer_file(similarity)
     ):
         print(
             f"{command}: warning: --representatives or --similarity differs "
@@ -485,13 +506,26 @@ def _cmd_assemble(args: argparse.Namespace) -> None:
 
     command = "pairs assemble"
     started_at = now_iso()
-    check_table_format(args.table_format)
+    out = Path(args.out)
+    check_out(
+        command,
+        out,
+        *(
+            Path(p)
+            for p in (
+                args.positives,
+                args.negatives,
+                args.splits,
+                args.representatives,
+                *(args.similarity or []),
+            )
+        ),
+    )
+    check_table_format(command, args.table_format)
     source = _one_chain_input(command, args, "the one `pairs negatives` used")
     positives, pos_path, pos_folder = _step_rows(
         command, Path(args.positives), "positives", "rebalance", PositiveDimer
     )
-    out = Path(args.out)
-    check_out(command, pos_folder, out)
     negatives, neg_path, neg_folder = _step_rows(
         command, Path(args.negatives), "negatives", "negatives", NegativePair
     )
@@ -500,7 +534,7 @@ def _cmd_assemble(args: argparse.Namespace) -> None:
     )
     _warn_other_inputs(command, neg_folder, reps_file, source.path)
     splits_file = resolve_file(command, Path(args.splits), "splits.json")
-    splits = json.loads(splits_file.read_text())
+    splits = load_json(command, splits_file)
     counts: Counter[int] = Counter()
     tm_edges = list(
         layer_edges(
@@ -584,7 +618,8 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument(
         "--contacts",
         required=True,
-        help="residue_contacts layer folder: its interfaces are the dimers",
+        help="residue_contacts layer folder or table: its interfaces are "
+        "the dimers",
     )
     p.add_argument(
         "--structures",
@@ -629,7 +664,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument(
         "--contacts",
         required=True,
-        help="the 'any contact' residue_contacts layer folder",
+        help="the 'any contact' residue_contacts layer folder or table",
     )
     p.add_argument(
         "--seed",

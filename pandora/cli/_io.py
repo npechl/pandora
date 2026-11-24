@@ -13,13 +13,14 @@ from array import array
 from collections import Counter
 from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Any, NamedTuple, get_args
+from typing import Any, NamedTuple, TypeVar, get_args
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
-from pandora.export import structure_to_mmcif, write_json, write_records
-from pandora.ingestion import list_mirror_files, mirror_path, read_entry_paths
+from pandora.annotations import check_layer_columns
+from pandora.export import write_json, write_records
+from pandora.ingestion import list_mirror_files, read_entry_paths
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.annotation import (
     ResidueContactRow,
@@ -31,6 +32,8 @@ from pandora.schemas.structure import Structure
 from pandora.similarity.hits import read_similarity_table, similarity_edges
 
 TABLE_FORMATS = ("parquet", "jsonl")
+
+_M = TypeVar("_M", bound=BaseModel)
 
 # Errors that fail one entry; the run records them and carries on.
 ENTRY_ERRORS = (ValueError, OSError, RuntimeError, KeyError, IndexError)
@@ -264,10 +267,10 @@ def _similarity_source(
 
 
 def per_layer(
-    flag: str, values: list[Any] | None, n: int, command: str = "cluster"
+    flag: str, values: list[Any] | None, n: int, command: str
 ) -> list[Any]:
-    """`values` of a repeatable flag, one per --similarity layer: absent,
-    given once for all layers, or once per layer in order."""
+    """`values` of a repeatable flag, one per similarity input: absent,
+    given once for all inputs, or once per input in order."""
 
     if not values:
         return [None] * n
@@ -275,15 +278,13 @@ def per_layer(
         return values * n
     if len(values) != n:
         raise SystemExit(
-            f"{command}: give {flag} once (for every layer) or once per "
-            f"--similarity layer ({n}), not {len(values)} times"
+            f"{command}: give {flag} once (for every similarity input) or "
+            f"once per similarity input ({n}), not {len(values)} times"
         )
     return values
 
 
-def hit_filters(
-    args: Namespace, n: int, command: str = "cluster"
-) -> list[HitFilter]:
+def hit_filters(args: Namespace, n: int, command: str) -> list[HitFilter]:
     """One HitFilter per layer, from --hit-filter with --min-score /
     --min-coverage overriding it; exits if a layer has no threshold."""
 
@@ -304,7 +305,9 @@ def hit_filters(
                 "becomes an edge"
             )
         hit_filter = (
-            load_yaml_model(HitFilter, Path(path)) if path else HitFilter()
+            load_yaml_model(command, HitFilter, Path(path))
+            if path
+            else HitFilter()
         )
         overrides = {
             field: value
@@ -324,7 +327,7 @@ def layer_edges(
     interface_residues: dict[str, set[int]] | None,
     counts: Counter[int],
     index: int,
-    command: str = "cluster",
+    command: str,
 ) -> Iterator[Any]:
     """The edges of one layer (a folder's `layer.parquet`, or a bare
     table), counted into `counts[index]`; exits naming the layer on a
@@ -345,7 +348,7 @@ def layer_edges(
         raise SystemExit(f"{command}: {layer}: {exc}") from exc
 
 
-def check_table_format(table_format: str) -> None:
+def check_table_format(command: str, table_format: str) -> None:
     """Exit early if Parquet tables are asked for without pandas/pyarrow."""
 
     if table_format != "parquet":
@@ -355,8 +358,8 @@ def check_table_format(table_format: str) -> None:
         import pyarrow  # noqa: F401
     except ImportError as exc:
         raise SystemExit(
-            "Parquet tables need pandas and pyarrow (the `export` extra); "
-            "install it or pass --table-format jsonl"
+            f"{command}: Parquet tables need pandas and pyarrow (the "
+            "`export` extra); install it or pass --table-format jsonl"
         ) from exc
 
 
@@ -380,26 +383,42 @@ def structure_inputs(
     command: str, path: Path
 ) -> tuple[list[Path], Path | None]:
     """The mmCIF files `path` names (a structures folder, a flat or mirror
-    folder, an `entries.txt` list or one file) and the summary to record
-    as `previous_summary`; exits if `path` does not exist."""
+    folder, a folder holding an `entries.txt`, an `entries.txt` list or
+    one file) and the summary to record as `previous_summary`; exits if
+    `path` does not exist or is a folder with no files."""
 
     if not path.exists():
         raise SystemExit(f"{command}: {path} does not exist")
     if path.is_dir():
-        return structure_files(path), input_summary(path)
+        listed = path / "entries.txt"
+        if not (path / "structures").is_dir() and listed.is_file():
+            files = read_entry_paths(listed)
+        else:
+            files = structure_files(path)
+        if not files:
+            raise SystemExit(
+                f"{command}: {path} holds no .cif/.cif.gz files or entries.txt"
+            )
+        return files, input_summary(path)
     if path.suffix == ".txt":
         return read_entry_paths(path), input_summary(path.parent)
     return [path], None
 
 
-def check_out(command: str, source: Path, out: Path) -> None:
-    """Exit if `out` is the folder the input `source` lives in."""
+def check_out(command: str, out: Path, *inputs: Path | None) -> None:
+    """Exit if `out` is an input folder: a folder input itself, or the
+    folder a file input lives in. None inputs are skipped."""
 
-    folder = source if source.is_dir() else source.parent
-    if folder.resolve() == out.resolve():
-        raise SystemExit(
-            f"{command}: {out} is the input folder; choose another OUT"
-        )
+    target = out.resolve()
+    for source in inputs:
+        if source is None:
+            continue
+        folder = source if source.is_dir() else source.parent
+        if folder.resolve() == target:
+            raise SystemExit(
+                f"{command}: {out} is an input folder ({source}); choose "
+                "another OUT"
+            )
 
 
 def find_table(folder: Path, name: str) -> Path | None:
@@ -412,18 +431,66 @@ def find_table(folder: Path, name: str) -> Path | None:
     return None
 
 
-def check_contact_layer(command: str, folder: Path) -> None:
-    """Exit unless `folder` is a `residue_contacts` layer folder."""
+def _layer_table(
+    command: str, path: Path, templates: tuple[str, ...]
+) -> tuple[Path | None, str]:
+    """The table and template of a layer given as a folder or a bare
+    `.parquet`/`.jsonl` table; exits unless it is one of `templates`.
 
-    summary = read_summary(folder)
-    if summary is None:
-        raise SystemExit(f"{command}: {folder} is not a layer folder")
-    template = (summary.get("policy") or {}).get("template")
-    if template != "residue_contacts":
+    A folder with `summary.json` gives its template (and None as the
+    table when it holds no rows); a bare table, or a folder's table
+    without a summary, is checked by its columns. A bare table is
+    `templates[0]` when it has `chain_id_1`, else `templates[-1]`.
+    """
+
+    summary = read_summary(path) if path.is_dir() else None
+    if summary is not None:
+        template = (summary.get("policy") or {}).get("template")
+        if template not in templates:
+            raise SystemExit(
+                f"{command}: {path} is a {template} layer; this input "
+                f"needs {' or '.join(templates)}"
+            )
+        return find_table(path, "layer"), template
+    table = find_table(path, "layer") if path.is_dir() else path
+    if table is None or not table.is_file() or table.suffix not in _LAYER:
         raise SystemExit(
-            f"{command}: {folder} is a {template} layer, --contacts needs "
-            "residue_contacts"
+            f"{command}: {path} is not a layer folder or a .parquet/.jsonl "
+            "table"
         )
+    try:
+        columns = table_columns(table)
+        template = templates[0] if "chain_id_1" in columns else templates[-1]
+        if columns:  # an empty table has no columns to check
+            check_layer_columns(columns, template)
+    except (OSError, ValueError) as exc:
+        raise input_error(command, table, exc) from exc
+    return table, template
+
+
+_LAYER = (".parquet", ".jsonl")
+
+
+def contact_table(command: str, path: Path) -> Path | None:
+    """The rows table of a `residue_contacts` layer (folder or bare
+    table); None for a layer folder with no rows. Exits on another
+    template or a table without the contact columns."""
+
+    return _layer_table(command, path, ("residue_contacts",))[0]
+
+
+def labels_table(command: str, path: Path) -> tuple[Path | None, str]:
+    """The rows table (None: no rows) and template of a `chain_labels` or
+    `interface_labels` layer, given as a folder or a bare table."""
+
+    return _layer_table(command, path, ("interface_labels", "chain_labels"))
+
+
+def layer_name(path: Path) -> str | None:
+    """The name a layer folder's summary records; None for a bare table
+    or a folder without one."""
+
+    return ((read_summary(path) or {}).get("policy") or {}).get("name")
 
 
 def read_columns(
@@ -765,16 +832,6 @@ class TableWriter:
 _NUMBERS = {"int", "float"}
 
 
-def write_structures_dir(
-    structures: dict[str, Structure], output_dir: Path
-) -> None:
-    """Write each structure to `<mid>/<entry_id>.cif` (lowercase) in
-    output_dir, the PDB mirror layout."""
-
-    for entry_id, structure in structures.items():
-        structure_to_mmcif(structure, mirror_path(output_dir, entry_id.lower()))
-
-
 def write_json_list(records: Sequence[BaseModel], path: Path) -> None:
     """Write `records` as a JSON array to `path`, `[]` when there are
     none (a small sample can leave a step with nothing to write)."""
@@ -786,16 +843,56 @@ def write_json_list(records: Sequence[BaseModel], path: Path) -> None:
         path.write_text("[]", encoding="utf-8")
 
 
-def load_json_list(model_cls: type[BaseModel], path: Path) -> list:
-    """Load and validate a JSON array as a list of model instances."""
+def error_message(exc: Exception) -> str:
+    """`exc` as one line: a validation error's fields and messages, an
+    OS error's reason, else its text with whitespace collapsed."""
 
-    data = json.loads(path.read_text())
-    return [model_cls.model_validate(item) for item in data]
+    if isinstance(exc, ValidationError):
+        return "; ".join(
+            f"{'.'.join(map(str, error['loc'])) or 'value'}: {error['msg']}"
+            for error in exc.errors()
+        )
+    if isinstance(exc, OSError) and exc.strerror:
+        return exc.strerror
+    return " ".join(str(exc).split())
 
 
-def load_yaml_model(model_cls: type[BaseModel], path: Path) -> BaseModel:
-    """Load and validate a single model instance from a YAML file."""
+def input_error(command: str, path: Path, exc: Exception) -> SystemExit:
+    """The one-line exit for an input file that can't be read or is
+    invalid."""
 
-    with path.open() as stream:
-        data = yaml.safe_load(stream)
-    return model_cls.model_validate(data)
+    return SystemExit(f"{command}: {path}: {error_message(exc)}")
+
+
+def load_json(command: str, path: Path) -> Any:
+    """Parse a JSON file; exits with one line if it can't be read."""
+
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError) as exc:
+        raise input_error(command, path, exc) from exc
+
+
+def load_json_list(command: str, model_cls: type[_M], path: Path) -> list[_M]:
+    """Load and validate a JSON array as a list of model instances;
+    exits with one line on a bad file."""
+
+    data = load_json(command, path)
+    try:
+        if not isinstance(data, list):
+            raise ValueError("expected a JSON array")
+        return [model_cls.model_validate(item) for item in data]
+    except ValueError as exc:
+        raise input_error(command, path, exc) from exc
+
+
+def load_yaml_model(command: str, model_cls: type[_M], path: Path) -> _M:
+    """Load and validate a single model instance from a YAML file; exits
+    with one line on a missing, malformed or invalid file."""
+
+    try:
+        with path.open() as stream:
+            data = yaml.safe_load(stream)
+        return model_cls.model_validate(data)
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        raise input_error(command, path, exc) from exc

@@ -21,13 +21,11 @@ from pandora.cli._io import (
     read_rows,
     read_structures_dir,
     rows_by_entry,
-    write_structures_dir,
 )
 from pandora.cli.app import _build_parser, main
 from pandora.datasets import extract_interface_records
 from pandora.export import read_records
 from pandora.ingestion import read_entry_paths
-from pandora.parsing import mmcif_to_structure
 from pandora.schemas.annotation import LayerRow, ResidueContactRow
 from pandora.schemas.provenance import CanonicalisationEntryRecord
 from pandora.schemas.similarity import SimilarityCluster
@@ -208,7 +206,7 @@ def test_structures_refuse_out_that_is_the_input_folder(tmp_path, command):
     policy = tmp_path / "p.yaml"
     policy.write_text("policy_id: p\npolicy_name: p\npolicy_version: '1'\n")
     for source in (scan / "entries.txt", scan):
-        with pytest.raises(SystemExit, match="is the input folder"):
+        with pytest.raises(SystemExit, match="is an input folder"):
             main(
                 ["structures", command, str(source), str(scan)]
                 + ["--policy", str(policy), "--overwrite"]
@@ -594,12 +592,6 @@ def test_table_writer_writes_no_file_without_rows_or_on_error(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
-def test_write_structures_dir_uses_mirror_layout(tmp_path):
-    structure, _, _ = mmcif_to_structure(str(FIXTURES_DIR / "04" / "104m.cif"))
-    write_structures_dir({"104M": structure}, tmp_path)
-    assert (tmp_path / "04" / "104m.cif").exists()
-
-
 def _jsonl(path):
     return [json.loads(line) for line in path.read_text().splitlines()]
 
@@ -652,7 +644,7 @@ def test_canonicalise_reads_entries_file_and_writes_parquet(tmp_path):
     rows = read_records(out / "entries.parquet", CanonicalisationEntryRecord)
     assert [r.entry_id for r in rows] == ["104M"]
     summary = json.loads((out / "summary.json").read_text())
-    assert summary["input"] == str(entries)
+    assert summary["input"] == str(entries.resolve())
 
 
 def test_curate_flat_folder_and_everything_excluded(tmp_path):
@@ -1943,7 +1935,7 @@ def test_annotations_contact_counts_refuses_its_input_as_output(tmp_path):
     contacts = tmp_path / "interfaces"
     _compute(_step_folder(tmp_path), contacts)
     before = (contacts / "layer.jsonl").read_text()
-    with pytest.raises(SystemExit, match="is the input folder"):
+    with pytest.raises(SystemExit, match="is an input folder"):
         main(
             ["annotations", "contact-counts", str(contacts), str(contacts)]
             + ["--level", "chain", "--overwrite", "--table-format", "jsonl"]
@@ -2328,14 +2320,6 @@ def test_splits_labels_and_stratify_exclusive(tmp_path):
     assert exc.value.code == 2
 
 
-def test_splits_assign_rejects_bare_labels_table(tmp_path):
-    clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
-    table = tmp_path / "layer.jsonl"
-    _write_jsonl(table, [])
-    with pytest.raises(SystemExit, match="splits assign: .*summary.json"):
-        _partition(tmp_path, clusters, table)
-
-
 def test_splits_assign_takes_positives_folder(tmp_path):
     positives = tmp_path / "positives"
     kinds = _labels_layer(
@@ -2610,7 +2594,7 @@ def test_annotations_filter_rejects_label_layer_of_wrong_template(tmp_path):
 def test_annotations_interface_contacts_output_is_contacts_exits(tmp_path):
     _, contacts = _label_inputs(tmp_path)
     before = (contacts / "summary.json").read_text()
-    with pytest.raises(SystemExit, match="is the input folder"):
+    with pytest.raises(SystemExit, match="is an input folder"):
         _interface_contacts(contacts, contacts, "--min-residues-per-chain", "1")
     assert (contacts / "summary.json").read_text() == before
 
@@ -3328,6 +3312,8 @@ def test_pairs_positives_groups_match_clusters_build(tmp_path):
     )
     built = json.loads((grp / "clusters.json").read_text())
     assert len(built) == 2  # 1A2C+2A2C and 3A2C+4A2C
+    summary = json.loads((pos / "summary.json").read_text())
+    assert summary["counts"]["groups"] == len(built)
     kept = {p["dimer"] for p in _jsonl(pos / "positives.jsonl")}
     restricted = [sorted(set(c["components"]) & kept) for c in built]
     assert sorted(c for c in restricted if c) == sorted(
@@ -4044,3 +4030,199 @@ def test_annotations_contacts_reads_real_structures_curate_folder(tmp_path):
     summary = json.loads((out / "summary.json").read_text())
     assert summary["counts"]["entries"] == 1
     assert summary["previous_summary"] == str(curated / "summary.json")
+
+
+# Final-review fixes.
+
+
+def test_drop_contained_refuses_its_input_as_output(tmp_path):
+    step, clusters = _contained_inputs(tmp_path)
+    before = sorted(p.relative_to(step) for p in step.rglob("*"))
+    with pytest.raises(
+        SystemExit, match="structures drop-contained: .*input folder"
+    ):
+        _dedup_contained(step, clusters, step, "--overwrite")
+    assert sorted(p.relative_to(step) for p in step.rglob("*")) == before
+
+
+def test_drop_contained_missing_structure_file_is_one_line(tmp_path):
+    step, clusters = _contained_inputs(tmp_path)
+    (step / "structures" / "cc" / "3ccc.cif").unlink()
+    out = tmp_path / "out"
+    with pytest.raises(
+        SystemExit, match="^structures drop-contained: .*3ccc.cif"
+    ):
+        _dedup_contained(step, clusters, out)
+    assert not out.exists()
+
+
+def test_entry_point_reads_entries_txt_of_a_folder(tmp_path):
+    _pdbe_tree(tmp_path / "entry")
+    scan = tmp_path / "scan"
+    _scan(str(tmp_path / "entry"), str(scan), "--path-template", PDBE_TEMPLATE)
+    _canonicalise(scan, tmp_path / "canon")
+    summary = json.loads((tmp_path / "canon" / "summary.json").read_text())
+    assert summary["counts"]["entries_kept"] == 2
+
+
+@pytest.mark.parametrize(
+    "command, extra",
+    [
+        (["structures", "canonicalise"], ["--policy", str(CANON_POLICY)]),
+        (["annotations", "contacts"], []),
+    ],
+)
+def test_entry_point_empty_folder_exits(tmp_path, command, extra):
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(
+        SystemExit,
+        match=f"^{' '.join(command)}: .*holds no .cif/.cif.gz files or "
+        "entries.txt",
+    ):
+        main([*command, str(empty), str(tmp_path / "out"), *extra])
+
+
+def test_splits_assign_accepts_bare_labels_table(tmp_path):
+    clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
+    table = tmp_path / "labels.jsonl"
+    _write_jsonl(table, _kind_rows(_KIND_GROUPS, {"1H0"}))
+    _partition(tmp_path, clusters, table)
+    summary = json.loads((tmp_path / "out" / "summary.json").read_text())
+    assert summary["policy"]["labels_layer"] == str(table.resolve())
+
+
+def test_annotations_contact_counts_accepts_bare_parquet(tmp_path):
+    contacts = tmp_path / "interfaces"
+    main(
+        ["annotations", "contacts", str(_step_folder(tmp_path)), str(contacts)]
+    )
+    out = tmp_path / "counts"
+    _count(contacts / "layer.parquet", out, "chain")
+    assert read_records(out / "layer.jsonl", LayerRow)
+
+
+def test_bare_contacts_table_is_checked_by_columns(tmp_path):
+    table = tmp_path / "t.jsonl"
+    _write_jsonl(
+        table, [{"entry_id": "1A2C", "chain_id_1": "A", "chain_id_2": "B"}]
+    )
+    with pytest.raises(
+        SystemExit, match="^annotations contact-counts: .*key columns"
+    ):
+        _count(table, tmp_path / "o", "chain")
+
+
+def test_structures_curate_missing_policy_is_one_line(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    shutil.copy(FIXTURES_DIR / "04" / "104m.cif", raw / "104m.cif")
+    with pytest.raises(SystemExit, match="^structures curate: .*missing.yaml"):
+        main(
+            ["structures", "curate", str(raw), str(tmp_path / "o")]
+            + ["--policy", str(tmp_path / "missing.yaml")]
+        )
+
+
+def test_invalid_policy_is_one_line(tmp_path):
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    shutil.copy(FIXTURES_DIR / "04" / "104m.cif", raw / "104m.cif")
+    policy = tmp_path / "p.yaml"
+    policy.write_text("policy_name: x\n")
+    with pytest.raises(SystemExit) as exc:
+        main(
+            ["structures", "curate", str(raw), str(tmp_path / "o")]
+            + ["--policy", str(policy)]
+        )
+    assert str(exc.value.code).startswith(f"structures curate: {policy}: ")
+    assert "\n" not in str(exc.value.code)
+
+
+def test_splits_assign_malformed_clusters_json_is_one_line(tmp_path):
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not json")
+    with pytest.raises(SystemExit, match="^splits assign: .*bad.json"):
+        main(["splits", "assign", str(bad), str(tmp_path / "o")])
+
+
+def test_annotations_import_missing_table_is_one_line(tmp_path):
+    step = _step_folder(tmp_path)
+    description = tmp_path / "d.yaml"
+    description.write_text(
+        "name: x\ntemplate: interface_labels\ntool: t\ntool_version: '1'\n"
+    )
+    with pytest.raises(SystemExit, match="^annotations import: .*missing"):
+        main(
+            ["annotations", "import", str(tmp_path / "missing.jsonl")]
+            + [str(tmp_path / "o"), "--structures", str(step)]
+            + ["--description", str(description)]
+        )
+
+
+def test_similarity_import_error_has_prefix(tmp_path):
+    (tmp_path / "g.yaml").write_text(
+        "name: g\ntemplate: similarity\nitems: entry\ntool: R\n"
+    )
+    with pytest.raises(SystemExit, match="^similarity import: cannot import"):
+        main(
+            ["similarity", "import", str(tmp_path / "missing.tsv")]
+            + [str(tmp_path / "out"), "--description", str(tmp_path / "g.yaml")]
+            + ["--structures", str(_similarity_step(tmp_path))]
+        )
+
+
+def test_check_table_format_names_the_command(monkeypatch):
+    monkeypatch.setitem(sys.modules, "pandas", None)
+    with pytest.raises(SystemExit, match="^structures curate: Parquet"):
+        _io.check_table_format("structures curate", "parquet")
+
+
+def test_pairs_assemble_layer_table_of_negatives_folder_no_warning(
+    tmp_path, capsys
+):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    positives, negatives, splits, reps, tm = _assemble_inputs(tmp_path)
+    rows = [{"item_id_1": "9XXX_A", "item_id_2": "8XXX_A", "score": 0.1}]
+    pq.write_table(pa.Table.from_pylist(rows), tm / "layer.parquet")
+    capsys.readouterr()
+    main(
+        ["pairs", "assemble", str(positives), str(tmp_path / "d")]
+        + ["--negatives", str(negatives), "--splits", str(splits)]
+        + ["--representatives", str(reps)]
+        + ["--similarity", str(tm / "layer.parquet")]
+        + ["--similarity-items", "chain", "--min-score", "0.5"]
+        + ["--table-format", "jsonl"]
+    )
+    assert "warning" not in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["annotations", "dimer-length", "C", "X"]
+        + ["--structures", "X", "--max-total-residues", "5"],
+        ["annotations", "interface-gaps", "C", "X", "--structures", "X"],
+        ["clusters", "build", "C", "X", "--structures", "X"]
+        + ["--min-score", "0.5"],
+        ["pairs", "positives", "C", "X", "--contacts", "X"]
+        + ["--structures", "C", "--chain-clusters", "C", "--min-score", "0.5"],
+        ["similarity", "interface-overlap", "C", "X"]
+        + ["--chain-clusters", "C", "--structures", "X"],
+        ["structures", "drop-contained", "C", "X", "--clusters", "X"],
+        ["splits", "assign", "C", "X", "--labels", "X"],
+    ],
+)
+def test_out_may_not_be_any_input_folder(tmp_path, argv):
+    folders = {"C": tmp_path / "c", "X": tmp_path / "x"}
+    for folder in folders.values():
+        folder.mkdir()
+    (folders["X"] / "summary.json").write_text("{}")
+    args = [str(folders.get(a, a)) for a in argv]
+    with pytest.raises(
+        SystemExit, match=f"^{argv[0]} {argv[1]}: .*is an input folder"
+    ):
+        main([*args, "--overwrite"])
+    assert (folders["X"] / "summary.json").read_text() == "{}"

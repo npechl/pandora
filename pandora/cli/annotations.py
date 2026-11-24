@@ -31,14 +31,17 @@ from pandora.cli._io import (
     TABLE_FORMATS,
     TableWriter,
     add_out,
-    check_contact_layer,
     check_out,
     check_table_format,
     contact_rows,
+    contact_table,
     copy_source,
     entry_key,
-    find_table,
+    input_error,
     input_summary,
+    labels_table,
+    layer_name,
+    load_yaml_model,
     prepare_output_dir,
     read_rows,
     read_structure,
@@ -52,7 +55,6 @@ from pandora.cli._io import (
 )
 from pandora.datasets import missing_positions
 from pandora.export import read_records
-from pandora.ingestion import load_policy
 from pandora.provenance import build_step_summary
 from pandora.schemas.annotation import (
     LayerDescription,
@@ -67,18 +69,6 @@ _LAYER_OUTPUTS = [
     SUMMARY,
 ]
 _PANDORA = {"tool": "pandora", "tool_version": __version__}
-
-
-def _contacts_input(command: str, contacts: Path, out: Path) -> str | None:
-    """Check `contacts` is a contact layer folder other than `out`;
-    returns the layer's name."""
-
-    check_contact_layer(command, contacts)
-    if out.resolve() == contacts.resolve():
-        raise SystemExit(
-            f"{command}: {out} is the input folder; choose another OUT"
-        )
-    return read_summary(contacts)["policy"].get("name")
 
 
 def _write_layer_summary(
@@ -117,10 +107,10 @@ def _compute(
     written as a layer folder."""
 
     started_at = now_iso()
-    check_table_format(args.table_format)
     source, out = Path(args.structures), Path(args.out)
+    check_out(command, out, source)
+    check_table_format(command, args.table_format)
     paths, previous = structure_inputs(command, source)
-    check_out(command, source, out)
     prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
     settings = {
         dest: getattr(args, dest)
@@ -189,21 +179,23 @@ def _cmd_import(args: argparse.Namespace) -> None:
 
     command = "annotations import"
     started_at = now_iso()
-    check_table_format(args.table_format)
     out, table = Path(args.out), Path(args.table)
+    source = Path(args.structures)
+    check_out(command, out, table, source)
+    check_table_format(command, args.table_format)
+    description = load_yaml_model(
+        command, LayerDescription, Path(args.description)
+    )
     try:
-        description = load_policy(args.description, model=LayerDescription)
         if description.template == "similarity":
             check_layer_columns((), "similarity")
         columns = table_columns(table)
         if columns:
             check_layer_columns(columns, description.template)
-    except ValueError as exc:
-        raise SystemExit(f"{command}: cannot import {table}: {exc}") from exc
+    except (OSError, ValueError) as exc:
+        raise input_error(command, table, exc) from exc
 
-    source = Path(args.structures)
     files, previous = structure_inputs(command, source)
-    check_out(command, source, out)
     prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
     paths = {path.name.split(".")[0].upper(): path for path in files}
     counts: Counter[str] = Counter(rows_in=0)
@@ -254,11 +246,13 @@ def _cmd_count(args: argparse.Namespace) -> None:
 
     command = "annotations contact-counts"
     started_at = now_iso()
-    check_table_format(args.table_format)
     contacts, out = Path(args.contacts), Path(args.out)
-    source = _contacts_input(command, contacts, out)
+    check_out(command, out, contacts)
+    check_table_format(command, args.table_format)
+    table = contact_table(command, contacts)
+    source = layer_name(contacts)
     rows_in: Counter[str] = Counter()
-    rows = contact_rows(find_table(contacts, "layer"), rows_in)
+    rows = contact_rows(table, rows_in)
     prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
     function, template = _COUNT[args.level]
     counted = function(rows)
@@ -330,11 +324,13 @@ def _cmd_interface_contacts(args: argparse.Namespace) -> None:
 
     command = "annotations interface-contacts"
     started_at = now_iso()
-    check_table_format(args.table_format)
     contacts = Path(args.contacts)
-    layer = _contacts_input(command, contacts, Path(args.out))
+    check_out(command, Path(args.out), contacts)
+    check_table_format(command, args.table_format)
+    table = contact_table(command, contacts)
+    layer = layer_name(contacts)
     rows_in: Counter[str] = Counter()
-    rows = contact_rows(find_table(contacts, "layer"), rows_in)
+    rows = contact_rows(table, rows_in)
     labelled = label_interfaces(rows, {}, args.min_residues_per_chain, None)
     parameters = {
         "min_residues_per_chain": args.min_residues_per_chain,
@@ -357,9 +353,11 @@ def _cmd_dimer_length(args: argparse.Namespace) -> None:
 
     command = "annotations dimer-length"
     started_at = now_iso()
-    check_table_format(args.table_format)
     contacts, structures = Path(args.contacts), Path(args.structures)
-    layer = _contacts_input(command, contacts, Path(args.out))
+    check_out(command, Path(args.out), contacts, structures)
+    check_table_format(command, args.table_format)
+    table = contact_table(command, contacts)
+    layer = layer_name(contacts)
     _, chains_table = require_tables(command, structures)
     lengths = {
         (chain.entry_id.upper(), chain.chain_id): chain.seqres_length
@@ -367,7 +365,7 @@ def _cmd_dimer_length(args: argparse.Namespace) -> None:
         if chain.seqres_length is not None
     }
     rows_in: Counter[str] = Counter()
-    rows = contact_rows(find_table(contacts, "layer"), rows_in)
+    rows = contact_rows(table, rows_in)
     labelled = label_interfaces(rows, lengths, None, args.max_total_residues)
     parameters = {
         "structures_dir": str(structures),
@@ -392,9 +390,11 @@ def _cmd_gaps(args: argparse.Namespace) -> None:
 
     command = "annotations interface-gaps"
     started_at = now_iso()
-    check_table_format(args.table_format)
     contacts, source = Path(args.contacts), Path(args.structures)
-    layer = _contacts_input(command, contacts, Path(args.out))
+    check_out(command, Path(args.out), contacts, source)
+    check_table_format(command, args.table_format)
+    table = contact_table(command, contacts)
+    layer = layer_name(contacts)
     paths, _ = structure_inputs(command, source)
     missing: dict[tuple[str, str], set[int]] = {}
     unmeasured = 0
@@ -407,7 +407,7 @@ def _cmd_gaps(args: argparse.Namespace) -> None:
         for chain_id, positions in chains.items():
             missing[(structure.entry_id.upper(), chain_id)] = positions
     rows_in: Counter[str] = Counter()
-    rows = contact_rows(find_table(contacts, "layer"), rows_in)
+    rows = contact_rows(table, rows_in)
     labelled = label_interface_gaps(rows, missing)
     parameters = {
         "structures_dir": str(source),
@@ -433,23 +433,20 @@ def _cmd_gaps(args: argparse.Namespace) -> None:
         )
 
 
-def _label_summaries(command: str, folders: list[Path]) -> list[dict[str, Any]]:
-    """The summaries of the `--labels` folders; exits unless each is an
-    interface_labels layer."""
+def _label_tables(command: str, paths: list[Path]) -> list[Path | None]:
+    """The tables of the `--labels` layers (None: no rows); exits unless
+    each is an interface_labels layer."""
 
-    summaries = []
-    for folder in folders:
-        summary = read_summary(folder)
-        if summary is None:
-            raise SystemExit(f"{command}: {folder} is not a layer folder")
-        template = (summary.get("policy") or {}).get("template")
+    tables = []
+    for path in paths:
+        table, template = labels_table(command, path)
         if template != "interface_labels":
             raise SystemExit(
-                f"{command}: {folder} is a {template} layer, --labels needs "
+                f"{command}: {path} is a {template} layer; --labels needs "
                 "interface_labels"
             )
-        summaries.append(summary)
-    return summaries
+        tables.append(table)
+    return tables
 
 
 def _source_of(
@@ -472,15 +469,19 @@ def _source_of(
 
 
 def _warn_if_sources_differ(
-    command: str, folders: list[Path], summaries: list[dict[str, Any]]
+    command: str, folders: list[Path], summaries: list[dict[str, Any] | None]
 ) -> None:
     """Warn when the layers do not record the same input; no check
-    unless every layer has a summary with one."""
+    unless every layer has a summary with one (a bare table has none)."""
 
     by_folder = {
-        f.resolve(): s for f, s in zip(folders, summaries, strict=True)
+        f.resolve(): s
+        for f, s in zip(folders, summaries, strict=True)
+        if s is not None
     }
-    sources = {_source_of(s, by_folder) for s in summaries}
+    sources = {
+        None if s is None else _source_of(s, by_folder) for s in summaries
+    }
     if len(sources) > 1 and None not in sources:
         print(
             f"{command}: warning: the layers record different inputs "
@@ -496,15 +497,14 @@ def _cmd_filter(args: argparse.Namespace) -> None:
 
     command = "annotations filter"
     started_at = now_iso()
-    check_table_format(args.table_format)
     contacts, out = Path(args.contacts), Path(args.out)
     label_dirs = [Path(p) for p in args.labels]
-    layer = _contacts_input(command, contacts, out)
-    summaries = _label_summaries(command, label_dirs)
-    if any(out.resolve() == folder.resolve() for folder in label_dirs):
-        raise SystemExit(
-            f"{command}: {out} is an input folder; choose another OUT"
-        )
+    check_out(command, out, contacts, *label_dirs)
+    check_table_format(command, args.table_format)
+    table = contact_table(command, contacts)
+    layer = layer_name(contacts)
+    label_tables = _label_tables(command, label_dirs)
+    summaries = [read_summary(path) for path in label_dirs]
     _warn_if_sources_differ(
         command,
         [contacts, *label_dirs],
@@ -512,9 +512,8 @@ def _cmd_filter(args: argparse.Namespace) -> None:
     )
 
     labels_by_entry: dict[str, list[dict[str, Any]]] = {}
-    for folder in label_dirs:
-        table = find_table(folder, "layer")
-        for row in read_rows(table) if table else ():
+    for label_table in label_tables:
+        for row in read_rows(label_table) if label_table else ():
             labels_by_entry.setdefault(entry_key(row), []).append(row)
     drop = set(args.drop)
     # A label a layer can give (`parameters.labels`, recorded by Pandora's
@@ -525,9 +524,9 @@ def _cmd_filter(args: argparse.Namespace) -> None:
     known = {
         label
         for summary in summaries
-        for label in (summary["policy"].get("parameters") or {}).get(
-            "labels", []
-        )
+        for label in (
+            ((summary or {}).get("policy") or {}).get("parameters") or {}
+        ).get("labels", [])
     }
     unknown = drop - present - known
     if unknown:
@@ -538,7 +537,7 @@ def _cmd_filter(args: argparse.Namespace) -> None:
 
     prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
     counts = _filter_entries(
-        find_table(contacts, "layer"),
+        table,
         labels_by_entry,
         drop,
         TableWriter(out, "layer", args.table_format),
@@ -548,7 +547,7 @@ def _cmd_filter(args: argparse.Namespace) -> None:
         template="residue_contacts",
         parameters={
             "contacts_layer": layer,
-            "labels_layers": [s["policy"].get("name") for s in summaries],
+            "labels_layers": [layer_name(path) for path in label_dirs],
             "labels_dirs": [str(p) for p in label_dirs],
             "drop": sorted(drop),
         },
@@ -605,7 +604,8 @@ def _add_contacts(p: argparse.ArgumentParser) -> None:
     """Add the positional `contacts` input."""
 
     p.add_argument(
-        "contacts", help="contact layer folder (a residue_contacts layer)"
+        "contacts",
+        help="residue_contacts layer folder or .parquet/.jsonl table",
     )
 
 
@@ -753,8 +753,9 @@ def register(subparsers: argparse._SubParsersAction) -> None:
         "--labels",
         action="append",
         required=True,
-        help="interface_labels layer folder (repeatable); an interface is "
-        "dropped when any layer gives it a --drop label",
+        help="interface_labels layer folder or .parquet/.jsonl table "
+        "(repeatable); an interface is dropped when any layer gives it a "
+        "--drop label",
     )
     p.add_argument(
         "--drop",

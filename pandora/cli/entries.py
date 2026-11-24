@@ -12,6 +12,7 @@ from pandora._util import now_iso
 from pandora.cli._io import (
     SUMMARY,
     add_out,
+    check_out,
     prepare_output_dir,
     write_summary,
 )
@@ -151,6 +152,7 @@ def _cmd_scan(args: argparse.Namespace) -> None:
     if not root.is_dir():
         raise SystemExit(f"entries scan: {root} is not a folder")
     out = Path(args.out)
+    check_out("entries scan", out, root)
     paths = _scan_paths(args, root)
     prepare_output_dir(
         "entries scan", out, ["entries.txt", SUMMARY], args.overwrite

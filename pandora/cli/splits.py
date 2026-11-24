@@ -12,13 +12,11 @@ from pandora.cli._io import (
     SUMMARY,
     add_out,
     check_out,
-    find_table,
     input_summary,
+    labels_table,
     load_json_list,
     prepare_output_dir,
-    read_summary,
     resolve_file,
-    resolve_table,
     write_summary,
 )
 from pandora.export import read_records
@@ -37,20 +35,7 @@ def _partition_labels(
 
     if source is None:
         return None, None
-    path = Path(source)
-    if path.is_dir():
-        table = find_table(path, "layer")  # an empty layer has no table
-        folder = path
-    else:
-        table = resolve_table(command, path, "layer")
-        folder = path.parent
-    summary = read_summary(folder)
-    if summary is None:
-        raise SystemExit(
-            f"{command}: {source} needs a labels layer folder "
-            "(with summary.json), to tell chain from interface labels"
-        )
-    template = (summary.get("policy") or {}).get("template")
+    table, template = labels_table(command, Path(source))
     try:
         rows = read_records(table, LayerRow) if table else []
         return item_labels(rows, template), table
@@ -65,11 +50,13 @@ def _cmd_assign(args: argparse.Namespace) -> None:
     command = "splits assign"
     started_at = now_iso()
     source = args.labels or args.stratify
+    out = Path(args.out)
+    check_out(
+        command, out, Path(args.clusters), Path(source) if source else None
+    )
     labels, table = _partition_labels(command, source)
     clusters_file = resolve_file(command, Path(args.clusters), "clusters.json")
-    out = Path(args.out)
-    check_out(command, clusters_file, out)
-    clusters = load_json_list(SimilarityCluster, clusters_file)
+    clusters = load_json_list(command, SimilarityCluster, clusters_file)
     try:
         splits, prov = partition_dataset(
             clusters,
@@ -148,12 +135,13 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     labels = p.add_mutually_exclusive_group()
     labels.add_argument(
         "--labels",
-        help="chain_labels or interface_labels layer folder: place "
-        "clusters so every label reaches every split",
+        help="chain_labels or interface_labels layer folder or table: "
+        "place clusters so every label reaches every split",
     )
     labels.add_argument(
         "--stratify",
-        help="chain_labels or interface_labels layer folder: split each "
-        "label's clusters separately, keeping the label mix in every split",
+        help="chain_labels or interface_labels layer folder or table: split "
+        "each label's clusters separately, keeping the label mix in every "
+        "split",
     )
     p.set_defaults(func=_cmd_assign)

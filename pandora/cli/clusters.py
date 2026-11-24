@@ -16,9 +16,9 @@ from pandora.cli._io import (
     SUMMARY,
     add_out,
     add_similarity_inputs,
-    check_contact_layer,
     check_out,
     contact_rows,
+    contact_table,
     input_summary,
     layer_edges,
     load_json_list,
@@ -34,11 +34,7 @@ from pandora.cli._io import (
     write_json_list,
     write_summary,
 )
-from pandora.cli.similarity import (
-    _contact_layer,
-    _item_set,
-    _require_pyarrow,
-)
+from pandora.cli.similarity import _item_set, _require_pyarrow
 from pandora.datasets import interface_residue_pairs
 from pandora.provenance import build_step_summary
 from pandora.schemas.annotation import ResidueContactRow, SimilarityItems
@@ -126,7 +122,7 @@ def _interface_residues(
             f"{command}: min_interface_coverage needs --structures "
             "(the structures the --contacts layer was computed from)"
         )
-    rows_file = _contact_layer(command, contacts)
+    rows_file = contact_table(command, contacts)
     groups = rows_by_entry(rows_file) if rows_file is not None else ()
     paths = structure_index(structures)
     result: dict[str, set[int]] = {}
@@ -165,7 +161,7 @@ def _chain_map(
     exits naming the first of `chains` in no members list."""
 
     mapping = member_representatives(
-        load_json_list(RepresentativeCluster, path)
+        load_json_list(command, RepresentativeCluster, path)
     )
     missing = next((c for c in sorted(chains) if c not in mapping), None)
     if missing is not None:
@@ -210,19 +206,26 @@ def _cmd_build(args: argparse.Namespace) -> None:
 
     command = "clusters build"
     started_at = now_iso()
+    out = Path(args.out)
+    structures = Path(args.structures) if args.structures else None
+    contacts = Path(args.contacts) if args.contacts else None
+    reps = args.chain_representatives
+    check_out(
+        command,
+        out,
+        *(Path(p) for p in args.similarity),
+        structures,
+        contacts,
+        Path(reps) if reps else None,
+    )
     _require_pyarrow(command)
     inputs = similarity_inputs(command, args)
     levels = [i.items for i in inputs]
     items_level = _cluster_level(args, levels)
-    out = Path(args.out)
-    for source in inputs:
-        check_out(command, source.path, out)
-    structures = Path(args.structures) if args.structures else None
     if structures is not None:
         require_tables(command, structures)
-    contacts = Path(args.contacts) if args.contacts else None
     if contacts is not None:
-        check_contact_layer(command, contacts)
+        contact_table(command, contacts)
     items, _ = _item_set(command, items_level, structures, contacts)
     item_ids = sorted(set(items.ids.values()))
     chain_map, map_file = _build_chain_map(args, items_level, item_ids)
@@ -326,7 +329,7 @@ def _interface_values(
     later; chain values from `chains_table`) and the interfaces with no
     symmetry-copy chain."""
 
-    rows_file = _contact_layer(command, contacts)
+    rows_file = contact_table(command, contacts)
     chains, non_copies = _chain_values(chains_table, {"resolution"})
     rows = (row.model_dump() for row in contact_rows(rows_file, Counter()))
     interfaces = set(interface_items(rows).ids.values())
@@ -360,7 +363,7 @@ def _rank_policy(
     its rank keys checked."""
 
     loaded = (
-        load_yaml_model(RepresentativePolicy, Path(args.policy))
+        load_yaml_model(command, RepresentativePolicy, Path(args.policy))
         if args.policy
         else RepresentativePolicy()
     )
@@ -388,6 +391,17 @@ def _cmd_representatives(args: argparse.Namespace) -> None:
 
     command = "clusters representatives"
     started_at = now_iso()
+    out = Path(args.out)
+    structures = Path(args.structures)
+    contacts = Path(args.contacts) if args.contacts else None
+    check_out(
+        command,
+        out,
+        Path(args.clusters),
+        structures,
+        contacts,
+        *(Path(p) for p in args.similarity or []),
+    )
     level = "interface" if args.contacts else "chain"
     policy = _rank_policy(command, args, level)
     keys = {rank_key.key for rank_key in policy.rank}
@@ -397,16 +411,12 @@ def _cmd_representatives(args: argparse.Namespace) -> None:
             f"{command}: rank key n_hits needs --similarity (and a hit filter)"
         )
     clusters_file = resolve_file(command, Path(args.clusters), "clusters.json")
-    out = Path(args.out)
-    check_out(command, clusters_file, out)
-    structures = Path(args.structures)
     _, chains_table = require_tables(command, structures)
-    contacts = Path(args.contacts) if args.contacts else None
     if contacts is None:
         values, eligible = _chain_values(chains_table, keys)
     else:
         values, eligible = _interface_values(command, contacts, chains_table)
-    clusters_in = load_json_list(SimilarityCluster, clusters_file)
+    clusters_in = load_json_list(command, SimilarityCluster, clusters_file)
     clusters = restrict_clusters(clusters_in, values.keys())
 
     counts: Counter[int] = Counter()
@@ -508,8 +518,9 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     )
     p.add_argument(
         "--contacts",
-        help="residue_contacts layer folder: the interface items, or the "
-        "interface residues for min_interface_coverage on a chain input",
+        help="residue_contacts layer folder or table: the interface items, "
+        "or the interface residues for min_interface_coverage on a chain "
+        "input",
     )
     p.add_argument(
         "--chain-representatives",
@@ -534,8 +545,9 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     )
     p.add_argument(
         "--contacts",
-        help="residue_contacts layer folder: pick interface items (the "
-        "clusters are limited to its interfaces); without it, chain items",
+        help="residue_contacts layer folder or table: pick interface items "
+        "(the clusters are limited to its interfaces); without it, chain "
+        "items",
     )
     add_similarity_inputs(p, positional=False)
     p.add_argument(

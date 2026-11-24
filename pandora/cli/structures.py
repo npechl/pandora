@@ -41,7 +41,7 @@ from pandora.datasets import (
     find_contained,
 )
 from pandora.export import read_records, structure_to_mmcif, write_json
-from pandora.ingestion import load_policy, mirror_path
+from pandora.ingestion import mirror_path
 from pandora.metadata import collect_metadata
 from pandora.parsing import mmcif_to_structure
 from pandora.provenance import (
@@ -95,14 +95,15 @@ def _cmd_canonicalise(args: argparse.Namespace) -> None:
     """Handle `structures canonicalise`: canonicalise each input file and
     write the step folder."""
 
+    command = "structures canonicalise"
     started_at = now_iso()
     source, out = Path(args.structures), Path(args.out)
-    policy = load_policy(args.policy)
-    paths, previous = structure_inputs("structures canonicalise", source)
+    check_out(command, out, source)
+    policy = load_yaml_model(command, canonicalisationPolicy, Path(args.policy))
+    paths, previous = structure_inputs(command, source)
 
-    check_table_format(args.table_format)
-    check_out("structures canonicalise", source, out)
-    prepare_step_dir("structures canonicalise", out, args.overwrite)
+    check_table_format(command, args.table_format)
+    prepare_step_dir(command, out, args.overwrite)
     counts: Counter[str] = Counter(
         entries_failed=0,
         **({} if policy.max_atoms is None else {"entries_too_large": 0}),
@@ -148,7 +149,7 @@ def _cmd_canonicalise(args: argparse.Namespace) -> None:
         build_step_summary(
             "canonicalisation",
             policy,
-            input=source,
+            input=source.resolve(),
             output=out,
             started_at=started_at,
             counts=dict(sorted(counts.items())),
@@ -208,15 +209,16 @@ def _cmd_curate(args: argparse.Namespace) -> None:
     """Handle `structures curate`: curate each structure and write the
     step folder."""
 
+    command = "structures curate"
     started_at = now_iso()
     source, out = Path(args.structures), Path(args.out)
-    policy = load_yaml_model(DatasetCurationPolicy, Path(args.policy))
-    paths, previous = structure_inputs("structures curate", source)
+    check_out(command, out, source)
+    policy = load_yaml_model(command, DatasetCurationPolicy, Path(args.policy))
+    paths, previous = structure_inputs(command, source)
     copies = _read_copies(source)
 
-    check_table_format(args.table_format)
-    check_out("structures curate", source, out)
-    prepare_step_dir("structures curate", out, args.overwrite)
+    check_table_format(command, args.table_format)
+    prepare_step_dir(command, out, args.overwrite)
     counts: Counter[str] = Counter(entries_failed=0)
     entries: list[CurationEntryRecord] = []
     chains: list[DatasetChainRecord] = []
@@ -260,7 +262,7 @@ def _cmd_curate(args: argparse.Namespace) -> None:
         build_step_summary(
             "curation",
             policy,
-            input=source,
+            input=source.resolve(),
             output=out,
             started_at=started_at,
             counts=dict(sorted(counts.items())),
@@ -306,8 +308,9 @@ def _cmd_drop_contained(args: argparse.Namespace) -> None:
     command = "structures drop-contained"
     started_at = now_iso()
     source, out = Path(args.structures), Path(args.out)
+    check_out(command, out, source, Path(args.clusters))
     rules = (
-        load_yaml_model(DeduplicationRules, Path(args.policy))
+        load_yaml_model(command, DeduplicationRules, Path(args.policy))
         if args.policy
         else DeduplicationRules()
     )
@@ -317,13 +320,12 @@ def _cmd_drop_contained(args: argparse.Namespace) -> None:
                 f"{command}: unknown contained_rank key {rank_key.key!r}; "
                 "use " + ", ".join(_CONTAINED_RANK_KEYS)
             )
-    check_table_format(args.table_format)
+    check_table_format(command, args.table_format)
     entries_table, chains_table = require_tables(command, source)
     entries = read_records(entries_table, CurationEntryRecord)
     chains = read_records(chains_table, DatasetChainRecord)
     clusters_path = resolve_file(command, Path(args.clusters), "clusters.json")
-    clusters = load_json_list(SimilarityCluster, clusters_path)
-    prepare_step_dir(command, out, args.overwrite)
+    clusters = load_json_list(command, SimilarityCluster, clusters_path)
 
     counts, unclustered = _cluster_counts(chains, clusters)
     for entry in entries:
@@ -336,11 +338,15 @@ def _cmd_drop_contained(args: argparse.Namespace) -> None:
     removed = set() if args.disable else {r.entry_id for r in contained}
     kept = [e for e in entries if e.entry_id not in removed]
     kept_chains = [c for c in chains if c.entry_id not in removed]
-    for entry in kept:
-        if entry.structure_path:
-            dest = out / entry.structure_path
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source / entry.structure_path, dest)
+    files = [e.structure_path for e in kept if e.structure_path]
+    missing = next((f for f in files if not (source / f).is_file()), None)
+    if missing is not None:
+        raise SystemExit(f"{command}: {source} has no structure file {missing}")
+    prepare_step_dir(command, out, args.overwrite)
+    for file in files:
+        dest = out / file
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source / file, dest)
 
     write_table(kept, out, "entries", args.table_format)
     write_table(kept_chains, out, "chains", args.table_format)
@@ -351,7 +357,7 @@ def _cmd_drop_contained(args: argparse.Namespace) -> None:
         build_step_summary(
             "dedup",
             rules,
-            input=source,
+            input=source.resolve(),
             output=out,
             started_at=started_at,
             counts={

@@ -56,10 +56,8 @@ A similarity table doesn't record whether its IDs are entries, chains or interfa
 
 ### Two kinds of structures input
 
-- Entry points accept any structures form: `structures canonicalise`, `structures curate`, `annotations contacts`, `annotations ligand-contacts` and the `--structures` of `annotations interface-gaps`. Structures folders are discovered with `.cif.gz` files as well as `.cif`.
+- Entry points accept any structures form: `structures canonicalise`, `structures curate`, `annotations contacts`, `annotations ligand-contacts` and the `--structures` of `annotations interface-gaps`. Structures folders are discovered with `.cif.gz` files as well as `.cif`. A folder with no `structures/` subfolder that holds an `entries.txt` (an `entries scan` or `entries fetch` folder) is read through that list; a folder with no files and no `entries.txt` exits 1.
 - Every other structures input needs a structures folder with its `entries` and `chains` tables (the output of `structures curate`, or of `structures drop-contained`). Without them the command exits 1 with `<group> <command>: <path> has no chains table; run \`pandora structures curate\` first`.
-
-`entries scan OUT` and `entries fetch OUT` folders hold an `entries.txt`; pass that file (not the folder) as the structures input of an entry point.
 
 ## Shared flags and behaviour
 
