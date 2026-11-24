@@ -43,7 +43,7 @@ _SUBCOMMANDS = [
     "structures",
     "similarity",
     "clusters",
-    "partition",
+    "splits",
     "annotations",
 ]
 
@@ -2173,6 +2173,7 @@ def test_layer_origin_stops_on_a_loop(tmp_path):
 
 
 def _kinds_clusters(tmp_path, groups):
+    tmp_path.mkdir(exist_ok=True)
     path = tmp_path / "clusters.json"
     path.write_text(
         json.dumps([{"components": g, "n_components": len(g)} for g in groups])
@@ -2182,8 +2183,8 @@ def _kinds_clusters(tmp_path, groups):
 
 def _labels_layer(tmp_path, template, rows):
     folder = tmp_path / "labels"
-    folder.mkdir()
-    (folder / "layer.json").write_text(
+    folder.mkdir(parents=True)
+    (folder / "summary.json").write_text(
         json.dumps({"policy": {"name": "kinds", "template": template}})
     )
     if rows is not None:
@@ -2218,16 +2219,8 @@ def _kind_rows(groups, hetero_entries):
 
 def _partition(tmp_path, clusters, labels, *extra):
     return main(
-        [
-            "partition",
-            "--clusters",
-            str(clusters),
-            "--labels",
-            str(labels),
-            "--output",
-            str(tmp_path / "out" / "splits.json"),
-            *extra,
-        ]
+        ["splits", "assign", str(clusters), str(tmp_path / "out")]
+        + ["--labels", str(labels), *extra]
     )
 
 
@@ -2238,11 +2231,13 @@ def test_partition_labels_writes_counts(tmp_path):
     _partition(tmp_path, clusters, labels)
     splits = json.loads((tmp_path / "out" / "splits.json").read_text())
     assert set(splits) == {"train", "val", "test"}
-    prov = json.loads(
-        (tmp_path / "out" / "partition_provenance.json").read_text()
-    )
+    summary = json.loads((tmp_path / "out" / "summary.json").read_text())
+    assert summary["step"] == "partition"
+    assert not (tmp_path / "out" / "partition_provenance.json").exists()
+    prov = summary["policy"]
     assert prov["missing_labels"] == {}
-    assert prov["labels_layer"] == str(labels / "layer.json")
+    assert prov["labels_layer"] == str((labels / "layer.jsonl").resolve())
+    assert summary["input"] == str(clusters.resolve())
     for counts in prov["label_counts"].values():
         assert set(counts) == {"homomer", "heteromer"}
 
@@ -2276,7 +2271,7 @@ def test_partition_labels_wrong_level(tmp_path, capsys):
 
 def test_partition_labels_empty_layer(tmp_path, capsys):
     clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
-    labels = _labels_layer(tmp_path, "chain_labels", None)
+    labels = _labels_layer(tmp_path, "chain_labels", [])
     _partition(tmp_path, clusters, labels)
     assert "unlabelled items: 16 of 16" in capsys.readouterr().out
 
@@ -2289,12 +2284,35 @@ def test_partition_labels_rejects_template(tmp_path):
     assert not (tmp_path / "out" / "splits.json").exists()
 
 
-def test_partition_labels_rejects_no_keep(tmp_path):
+def test_splits_labels_and_stratify_exclusive(tmp_path):
     clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
-    labels = _labels_layer(tmp_path, "chain_labels", [])
-    with pytest.raises(SystemExit, match="no-keep-similar-items"):
-        _partition(tmp_path, clusters, labels, "--no-keep-similar-items")
-    assert not (tmp_path / "out" / "splits.json").exists()
+    with pytest.raises(SystemExit) as exc:
+        main(
+            ["splits", "assign", str(clusters), str(tmp_path / "out")]
+            + ["--labels", "a", "--stratify", "b"]
+        )
+    assert exc.value.code == 2
+
+
+def test_splits_assign_rejects_bare_labels_table(tmp_path):
+    clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
+    table = tmp_path / "layer.jsonl"
+    _write_jsonl(table, [])
+    with pytest.raises(SystemExit, match="splits assign: .*summary.json"):
+        _partition(tmp_path, clusters, table)
+
+
+def test_splits_assign_takes_positives_folder(tmp_path):
+    positives = tmp_path / "positives"
+    kinds = _labels_layer(
+        positives, "chain_labels", _kind_rows(_KIND_GROUPS, {"1H0"})
+    )
+    _kinds_clusters(positives, _KIND_GROUPS)
+    main(
+        ["splits", "assign", str(positives), str(tmp_path / "out")]
+        + ["--stratify", str(kinds)]
+    )
+    assert (tmp_path / "out" / "splits.json").exists()
 
 
 def _interface_contacts(contacts, out, *extra):
@@ -3476,12 +3494,11 @@ def test_rebalance_writes_groups_and_kinds(tmp_path):
     assert summary["policy"]["template"] == "interface_labels"
     assert summary["previous_summary"] == str(out / "rebalance.json")
 
-    split = tmp_path / "splits.json"
     main(
-        ["partition", "--clusters", str(out / "groups.json")]
-        + ["--labels", str(out / "kinds"), "--output", str(split)]
+        ["splits", "assign", str(out / "groups.json")]
+        + [str(tmp_path / "split"), "--labels", str(out / "kinds")]
     )
-    assert split.exists()
+    assert (tmp_path / "split" / "splits.json").exists()
 
 
 def test_rebalance_overwrite_clears_groups_and_kinds(tmp_path):
@@ -3494,24 +3511,16 @@ def test_rebalance_overwrite_clears_groups_and_kinds(tmp_path):
     assert (out / "groups.json").exists()
 
 
-def test_partition_stratify_needs_labels(tmp_path):
-    clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
-    with pytest.raises(SystemExit, match="--labels"):
-        main(
-            ["partition", "--clusters", str(clusters), "--stratify"]
-            + ["--output", str(tmp_path / "s.json")]
-        )
-
-
-def test_partition_stratify_records_flag(tmp_path):
+def test_splits_stratify_records_flag(tmp_path):
     clusters = _kinds_clusters(tmp_path, _KIND_GROUPS)
     rows = _kind_rows(_KIND_GROUPS, {"1H0", "1H1", "1H2"})
     labels = _labels_layer(tmp_path, "chain_labels", rows)
-    _partition(tmp_path, clusters, labels, "--stratify")
-    prov = json.loads(
-        (tmp_path / "out" / "partition_provenance.json").read_text()
+    main(
+        ["splits", "assign", str(clusters), str(tmp_path / "out")]
+        + ["--stratify", str(labels)]
     )
-    assert prov["stratify"] is True
+    summary = json.loads((tmp_path / "out" / "summary.json").read_text())
+    assert summary["policy"]["stratify"] is True
 
 
 def _assemble_inputs(tmp_path):
@@ -3521,12 +3530,11 @@ def _assemble_inputs(tmp_path):
     positives, reps, tm, contacts = _negatives_inputs(tmp_path)
     negatives = tmp_path / "negatives"
     _negatives(positives, reps, tm, contacts, negatives)
-    splits = tmp_path / "splits.json"
     main(
-        ["partition", "--clusters", str(positives / "groups.json")]
-        + ["--labels", str(positives / "kinds"), "--stratify"]
-        + ["--output", str(splits)]
+        ["splits", "assign", str(positives / "groups.json")]
+        + [str(tmp_path / "splits"), "--stratify", str(positives / "kinds")]
     )
+    splits = tmp_path / "splits" / "splits.json"
     return positives, negatives, splits, reps, tm
 
 

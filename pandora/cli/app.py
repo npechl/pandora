@@ -12,6 +12,7 @@ from pandora.cli import (
     entries,
     sampling,
     similarity,
+    splits,
     structures,
 )
 
@@ -21,6 +22,7 @@ _MODULES = (
     structures,
     similarity,
     clusters,
+    splits,
     sampling,
     annotations,
 )
@@ -63,7 +65,7 @@ def app() -> None:
 
     Parses arguments from `sys.argv` and dispatches to the selected
     subcommand's handler (`entries`, `structures`, `similarity`,
-    `clusters`, `partition`, `annotations`, ...);
+    `clusters`, `splits`, `annotations`, ...);
     see `pandora/cli/README.md` for the
     I/O convention between subcommands. Takes no arguments and returns
     nothing — each subcommand handler writes its output to disk and
