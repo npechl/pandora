@@ -11,12 +11,12 @@ from pydantic import BaseModel
 
 from pandora.cli._io import (
     find_table,
-    input_summary,
     load_annotations,
     load_json_dict,
     load_json_model,
     load_yaml_model,
     read_structures_dir,
+    read_summary,
     write_structures_dir,
 )
 from pandora.export import read_records, write_json
@@ -50,11 +50,13 @@ M = TypeVar("M", bound=BaseModel)
 
 def _step_entries(folder: str | None, summary: str, model: type[M]) -> list[M]:
     """The rows of a step folder's `entries` table (none if the step kept
-    nothing). Exits if `folder` has no step summary `summary`."""
+    nothing). Exits unless `folder`'s summary is of step `summary`
+    (`curation.json` -> step `curation`)."""
 
     if folder is None:
         return []
-    if input_summary(Path(folder)) is None:
+    found = read_summary(Path(folder)) or {}
+    if found.get("step") != Path(summary).stem:
         raise SystemExit(
             f"manifest: {folder} is not a step folder (no {summary})"
         )

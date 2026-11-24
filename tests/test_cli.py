@@ -3691,3 +3691,25 @@ def test_structure_files_finds_gzipped_flat_files(tmp_path):
         tmp_path / "112m.cif.gz",
     ]
     assert sorted(_io.structure_index(tmp_path)) == ["104M", "112M"]
+
+
+def test_manifest_rejects_another_steps_folder(tmp_path):
+    _, curated_dir = _canonicalise_and_curate(tmp_path)
+    with pytest.raises(SystemExit, match="no canonicalisation.json"):
+        main(
+            [
+                "manifest",
+                "--dataset-id",
+                "d",
+                "--dataset-name",
+                "d",
+                "--dataset-version",
+                "1",
+                "--structures-dir",
+                str(curated_dir),
+                "--canonicalisation-dir",
+                str(curated_dir),
+                "--output",
+                str(tmp_path / "m.json"),
+            ]
+        )
