@@ -48,8 +48,6 @@ _SUBCOMMANDS = [
     "cluster",
     "partition",
     "annotate",
-    "manifest",
-    "reproduce",
     "export",
 ]
 
@@ -58,6 +56,14 @@ def test_parser_registers_all_subcommands():
     help_text = _build_parser().format_help()
     for name in _SUBCOMMANDS:
         assert name in help_text
+
+
+@pytest.mark.parametrize("gone", ["manifest", "reproduce"])
+def test_manifest_commands_are_gone(gone, capsys):
+    with pytest.raises(SystemExit) as exc:
+        main([gone])
+    assert exc.value.code == 2
+    assert "invalid choice" in capsys.readouterr().err
 
 
 PDBE_TEMPLATE = "{mid}/{id}/clean_mmcif/{id}_updated.cif.gz"
@@ -658,57 +664,6 @@ def test_curate_fills_copy_of_from_canonicalise_folder(tmp_path):
     assert rows["A"]["copy_of"] is None
 
 
-def test_manifest_reads_step_folders(tmp_path):
-    canonical_dir, curated_dir = _canonicalise_and_curate(tmp_path)
-    strict = tmp_path / "strict.yaml"
-    strict.write_text(
-        "policy_id: s\npolicy_name: s\npolicy_version: '1'\n"
-        "quality_rules:\n  max_resolution: 1.0\n"
-    )
-    excluded_dir = tmp_path / "excluded"
-    main(
-        [
-            "curate",
-            "--input-dir",
-            str(canonical_dir),
-            "--policy",
-            str(strict),
-            "--output-dir",
-            str(excluded_dir),
-            "--table-format",
-            "jsonl",
-        ]
-    )
-    manifest = tmp_path / "manifest.json"
-    main(
-        [
-            "manifest",
-            "--dataset-id",
-            "d",
-            "--dataset-name",
-            "d",
-            "--dataset-version",
-            "1",
-            "--structures-dir",
-            str(curated_dir),
-            "--canonicalisation-dir",
-            str(canonical_dir),
-            "--curation-dir",
-            str(curated_dir),
-            "--exclusions",
-            str(excluded_dir / "exclusions.jsonl"),
-            "--output",
-            str(manifest),
-        ]
-    )
-    m = json.loads(manifest.read_text())
-    bundle = m["structures"][0]
-    assert bundle["entry_id"] == "104M"
-    assert bundle["canonicalisation"]["policy_id"] == "overview-remap"
-    assert bundle["curation"]["policy_id"] == "test"
-    assert [e["reason_code"] for e in m["excluded"]] == ["RESOLUTION_THRESHOLD"]
-
-
 def test_steps_accept_relative_output_dirs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     canonical_dir, curated_dir = _canonicalise_and_curate(Path("."))
@@ -810,28 +765,6 @@ def test_step_names_outputs_by_entry_id(tmp_path):
     )
     assert (canon / "structures" / "04" / "104m.cif").exists()
     assert [e["entry_id"] for e in _jsonl(canon / "entries.jsonl")] == ["104M"]
-
-
-def test_manifest_rejects_folder_that_is_not_a_step_folder(tmp_path):
-    canonical_dir, curated_dir = _canonicalise_and_curate(tmp_path)
-    with pytest.raises(SystemExit):
-        main(
-            [
-                "manifest",
-                "--dataset-id",
-                "d",
-                "--dataset-name",
-                "d",
-                "--dataset-version",
-                "1",
-                "--structures-dir",
-                str(curated_dir),
-                "--canonicalisation-dir",
-                str(tmp_path / "typo"),
-                "--output",
-                str(tmp_path / "m.json"),
-            ]
-        )
 
 
 def _fake_fetch(monkeypatch, bad=()):
@@ -3722,25 +3655,3 @@ def test_structure_files_finds_gzipped_flat_files(tmp_path):
         tmp_path / "112m.cif.gz",
     ]
     assert sorted(_io.structure_index(tmp_path)) == ["104M", "112M"]
-
-
-def test_manifest_rejects_another_steps_folder(tmp_path):
-    _, curated_dir = _canonicalise_and_curate(tmp_path)
-    with pytest.raises(SystemExit, match="no canonicalisation.json"):
-        main(
-            [
-                "manifest",
-                "--dataset-id",
-                "d",
-                "--dataset-name",
-                "d",
-                "--dataset-version",
-                "1",
-                "--structures-dir",
-                str(curated_dir),
-                "--canonicalisation-dir",
-                str(curated_dir),
-                "--output",
-                str(tmp_path / "m.json"),
-            ]
-        )

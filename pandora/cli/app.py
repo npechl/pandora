@@ -12,7 +12,6 @@ from pandora.cli import (
     datasets,
     entries,
     export,
-    provenance,
     sampling,
     similarity,
 )
@@ -25,7 +24,6 @@ _MODULES = (
     similarity,
     sampling,
     annotate,
-    provenance,
     export,
 )
 
@@ -67,8 +65,8 @@ def app() -> None:
 
     Parses arguments from `sys.argv` and dispatches to the selected
     subcommand's handler (`fetch`, `canonicalise`, `curate`, `dedup`,
-    `similarity`, `cluster`, `partition`, `annotate`, `manifest`,
-    `reproduce`, or `export`); see `pandora/cli/README.md` for the
+    `similarity`, `cluster`, `partition`, `annotate`, or `export`);
+    see `pandora/cli/README.md` for the
     I/O convention between subcommands. Takes no arguments and returns
     nothing — each subcommand handler writes its output to disk and
     prints a summary.

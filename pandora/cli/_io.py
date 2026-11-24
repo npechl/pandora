@@ -22,7 +22,6 @@ from pandora.export import structure_to_mmcif, write_json, write_records
 from pandora.ingestion import list_mirror_files, mirror_path
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.annotation import (
-    AnnotationLayer,
     ResidueContactRow,
     SimilarityItems,
 )
@@ -770,12 +769,6 @@ def write_json_dict(data: dict[str, BaseModel], path: Path) -> None:
     )
 
 
-def load_json_model(model_cls: type[BaseModel], path: Path) -> BaseModel:
-    """Load and validate a single model instance from a JSON file."""
-
-    return model_cls.model_validate(json.loads(path.read_text()))
-
-
 def write_json_list(records: Sequence[BaseModel], path: Path) -> None:
     """Write `records` as a JSON array to `path`, `[]` when there are
     none (a small sample can leave a step with nothing to write)."""
@@ -792,23 +785,6 @@ def load_json_list(model_cls: type[BaseModel], path: Path) -> list:
 
     data = json.loads(path.read_text())
     return [model_cls.model_validate(item) for item in data]
-
-
-def load_json_dict(model_cls: type[BaseModel], path: Path) -> dict:
-    """Load and validate a JSON object as a dict of model instances."""
-
-    data = json.loads(path.read_text())
-    return {k: model_cls.model_validate(v) for k, v in data.items()}
-
-
-def load_annotations(path: Path) -> dict[str, list[AnnotationLayer]]:
-    """Load a JSON object of entry_id -> list of AnnotationLayer."""
-
-    data = json.loads(path.read_text())
-    return {
-        entry_id: [AnnotationLayer.model_validate(item) for item in layers]
-        for entry_id, layers in data.items()
-    }
 
 
 def load_yaml_model(model_cls: type[BaseModel], path: Path) -> BaseModel:
