@@ -39,9 +39,8 @@ CANON_POLICY = (
 )
 
 _SUBCOMMANDS = [
-    "fetch",
+    "entries",
     "representatives",
-    "ingest",
     "canonicalise",
     "curate",
     "dedup",
@@ -76,26 +75,24 @@ def _pdbe_tree(root):
     (root / "README").write_text("")
 
 
-def _ingest(*args):
-    main(["ingest", *args])
+def _scan(*args):
+    main(["entries", "scan", *args])
 
 
-def test_ingest_path_template_feeds_canonicalise(tmp_path, monkeypatch):
+def test_entries_scan_path_template_feeds_canonicalise(tmp_path, monkeypatch):
     _pdbe_tree(tmp_path / "entry")
     monkeypatch.chdir(tmp_path)
-    _ingest(
-        "--input-dir",
+    _scan(
         "entry",
+        "ing",
         "--path-template",
         PDBE_TEMPLATE,
         "--source-label",
         "lbl",
-        "--output-dir",
-        "ing",
     )
     paths = read_entry_paths(tmp_path / "ing" / "entries.txt")
     assert len(paths) == 2 and all(p.is_absolute() for p in paths)
-    summary = json.loads((tmp_path / "ing" / "ingestion.json").read_text())
+    summary = json.loads((tmp_path / "ing" / "summary.json").read_text())
     assert summary["step"] == "ingestion"
     assert summary["counts"] == {"entries_found": 2}
     assert summary["policy"]["path_template"] == PDBE_TEMPLATE
@@ -118,35 +115,26 @@ def test_ingest_path_template_feeds_canonicalise(tmp_path, monkeypatch):
     canon = json.loads(
         (tmp_path / "canon" / "canonicalisation.json").read_text()
     )
-    assert canon["previous_summary"].endswith("ing/ingestion.json")
+    assert canon["previous_summary"].endswith("ing/summary.json")
 
 
-def test_ingest_glob(tmp_path):
-    _ingest(
-        "--input-dir",
-        str(FIXTURES_DIR),
-        "--glob",
-        "*/*.cif",
-        "--output-dir",
-        str(tmp_path / "ing"),
-    )
+def test_entries_scan_glob(tmp_path):
+    _scan(str(FIXTURES_DIR), str(tmp_path / "ing"), "--glob", "*/*.cif")
     paths = read_entry_paths(tmp_path / "ing" / "entries.txt")
     assert paths == sorted(FIXTURES_DIR.resolve().glob("*/*.cif"))
 
 
-def test_ingest_ids_file(tmp_path):
+def test_entries_scan_ids_file(tmp_path):
     ids = tmp_path / "ids.txt"
     ids.write_text("# c\n\n104M\n")
     (tmp_path / "entry").mkdir()
-    _ingest(
-        "--input-dir",
+    _scan(
         str(tmp_path / "entry"),
+        str(tmp_path / "ing"),
         "--path-template",
         PDBE_TEMPLATE,
         "--ids",
         str(ids),
-        "--output-dir",
-        str(tmp_path / "ing"),
     )
     paths = read_entry_paths(tmp_path / "ing" / "entries.txt")
     assert [str(p) for p in paths] == [
@@ -154,48 +142,23 @@ def test_ingest_ids_file(tmp_path):
     ]
 
 
-def test_ingest_nothing_found(tmp_path):
+def test_entries_scan_nothing_found(tmp_path):
     (tmp_path / "entry").mkdir()
-    _ingest(
-        "--input-dir",
+    _scan(
         str(tmp_path / "entry"),
+        str(tmp_path / "ing"),
         "--path-template",
         PDBE_TEMPLATE,
-        "--output-dir",
-        str(tmp_path / "ing"),
     )
     assert (tmp_path / "ing" / "entries.txt").read_text() == ""
-    summary = json.loads((tmp_path / "ing" / "ingestion.json").read_text())
+    summary = json.loads((tmp_path / "ing" / "summary.json").read_text())
     assert summary["counts"] == {"entries_found": 0}
-
-
-def test_ingest_rejects_ids_without_template(tmp_path):
-    ids = tmp_path / "ids.txt"
-    ids.write_text("104m\n")
-    with pytest.raises(SystemExit):
-        _ingest(
-            "--input-dir",
-            str(tmp_path),
-            "--glob",
-            "*.cif",
-            "--ids",
-            str(ids),
-            "--output-dir",
-            str(tmp_path / "ing"),
-        )
 
 
 def test_canonicalise_overwrite_keeps_entries_txt(tmp_path):
     _pdbe_tree(tmp_path / "entry")
     out = tmp_path / "work"
-    _ingest(
-        "--input-dir",
-        str(tmp_path / "entry"),
-        "--path-template",
-        PDBE_TEMPLATE,
-        "--output-dir",
-        str(out),
-    )
+    _scan(str(tmp_path / "entry"), str(out), "--path-template", PDBE_TEMPLATE)
     for extra in ([], ["--overwrite"]):
         main(
             [
@@ -871,29 +834,97 @@ def test_manifest_rejects_folder_that_is_not_a_step_folder(tmp_path):
         )
 
 
+def _fake_fetch(monkeypatch, bad=()):
+    """Serve fixtures for 104m/112m instead of the network."""
+
+    def download(url):
+        entry = url.rsplit("/", 1)[-1][:4].lower()
+        if entry in bad or "bad1" in url.lower():
+            raise RuntimeError("not found")
+        return (FIXTURES_DIR / entry[1:3] / f"{entry}.cif").read_bytes()
+
+    monkeypatch.setattr("pandora.ingestion.mmcif._download", download)
+
+
+def _fetch(*args):
+    main(["entries", "fetch", *args, "--provider", "pdb", "--no-cache"])
+
+
 def test_fetch_writes_entries_txt(tmp_path, monkeypatch):
-    data = (FIXTURES_DIR / "04" / "104m.cif").read_bytes()
-    monkeypatch.setattr("pandora.ingestion.mmcif._download", lambda url: data)
+    _fake_fetch(monkeypatch)
     raw = tmp_path / "raw"
-    main(
-        ["fetch", "104m", "--provider", "pdb", "--no-cache"]
-        + ["--output-dir", str(raw)]
-    )
+    _fetch("104m", str(raw))
     assert read_entry_paths(raw / "entries.txt") == [
         (raw / "104m.cif").resolve()
     ]
+    summary = json.loads((raw / "summary.json").read_text())
+    assert summary["step"] == "fetch"
 
 
-def test_ingest_rejects_missing_input_dir(tmp_path):
+def test_entries_fetch_adds_to_existing_folder(tmp_path, monkeypatch):
+    _fake_fetch(monkeypatch)
+    raw = tmp_path / "raw"
+    _fetch("104m", str(raw))
+    _fetch("112m", str(raw))
+    names = [p.name for p in read_entry_paths(raw / "entries.txt")]
+    assert names == ["104m.cif", "112m.cif"]
+    counts = json.loads((raw / "summary.json").read_text())["counts"]
+    assert counts == {"fetched": 1, "failed": 0, "entries_total": 2}
+
+
+def test_entries_fetch_partial_rerun_keeps_previous(tmp_path, monkeypatch):
+    _fake_fetch(monkeypatch)
+    raw = tmp_path / "raw"
+    _fetch("104m", str(raw))
+    _fetch("112m", "bad1", str(raw), "--allow-partial")
+    names = [p.name for p in read_entry_paths(raw / "entries.txt")]
+    assert names == ["104m.cif", "112m.cif"]
+    recorded = json.loads((raw / "ingestion_provenance.json").read_text())
+    assert set(recorded) == {"104M", "112M"}
+    counts = json.loads((raw / "summary.json").read_text())["counts"]
+    assert counts["failed"] == 1
+
+
+def test_entries_fetch_ids_file(tmp_path, monkeypatch):
+    _fake_fetch(monkeypatch)
+    ids = tmp_path / "ids.txt"
+    ids.write_text("# c\n112m\n")
+    raw = tmp_path / "raw"
+    _fetch("104m", str(raw), "--ids", str(ids))
+    assert len(read_entry_paths(raw / "entries.txt")) == 2
+
+
+def test_entries_fetch_without_ids_exits(tmp_path):
+    with pytest.raises(SystemExit, match="entries fetch: "):
+        main(["entries", "fetch", str(tmp_path / "raw")])
+
+
+def test_entries_fetch_failure_is_one_line(tmp_path, monkeypatch):
+    _fake_fetch(monkeypatch)
+    with pytest.raises(SystemExit) as info:
+        _fetch("BAD1", str(tmp_path / "raw"))
+    assert str(info.value).startswith("entries fetch: BAD1")
+
+
+def test_entries_scan_glob_with_ids(tmp_path):
+    ids = tmp_path / "ids.txt"
+    ids.write_text("104M\n")
+    _scan(
+        str(FIXTURES_DIR),
+        str(tmp_path / "ing"),
+        "--glob",
+        "*/*.cif",
+        "--ids",
+        str(ids),
+    )
+    paths = read_entry_paths(tmp_path / "ing" / "entries.txt")
+    assert [p.name for p in paths] == ["104m.cif"]
+
+
+def test_entries_scan_rejects_missing_input_dir(tmp_path):
     for find in (["--glob", "*.cif"], ["--path-template", "{id}.cif"]):
         with pytest.raises(SystemExit, match="not a folder"):
-            _ingest(
-                "--input-dir",
-                str(tmp_path / "missing"),
-                *find,
-                "--output-dir",
-                str(tmp_path / "ing"),
-            )
+            _scan(str(tmp_path / "missing"), str(tmp_path / "ing"), *find)
 
 
 def test_curate_duplicate_check_ignores_case(tmp_path):

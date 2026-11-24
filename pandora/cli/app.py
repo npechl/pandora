@@ -10,8 +10,8 @@ from pandora.cli import (
     annotate,
     canonicalisation,
     datasets,
+    entries,
     export,
-    ingestion,
     provenance,
     sampling,
     similarity,
@@ -19,7 +19,7 @@ from pandora.cli import (
 
 # Order of the subcommands in `pandora --help`.
 _MODULES = (
-    ingestion,
+    entries,
     canonicalisation,
     datasets,
     similarity,
