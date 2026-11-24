@@ -16,8 +16,11 @@ from pandora import __version__
 from pandora._util import now_iso
 from pandora.annotations import label_interfaces
 from pandora.cli._io import (
+    SUMMARY,
     ParquetSink,
+    add_out,
     check_contact_layer,
+    check_out,
     contact_rows,
     copy_source,
     find_table,
@@ -33,9 +36,13 @@ from pandora.cli._io import (
     read_structure,
     read_structures_dir,
     read_summary,
+    require_tables,
+    resolve_file,
+    resolve_table,
     rows_by_entry,
     structure_index,
     write_json_list,
+    write_summary,
 )
 from pandora.datasets import interface_residue_pairs
 from pandora.export import (
@@ -93,12 +100,12 @@ from pandora.similarity.layer import (
 
 _CLI_ENGINES = {"mmseqs2": "MMseqs2", "foldseek": "Foldseek"}
 
-# What `similarity search` / `import` write: cleared by --overwrite.
+# What a similarity command writes: cleared by --overwrite.
 _LAYER_OUTPUTS = [
     "layer.parquet",
     "unmatched.parquet",
     "source",
-    "layer.json",
+    SUMMARY,
     "hits.tsv",
 ]
 _CONTACT_COLUMNS = (
@@ -212,36 +219,37 @@ def _write_summary(
     counts: Counter[str],
     previous: Path | None,
 ) -> None:
-    """Write the layer folder's `layer.json`."""
+    """Write the layer folder's `summary.json`."""
 
-    write_json(
+    write_summary(
+        out,
         build_step_summary(
             step,
             description,
-            input=input,
+            input=input.resolve(),
             output=out,
             started_at=started_at,
             counts=dict(sorted(counts.items())),
             previous_summary=previous,
         ),
-        out / "layer.json",
     )
 
 
-def _search_options(args: argparse.Namespace) -> dict[str, Any]:
+def _search_options(args: argparse.Namespace, engine: str) -> dict[str, Any]:
     """Keyword arguments for the search function from the CLI flags."""
 
-    if args.engine == "mmseqs2":
-        options: dict[str, Any] = {"mmseqs_bin": args.mmseqs_bin}
+    options: dict[str, Any] = {
+        "sensitivity": args.sensitivity,
+        "max_seqs": args.max_seqs,
+    }
+    if engine == "mmseqs2":
+        options["mmseqs_bin"] = args.bin
     else:
-        options = {
-            "foldseek_bin": args.foldseek_bin,
+        options |= {
+            "foldseek_bin": args.bin,
             "alignment_type": args.alignment_type,
             "exhaustive_search": args.exhaustive_search,
         }
-    for name in ("sensitivity", "max_seqs"):
-        if getattr(args, name) is not None:
-            options[name] = getattr(args, name)
     return options
 
 
@@ -253,68 +261,68 @@ def _read_chain_list(path: Path) -> list[str]:
     return [line for line in lines if line and not line.startswith("#")]
 
 
-def _cmd_search(args: argparse.Namespace) -> None:
-    """Handle `similarity search`: run MMseqs2 or Foldseek over chains
-    and write the hits as a similarity layer folder."""
+def _chains_arg(command: str, path: Path) -> list[str]:
+    """Chain ids from `--chains`: a representatives folder or `.json`
+    (its representatives), or a text list."""
+
+    if path.is_dir() or path.suffix == ".json":
+        file = resolve_file(command, path, "representatives.json")
+        clusters = load_json_list(RepresentativeCluster, file)
+        return [cluster.representative for cluster in clusters]
+    if not path.is_file():
+        raise SystemExit(f"{command}: {path} does not exist")
+    return _read_chain_list(path)
+
+
+def _search(args: argparse.Namespace, command: str, engine: str) -> None:
+    """Run MMseqs2 or Foldseek over chains and write the hits as a
+    similarity layer folder."""
 
     started_at = now_iso()
-    _require_pyarrow("similarity search")
-    if args.engine == "mmseqs2" and args.input_dir is not None:
+    _require_pyarrow(command)
+    chain_files = getattr(args, "chain_files", None)
+    if args.chains is not None and chain_files is not None:
         raise SystemExit(
-            "similarity search: --input-dir is for foldseek; mmseqs2 reads "
-            "chain sequences from --structures-dir"
+            f"{command}: --chains needs the chains cut from STRUCTURES; "
+            "drop --chain-files"
         )
-    if args.chains is not None and args.input_dir is not None:
-        raise SystemExit(
-            "similarity search: --chains needs the chains cut from "
-            "--structures-dir; drop --input-dir"
-        )
-    structures_dir = Path(args.structures_dir)
-    items, previous = _item_set(
-        "similarity search", "chain", structures_dir, None
-    )
+    structures, out = Path(args.structures), Path(args.out)
+    items, previous = _item_set(command, "chain", structures, None)
+    check_out(command, structures, out)
     chains: set[str] | None = None
     if args.chains is not None:
         known = set(items.ids.values())
-        listed = _read_chain_list(Path(args.chains))
+        listed = _chains_arg(command, Path(args.chains))
         unknown = next((c for c in listed if c not in known), None)
         if unknown is not None:
             raise SystemExit(
-                f"similarity search: --chains names {unknown}, not a chain "
-                f"of {structures_dir}"
+                f"{command}: --chains names {unknown}, not a chain "
+                f"of {structures}"
             )
         chains = set(listed)
-    out = Path(args.output_dir)
-    prepare_output_dir("similarity search", out, _LAYER_OUTPUTS, args.overwrite)
+    prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
     hits = out / "hits.tsv"
+    options = _search_options(args, engine)
     counts_extra: dict[str, int] = {}
-    if args.engine == "mmseqs2":
-        sequences = _chain_sequences(structures_dir)
+    if engine == "mmseqs2":
+        sequences = _chain_sequences(command, structures)
         if chains is not None:
             sequences = {k: v for k, v in sequences.items() if k in chains}
         counts_extra["chains_searched"] = len(sequences)
-        description = compute_sequence_similarity(
-            sequences, hits, **_search_options(args)
-        )
-        searched: Path = structures_dir
-    elif args.input_dir is not None:
-        searched = Path(args.input_dir)
-        description = compute_structure_similarity(
-            searched, hits, **_search_options(args)
-        )
+        description = compute_sequence_similarity(sequences, hits, **options)
+        searched: Path = structures
+    elif chain_files is not None:
+        searched = Path(chain_files)
+        description = compute_structure_similarity(searched, hits, **options)
     else:
-        searched = structures_dir
+        searched = structures
         with tempfile.TemporaryDirectory() as tmp:
-            files = _chain_files(structures_dir, chains, Path(tmp))
+            files = _chain_files(command, structures, chains, Path(tmp))
             counts_extra["chains_searched"] = len(files)
-            description = compute_structure_similarity(
-                files, hits, **_search_options(args)
-            )
+            description = compute_structure_similarity(files, hits, **options)
     if args.chains is not None:
         searched = Path(args.chains)
-    counts = _write_layer(
-        read_hit_tsv(hits, _CLI_ENGINES[args.engine]), items, out
-    )
+    counts = _write_layer(read_hit_tsv(hits, _CLI_ENGINES[engine]), items, out)
     counts.update(counts_extra)
     hits.unlink()
     _write_summary(
@@ -332,15 +340,25 @@ def _cmd_search(args: argparse.Namespace) -> None:
     )
 
 
+def _cmd_mmseqs(args: argparse.Namespace) -> None:
+    """Handle `similarity mmseqs`."""
+
+    _search(args, "similarity mmseqs", "mmseqs2")
+
+
+def _cmd_foldseek(args: argparse.Namespace) -> None:
+    """Handle `similarity foldseek`."""
+
+    _search(args, "similarity foldseek", "foldseek")
+
+
 def _chain_files(
-    structures_dir: Path, chains: set[str] | None, out: Path
+    command: str, structures_dir: Path, chains: set[str] | None, out: Path
 ) -> dict[str, Path]:
     """Write one mmCIF per non-copy chain of the step folder (or only
     `chains`) into `out`; returns item id -> file."""
 
-    table = _step_table(
-        "similarity search", structures_dir, "chains", "pandora curate"
-    )
+    table = _step_table(command, structures_dir, "chains", "pandora curate")
     wanted = {
         item_id("chain", r["entry_id"], r["chain_id"]): r
         for r in read_columns(table, ("entry_id", "chain_id", "copy_of"))
@@ -360,19 +378,16 @@ def _chain_files(
             )
     if by_entry:
         raise SystemExit(
-            f"similarity search: {structures_dir} has no structure for "
-            f"{min(by_entry)}"
+            f"{command}: {structures_dir} has no structure for {min(by_entry)}"
         )
     return dict(sorted(files.items()))
 
 
-def _chain_sequences(structures_dir: Path) -> dict[str, str]:
+def _chain_sequences(command: str, structures_dir: Path) -> dict[str, str]:
     """Item ID -> sequence for the step folder's chains, without
     symmetry copies (they would crowd out real homologues)."""
 
-    table = _step_table(
-        "similarity search", structures_dir, "chains", "pandora curate"
-    )
+    table = _step_table(command, structures_dir, "chains", "pandora curate")
     columns = ("entry_id", "chain_id", "sequence", "copy_of")
     return {
         item_id("chain", r["entry_id"], r["chain_id"]): r["sequence"]
@@ -394,8 +409,9 @@ def _cmd_import(args: argparse.Namespace) -> None:
     """Handle `similarity import`: link a user's edge list to the items
     of a step folder or contact layer, as a similarity layer folder."""
 
+    command = "similarity import"
     started_at = now_iso()
-    _require_pyarrow("similarity import")
+    _require_pyarrow(command)
     table = Path(args.table)
     try:
         description = load_policy(args.description, model=LayerDescription)
@@ -411,13 +427,20 @@ def _cmd_import(args: argparse.Namespace) -> None:
     except (ValueError, FileNotFoundError) as exc:
         raise SystemExit(_import_error(table, exc)) from exc
 
-    structures_dir = Path(args.structures_dir) if args.structures_dir else None
+    structures = Path(args.structures) if args.structures else None
     contacts = Path(args.contacts) if args.contacts else None
+    if description.items != "interface" and structures is None:
+        raise SystemExit(
+            f"{command}: {description.items} items need --structures"
+        )
     items, previous = _item_set(
-        "similarity import", description.items, structures_dir, contacts
+        command, description.items, structures, contacts
     )
-    out = Path(args.output_dir)
-    prepare_output_dir("similarity import", out, _LAYER_OUTPUTS, args.overwrite)
+    out = Path(args.out)
+    for source in (structures, contacts):
+        if source is not None:
+            check_out(command, source, out)
+    prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
     if args.source_files:
         copy_source(Path(args.source_files), out / "source")
     rest = [] if first is None else itertools.chain([first], batches)
@@ -926,40 +949,31 @@ def _cmd_partition(args: argparse.Namespace) -> None:
             )
 
 
-def _cmd_interfaces(args: argparse.Namespace) -> None:
-    """Handle `similarity interfaces`: score pairs of a contact layer's
-    interfaces by per-side Jaccard, as a similarity layer folder."""
+def _cmd_interface_overlap(args: argparse.Namespace) -> None:
+    """Handle `similarity interface-overlap`: score pairs of a contact
+    layer's interfaces by per-side Jaccard, as a similarity layer
+    folder."""
 
-    command = "similarity interfaces"
+    command = "similarity interface-overlap"
     started_at = now_iso()
     _require_pyarrow(command)
-    contacts = Path(args.contacts_dir)
-    check_contact_layer(command, contacts)
-    out = Path(args.output_dir)
-    if out.resolve() == contacts.resolve():
-        raise SystemExit(
-            f"{command}: {out} is the --contacts folder; choose another "
-            "--output-dir"
-        )
-    origin = layer_origin(contacts)
-    if origin is None:
-        raise SystemExit(
-            f"{command}: cannot tell which structures folder {contacts} "
-            "came from; the paths in its layer.json may be relative to "
-            "where `annotate compute` ran, so run from that folder"
-        )
-    chains_table = find_table(origin, "chains")
-    if chains_table is None:
-        raise SystemExit(
-            f"{command}: {origin} has no chains table; it is written by "
-            "`pandora curate`"
-        )
+    contacts, out = Path(args.contacts), Path(args.out)
+    if contacts.is_dir():
+        check_contact_layer(command, contacts)
+        table = find_table(contacts, "layer")
+    else:
+        table = resolve_table(command, contacts, "layer")
+    check_out(command, contacts, out)
+    structures = Path(args.structures)
+    _, chains_table = require_tables(command, structures)
     sequences = {
         (chain.entry_id.upper(), chain.chain_id): chain.sequence
         for chain in read_records(chains_table, DatasetChainRecord)
         if chain.sequence
     }
-    clusters_file = Path(args.chain_clusters)
+    clusters_file = resolve_file(
+        command, Path(args.chain_clusters), "clusters.json"
+    )
     clusters = load_json_list(SimilarityCluster, clusters_file)
     try:
         for cluster in clusters:
@@ -971,15 +985,14 @@ def _cmd_interfaces(args: argparse.Namespace) -> None:
             f"(ENTRY_CHAIN): {exc}"
         ) from exc
     rows_in: Counter[str] = Counter()
-    rows = contact_rows(find_table(contacts, "layer"), rows_in)
     scored, counts = interface_similarity(
-        rows, clusters, sequences, args.min_identity
+        contact_rows(table, rows_in), clusters, sequences, args.min_identity
     )
 
     prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
     if scored:
         write_records(scored, out / "layer.parquet")
-    source = read_summary(contacts)["policy"]
+    source = ((read_summary(contacts) or {}).get("policy")) or {}
     description = LayerDescription(
         name="iface_jaccard",
         template="similarity",
@@ -988,8 +1001,8 @@ def _cmd_interfaces(args: argparse.Namespace) -> None:
         tool_version=__version__,
         parameters={
             "contacts_layer": source.get("name"),
-            "structures_dir": str(origin),
-            "chain_clusters": str(clusters_file),
+            "structures": str(structures.resolve()),
+            "chain_clusters": str(clusters_file.resolve()),
             "min_identity": args.min_identity,
         },
     )
@@ -1010,25 +1023,56 @@ def _cmd_interfaces(args: argparse.Namespace) -> None:
     )
 
 
-def _register_interfaces(commands: argparse._SubParsersAction) -> None:
-    """Add `similarity interfaces` to the `similarity` subcommands."""
+def _register_search(
+    commands: argparse._SubParsersAction,
+    name: str,
+    engine: str,
+    help: str,
+    func: Any,
+) -> argparse.ArgumentParser:
+    """Add `similarity <name>` with the flags both searches share."""
+
+    p = commands.add_parser(name, help=help)
+    p.add_argument(
+        "structures",
+        help="structures folder with entries and chains tables "
+        "(pandora structures curate)",
+    )
+    add_out(p, tables=False)
+    p.add_argument(
+        "--chains",
+        help="limit the search to these chains: a representatives folder "
+        "or .json, or a text file of chain IDs (one per line, # comments)",
+    )
+    p.add_argument(
+        "--bin", default=name, help=f"the {engine} executable (default {name})"
+    )
+    p.set_defaults(func=func)
+    return p
+
+
+def _register_interface_overlap(commands: argparse._SubParsersAction) -> None:
+    """Add `similarity interface-overlap`."""
 
     p = commands.add_parser(
-        "interfaces",
+        "interface-overlap",
         help="Score pairs of interfaces of the same two proteins by "
         "per-side Jaccard of their interface residues.",
     )
     p.add_argument(
-        "--contacts",
-        dest="contacts_dir",
-        required=True,
-        help="residue_contacts layer folder: the interfaces",
+        "contacts", help="contact layer folder or .parquet/.jsonl table"
     )
+    add_out(p, tables=False)
     p.add_argument(
         "--chain-clusters",
         required=True,
-        help="clusters.json of chains (pandora cluster), e.g. 90%% sequence "
+        help="clusters.json of chains (folder or file), e.g. 90%% sequence "
         "clusters: only interfaces whose chains share clusters are compared",
+    )
+    p.add_argument(
+        "--structures",
+        required=True,
+        help="structures folder with a chains table: the chain sequences",
     )
     p.add_argument(
         "--min-identity",
@@ -1036,9 +1080,7 @@ def _register_interfaces(commands: argparse._SubParsersAction) -> None:
         default=0.9,
         help="lowest pairwise identity per chain pair (default 0.9)",
     )
-    p.add_argument("--output-dir", required=True)
-    p.add_argument("--overwrite", action="store_true")
-    p.set_defaults(func=_cmd_interfaces)
+    p.set_defaults(func=_cmd_interface_overlap)
 
 
 def _register_representatives(subparsers: argparse._SubParsersAction) -> None:
@@ -1100,71 +1142,94 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     """Add this module's subcommands to the `pandora` parser."""
 
     similarity = subparsers.add_parser(
-        "similarity", help="Similarity layers: search or import."
+        "similarity",
+        help="Similarity layers: search with MMseqs2 or Foldseek, score "
+        "interface overlap, or import.",
     )
     commands = similarity.add_subparsers(
         dest="similarity_command", required=True
     )
-    p = commands.add_parser(
-        "search",
-        help="All-vs-all MMseqs2 or Foldseek search over a step folder's "
+    p = _register_search(
+        commands,
+        "mmseqs",
+        "MMseqs2",
+        "All-vs-all MMseqs2 sequence search over a structures folder's "
         "chains, written as a similarity layer.",
-    )
-    p.add_argument("--engine", choices=["mmseqs2", "foldseek"], required=True)
-    p.add_argument(
-        "--structures-dir",
-        required=True,
-        help="step folder with a chains table (pandora curate)",
+        _cmd_mmseqs,
     )
     p.add_argument(
-        "--input-dir",
-        help="foldseek only: dir of per-chain structure files (default: "
-        "Pandora writes them from --structures-dir)",
+        "--sensitivity",
+        type=float,
+        default=5.7,
+        help="MMseqs2 -s (default 5.7)",
     )
-    p.add_argument(
-        "--chains",
-        help="file of chain item ids (one per line, # comments) to limit "
-        "the search to",
-    )
-    p.add_argument("--output-dir", required=True)
-    p.add_argument("--overwrite", action="store_true")
-    p.add_argument("--mmseqs-bin", default="mmseqs")
-    p.add_argument("--foldseek-bin", default="foldseek")
-    p.add_argument("--sensitivity", type=float, default=None)
-    p.add_argument("--alignment-type", type=int, default=2)
     p.add_argument(
         "--max-seqs",
         type=int,
-        default=None,
-        help="hits kept per query (default: the tool's own, MMseqs2 300 "
-        "/ Foldseek 1000; raise it for leakage control)",
+        default=300,
+        help="hits kept per query (default 300; raise it for leakage control)",
+    )
+
+    p = _register_search(
+        commands,
+        "foldseek",
+        "Foldseek",
+        "All-vs-all Foldseek structure search over a structures folder's "
+        "chains, written as a similarity layer.",
+        _cmd_foldseek,
+    )
+    p.add_argument(
+        "--chain-files",
+        help="folder of per-chain structure files to search instead of "
+        "cutting them from STRUCTURES (not with --chains)",
+    )
+    p.add_argument(
+        "--sensitivity",
+        type=float,
+        default=9.5,
+        help="Foldseek -s (default 9.5)",
+    )
+    p.add_argument(
+        "--alignment-type",
+        type=int,
+        default=2,
+        help="Foldseek --alignment-type (default 2)",
+    )
+    p.add_argument(
+        "--max-seqs",
+        type=int,
+        default=1000,
+        help="hits kept per query (default 1000; raise it for leakage control)",
     )
     p.add_argument(
         "--exhaustive-search",
         action="store_true",
-        help="foldseek only: skip the prefilter",
+        help="skip the prefilter",
     )
-    p.set_defaults(func=_cmd_search)
+
+    _register_interface_overlap(commands)
 
     p = commands.add_parser(
         "import",
-        help="Link an edge list (Parquet, or TSV with a header) to a step "
-        "folder's entries/chains or a contact layer's interfaces.",
+        help="Link an edge list (Parquet, or TSV with a header) to a "
+        "structures folder's entries/chains or a contact layer's "
+        "interfaces.",
     )
-    p.add_argument("--table", required=True)
-    p.add_argument("--description", required=True)
+    p.add_argument("table", help="edge list (.parquet, or .tsv with header)")
+    add_out(p, tables=False)
+    p.add_argument("--description", required=True, help="LayerDescription YAML")
     p.add_argument(
-        "--structures-dir", help="step folder, for entry or chain items"
+        "--structures",
+        help="structures folder with tables, for entry or chain items",
     )
     p.add_argument(
-        "--contacts", help="residue_contacts layer folder, for interface items"
+        "--contacts", help="contact layer folder, for interface items"
     )
-    p.add_argument("--source-files")
-    p.add_argument("--output-dir", required=True)
-    p.add_argument("--overwrite", action="store_true")
+    p.add_argument(
+        "--source-files",
+        help="the tool's original output file or folder, copied into OUT",
+    )
     p.set_defaults(func=_cmd_import)
-
-    _register_interfaces(commands)
 
     p = subparsers.add_parser(
         "cluster",

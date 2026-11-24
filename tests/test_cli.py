@@ -1395,15 +1395,11 @@ def _search_mmseqs(tmp_path, out, *extra):
     main(
         [
             "similarity",
-            "search",
-            "--engine",
-            "mmseqs2",
-            "--mmseqs-bin",
-            str(mmseqs),
-            "--structures-dir",
+            "mmseqs",
             str(_similarity_step(tmp_path)),
-            "--output-dir",
             str(out),
+            "--bin",
+            str(mmseqs),
             *extra,
         ]
     )
@@ -1431,11 +1427,13 @@ def test_similarity_search_mmseqs_writes_layer_without_copies(tmp_path):
     unmatched = _parquet_rows(out / "unmatched.parquet")
     assert [r["reason"] for r in unmatched] == ["entry_not_found"]
     assert not (out / "hits.tsv").exists()
-    summary = json.loads((out / "layer.json").read_text())
+    assert not (out / "layer.json").exists()
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["step"] == "similarity_search"
     assert summary["policy"]["items"] == "chain"
     assert summary["policy"]["tool"] == "MMseqs2"
     assert summary["policy"]["parameters"]["max_seqs"] == 500
+    assert summary["input"] == str((tmp_path / "curated").resolve())
     assert summary["previous_summary"].endswith("curation.json")
     assert summary["counts"] == {
         "chains_searched": 2,
@@ -1462,17 +1460,13 @@ def test_similarity_search_foldseek_matches_file_stems(tmp_path):
     main(
         [
             "similarity",
-            "search",
-            "--engine",
             "foldseek",
-            "--foldseek-bin",
-            str(foldseek),
-            "--input-dir",
-            str(chains),
-            "--structures-dir",
             str(_similarity_step(tmp_path)),
-            "--output-dir",
             str(out),
+            "--bin",
+            str(foldseek),
+            "--chain-files",
+            str(chains),
         ]
     )
 
@@ -1484,9 +1478,41 @@ def test_similarity_search_foldseek_matches_file_stems(tmp_path):
     assert rows[0]["end_2"] == 90
 
 
-def test_similarity_search_mmseqs_rejects_input_dir(tmp_path):
-    with pytest.raises(SystemExit, match="--input-dir"):
-        _search_mmseqs(tmp_path, tmp_path / "out", "--input-dir", str(tmp_path))
+def test_similarity_mmseqs_has_no_alignment_type(tmp_path, capsys):
+    with pytest.raises(SystemExit) as exc:
+        _search_mmseqs(tmp_path, tmp_path / "out", "--alignment-type", "1")
+    assert exc.value.code == 2
+    assert "--alignment-type" in capsys.readouterr().err
+
+
+def test_similarity_chains_accepts_representatives_folder(tmp_path):
+    reps = tmp_path / "reps"
+    reps.mkdir()
+    (reps / "representatives.json").write_text(
+        json.dumps(
+            [
+                {"representative": "104M_A", "members": [], "n_members": 1},
+                {"representative": "112M_A", "members": [], "n_members": 1},
+            ]
+        )
+    )
+    _search_mmseqs(tmp_path, tmp_path / "seq", "--chains", str(reps))
+    query = (tmp_path / "query.fasta").read_text()
+    assert ">104M_A" in query and ">112M_A" in query
+    summary = json.loads((tmp_path / "seq" / "summary.json").read_text())
+    assert summary["counts"]["chains_searched"] == 2
+
+
+def test_similarity_chains_accepts_representatives_json(tmp_path):
+    reps = tmp_path / "representatives.json"
+    reps.write_text(
+        json.dumps(
+            [{"representative": "104M_A", "members": [], "n_members": 1}]
+        )
+    )
+    _search_mmseqs(tmp_path, tmp_path / "seq", "--chains", str(reps))
+    query = (tmp_path / "query.fasta").read_text()
+    assert ">104M_A" in query and ">112M_A" not in query
 
 
 def test_similarity_search_mmseqs_limits_to_chains(tmp_path):
@@ -1498,9 +1524,9 @@ def test_similarity_search_mmseqs_limits_to_chains(tmp_path):
     query = (tmp_path / "query.fasta").read_text()
     assert ">104M_A" in query
     assert ">112M_A" not in query
-    summary = json.loads((out / "layer.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["counts"]["chains_searched"] == 1
-    assert summary["input"] == str(chains)
+    assert summary["input"] == str(chains.resolve())
 
 
 def test_similarity_search_chains_unknown_id_exits(tmp_path):
@@ -1512,14 +1538,12 @@ def test_similarity_search_chains_unknown_id_exits(tmp_path):
 
 def _search_foldseek(tmp_path, structures_dir, out, *extra):
     main(
-        ["similarity", "search", "--engine", "foldseek"]
-        + ["--foldseek-bin", str(tmp_path / "foldseek")]
-        + ["--structures-dir", str(structures_dir)]
-        + ["--output-dir", str(out), *extra]
+        ["similarity", "foldseek", str(structures_dir), str(out)]
+        + ["--bin", str(tmp_path / "foldseek"), *extra]
     )
 
 
-def test_similarity_search_chains_rejects_input_dir(tmp_path):
+def test_similarity_foldseek_chains_rejects_chain_files(tmp_path):
     _executable(tmp_path / "foldseek", FAKE_FOLDSEEK_CLI)
     chains = tmp_path / "reps.txt"
     chains.write_text("104M_A\n")
@@ -1528,7 +1552,7 @@ def test_similarity_search_chains_rejects_input_dir(tmp_path):
             tmp_path,
             _similarity_step(tmp_path),
             tmp_path / "out",
-            *["--chains", str(chains), "--input-dir", str(tmp_path)],
+            *["--chains", str(chains), "--chain-files", str(tmp_path)],
         )
 
 
@@ -1583,12 +1607,10 @@ def _import(tmp_path, items, *flags, rows=None):
         [
             "similarity",
             "import",
-            "--table",
             str(table),
+            str(out),
             "--description",
             str(tmp_path / "graph.yaml"),
-            "--output-dir",
-            str(out),
             *flags,
         ]
     )
@@ -1599,7 +1621,7 @@ def test_similarity_import_tsv_entry_level(tmp_path):
     out = _import(
         tmp_path,
         "items: entry\n",
-        "--structures-dir",
+        "--structures",
         str(_similarity_step(tmp_path)),
         rows=[("104m", "112M", "0.8", "w"), ("104M", "999X", "0.5", "w")],
     )
@@ -1611,7 +1633,7 @@ def test_similarity_import_tsv_entry_level(tmp_path):
     assert [r["reason"] for r in _parquet_rows(out / "unmatched.parquet")] == [
         "entry_not_found"
     ]
-    summary = json.loads((out / "layer.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["step"] == "similarity_import"
     assert summary["input"].endswith("edges.tsv")
 
@@ -1620,7 +1642,7 @@ def test_similarity_import_118l_without_structure_is_not_an_item(tmp_path):
     out = _import(
         tmp_path,
         "items: entry\n",
-        "--structures-dir",
+        "--structures",
         str(_similarity_step(tmp_path)),
         rows=[("104M", "118L", "0.8", "w")],
     )
@@ -1666,7 +1688,7 @@ def test_similarity_import_interface_level_from_contacts(tmp_path):
     assert [r["reason"] for r in _parquet_rows(out / "unmatched.parquet")] == [
         "interface_not_found"
     ]
-    summary = json.loads((out / "layer.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["previous_summary"] == str(contacts / "layer.json")
 
 
@@ -1675,7 +1697,7 @@ def test_similarity_import_interface_level_needs_contacts(tmp_path):
         _import(
             tmp_path,
             "items: interface\n",
-            "--structures-dir",
+            "--structures",
             str(_similarity_step(tmp_path)),
         )
 
@@ -1684,14 +1706,12 @@ def test_similarity_import_chain_level_without_chains_table(tmp_path):
     folder = _similarity_step(tmp_path)
     (folder / "chains.jsonl").unlink()
     with pytest.raises(SystemExit, match="pandora curate"):
-        _import(tmp_path, "items: chain\n", "--structures-dir", str(folder))
+        _import(tmp_path, "items: chain\n", "--structures", str(folder))
 
 
 def test_similarity_import_missing_items_stops_before_writing(tmp_path):
     with pytest.raises(SystemExit, match="items"):
-        _import(
-            tmp_path, "", "--structures-dir", str(_similarity_step(tmp_path))
-        )
+        _import(tmp_path, "", "--structures", str(_similarity_step(tmp_path)))
     assert not (tmp_path / "similarity" / "r_graph").exists()
 
 
@@ -1705,14 +1725,12 @@ def test_similarity_import_missing_score_stops_before_writing(tmp_path):
             [
                 "similarity",
                 "import",
-                "--table",
                 str(tmp_path / "g.tsv"),
+                str(tmp_path / "out"),
                 "--description",
                 str(tmp_path / "g.yaml"),
-                "--structures-dir",
+                "--structures",
                 str(_similarity_step(tmp_path)),
-                "--output-dir",
-                str(tmp_path / "out"),
             ]
         )
     assert not (tmp_path / "out").exists()
@@ -2493,6 +2511,7 @@ def _iface_inputs(tmp_path, clusters=None):
         for c, seq in seqs.items()
     ]
     _write_jsonl(step / "chains.jsonl", rows)
+    _write_jsonl(step / "entries.jsonl", [{"entry_id": "1A2C"}])
     if clusters is None:
         clusters = [[f"1A2C_{c}" for c in sorted(seqs)]]
     clusters_file = tmp_path / "seq90.json"
@@ -2504,11 +2523,11 @@ def _iface_inputs(tmp_path, clusters=None):
     return step, contacts, clusters_file, seqs
 
 
-def _iface_sim(contacts, clusters_file, out, *extra):
+def _iface_sim(step, contacts, clusters_file, out, *extra):
     main(
-        ["similarity", "interfaces", "--contacts", str(contacts)]
+        ["similarity", "interface-overlap", str(contacts), str(out)]
         + ["--chain-clusters", str(clusters_file)]
-        + ["--output-dir", str(out), *extra]
+        + ["--structures", str(step), *extra]
     )
 
 
@@ -2535,10 +2554,10 @@ def test_cluster_with_no_items_writes_an_empty_list(tmp_path):
     assert _iface_cluster(layer, contacts, output) == []
 
 
-def test_similarity_interfaces_writes_layer(tmp_path, capsys):
+def test_similarity_interface_overlap_writes_layer(tmp_path, capsys):
     step, contacts, clusters_file, seqs = _iface_inputs(tmp_path)
     out = tmp_path / "iface_jaccard"
-    _iface_sim(contacts, clusters_file, out, "--min-identity", "0")
+    _iface_sim(step, contacts, clusters_file, out, "--min-identity", "0")
 
     rows = read_records(contacts / "layer.jsonl", ResidueContactRow)
     clusters = [
@@ -2551,15 +2570,16 @@ def test_similarity_interfaces_writes_layer(tmp_path, capsys):
     assert written
     assert written == [r.model_dump() for r in expected]
 
-    summary = json.loads((out / "layer.json").read_text())
+    summary = json.loads((out / "summary.json").read_text())
     assert summary["step"] == "similarity_interfaces"
+    assert summary["input"] == str(contacts.resolve())
     assert summary["policy"]["name"] == "iface_jaccard"
     assert summary["policy"]["template"] == "similarity"
     assert summary["policy"]["items"] == "interface"
     assert summary["policy"]["parameters"] == {
         "contacts_layer": "chain_interfaces",
-        "structures_dir": str(step.resolve()),
-        "chain_clusters": str(clusters_file),
+        "structures": str(step.resolve()),
+        "chain_clusters": str(clusters_file.resolve()),
         "min_identity": 0.0,
     }
     assert summary["counts"] == dict(
@@ -2571,58 +2591,52 @@ def test_similarity_interfaces_writes_layer(tmp_path, capsys):
     )
 
 
-def test_similarity_interfaces_feeds_cluster(tmp_path):
-    _, contacts, clusters_file, _ = _iface_inputs(tmp_path)
+def test_similarity_interface_overlap_feeds_cluster(tmp_path):
+    step, contacts, clusters_file, _ = _iface_inputs(tmp_path)
     out = tmp_path / "iface_jaccard"
-    _iface_sim(contacts, clusters_file, out, "--min-identity", "0")
+    _iface_sim(step, contacts, clusters_file, out, "--min-identity", "0")
     groups = _iface_cluster(out, contacts, tmp_path / "dimers.json")
     pairs = _contact_pairs(contacts)
     expected = sorted({"1A2C_" + "_".join(sorted(p)) for p in pairs})
     assert [sorted(g) for g in groups] == [expected]
 
 
-def test_similarity_interfaces_no_pairs(tmp_path):
+def test_similarity_interface_overlap_no_pairs(tmp_path):
     probe = _iface_inputs(tmp_path / "probe")[3]
     singletons = [[f"1A2C_{c}"] for c in sorted(probe)]
-    _, contacts, clusters_file, _ = _iface_inputs(tmp_path, singletons)
+    step, contacts, clusters_file, _ = _iface_inputs(tmp_path, singletons)
     out = tmp_path / "iface_jaccard"
-    _iface_sim(contacts, clusters_file, out)
-    assert (out / "layer.json").exists()
+    _iface_sim(step, contacts, clusters_file, out)
+    assert (out / "summary.json").exists()
     assert not (out / "layer.parquet").exists()
     groups = _iface_cluster(out, contacts, tmp_path / "dimers.json")
     assert groups and all(len(g) == 1 for g in groups)
 
 
-def test_similarity_interfaces_untraceable_origin_exits(tmp_path):
-    _, contacts, clusters_file, _ = _iface_inputs(tmp_path)
-    summary = json.loads((contacts / "summary.json").read_text())
-    summary["input"] = str(tmp_path / "gone")
-    (contacts / "summary.json").write_text(json.dumps(summary))
-    with pytest.raises(SystemExit, match="relative to where"):
-        _iface_sim(contacts, clusters_file, tmp_path / "out")
-    assert not (tmp_path / "out").exists()
-
-
-def test_similarity_interfaces_no_chains_table_exits(tmp_path):
+def test_similarity_interface_overlap_needs_structures_tables(tmp_path):
     step, contacts, clusters_file, _ = _iface_inputs(tmp_path)
     (step / "chains.jsonl").unlink()
-    with pytest.raises(SystemExit, match="pandora curate"):
-        _iface_sim(contacts, clusters_file, tmp_path / "out")
+    with pytest.raises(
+        SystemExit, match="similarity interface-overlap: .*no chains table"
+    ):
+        _iface_sim(step, contacts, clusters_file, tmp_path / "out")
     assert not (tmp_path / "out").exists()
 
 
-def test_similarity_interfaces_output_is_contacts_exits(tmp_path):
-    _, contacts, clusters_file, _ = _iface_inputs(tmp_path)
+def test_similarity_interface_overlap_output_is_contacts_exits(tmp_path):
+    step, contacts, clusters_file, _ = _iface_inputs(tmp_path)
     before = (contacts / "summary.json").read_text()
-    with pytest.raises(SystemExit, match="--contacts folder"):
-        _iface_sim(contacts, clusters_file, contacts)
+    with pytest.raises(
+        SystemExit, match="similarity interface-overlap: .*input folder"
+    ):
+        _iface_sim(step, contacts, clusters_file, contacts)
     assert (contacts / "summary.json").read_text() == before
 
 
-def test_similarity_interfaces_wrong_level_clusters_exits(tmp_path):
-    _, contacts, clusters_file, _ = _iface_inputs(tmp_path, [["1A2C"]])
+def test_similarity_interface_overlap_wrong_level_clusters_exits(tmp_path):
+    step, contacts, clusters_file, _ = _iface_inputs(tmp_path, [["1A2C"]])
     with pytest.raises(SystemExit, match="chain items"):
-        _iface_sim(contacts, clusters_file, tmp_path / "out")
+        _iface_sim(step, contacts, clusters_file, tmp_path / "out")
     assert not (tmp_path / "out").exists()
 
 
