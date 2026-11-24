@@ -20,7 +20,7 @@ Every command reads as `pandora <group> <command> MAIN_INPUT... OUT [options]`: 
 
 Every input accepts the folder a Pandora command wrote or the bare file in it (`clusters.json`, `layer.parquet`, a `.parquet` table, ...). Nothing follows `previous_summary` to find a missing input: when a command needs the structures behind a layer, you pass `--structures`.
 
-Structures come in two kinds. The entry points (`structures canonicalise`, `structures curate`, `annotations contacts`, `annotations ligand-contacts` and the `--structures` of `annotations interface-gaps`) accept a folder of `.cif`/`.cif.gz` files (flat or in the PDB archive layout), an `entries.txt` list or a single file. Every other structures input needs the structures folder written by `structures curate`, with its `entries` and `chains` tables.
+Structures come in two kinds. The entry points (`structures canonicalise`, `structures curate`, `annotations contacts`, `annotations ligand-contacts` and the `--structures` of `annotations interface-gaps`) accept a folder of `.cif`/`.cif.gz` files (flat or in the PDB archive layout), an `entries.txt` list (or an `entries fetch`/`entries scan` folder holding one) or a single file. Every other structures input needs the structures folder written by `structures curate`, with its `entries` and `chains` tables.
 
 Tables are Parquet by default; `--table-format jsonl` writes JSON Lines instead (no `export` extra needed, readable with `jq`). A table with no rows is not written. Warnings go to stderr, and a bad input exits with status 1 and a one-line `<group> <command>: ...` message.
 
@@ -44,7 +44,7 @@ pandora entries scan datasets/dev/mmcif scan/ --path-template '{mid}/{id}.cif' -
 # scanned 5 entries -> scan/
 ```
 
-`scan/entries.txt` has one absolute path per line; pass it to `structures canonicalise` or `structures curate`. `--glob` lists files by pattern instead of a template, and `--ids` works with both.
+`scan/entries.txt` has one absolute path per line; pass it, or the `scan/` folder, to `structures canonicalise` or `structures curate`. `--glob` lists files by pattern instead of a template, and `--ids` works with both.
 
 ## structures canonicalise {: #structures-canonicalise }
 
@@ -190,7 +190,7 @@ pandora clusters build similarity/seq clusters/seq90 --structures curated/ --min
 # 3 clusters from 4 edges -> clusters/seq90
 ```
 
-`--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score`/`--min-coverage` override its fields. One of the three is required; there is no default threshold. A similarity layer's item level comes from its `summary.json`; a bare table or a folder without one needs `--similarity-items {entry,chain,interface}`. `--items entry` on a chain layer clusters entries, linking two entries when any of their chains are similar ([Clustering entries from a chain layer](similarity.md#clustering-entries-from-a-chain-layer)). For `min_interface_coverage` on a chain layer, pass a contact layer folder with `--contacts` alongside `--structures` (see [interface coverage](similarity.md#interface-restricted-coverage-ppi-pairs)). The output folder holds `clusters.json` and `summary.json`.
+`--hit-filter filter.yaml` loads a full `HitFilter`; `--min-score`/`--min-coverage` override its fields. One of the three is required; there is no default threshold. A similarity layer's item level comes from its `summary.json`; a bare table or a folder without one needs `--similarity-items {entry,chain,interface}`. `--items entry` on a chain layer clusters entries, linking two entries when any of their chains are similar ([Clustering entries from a chain layer](similarity.md#clustering-entries-from-a-chain-layer)). For `min_interface_coverage` on a chain layer, pass a contact layer (folder or table) with `--contacts` alongside `--structures` (see [interface coverage](similarity.md#interface-restricted-coverage-ppi-pairs)). The output folder holds `clusters.json` and `summary.json`.
 
 ## clusters representatives {: #clusters-representatives }
 
@@ -212,7 +212,7 @@ pandora splits assign clusters/seq90 splits/seq90 --pct-train 0.6 --pct-val 0.2 
 # split sizes: {'train': 4, 'val': 1, 'test': 0} -> splits/seq90
 ```
 
-Clusters always go to a split whole. `--labels <layer folder>` takes a `chain_labels` or `interface_labels` layer and places clusters so every label reaches every split where keeping clusters whole allows; `--stratify <layer folder>` splits each label's clusters separately, so every split keeps the label mix (the two flags are mutually exclusive). `summary.json` then records `label_counts`, `missing_labels` and the labels layer; the command prints how many items were unlabelled and warns for each split missing a label (see [Every kind in every split](similarity.md#every-kind-in-every-split)). The output folder holds `splits.json` and `summary.json`.
+Clusters always go to a split whole. `--labels <layer>` takes a `chain_labels` or `interface_labels` layer (a folder, or a bare `.parquet`/`.jsonl` table: `interface_labels` when it has a `chain_id_1` column, else `chain_labels`) and places clusters so every label reaches every split where keeping clusters whole allows; `--stratify <layer>` splits each label's clusters separately, so every split keeps the label mix (the two flags are mutually exclusive). `summary.json` then records `label_counts`, `missing_labels` and the labels layer; the command prints how many items were unlabelled and warns for each split missing a label (see [Every kind in every split](similarity.md#every-kind-in-every-split)). The output folder holds `splits.json` and `summary.json`.
 
 ## pairs {: #pairs }
 
@@ -220,9 +220,9 @@ Clusters always go to a split whole. `--labels <layer folder>` takes a `chain_la
 
 ```sh
 pandora pairs positives similarity/seq similarity/iface work/positives --contacts annotations/interfaces --structures curated/ --chain-clusters clusters/seq90 --hit-filter policies/dimer.yaml
-pandora pairs negatives work/positives work/negatives --representatives clusters/seq90_reps --contacts annotations/any_contacts --seed 0
+pandora pairs negatives work/positives work/negatives --representatives clusters/seq90_reps --similarity layers/tm --hit-filter policies/tm.yaml --contacts annotations/any_contacts --seed 0
 pandora splits assign work/positives splits/dimers --stratify work/positives/kinds
-pandora pairs assemble work/positives work/dataset --negatives work/negatives --splits splits/dimers --representatives clusters/seq90_reps
+pandora pairs assemble work/positives work/dataset --negatives work/negatives --splits splits/dimers --representatives clusters/seq90_reps --similarity layers/tm --hit-filter policies/tm.yaml
 ```
 
 `pairs positives` builds the dimer groups itself, as the connected components of the dimer graph of its similarity inputs, and writes them as `clusters.json` next to the `positives` table, so `splits assign` can take the positives folder directly. These groups match `clusters build --items interface` run on the same similarity inputs without `--structures`: symmetry copies are not linked to their source chain.

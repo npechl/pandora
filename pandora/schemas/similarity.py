@@ -83,8 +83,9 @@ class ClusteredLayer(BaseModel):
     """One similarity layer read by a clustering run.
 
     Attributes:
-        similarity_layer: The layer's `summary.json`, or None when the
-            edges came from elsewhere (e.g. a hit TSV).
+        similarity_layer: The similarity input as given (a layer folder
+            or a bare table), as an absolute path; None when the edges
+            came from elsewhere (e.g. a hit TSV).
         items: The layer's item level; chain layers can be rolled up
             to entries or interfaces.
         hit_filter: The filter that turned the layer's rows into edges.
@@ -145,8 +146,8 @@ class PartitionProvenance(BaseModel):
         missing_labels: With labels: split -> sorted labels with no item
             in that split. Splits missing none, and splits with a 0
             fraction, are left out. Empty otherwise.
-        labels_layer: The labels layer's `summary.json` (it records the
-            layer's name), when the CLI was given one.
+        labels_layer: The labels layer's table, as an absolute path,
+            when the CLI was given a labels layer with rows.
         stratify: Whether each label's clusters were split on their own,
             keeping the label mix in every split.
     """
