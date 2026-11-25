@@ -46,7 +46,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 # Set the maximum line length to 80.
-line-length = 80
+line-length = 100
 extend-exclude = ["archive"]
 
 [tool.ruff.lint]

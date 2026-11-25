@@ -94,7 +94,7 @@ new dependency (for example BioPython, Biotite, or a CLI framework).
 
 ## Coding standards
 
-- PEP 8, formatted by `ruff format`. Line length 80.
+- PEP 8, formatted by `ruff format`. Line length 100.
 - Type hints on all new code. Start modules with
   `from __future__ import annotations`.
 - Public functions get a Google-style docstring with `Args:`,
