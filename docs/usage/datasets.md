@@ -12,9 +12,7 @@ from pandora.canonicalisation import canonicalise_structure
 from pandora.metadata import collect_metadata
 from pandora.schemas.canonicalisation import canonicalisationPolicy
 
-policy = canonicalisationPolicy(
-    policy_id="p", policy_name="p", policy_version="1.0.0"
-)
+policy = canonicalisationPolicy(policy_id="p", policy_name="p", policy_version="1.0.0")
 structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/04/104m.cif")
 canonical, _, _ = canonicalise_structure(structure, policy)
 metadata = collect_metadata(canonical)
@@ -35,15 +33,11 @@ metadata = collect_metadata(canonical)
     structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/04/104m.cif")
     metadata = collect_metadata(structure)
 
-    policy = DatasetCurationPolicy(
-        policy_id="c1", policy_name="Default", policy_version="1.0.0"
-    )
+    policy = DatasetCurationPolicy(policy_id="c1", policy_name="Default", policy_version="1.0.0")
     curated, exclusions, provenance = curate_structure(structure, metadata, policy)
     print("default:", curated is not None, exclusions)
 
-    strict = policy.model_copy(
-        update={"quality_rules": QualityRules(max_resolution=1.0)}
-    )
+    strict = policy.model_copy(update={"quality_rules": QualityRules(max_resolution=1.0)})
     curated, exclusions, provenance = curate_structure(structure, metadata, strict)
     print("strict:", curated is not None)
     for e in exclusions:
@@ -179,18 +173,14 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
 
 
     def check(entry_id: str, quality_rules: QualityRules) -> str:
-        structure, _, _ = mmcif_to_structure(
-            f"datasets/dev/mmcif/{entry_id[1:3]}/{entry_id}.cif"
-        )
+        structure, _, _ = mmcif_to_structure(f"datasets/dev/mmcif/{entry_id[1:3]}/{entry_id}.cif")
         policy = DatasetCurationPolicy(
             policy_id="c",
             policy_name="c",
             policy_version="1.0.0",
             quality_rules=quality_rules,
         )
-        curated, exclusions, _ = curate_structure(
-            structure, collect_metadata(structure), policy
-        )
+        curated, exclusions, _ = curate_structure(structure, collect_metadata(structure), policy)
         if curated is not None:
             return "kept"
         return f"{exclusions[-1].reason_code} ({exclusions[-1].message})"
@@ -299,9 +289,7 @@ Rules run in this order: entry rules (resolution, method, R-factors, organism, n
     # 1a08 contains ACE and DIP caps and FTY, a modified tyrosine.
     structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/a0/1a08.cif")
     print("1a08:", curate(structure, reject))
-    allow = reject.model_copy(
-        update={"allowed_nonstandard_residues": ["ACE", "DIP", "FTY"]}
-    )
+    allow = reject.model_copy(update={"allowed_nonstandard_residues": ["ACE", "DIP", "FTY"]})
     print("1a08, allow-list:", curate(structure, allow))
 
     # 1b6w contains MSE. Mapping it to MET in canonicalisation makes it
@@ -401,16 +389,12 @@ Removing a chain keeps the rest of the entry. `min_polymer_chains` and `min_chai
         for e in exclusions:
             print(f"  {e.chain_id or 'entry'}: {e.reason_code} - {e.message}")
         if curated is not None:
-            chains = sorted(
-                {a.label_asym_id for a in curated.atoms if a.label_seq_id}
-            )
+            chains = sorted({a.label_asym_id for a in curated.atoms if a.label_seq_id})
             print(f"  kept polymer chains: {chains}")
 
 
     print("max 30% missing tails, 10% missing middle:")
-    curate(
-        QualityRules(max_missing_tail_fraction=0.3, max_missing_middle_fraction=0.1)
-    )
+    curate(QualityRules(max_missing_tail_fraction=0.3, max_missing_middle_fraction=0.1))
     print("the same, but the entry needs two chains:")
     curate(
         QualityRules(
@@ -480,9 +464,7 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
 
 
     def curate(entry_id: str, quality_rules: QualityRules) -> None:
-        structure, _, _ = mmcif_to_structure(
-            f"datasets/dev/mmcif/{entry_id[1:3]}/{entry_id}.cif"
-        )
+        structure, _, _ = mmcif_to_structure(f"datasets/dev/mmcif/{entry_id[1:3]}/{entry_id}.cif")
         policy = DatasetCurationPolicy(
             policy_id="c",
             policy_name="c",
@@ -558,9 +540,7 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
         organism_rules=OrganismRules(include_taxa=["9606"]),
     )
     for entry_id in ["1aui", "1ayi"]:
-        structure, _, _ = mmcif_to_structure(
-            f"datasets/dev/mmcif/{entry_id[1:3]}/{entry_id}.cif"
-        )
+        structure, _, _ = mmcif_to_structure(f"datasets/dev/mmcif/{entry_id[1:3]}/{entry_id}.cif")
         metadata = collect_metadata(structure)
         curated, exclusions, _ = curate_structure(structure, metadata, policy)
         organisms = sorted({t.organism_scientific for t in metadata.taxonomies})
@@ -610,9 +590,7 @@ When a missing-fraction rule is set, a chain that can't be measured (no SEQRES, 
         policy_id="c",
         policy_name="Protein only",
         policy_version="1.0.0",
-        content_rules=ContentRules(
-            keep_ligands=False, keep_waters=False, keep_ions=False
-        ),
+        content_rules=ContentRules(keep_ligands=False, keep_waters=False, keep_ions=False),
     )
     curated, exclusions, _ = curate_structure(structure, None, policy)
     print(len(structure.atoms), "->", len(curated.atoms), "atoms;", exclusions)
@@ -674,12 +652,8 @@ Curating many entries, extend one list with every call's records. It then holds 
     kept = {}
     exclusions = []
     for entry_id in ["104m", "1aui", "1a08", "1p58"]:
-        structure, _, _ = mmcif_to_structure(
-            f"datasets/dev/mmcif/{entry_id[1:3]}/{entry_id}.cif"
-        )
-        curated, records, _ = curate_structure(
-            structure, collect_metadata(structure), policy
-        )
+        structure, _, _ = mmcif_to_structure(f"datasets/dev/mmcif/{entry_id[1:3]}/{entry_id}.cif")
+        curated, records, _ = curate_structure(structure, collect_metadata(structure), policy)
         exclusions.extend(records)  # chain records from kept entries too
         if curated is not None:
             kept[entry_id] = curated

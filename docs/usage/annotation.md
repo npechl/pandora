@@ -117,13 +117,8 @@ On the command line, `pandora annotations contacts` computes one layer for every
 Pinder first keeps chain pairs with backbone atoms within 10 Å, then defines the interface with a tighter cutoff. That's two layers:
 
 ```python
-gate = annotate_chain_interfaces(
-    canonical, distance_cutoff=10.0, atom_set="backbone"
-)
-gated = {
-    (r.entry_id, r.chain_id_1, r.chain_id_2)
-    for r in extract_interface_records(gate)
-}
+gate = annotate_chain_interfaces(canonical, distance_cutoff=10.0, atom_set="backbone")
+gated = {(r.entry_id, r.chain_id_1, r.chain_id_2) for r in extract_interface_records(gate)}
 kept = [r for r in records if (r.entry_id, r.chain_id_1, r.chain_id_2) in gated]
 ```
 
@@ -237,13 +232,9 @@ The stored layer carries **both** namings, filled in from the structure, so late
         },
     ]
     check_layer_columns({c for row in rows for c in row}, "residue_contacts")
-    matched, unmatched = resolve_layer_rows(
-        rows, "residue_contacts", {structure.entry_id: structure}
-    )
+    matched, unmatched = resolve_layer_rows(rows, "residue_contacts", {structure.entry_id: structure})
     row = matched[0]
-    print(
-        row["chain_id_1"], row["seq_id_1"], "-", row["chain_id_2"], row["seq_id_2"]
-    )
+    print(row["chain_id_1"], row["seq_id_1"], "-", row["chain_id_2"], row["seq_id_2"])
     # A 1 - B 1
     print(unmatched[0]["reason"])
     # no_coordinates  (H 147A is in the sequence but has no atoms)
@@ -389,9 +380,7 @@ There is no join function; these are plain pandas joins. The example uses `1a2c`
     interfaces = table(extract_interface_records(contacts))
     pair = ["chain_id_1", "chain_id_2"]
     for df in (interfaces, labels):
-        df[pair] = pd.DataFrame(
-            df[pair].apply(sorted, axis=1).tolist(), index=df.index
-        )
+        df[pair] = pd.DataFrame(df[pair].apply(sorted, axis=1).tolist(), index=df.index)
     keys = ["entry_id", *pair]
     interfaces = interfaces.merge(labels[[*keys, "label"]], on=keys, how="left")
     print(interfaces[[*pair, "contact_count", "label"]])
@@ -483,9 +472,7 @@ The example uses `1a2c` again. Pandora's own contact layers leave `contact_type`
     structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/a2/1a2c.cif")
     # Stand-in for an imported COCaDA layer: tag close pairs as hydrogen bonds
     contacts = [
-        row.model_copy(
-            update={"contact_type": "hbond" if row.distance < 3.2 else "other"}
-        )
+        row.model_copy(update={"contact_type": "hbond" if row.distance < 3.2 else "other"})
         for row in annotate_chain_interfaces(structure)
     ]
 
@@ -596,16 +583,11 @@ Leaving a threshold out turns its rule off. With neither, every pair is `ok`, wh
 
     structure, _, _ = mmcif_to_structure("curated/structures/a2/1a2c.cif")
     contacts = annotate_chain_interfaces(structure)
-    chains = pd.read_parquet("curated/chains.parquet").dropna(
-        subset="seqres_length"
-    )
+    chains = pd.read_parquet("curated/chains.parquet").dropna(subset="seqres_length")
     lengths = {
-        (row.entry_id.upper(), row.chain_id): int(row.seqres_length)
-        for row in chains.itertuples()
+        (row.entry_id.upper(), row.chain_id): int(row.seqres_length) for row in chains.itertuples()
     }
-    rows = label_interfaces(
-        contacts, lengths, min_residues_per_chain=5, max_total_residues=290
-    )
+    rows = label_interfaces(contacts, lengths, min_residues_per_chain=5, max_total_residues=290)
     columns = ["chain_id_1", "chain_id_2", "residues_1", "residues_2"]
     columns += ["total_residues", "label"]
     print(pd.DataFrame([row.model_dump() for row in rows])[columns])
@@ -666,10 +648,7 @@ A chain can't be measured if its entity has no SEQRES (`_entity_poly_seq`), or i
     structure, _, _ = mmcif_to_structure("curated/structures/a2/1a2c.cif")
     contacts = annotate_chain_interfaces(structure)
     chains, _ = missing_positions(structure)
-    missing = {
-        (structure.entry_id.upper(), chain): positions
-        for chain, positions in chains.items()
-    }
+    missing = {(structure.entry_id.upper(), chain): positions for chain, positions in chains.items()}
     rows = label_interface_gaps(contacts, missing)
     columns = ["chain_id_1", "chain_id_2", "gaps_1", "gaps_2", "label"]
     print(pd.DataFrame([row.model_dump() for row in rows])[columns])

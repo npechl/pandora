@@ -182,9 +182,7 @@ class RepresentativePolicy(BaseModel):
     """
 
     items: SimilarityItems = "chain"
-    rank: list[RankKey] = Field(
-        default_factory=lambda data: _DEFAULT_RANK[data["items"]]()
-    )
+    rank: list[RankKey] = Field(default_factory=lambda data: _DEFAULT_RANK[data["items"]]())
 
 
 _DEFAULT_RANK = {
@@ -288,9 +286,7 @@ class DroppedDimer(BaseModel):
 
     dimer: str
     group: str
-    reason: Literal[
-        "homomer_in_mixed_group", "similar_to_kept", "not_most_connected"
-    ]
+    reason: Literal["homomer_in_mixed_group", "similar_to_kept", "not_most_connected"]
     kept: str | None = None
 
 

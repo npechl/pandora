@@ -90,10 +90,7 @@ def similarity_edges(
             missing.
     """
 
-    if (
-        hit_filter.min_interface_coverage is not None
-        and interface_residues is None
-    ):
+    if hit_filter.min_interface_coverage is not None and interface_residues is None:
         raise ValueError(
             "min_interface_coverage is set but no interface_residues were "
             "given, so every edge would be dropped"
@@ -210,9 +207,7 @@ def _batch_edges(
         yield Edge(source_id, target_id, value, ident, cov, interface_coverage)
 
 
-def _coverage(
-    numbers: Callable[[str], pa.Array | None], coverage_of: str
-) -> pa.Array | None:
+def _coverage(numbers: Callable[[str], pa.Array | None], coverage_of: str) -> pa.Array | None:
     """The coverage `coverage_of` selects, or None if a column is absent."""
 
     import pyarrow.compute as pc
@@ -229,9 +224,7 @@ def _coverage(
     return columns[0]
 
 
-def _interface_coverage(
-    residues: set[int], start: int | None, end: int | None
-) -> float:
+def _interface_coverage(residues: set[int], start: int | None, end: int | None) -> float:
     """Fraction of residues (1-indexed positions) that fall within the
     inclusive [start, end] alignment range. 0.0 if residues is empty or
     the range is unknown."""
@@ -268,15 +261,11 @@ def read_hit_tsv(
     """
 
     if engine not in HIT_COLUMNS:
-        raise ValueError(
-            f"engine must be one of {sorted(HIT_COLUMNS)}, got {engine!r}"
-        )
+        raise ValueError(f"engine must be one of {sorted(HIT_COLUMNS)}, got {engine!r}")
     return _read_hit_tsv(Path(path), engine, batch_size)
 
 
-def _read_hit_tsv(
-    path: Path, engine: str, batch_size: int
-) -> Iterator[pa.RecordBatch]:
+def _read_hit_tsv(path: Path, engine: str, batch_size: int) -> Iterator[pa.RecordBatch]:
     """Generator behind `read_hit_tsv` (engine already checked)."""
 
     import pyarrow as pa
@@ -335,10 +324,7 @@ def read_similarity_table(
 
     path = Path(path)
     if path.suffix not in (".parquet", ".tsv"):
-        raise ValueError(
-            f"{path}: similarity tables are .parquet or .tsv (with a "
-            "header row)"
-        )
+        raise ValueError(f"{path}: similarity tables are .parquet or .tsv (with a header row)")
     if not path.exists():
         raise FileNotFoundError(path)
     if path.suffix == ".parquet":

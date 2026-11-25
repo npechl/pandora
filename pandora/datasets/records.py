@@ -48,14 +48,11 @@ def extract_chain_records(structure: Structure) -> list[ChainRecord]:
         if not chain_atoms:
             continue
 
-        residue_count = len(
-            {(atom.label_seq_id, atom.auth_seq_id) for atom in chain_atoms}
-        )
+        residue_count = len({(atom.label_seq_id, atom.auth_seq_id) for atom in chain_atoms})
         sequence = None
         if entity.poly is not None:
             sequence = (
-                entity.poly.pdbx_seq_one_letter_code_can
-                or entity.poly.pdbx_seq_one_letter_code
+                entity.poly.pdbx_seq_one_letter_code_can or entity.poly.pdbx_seq_one_letter_code
             )
 
         records.append(
@@ -91,9 +88,9 @@ def extract_residue_records(structure: Structure) -> list[ResidueRecord]:
 
     polymer_ids = polymer_asym_ids(structure)
 
-    residues: dict[
-        tuple[str, int | None, str | None, str], list[AtomSiteRecord]
-    ] = defaultdict(list)
+    residues: dict[tuple[str, int | None, str | None, str], list[AtomSiteRecord]] = defaultdict(
+        list
+    )
     for atom in structure.atoms:
         if atom.label_asym_id not in polymer_ids:
             continue
@@ -230,9 +227,7 @@ def dataset_chain_records(
         `extract_chain_records(structure)`, in the same order.
     """
 
-    completeness = {
-        c.chain_id: c for c in chain_completeness(structure, definition)[0]
-    }
+    completeness = {c.chain_id: c for c in chain_completeness(structure, definition)[0]}
     quality = metadata.quality if metadata else None
     copies = copy_of or {}
     rows = []
@@ -245,13 +240,9 @@ def dataset_chain_records(
                 missing_n_term=c.missing_n_term if c else None,
                 missing_c_term=c.missing_c_term if c else None,
                 missing_middle=c.missing_middle if c else None,
-                experimental_method=(
-                    quality.experimental_method if quality else None
-                ),
+                experimental_method=(quality.experimental_method if quality else None),
                 resolution=quality.resolution if quality else None,
-                structure_path=(
-                    None if structure_path is None else str(structure_path)
-                ),
+                structure_path=(None if structure_path is None else str(structure_path)),
                 copy_of=copies.get(record.chain_id),
             )
         )

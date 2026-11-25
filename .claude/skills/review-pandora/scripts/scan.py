@@ -77,9 +77,7 @@ def unread_policy_fields() -> list[str]:
     """Policy fields no module outside pandora/schemas reads."""
 
     code = "\n".join(
-        p.read_text()
-        for p in (ROOT / "pandora").rglob("*.py")
-        if "schemas" not in p.parts
+        p.read_text() for p in (ROOT / "pandora").rglob("*.py") if "schemas" not in p.parts
     )
     out = []
     for model in POLICIES:
@@ -156,10 +154,7 @@ def parser_coverage(fixtures: list[Path]) -> list[str]:
             rows = len(block.find_mmcif_category(cat))
             if rows and count(s) == 0:
                 bad[cat].append(f"{p.stem} ({rows} rows -> 0)")
-    return [
-        f"`{cat}`: {len(v)} fixtures, e.g. {', '.join(v[:3])}"
-        for cat, v in bad.items()
-    ]
+    return [f"`{cat}`: {len(v)} fixtures, e.g. {', '.join(v[:3])}" for cat, v in bad.items()]
 
 
 def _variants() -> list[tuple[str, object]]:
@@ -205,14 +200,10 @@ def _invariants(c) -> list[str]:
             {e.id for e in c.entities} - {a.label_entity_id for a in c.atoms}
         ),
         "assembly names missing asym": any(
-            x not in asyms
-            for a in c.assemblies
-            for g in a.generators
-            for x in g.asym_id_list
+            x not in asyms for a in c.assemblies for g in a.generators for x in g.asym_id_list
         ),
         "bond names missing asym": any(
-            {b.ptnr1.label_asym_id, b.ptnr2.label_asym_id} - asyms
-            for b in c.connections
+            {b.ptnr1.label_asym_id, b.ptnr2.label_asym_id} - asyms for b in c.connections
         ),
         "SS span names missing asym": any(
             {s.beg_label_asym_id, s.end_label_asym_id} - asyms for s in spans
@@ -253,9 +244,7 @@ def canonicalisation_sweep(fixtures: list[Path]) -> tuple[list, list]:
     baseline = {}
     for eid, s in parsed.items():
         try:
-            baseline[eid] = _fingerprint(
-                *canonicalise_structure(s, default)[:2]
-            )
+            baseline[eid] = _fingerprint(*canonicalise_structure(s, default)[:2])
         except ValueError:
             baseline[eid] = None
 
@@ -297,9 +286,7 @@ def main() -> None:
 
     print(f"# review-pandora scan ({len(fixtures)} fixtures)")
     _section("Policy fields no logic reads", unread_policy_fields())
-    _section(
-        "Policy fields missing from policies.md", undocumented_policy_fields()
-    )
+    _section("Policy fields missing from policies.md", undocumented_policy_fields())
     _section("docs/policies YAML drift", policy_yaml_drift())
     _section("Packages missing from functions.md", unreferenced_packages())
     _section("Typed categories parsed as empty", parser_coverage(fixtures))

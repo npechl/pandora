@@ -83,9 +83,7 @@ def test_residue_records_carry_author_keys():
 
 
 def test_residue_record_without_author_keys_still_loads():
-    record = ResidueRecord(
-        entry_id="1abc", chain_id="A", seq_id=1, comp_id="ALA", atoms=[]
-    )
+    record = ResidueRecord(entry_id="1abc", chain_id="A", seq_id=1, comp_id="ALA", atoms=[])
     assert record.auth_chain_id is None and record.ins_code is None
 ```
 
@@ -158,9 +156,7 @@ def test_count_residue_contacts_counts_distinct_partners():
         _contact("B", 5, "A", 1),
         _contact("A", 1, "B", 6),
     ]
-    out = {
-        (r.chain_id, r.seq_id): r.value for r in count_residue_contacts(rows)
-    }
+    out = {(r.chain_id, r.seq_id): r.value for r in count_residue_contacts(rows)}
     assert out == {("A", 1): 2, ("B", 5): 1, ("B", 6): 1}
 
 

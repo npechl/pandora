@@ -49,12 +49,9 @@ def _sequential_numbering(
             chain_res_order[a.label_asym_id].append(rk)
 
     renumber: dict[str, dict[tuple, int]] = {
-        ch: {rk: i + 1 for i, rk in enumerate(rks)}
-        for ch, rks in chain_res_order.items()
+        ch: {rk: i + 1 for i, rk in enumerate(rks)} for ch, rks in chain_res_order.items()
     }
-    return lambda a: renumber[a.label_asym_id].get(
-        _residue_key(a), a.label_seq_id
-    )
+    return lambda a: renumber[a.label_asym_id].get(_residue_key(a), a.label_seq_id)
 
 
 def _apply_numbering(
@@ -88,19 +85,13 @@ def _apply_numbering(
                 ResidueNumberMappingItem(
                     canonical_chain_id=a.label_asym_id,
                     canonical_seq_id=new_seq or 0,
-                    original_chain_id=original_chain.get(
-                        a.label_asym_id, a.label_asym_id
-                    ),
+                    original_chain_id=original_chain.get(a.label_asym_id, a.label_asym_id),
                     original_seq_id=a.label_seq_id,
                     original_auth_seq_id=a.auth_seq_id or "",
                     original_insertion_code=a.pdbx_PDB_ins_code,
                 )
             )
-        result.append(
-            a.model_copy(
-                update={"label_seq_id": new_seq, "pdbx_PDB_ins_code": ins}
-            )
-        )
+        result.append(a.model_copy(update={"label_seq_id": new_seq, "pdbx_PDB_ins_code": ins}))
     return result, mapping
 
 
@@ -131,6 +122,4 @@ def _normalize_residue_numbering(
             atoms, _auth_seq_number, preserve_insertion_codes, chain_map, record
         )
     # renumber
-    return _apply_numbering(
-        atoms, _sequential_numbering(atoms), False, chain_map, record
-    )
+    return _apply_numbering(atoms, _sequential_numbering(atoms), False, chain_map, record)

@@ -60,15 +60,13 @@ def reproduce_dataset(
     """
 
     output_dir = Path(output_dir)
-    structures, ingestion_provenance, canonicalisation_provenance = (
-        _reproduce_structures(manifest, output_dir, fetch_options)
+    structures, ingestion_provenance, canonicalisation_provenance = _reproduce_structures(
+        manifest, output_dir, fetch_options
     )
 
     excluded: list[ExclusionRecord] = []
     if manifest.curation_policy is not None:
-        structures, excluded = _reproduce_curation(
-            structures, manifest.curation_policy
-        )
+        structures, excluded = _reproduce_curation(structures, manifest.curation_policy)
 
     dedup_prov = None
     if manifest.deduplication is not None and manifest.deduplication.enabled:

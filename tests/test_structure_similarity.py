@@ -49,9 +49,7 @@ def _structure_with_gap() -> Structure:
     # resolved -> label_seq_id 6/7 land at file positions 4/5, not 6/7.
     atoms = [_atom("A", i) for i in (1, 2, 3, 6, 7)]
     atoms += [_atom("B", i) for i in (1, 2, 3)]
-    return Structure(
-        entry_id="ENTRY1", entry=EntryRecord(id="ENTRY1"), atoms=atoms
-    )
+    return Structure(entry_id="ENTRY1", entry=EntryRecord(id="ENTRY1"), atoms=atoms)
 
 
 def test_residue_positions_reindexes_around_gaps() -> None:
@@ -125,9 +123,7 @@ def test_structure_search_passes_caps_and_keeps_hits(tmp_path):
     assert args[args.index("--max-seqs") + 1] == "2000"
     assert args[args.index("--exhaustive-search") + 1] == "1"
     assert args[args.index("--alignment-type") + 1] == "1"
-    assert args[args.index("--format-output") + 1] == ",".join(
-        HIT_COLUMNS["Foldseek"]
-    )
+    assert args[args.index("--format-output") + 1] == ",".join(HIT_COLUMNS["Foldseek"])
     assert hits_path.read_text().count("\n") == 1
     assert search.template == "similarity"
     assert search.items == "chain"
@@ -149,9 +145,7 @@ def test_structure_search_omits_exhaustive_flag_by_default(tmp_path):
     struct_dir = tmp_path / "structures"
     struct_dir.mkdir()
 
-    compute_structure_similarity(
-        struct_dir, tmp_path / "hits.tsv", foldseek_bin=str(foldseek)
-    )
+    compute_structure_similarity(struct_dir, tmp_path / "hits.tsv", foldseek_bin=str(foldseek))
 
     args = (tmp_path / "args.txt").read_text().split()
     assert "--exhaustive-search" not in args
@@ -163,9 +157,7 @@ def test_structure_search_writes_relative_hits_path(tmp_path, monkeypatch):
     (tmp_path / "structures").mkdir()
     monkeypatch.chdir(tmp_path)
 
-    compute_structure_similarity(
-        "structures", "hits.tsv", foldseek_bin=str(foldseek)
-    )
+    compute_structure_similarity("structures", "hits.tsv", foldseek_bin=str(foldseek))
 
     assert (tmp_path / "hits.tsv").read_text().count("\n") == 1
 

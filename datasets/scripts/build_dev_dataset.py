@@ -25,9 +25,7 @@ from pandora.ingestion import fetch_list_mmcif
 from pandora.schemas.ingestion import FetchOptions
 
 SEARCH_URL = "https://search.rcsb.org/rcsbsearch/v2/query"
-OUTPUT_DIR = (
-    Path(__file__).resolve().parent.parent / "datasets" / "dev" / "mmcif"
-)
+OUTPUT_DIR = Path(__file__).resolve().parent.parent / "datasets" / "dev" / "mmcif"
 MANIFEST_PATH = OUTPUT_DIR.parent / "manifest.json"
 
 RANDOM_SEED = 20260714
@@ -305,9 +303,7 @@ def select_entries() -> dict[str, list[str]]:
     chosen: dict[str, list[str]] = {}
     seen: set[str] = set()
     for bucket, (nodes, count) in BUCKETS.items():
-        candidates = [
-            c for c in _search(nodes, ROWS_PER_BUCKET) if c not in seen
-        ]
+        candidates = [c for c in _search(nodes, ROWS_PER_BUCKET) if c not in seen]
         rng.shuffle(candidates)
         picked = candidates[:count]
         seen.update(picked)

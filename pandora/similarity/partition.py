@@ -104,9 +104,7 @@ def partition_dataset(
     label_counts: dict[str, dict[str, int]] = {}
     missing_labels: dict[str, list[str]] = {}
     if labels is not None:
-        label_counts, missing_labels = _label_report(
-            clusters, labels, splits, active
-        )
+        label_counts, missing_labels = _label_report(clusters, labels, splits, active)
 
     provenance = PartitionProvenance(
         partitioned_at=now_iso(),
@@ -169,14 +167,11 @@ def _label_report(
     """Labels per split, and the labels missing from each active split."""
 
     counts = {
-        name: dict(Counter(_label(labels, i) for i in members))
-        for name, members in splits.items()
+        name: dict(Counter(_label(labels, i) for i in members)) for name, members in splits.items()
     }
     every = {_label(labels, i) for c in clusters for i in c.components}
     missing = {
-        name: sorted(every - counts[name].keys())
-        for name in active
-        if every - counts[name].keys()
+        name: sorted(every - counts[name].keys()) for name in active if every - counts[name].keys()
     }
     return counts, missing
 
@@ -201,16 +196,12 @@ def _stratified(
         by_label.setdefault(kinds.pop(), []).append(cluster)
     splits: dict[str, list[str]] = {"train": [], "val": [], "test": []}
     for label in sorted(by_label):
-        part, _ = partition_dataset(
-            by_label[label], pct_train, pct_val, pct_test
-        )
+        part, _ = partition_dataset(by_label[label], pct_train, pct_val, pct_test)
         for name, members in part.items():
             splits[name].extend(members)
     fractions = {"train": pct_train, "val": pct_val, "test": pct_test}
     active = [name for name, f in fractions.items() if f > 0]
-    label_counts, missing_labels = _label_report(
-        clusters, labels, splits, active
-    )
+    label_counts, missing_labels = _label_report(clusters, labels, splits, active)
     provenance = PartitionProvenance(
         partitioned_at=now_iso(),
         pct_train=pct_train,
@@ -232,8 +223,6 @@ def _check_options(
     with split clusters."""
 
     if abs(total - 1.0) > _FRACTION_TOLERANCE:
-        raise ValueError(
-            f"pct_train + pct_val + pct_test must equal 1.0, got {total}"
-        )
+        raise ValueError(f"pct_train + pct_val + pct_test must equal 1.0, got {total}")
     if labels is not None and not keep_similar_items:
         raise ValueError("labels need keep_similar_items=True")

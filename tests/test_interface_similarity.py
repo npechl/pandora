@@ -67,9 +67,9 @@ def test_identical_heterodimers_score_one():
         "2BBB", "A", {1, 2, 3}, "B", {4, 5}
     )
     rows, counts = interface_similarity(contacts, _HETERO, _ALL)
-    assert [
-        (r.item_id_1, r.item_id_2, r.score, r.chain_order) for r in rows
-    ] == [("1AAA_A_B", "2BBB_A_B", 1.0, "direct")]
+    assert [(r.item_id_1, r.item_id_2, r.score, r.chain_order) for r in rows] == [
+        ("1AAA_A_B", "2BBB_A_B", 1.0, "direct")
+    ]
     assert rows[0].identity_1 == rows[0].identity_2 == 1.0
     assert counts["pairs_compared"] == 1
     assert counts["alignments"] == 0
@@ -77,9 +77,7 @@ def test_identical_heterodimers_score_one():
 
 
 def test_row_columns_in_order():
-    contacts = _iface("1AAA", "A", {1}, "B", {4}) + _iface(
-        "2BBB", "A", {1}, "B", {4}
-    )
+    contacts = _iface("1AAA", "A", {1}, "B", {4}) + _iface("2BBB", "A", {1}, "B", {4})
     rows, _ = interface_similarity(contacts, _HETERO, _ALL)
     assert list(rows[0].model_dump()) == [
         "item_id_1",
@@ -115,23 +113,17 @@ def test_homodimer_keeps_swapped_order():
 
 
 def test_homodimer_tie_is_direct():
-    contacts = _iface("1AAA", "A", {1, 2}, "B", {1, 2}) + _iface(
-        "2BBB", "A", {1, 2}, "B", {1, 2}
-    )
+    contacts = _iface("1AAA", "A", {1, 2}, "B", {1, 2}) + _iface("2BBB", "A", {1, 2}, "B", {1, 2})
     rows, counts = interface_similarity(contacts, _HOMO, _ALL)
     assert rows[0].chain_order == "direct"
     assert counts["pairs_swapped"] == 0
 
 
 def test_same_entry_interfaces_compared():
-    contacts = _iface("1AAA", "A", {1, 2}, "B", {3}) + _iface(
-        "1AAA", "C", {1, 2}, "D", {3}
-    )
+    contacts = _iface("1AAA", "A", {1, 2}, "B", {3}) + _iface("1AAA", "C", {1, 2}, "D", {3})
     clusters = [_cl("1AAA_A", "1AAA_C"), _cl("1AAA_B", "1AAA_D")]
     rows, _ = interface_similarity(contacts, clusters, _ALL)
-    assert [(r.item_id_1, r.item_id_2) for r in rows] == [
-        ("1AAA_A_B", "1AAA_C_D")
-    ]
+    assert [(r.item_id_1, r.item_id_2) for r in rows] == [("1AAA_A_B", "1AAA_C_D")]
 
 
 def test_reversed_rows_name_one_interface():
@@ -150,9 +142,7 @@ def test_insertion_maps_through_alignment():
     # 2BBB chain A has one residue inserted after position 3
     inserted = _SEQ[:3] + "W" + _SEQ[3:]
     seqs = _ALL | {("2BBB", "A"): inserted}
-    contacts = _iface("1AAA", "A", {5, 6}, "B", {1, 2}) + _iface(
-        "2BBB", "A", {6, 7}, "B", {1, 2}
-    )
+    contacts = _iface("1AAA", "A", {5, 6}, "B", {1, 2}) + _iface("2BBB", "A", {6, 7}, "B", {1, 2})
     rows, counts = interface_similarity(contacts, _HETERO, seqs)
     assert rows[0].jaccard_1 == 1.0
     assert rows[0].identity_1 == 1.0
@@ -163,9 +153,7 @@ def test_unplaced_residue_counts_against_overlap():
     # 2BBB chain A lacks position 10 of 1AAA chain A
     deleted = _SEQ[:9] + _SEQ[10:]
     seqs = _ALL | {("2BBB", "A"): deleted}
-    contacts = _iface("1AAA", "A", {9, 10}, "B", {1, 2}) + _iface(
-        "2BBB", "A", {9}, "B", {1, 2}
-    )
+    contacts = _iface("1AAA", "A", {9, 10}, "B", {1, 2}) + _iface("2BBB", "A", {9}, "B", {1, 2})
     rows, _ = interface_similarity(contacts, _HETERO, seqs)
     assert rows[0].jaccard_1 == 0.5
 
@@ -173,17 +161,12 @@ def test_unplaced_residue_counts_against_overlap():
 def _mutated(seq, every=5):
     """`seq` with every `every`-th residue replaced: 80% identity."""
 
-    return "".join(
-        ("W" if c != "W" else "Y") if i % every == 0 else c
-        for i, c in enumerate(seq)
-    )
+    return "".join(("W" if c != "W" else "Y") if i % every == 0 else c for i, c in enumerate(seq))
 
 
 def _below_identity():
     seqs = _ALL | {("2BBB", "A"): _mutated(_SEQ)}
-    contacts = _iface("1AAA", "A", {2, 3}, "B", {1, 2}) + _iface(
-        "2BBB", "A", {2, 3}, "B", {1, 2}
-    )
+    contacts = _iface("1AAA", "A", {2, 3}, "B", {1, 2}) + _iface("2BBB", "A", {2, 3}, "B", {1, 2})
     return contacts, seqs
 
 

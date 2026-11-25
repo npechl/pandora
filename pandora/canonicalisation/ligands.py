@@ -70,9 +70,7 @@ def filter_ligands(
         return atoms, asym_units
 
     entity_type: dict[str, str] = {e.id: e.type for e in entities}
-    entity_desc: dict[str, str] = {
-        e.id: (e.pdbx_description or "").upper() for e in entities
-    }
+    entity_desc: dict[str, str] = {e.id: (e.pdbx_description or "").upper() for e in entities}
     asym_entity: dict[str, str] = {a.id: a.entity_id for a in asym_units}
 
     keep = {

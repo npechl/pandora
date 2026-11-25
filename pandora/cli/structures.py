@@ -179,9 +179,7 @@ def _curate_one(
     policy: DatasetCurationPolicy,
     copies: dict[str, dict[str, str]],
     out: Path,
-) -> tuple[
-    list[ExclusionRecord], list[DatasetChainRecord], CurationEntryRecord | None
-]:
+) -> tuple[list[ExclusionRecord], list[DatasetChainRecord], CurationEntryRecord | None]:
     """Curate one structure; write it under `out` if kept. Returns its
     exclusions, chain rows and entry row (None if not kept)."""
 
@@ -237,9 +235,7 @@ def _cmd_curate(args: argparse.Namespace) -> None:
                     failures.write(duplicate_line(path, structure.entry_id))
                     continue
                 seen.add(key)
-                dropped, rows, entry = _curate_one(
-                    structure, policy, copies, out
-                )
+                dropped, rows, entry = _curate_one(structure, policy, copies, out)
             except ENTRY_ERRORS as exc:
                 counts["entries_failed"] += 1
                 failures.write(failure_line(path, type(exc).__name__, str(exc)))
@@ -330,10 +326,7 @@ def _cmd_drop_contained(args: argparse.Namespace) -> None:
     counts, unclustered = _cluster_counts(chains, clusters)
     for entry in entries:
         counts.setdefault(entry.entry_id, Counter())
-    values = {
-        e.entry_id: {k: getattr(e, k) for k in _CONTAINED_RANK_KEYS}
-        for e in entries
-    }
+    values = {e.entry_id: {k: getattr(e, k) for k in _CONTAINED_RANK_KEYS} for e in entries}
     contained = find_contained(counts, values, rules.contained_rank)
     removed = set() if args.disable else {r.entry_id for r in contained}
     kept = [e for e in entries if e.entry_id not in removed]
@@ -386,9 +379,7 @@ def _cmd_convert(args: argparse.Namespace) -> None:
 
     structure, _, status = mmcif_to_structure(args.input)
     if structure is None:
-        raise SystemExit(
-            f"structures convert: failed to parse {args.input}: {status}"
-        )
+        raise SystemExit(f"structures convert: failed to parse {args.input}: {status}")
     output = Path(args.output)
     if output.suffix == ".json":
         write_json(structure, output)
@@ -408,13 +399,11 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
     group = subparsers.add_parser(
         "structures",
-        help="Transform structures: canonicalise, curate, drop contained "
-        "entries, convert a file.",
+        help="Transform structures: canonicalise, curate, drop contained entries, convert a file.",
     )
     commands = group.add_subparsers(dest="structures_command", required=True)
     anything = (
-        "structures folder, folder of .cif/.cif.gz files, entries.txt list "
-        "or one .cif/.cif.gz file"
+        "structures folder, folder of .cif/.cif.gz files, entries.txt list or one .cif/.cif.gz file"
     )
 
     p = commands.add_parser(
@@ -424,15 +413,12 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     )
     _add_structures(p, anything)
     add_out(p)
-    p.add_argument(
-        "--policy", required=True, help="canonicalisationPolicy YAML"
-    )
+    p.add_argument("--policy", required=True, help="canonicalisationPolicy YAML")
     p.set_defaults(func=_cmd_canonicalise)
 
     p = commands.add_parser(
         "curate",
-        help="Apply quality, organism and content rules; write entry and "
-        "chain tables.",
+        help="Apply quality, organism and content rules; write entry and chain tables.",
     )
     _add_structures(p, anything)
     add_out(p)

@@ -40,9 +40,7 @@ def test_structure_to_mmcif_round_trips_core_fields(tmp_path):
     assert status in ("success", "warning")
     assert reparsed.entry_id == structure.entry_id
     assert len(reparsed.atoms) == len(structure.atoms)
-    assert {e.id for e in reparsed.entities} == {
-        e.id for e in structure.entities
-    }
+    assert {e.id for e in reparsed.entities} == {e.id for e in structure.entities}
     assert len(reparsed.assemblies) == len(structure.assemblies)
 
 
@@ -67,9 +65,7 @@ def test_export_chain_mmcif_keeps_only_that_chain(tmp_path):
 
     assert status in ("success", "warning")
     assert {a.label_asym_id for a in reparsed.atoms} == {"B"}
-    assert len(reparsed.atoms) == sum(
-        1 for a in structure.atoms if a.label_asym_id == "B"
-    )
+    assert len(reparsed.atoms) == sum(1 for a in structure.atoms if a.label_asym_id == "B")
 
 
 def test_write_json_round_trips(tmp_path):
@@ -146,9 +142,7 @@ def test_truncated_structure_round_trips_through_mmcif(tmp_path):
         policy_name="p",
         policy_version="1.0.0",
         missing_data_rules=MissingDataRules(
-            incomplete_chains=IncompleteChainRules(
-                strategy="truncate_to_complete_regions"
-            )
+            incomplete_chains=IncompleteChainRules(strategy="truncate_to_complete_regions")
         ),
     )
     canonical, _, _ = canonicalise_structure(structure, policy)
@@ -165,9 +159,7 @@ def test_expanded_assembly_round_trips_through_mmcif(tmp_path):
         policy_id="p",
         policy_name="p",
         policy_version="1.0.0",
-        assembly_rules=AssemblyRules(
-            strategy="standardize_biological_assembly"
-        ),
+        assembly_rules=AssemblyRules(strategy="standardize_biological_assembly"),
     )
     canonical, _, _ = canonicalise_structure(structure, policy)
     path = tmp_path / "1a08.cif"
@@ -179,16 +171,8 @@ def test_expanded_assembly_round_trips_through_mmcif(tmp_path):
 @pytest.mark.parametrize(
     "rules",
     [
-        {
-            "identifier_rules": IdentifierRules(
-                chain_id=ChainIdRules(strategy="remap")
-            )
-        },
-        {
-            "identifier_rules": IdentifierRules(
-                chain_id=ChainIdRules(strategy="use_auth_chain_id")
-            )
-        },
+        {"identifier_rules": IdentifierRules(chain_id=ChainIdRules(strategy="remap"))},
+        {"identifier_rules": IdentifierRules(chain_id=ChainIdRules(strategy="use_auth_chain_id"))},
         {
             "identifier_rules": IdentifierRules(
                 residue_numbering=ResidueNumberingRules(strategy="renumber")
@@ -204,11 +188,7 @@ def test_expanded_assembly_round_trips_through_mmcif(tmp_path):
                 missing_atoms=MissingAtomsRules(strategy="drop_partial_residue")
             )
         },
-        {
-            "ligand_rules": LigandRules(
-                strategy="filter", keep_waters=False, keep_ions=False
-            )
-        },
+        {"ligand_rules": LigandRules(strategy="filter", keep_waters=False, keep_ions=False)},
     ],
     ids=[
         "remap",
@@ -220,15 +200,9 @@ def test_expanded_assembly_round_trips_through_mmcif(tmp_path):
     ],
 )
 @pytest.mark.parametrize("entry_id", ["13dg", "1a08", "10mv", "1aui"])
-def test_canonical_structure_round_trips_through_mmcif(
-    entry_id, rules, tmp_path
-):
-    structure, _, _ = mmcif_to_structure(
-        str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif")
-    )
-    policy = canonicalisationPolicy(
-        policy_id="p", policy_name="p", policy_version="1.0.0", **rules
-    )
+def test_canonical_structure_round_trips_through_mmcif(entry_id, rules, tmp_path):
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif"))
+    policy = canonicalisationPolicy(policy_id="p", policy_name="p", policy_version="1.0.0", **rules)
     canonical, _, _ = canonicalise_structure(structure, policy)
     path = tmp_path / f"{entry_id}.cif"
     structure_to_mmcif(canonical, str(path))
@@ -237,9 +211,7 @@ def test_canonical_structure_round_trips_through_mmcif(
 
 
 def test_write_fasta_strips_whitespace(tmp_path):
-    path = write_fasta(
-        {"1abc_A": "MKT\nAYI ", "1abc_B": "GG"}, tmp_path / "out" / "s.fasta"
-    )
+    path = write_fasta({"1abc_A": "MKT\nAYI ", "1abc_B": "GG"}, tmp_path / "out" / "s.fasta")
 
     assert path.read_text() == ">1abc_A\nMKTAYI\n>1abc_B\nGG\n"
 
@@ -279,9 +251,7 @@ def test_read_records_round_trips_with_nulls(tmp_path, suffix):
 
 
 def test_read_records_list_columns_parquet(tmp_path):
-    copy = ChainCopyRecord(
-        entry_id="1", chain_id="A_2", source_chain_id="A", operator_id="2"
-    )
+    copy = ChainCopyRecord(entry_id="1", chain_id="A_2", source_chain_id="A", operator_id="2")
     entry = CanonicalisationEntryRecord(
         entry_id="1",
         policy_id="p",

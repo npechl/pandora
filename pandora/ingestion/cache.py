@@ -41,9 +41,7 @@ def is_stale(path: Path, max_age_seconds: int | None) -> bool:
 def mtime_iso(path: Path) -> str:
     """path's mtime as an ISO 8601 UTC timestamp."""
 
-    return datetime.fromtimestamp(
-        path.stat().st_mtime, tz=timezone.utc
-    ).isoformat()
+    return datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat()
 
 
 def resolve_cache_hit(
@@ -70,8 +68,7 @@ def resolve_cache_hit(
         return cached
     if stale_behavior == "warn":
         warnings.warn(
-            f"cached file {cached} is older than max_age_seconds="
-            f"{max_age_seconds}; refetching",
+            f"cached file {cached} is older than max_age_seconds={max_age_seconds}; refetching",
             stacklevel=2,
         )
         return None

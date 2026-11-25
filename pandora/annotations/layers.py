@@ -51,9 +51,7 @@ def _namings(side: str, level: str) -> tuple[tuple[str, ...], ...]:
     )
 
 
-def _sides(
-    template: LayerTemplate, columns: Collection[str]
-) -> list[tuple[str, str]]:
+def _sides(template: LayerTemplate, columns: Collection[str]) -> list[tuple[str, str]]:
     """(suffix, level) for each side of `template`, given `columns`."""
 
     if template != "free_form":
@@ -68,9 +66,7 @@ def _sides(
     return found
 
 
-def check_layer_columns(
-    columns: Collection[str], template: LayerTemplate
-) -> None:
+def check_layer_columns(columns: Collection[str], template: LayerTemplate) -> None:
     """Check that a table's columns can hold rows of `template`.
 
     Args:
@@ -85,14 +81,9 @@ def check_layer_columns(
     """
 
     if template == "similarity":
-        raise ValueError(
-            "similarity layers are imported with `pandora similarity import`"
-        )
+        raise ValueError("similarity layers are imported with `pandora similarity import`")
     if "entry_id" not in columns:
-        raise ValueError(
-            f"table has no 'entry_id' column, which template "
-            f"{template!r} requires"
-        )
+        raise ValueError(f"table has no 'entry_id' column, which template {template!r} requires")
     for side, level in _sides(template, columns):
         namings = _namings(side, level)
         if not any(set(naming) <= set(columns) for naming in namings):
@@ -103,10 +94,7 @@ def check_layer_columns(
             )
     required = _TEMPLATES.get(template, ((), "", None))[2]
     if required is not None and required not in columns:
-        raise ValueError(
-            f"table has no {required!r} column, which template "
-            f"{template!r} requires"
-        )
+        raise ValueError(f"table has no {required!r} column, which template {template!r} requires")
 
 
 # A residue: (chain_id, seq_id, auth_chain_id, auth_seq_id, ins_code).
@@ -117,9 +105,7 @@ _NO_INS = ("", "?", ".")
 def _present(value: Any) -> bool:
     """Whether a cell holds a value (not None, not NaN)."""
 
-    return value is not None and not (
-        isinstance(value, float) and math.isnan(value)
-    )
+    return value is not None and not (isinstance(value, float) and math.isnan(value))
 
 
 def _as_int(value: Any) -> int | None:
@@ -165,9 +151,7 @@ class _Index:
     auth_of: dict[str, str | None] = field(default_factory=dict)
     polymers_by_auth: dict[str, list[str]] = field(default_factory=dict)
     by_label: dict[tuple[str, int], _Residue] = field(default_factory=dict)
-    by_auth: dict[tuple[str, str, str], list[_Residue]] = field(
-        default_factory=dict
-    )
+    by_auth: dict[tuple[str, str, str], list[_Residue]] = field(default_factory=dict)
     unobserved_label: set[tuple[str, int]] = field(default_factory=set)
     unobserved_auth: set[tuple[str, str, str]] = field(default_factory=set)
     # A residue's name, from its first atom (microheterogeneity: one
@@ -270,9 +254,7 @@ def _by_auth(index: _Index, chain: Any, seq: Any, ins: Any) -> _Residue | str:
     return "residue_not_found"
 
 
-def _resolve_residue(
-    index: _Index, row: Mapping[str, Any], side: str
-) -> dict[str, Any] | str:
+def _resolve_residue(index: _Index, row: Mapping[str, Any], side: str) -> dict[str, Any] | str:
     """The filled key columns of one residue side, or a reason."""
 
     label = (row.get(f"chain_id{side}"), row.get(f"seq_id{side}"))
@@ -300,9 +282,7 @@ def _resolve_residue(
     }
 
 
-def _resolve_chain(
-    index: _Index, row: Mapping[str, Any], side: str
-) -> dict[str, Any] | str:
+def _resolve_chain(index: _Index, row: Mapping[str, Any], side: str) -> dict[str, Any] | str:
     """The filled key columns of one chain side, or a reason.
 
     An author chain id resolves among polymer chains only: ligands and
@@ -340,11 +320,7 @@ def _bad_value(row: Mapping[str, Any], template: LayerTemplate) -> bool:
     required = _TEMPLATES.get(template, ((), "", None))[2]
     value = row.get(required) if required else None
     if required == "value":
-        return (
-            isinstance(value, bool)
-            or not isinstance(value, int | float)
-            or not _present(value)
-        )
+        return isinstance(value, bool) or not isinstance(value, int | float) or not _present(value)
     if required == "label":
         return not isinstance(value, str) or not value
     if template == "residue_contacts" and _present(row.get("distance")):
@@ -399,11 +375,7 @@ def resolve_layer_rows(
     for row in rows:
         result = _resolve_row(row, template, by_entry, indexes)
         if not isinstance(result, str) and template in _UNIQUE:
-            key = tuple(
-                result.get(f"{stem}{side}")
-                for side in sides
-                for stem in _KEY_STEMS
-            )
+            key = tuple(result.get(f"{stem}{side}") for side in sides for stem in _KEY_STEMS)
             if (result["entry_id"], key) in seen:
                 result = "duplicate_key"
             else:

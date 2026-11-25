@@ -252,9 +252,7 @@ class QualityRules(BaseModel):
     include_experimental_methods: list[str] = Field(default_factory=list)
     exclude_experimental_methods: list[str] = Field(default_factory=list)
     max_resolution_by_method: dict[str, float] = Field(default_factory=dict)
-    rfactor_methods: list[str] = Field(
-        default_factory=lambda: ["X-RAY DIFFRACTION"]
-    )
+    rfactor_methods: list[str] = Field(default_factory=lambda: ["X-RAY DIFFRACTION"])
     max_r_free: float | None = None
     max_r_free_gap: float | None = None
     max_r_sym: float | None = None

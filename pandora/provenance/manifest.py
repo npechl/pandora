@@ -89,9 +89,7 @@ def build_provenance_bundle(
         ingestion=ingestion,
         canonicalisation=canonicalisation,
         curation=curation,
-        metadata_sources=(
-            collect_metadata_provenance(metadata) if metadata else []
-        ),
+        metadata_sources=(collect_metadata_provenance(metadata) if metadata else []),
         annotations=[
             AnnotationProvenanceRecord(
                 layer_name=layer.layer_name,
@@ -204,9 +202,7 @@ def build_step_summary(
         gemmi_version=gemmi.__version__,
         policy=policy.model_dump(mode="json"),
         input=str(input),
-        previous_summary=(
-            None if previous_summary is None else str(previous_summary)
-        ),
+        previous_summary=(None if previous_summary is None else str(previous_summary)),
         output=str(output),
         started_at=started_at,
         finished_at=now_iso(),

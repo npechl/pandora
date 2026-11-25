@@ -244,13 +244,9 @@ remap_policy = canonicalisationPolicy(
         chain_id=ChainIdRules(strategy="remap"),
         residue_numbering=ResidueNumberingRules(strategy="renumber"),
     ),
-    altloc_rules=AltlocRules(
-        strategy="select_best_occupancy", tie_breaker="lowest_b_factor"
-    ),
+    altloc_rules=AltlocRules(strategy="select_best_occupancy", tie_breaker="lowest_b_factor"),
     entity_rules=EntityRules(strategy="merge_equivalent_entities"),
-    ligand_rules=LigandRules(
-        strategy="filter", keep_waters=False, keep_ions=False
-    ),
+    ligand_rules=LigandRules(strategy="filter", keep_waters=False, keep_ions=False),
 )
 
 # Keep author-assigned identifiers, strict validation.

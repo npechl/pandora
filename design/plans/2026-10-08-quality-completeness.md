@@ -116,39 +116,37 @@ and change `resolution:` in the docstring to:
 Replace the body of `extract_quality` in `pandora/metadata/mmcif.py` from `exptl_rows = ...` to the end with:
 
 ```python
-    exptl_rows = raw_rows(structure, "_exptl")
-    refine = first_row(structure, "_refine")
-    reflns = first_row(structure, "_reflns")
-    em = first_row(structure, "_em_3d_reconstruction")
+exptl_rows = raw_rows(structure, "_exptl")
+refine = first_row(structure, "_refine")
+reflns = first_row(structure, "_reflns")
+em = first_row(structure, "_em_3d_reconstruction")
 
-    if not exptl_rows and not refine and not reflns and not em:
-        return None
+if not exptl_rows and not refine and not reflns and not em:
+    return None
 
-    methods = [
-        method
-        for method in (clean(row.get("method")) for row in exptl_rows)
-        if method is not None
-    ]
+methods = [
+    method for method in (clean(row.get("method")) for row in exptl_rows) if method is not None
+]
 
-    categories = "_exptl,_refine,_reflns"
-    resolution = as_float(refine.get("ls_d_res_high"))
-    if resolution is None:
-        resolution = as_float(em.get("resolution"))
-        if resolution is not None:
-            categories += ",_em_3d_reconstruction"
+categories = "_exptl,_refine,_reflns"
+resolution = as_float(refine.get("ls_d_res_high"))
+if resolution is None:
+    resolution = as_float(em.get("resolution"))
+    if resolution is not None:
+        categories += ",_em_3d_reconstruction"
 
-    return QualityRecord(
-        experimental_method="; ".join(methods) if methods else None,
-        resolution=resolution,
-        r_work=as_float(refine.get("ls_R_factor_R_work")),
-        r_free=as_float(refine.get("ls_R_factor_R_free")),
-        r_sym=as_float(reflns.get("pdbx_Rsym_value")),
-        r_merge=as_float(reflns.get("pdbx_Rmerge_I_obs")),
-        observed_reflections=as_int(reflns.get("number_obs")),
-        percent_possible_observed=as_float(reflns.get("percent_possible_obs")),
-        mean_b_factor=as_float(refine.get("B_iso_mean")),
-        provenance=provenance(categories),
-    )
+return QualityRecord(
+    experimental_method="; ".join(methods) if methods else None,
+    resolution=resolution,
+    r_work=as_float(refine.get("ls_R_factor_R_work")),
+    r_free=as_float(refine.get("ls_R_factor_R_free")),
+    r_sym=as_float(reflns.get("pdbx_Rsym_value")),
+    r_merge=as_float(reflns.get("pdbx_Rmerge_I_obs")),
+    observed_reflections=as_int(reflns.get("number_obs")),
+    percent_possible_observed=as_float(reflns.get("percent_possible_obs")),
+    mean_b_factor=as_float(refine.get("B_iso_mean")),
+    provenance=provenance(categories),
+)
 ```
 
 Update the docstring: "Reads the `_exptl`, `_refine`, `_reflns` and `_em_3d_reconstruction` categories ... Resolution comes from `_refine`, falling back to `_em_3d_reconstruction` (cryo-EM)." and the `Returns:` line to list all four categories.
@@ -190,30 +188,20 @@ from pandora.canonicalisation.modified_residues import _map_modified_residues
 
 def test_modified_residues_preserved_by_default():
     structure = _load("1b6w")
-    canonical, mappings, _ = canonicalise_structure(
-        structure, _lenient_policy()
-    )
+    canonical, mappings, _ = canonicalise_structure(structure, _lenient_policy())
     assert any(a.label_comp_id == "MSE" for a in canonical.atoms)
     assert mappings.modified_residue_mapping.items == []
 
 
 def test_mse_mapped_to_met():
     structure = _load("1b6w")
-    policy = _lenient_policy(
-        modified_residue_rules=ModifiedResidueRules(strategy="map_to_parent")
-    )
+    policy = _lenient_policy(modified_residue_rules=ModifiedResidueRules(strategy="map_to_parent"))
     canonical, mappings, provenance = canonicalise_structure(structure, policy)
 
     assert not any(a.label_comp_id == "MSE" for a in canonical.atoms)
-    residue_35 = [
-        a
-        for a in canonical.atoms
-        if a.label_asym_id == "A" and a.label_seq_id == 35
-    ]
+    residue_35 = [a for a in canonical.atoms if a.label_asym_id == "A" and a.label_seq_id == 35]
     assert residue_35
-    assert all(
-        a.label_comp_id == "MET" and a.auth_comp_id == "MET" for a in residue_35
-    )
+    assert all(a.label_comp_id == "MET" and a.auth_comp_id == "MET" for a in residue_35)
     assert {
         (i.chain_id, i.seq_id, i.original_comp_id, i.parent_comp_id)
         for i in mappings.modified_residue_mapping.items
@@ -253,9 +241,7 @@ def test_listed_modified_residue_mapped_from_mod_residue_table():
         structure.entry_id,
     )
     assert not any(a.label_comp_id == "FTY" for a in atoms)
-    assert {
-        (i.chain_id, i.seq_id, i.parent_comp_id) for i in mapping.items
-    } == {
+    assert {(i.chain_id, i.seq_id, i.parent_comp_id) for i in mapping.items} == {
         ("B", 2, "TYR"),
         ("D", 2, "TYR"),
     }
@@ -277,9 +263,7 @@ def test_unmapped_modified_residue_gets_warning_not_guess():
     assert not any(a.label_comp_id == "FTY" for a in atoms)
     assert any(a.label_comp_id == "ACE" for a in atoms)
     unmapped = {
-        d.context["comp_id"]
-        for d in diagnostics.warnings
-        if d.code == "MODIFIED_RESIDUE_UNMAPPED"
+        d.context["comp_id"] for d in diagnostics.warnings if d.code == "MODIFIED_RESIDUE_UNMAPPED"
     }
     assert unmapped == {"ACE", "DIP"}
 ```
@@ -349,17 +333,13 @@ class ModifiedResidueRules(BaseModel):
 Add to `CanonicalMappings` (field + docstring line `modified_residue_mapping: The modified residues renamed during this run.`):
 
 ```python
-    modified_residue_mapping: ModifiedResidueMapping = Field(
-        default_factory=ModifiedResidueMapping
-    )
+modified_residue_mapping: ModifiedResidueMapping = Field(default_factory=ModifiedResidueMapping)
 ```
 
 Add to `canonicalisationPolicy` after `ligand_rules` (field + docstring line `modified_residue_rules: The modified-residue mapping rules.`):
 
 ```python
-    modified_residue_rules: ModifiedResidueRules = Field(
-        default_factory=ModifiedResidueRules
-    )
+modified_residue_rules: ModifiedResidueRules = Field(default_factory=ModifiedResidueRules)
 ```
 
 - [ ] **Step 4: Create `pandora/canonicalisation/modified_residues.py`**
@@ -405,19 +385,14 @@ def _map_modified_residues(
     parents = {
         (row.get("label_asym_id"), row.get("label_seq_id"), comp): parent
         for row in mod_rows
-        if (comp := row.get("label_comp_id"))
-        and (parent := row.get("parent_comp_id"))
+        if (comp := row.get("label_comp_id")) and (parent := row.get("parent_comp_id"))
     }
     wanted = set(rules.comp_ids)
     seen: set[tuple[str, str, str]] = set()
     result: list[AtomSiteRecord] = []
     for a in atoms:
         comp = a.label_comp_id
-        if (
-            a.label_seq_id is None
-            or comp in STANDARD_RESIDUES
-            or (wanted and comp not in wanted)
-        ):
+        if a.label_seq_id is None or comp in STANDARD_RESIDUES or (wanted and comp not in wanted):
             result.append(a)
             continue
 
@@ -637,9 +612,7 @@ def test_incomplete_backbone_counts_ca_only_residues_as_missing():
 def test_chain_without_seqres_gets_diagnostic_not_record():
     structure = _load("10mv")
     raw = {k: v for k, v in structure.raw.items() if k != "_entity_poly_seq"}
-    records, diagnostics = chain_completeness(
-        structure.model_copy(update={"raw": raw})
-    )
+    records, diagnostics = chain_completeness(structure.model_copy(update={"raw": raw}))
     assert records == []
     assert [d.code for d in diagnostics.warnings] == ["NO_SEQRES"]
 
@@ -721,9 +694,7 @@ from pandora.schemas.structure import Structure
 def _seqres_by_entity(structure: Structure) -> dict[str, dict[int, set[str]]]:
     """mon_ids per SEQRES position, per entity, from `_entity_poly_seq`."""
 
-    seqres: dict[str, dict[int, set[str]]] = defaultdict(
-        lambda: defaultdict(set)
-    )
+    seqres: dict[str, dict[int, set[str]]] = defaultdict(lambda: defaultdict(set))
     for row in structure.raw.get("_entity_poly_seq", []):
         num, entity_id = row.get("num"), row.get("entity_id")
         if entity_id and num and num.isdigit():
@@ -801,8 +772,7 @@ def chain_completeness(
                 Diagnostic(
                     code=code,
                     severity="warning",
-                    message=f"Chain {asym.id}: completeness not measured "
-                    f"({code})",
+                    message=f"Chain {asym.id}: completeness not measured ({code})",
                     entry_id=structure.entry_id,
                     context={"chain": asym.id},
                 )
@@ -889,9 +859,7 @@ def test_entry_exclusion_has_no_chain_id():
         None,
         _policy(quality_rules=QualityRules(max_resolution=0.1)),
     )
-    assert [(e.reason_code, e.chain_id) for e in exclusions] == [
-        ("NULL_RESOLUTION", None)
-    ]
+    assert [(e.reason_code, e.chain_id) for e in exclusions] == [("NULL_RESOLUTION", None)]
 ```
 
 - [ ] **Step 2: Run them to verify they fail**
@@ -913,16 +881,16 @@ Docstring: `chain_id: The excluded chain's label_asym_id, or None when the whole
 - [ ] **Step 4: Change `curate_structure`'s return**
 
 ```python
-    exclusion = _check_quality(
-        structure, metadata, policy.quality_rules
-    ) or _check_organism(structure, metadata, policy.organism_rules)
-    if exclusion is not None:
-        return None, [exclusion], provenance
-    return (
-        _apply_content_rules(structure, policy.content_rules),
-        [],
-        provenance,
-    )
+exclusion = _check_quality(structure, metadata, policy.quality_rules) or _check_organism(
+    structure, metadata, policy.organism_rules
+)
+if exclusion is not None:
+    return None, [exclusion], provenance
+return (
+    _apply_content_rules(structure, policy.content_rules),
+    [],
+    provenance,
+)
 ```
 
 Signature return annotation: `tuple[Structure | None, list[ExclusionRecord], CurationProvenance]`. Docstring `Returns:`:
@@ -941,45 +909,40 @@ Signature return annotation: `tuple[Structure | None, list[ExclusionRecord], Cur
 `pandora/cli/app.py` `_cmd_curate` loop and print:
 
 ```python
-    for entry_id, structure in structures.items():
-        metadata = collect_metadata(structure)
-        curated, records, prov = curate_structure(structure, metadata, policy)
-        provenance[entry_id] = prov
-        exclusions.extend(records)
-        if curated is not None:
-            retained[entry_id] = curated
+for entry_id, structure in structures.items():
+    metadata = collect_metadata(structure)
+    curated, records, prov = curate_structure(structure, metadata, policy)
+    provenance[entry_id] = prov
+    exclusions.extend(records)
+    if curated is not None:
+        retained[entry_id] = curated
 
-    ...
-    print(
-        f"curated: {len(retained)} retained, "
-        f"{len(structures) - len(retained)} excluded -> {output_dir}"
-    )
+...
+print(
+    f"curated: {len(retained)} retained, {len(structures) - len(retained)} excluded -> {output_dir}"
+)
 ```
 
 `pandora/provenance/reproduce.py` (around line 195):
 
 ```python
-            curated, records, _ = curate_structure(
-                structures[entry_id], metadata, manifest.curation_policy
-            )
-            excluded.extend(records)
-            if curated is None:
-                del structures[entry_id]
-            else:
-                structures[entry_id] = curated
+curated, records, _ = curate_structure(structures[entry_id], metadata, manifest.curation_policy)
+excluded.extend(records)
+if curated is None:
+    del structures[entry_id]
+else:
+    structures[entry_id] = curated
 ```
 
 `examples/dataset_pipeline.py` and `examples/ppi_dataset_pipeline.py`, same shape:
 
 ```python
-    curated, records, _ = curate_structure(
-        structures[entry_id], None, curation_policy
-    )
-    exclusions.extend(records)
-    if curated is None:
-        del structures[entry_id]
-    else:
-        structures[entry_id] = curated
+curated, records, _ = curate_structure(structures[entry_id], None, curation_policy)
+exclusions.extend(records)
+if curated is None:
+    del structures[entry_id]
+else:
+    structures[entry_id] = curated
 ```
 
 Docs: apply the same shape to the snippets in `docs/getting-started/quickstart.md` (~line 184) and `docs/recipes/ppi-01.md` (~lines 73 and 208). In `docs/usage/datasets.md`:
@@ -1060,9 +1023,7 @@ def test_cryo_em_entry_passes_resolution_rule_with_real_metadata():
         max_resolution=3.5,
         max_resolution_by_method={"ELECTRON MICROSCOPY": 2.0},
     )
-    curated, exclusions, _ = curate_structure(
-        structure, metadata, _policy(quality_rules=strict)
-    )
+    curated, exclusions, _ = curate_structure(structure, metadata, _policy(quality_rules=strict))
     assert curated is None
     assert _codes(exclusions) == ["RESOLUTION_THRESHOLD"]
 
@@ -1073,12 +1034,8 @@ def test_resolution_by_method_falls_back_to_max_resolution():
         max_resolution=3.0,
         max_resolution_by_method={"Electron Microscopy": 2.0},
     )
-    meta = _meta(
-        "1ayi", experimental_method="X-ray diffraction", resolution=2.4
-    )
-    curated, exclusions, _ = curate_structure(
-        structure, meta, _policy(quality_rules=rules)
-    )
+    meta = _meta("1ayi", experimental_method="X-ray diffraction", resolution=2.4)
+    curated, exclusions, _ = curate_structure(structure, meta, _policy(quality_rules=rules))
     assert curated is not None and exclusions == []
 
 
@@ -1095,9 +1052,7 @@ def test_resolution_by_method_strictest_wins():
         experimental_method="X-ray diffraction; Neutron diffraction",
         resolution=2.4,
     )
-    _, exclusions, _ = curate_structure(
-        structure, meta, _policy(quality_rules=rules)
-    )
+    _, exclusions, _ = curate_structure(structure, meta, _policy(quality_rules=rules))
     assert _codes(exclusions) == ["RESOLUTION_THRESHOLD"]
 
 
@@ -1117,21 +1072,15 @@ def test_rfactor_rules():
         (QualityRules(max_r_free=0.35, max_r_free_gap=0.11, max_r_sym=0.2), []),
     ]
     for rules, expected in cases:
-        _, exclusions, _ = curate_structure(
-            structure, meta, _policy(quality_rules=rules)
-        )
+        _, exclusions, _ = curate_structure(structure, meta, _policy(quality_rules=rules))
         assert _codes(exclusions) == expected, rules
 
 
 def test_rfactor_rules_skip_cryo_em():
     structure = _load("1ayi")
-    meta = _meta(
-        "1ayi", experimental_method="Electron Microscopy", resolution=2.0
-    )
+    meta = _meta("1ayi", experimental_method="Electron Microscopy", resolution=2.0)
     rules = QualityRules(max_r_free=0.25, null_rfactor_behavior="exclude")
-    curated, exclusions, _ = curate_structure(
-        structure, meta, _policy(quality_rules=rules)
-    )
+    curated, exclusions, _ = curate_structure(structure, meta, _policy(quality_rules=rules))
     assert curated is not None and exclusions == []
 
 
@@ -1145,11 +1094,7 @@ def test_null_rfactor_behavior():
     _, exclusions, _ = curate_structure(
         structure,
         meta,
-        _policy(
-            quality_rules=QualityRules(
-                max_r_free=0.25, null_rfactor_behavior="exclude"
-            )
-        ),
+        _policy(quality_rules=QualityRules(max_r_free=0.25, null_rfactor_behavior="exclude")),
     )
     assert _codes(exclusions) == ["NULL_RFACTOR"]
 
@@ -1157,9 +1102,7 @@ def test_null_rfactor_behavior():
 def test_rfactor_rules_skip_entries_without_metadata():
     structure = _load("1ayi")
     rules = QualityRules(max_r_free=0.25, null_rfactor_behavior="exclude")
-    curated, exclusions, _ = curate_structure(
-        structure, None, _policy(quality_rules=rules)
-    )
+    curated, exclusions, _ = curate_structure(structure, None, _policy(quality_rules=rules))
     assert curated is not None and exclusions == []
 
 
@@ -1227,17 +1170,15 @@ Add to `ExclusionReason`: `"RFREE_THRESHOLD"`, `"RFREE_GAP_THRESHOLD"`, `"RSYM_T
 Add to `QualityRules` after `exclude_experimental_methods`:
 
 ```python
-    max_resolution_by_method: dict[str, float] = Field(default_factory=dict)
-    rfactor_methods: list[str] = Field(
-        default_factory=lambda: ["X-RAY DIFFRACTION"]
-    )
-    max_r_free: float | None = None
-    max_r_free_gap: float | None = None
-    max_r_sym: float | None = None
-    null_rfactor_behavior: Literal["exclude", "include"] = "include"
-    exclude_nonstandard_residues: bool = False
-    allowed_nonstandard_residues: list[str] = Field(default_factory=list)
-    max_atoms: int | None = None
+max_resolution_by_method: dict[str, float] = Field(default_factory=dict)
+rfactor_methods: list[str] = Field(default_factory=lambda: ["X-RAY DIFFRACTION"])
+max_r_free: float | None = None
+max_r_free_gap: float | None = None
+max_r_sym: float | None = None
+null_rfactor_behavior: Literal["exclude", "include"] = "include"
+exclude_nonstandard_residues: bool = False
+allowed_nonstandard_residues: list[str] = Field(default_factory=list)
+max_atoms: int | None = None
 ```
 
 Docstring lines:
@@ -1284,10 +1225,7 @@ def _entry_methods(quality: QualityRecord | None) -> set[str]:
 def _resolution_limit(methods: set[str], rules: QualityRules) -> float | None:
     """The strictest per-method limit that applies, else max_resolution."""
 
-    by_method = {
-        m.strip().upper(): limit
-        for m, limit in rules.max_resolution_by_method.items()
-    }
+    by_method = {m.strip().upper(): limit for m, limit in rules.max_resolution_by_method.items()}
     limits = [by_method[m] for m in methods if m in by_method]
     return min(limits) if limits else rules.max_resolution
 
@@ -1307,11 +1245,7 @@ def _check_rfactors(
     r_sym = None
     if quality:
         r_sym = quality.r_sym if quality.r_sym is not None else quality.r_merge
-    gap = (
-        abs(r_free - r_work)
-        if r_free is not None and r_work is not None
-        else None
-    )
+    gap = abs(r_free - r_work) if r_free is not None and r_work is not None else None
     checks = [
         (rules.max_r_free, r_free, "RFREE_THRESHOLD", "r_free"),
         (rules.max_r_free_gap, gap, "RFREE_GAP_THRESHOLD", "|r_free - r_work|"),
@@ -1325,8 +1259,7 @@ def _check_rfactors(
                 return ExclusionRecord(
                     entry_id=entry_id,
                     reason_code="NULL_RFACTOR",
-                    message=f"{label} is null and "
-                    "null_rfactor_behavior='exclude'",
+                    message=f"{label} is null and null_rfactor_behavior='exclude'",
                 )
             continue
         if value > limit:
@@ -1338,9 +1271,7 @@ def _check_rfactors(
     return None
 
 
-def _check_composition(
-    structure: Structure, rules: QualityRules
-) -> ExclusionRecord | None:
+def _check_composition(structure: Structure, rules: QualityRules) -> ExclusionRecord | None:
     """ExclusionRecord if the entry has non-standard residues or too many
     atoms, else None."""
 
@@ -1363,8 +1294,7 @@ def _check_composition(
         return ExclusionRecord(
             entry_id=structure.entry_id,
             reason_code="TOO_MANY_ATOMS",
-            message=f"{len(structure.atoms)} atoms exceed "
-            f"max_atoms={rules.max_atoms}",
+            message=f"{len(structure.atoms)} atoms exceed max_atoms={rules.max_atoms}",
         )
     return None
 ```
@@ -1475,11 +1405,7 @@ def test_chain_counts_checked_after_drop():
     curated, exclusions, _ = curate_structure(
         structure,
         None,
-        _policy(
-            quality_rules=QualityRules(
-                max_missing_middle_fraction=0.1, min_polymer_chains=2
-            )
-        ),
+        _policy(quality_rules=QualityRules(max_missing_middle_fraction=0.1, min_polymer_chains=2)),
     )
     assert curated is None
     assert _chain_codes(exclusions) == [
@@ -1504,11 +1430,7 @@ def test_chain_failing_two_rules_gets_one_record():
     _, exclusions, _ = curate_structure(
         structure,
         None,
-        _policy(
-            quality_rules=QualityRules(
-                max_chain_length=200, max_missing_middle_fraction=0.1
-            )
-        ),
+        _policy(quality_rules=QualityRules(max_chain_length=200, max_missing_middle_fraction=0.1)),
     )
     assert [e.chain_id for e in exclusions] == ["A"]
 
@@ -1590,9 +1512,7 @@ Import `from pandora.datasets.completeness import chain_completeness`.
 Move the `min_chain_length` and `min_polymer_chains` blocks out of `_check_quality` into a new helper, and add the chain helpers:
 
 ```python
-def _chain_exclusions(
-    structure: Structure, rules: QualityRules
-) -> list[ExclusionRecord]:
+def _chain_exclusions(structure: Structure, rules: QualityRules) -> list[ExclusionRecord]:
     """One ExclusionRecord per polymer chain failing a chain rule."""
 
     failed: dict[str, ExclusionRecord] = {}
@@ -1621,9 +1541,7 @@ def _chain_exclusions(
     max_tail = rules.max_missing_tail_fraction
     max_middle = rules.max_missing_middle_fraction
     if max_tail is not None or max_middle is not None:
-        records, _ = chain_completeness(
-            structure, rules.missing_residue_definition
-        )
+        records, _ = chain_completeness(structure, rules.missing_residue_definition)
         by_chain = {r.chain_id: r for r in records}
         for chain_id in sorted(polymer_asym_ids(structure)):
             c = by_chain.get(chain_id)
@@ -1661,12 +1579,8 @@ def _drop_chains(structure: Structure, chain_ids: set[str]) -> Structure:
 
     return structure.model_copy(
         update={
-            "atoms": [
-                a for a in structure.atoms if a.label_asym_id not in chain_ids
-            ],
-            "asym_units": [
-                u for u in structure.asym_units if u.id not in chain_ids
-            ],
+            "atoms": [a for a in structure.atoms if a.label_asym_id not in chain_ids],
+            "asym_units": [u for u in structure.asym_units if u.id not in chain_ids],
         }
     )
 

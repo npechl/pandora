@@ -104,9 +104,7 @@ def interface_similarity(
     for group in groups.values():
         # ponytail: all-vs-all per cluster pair is quadratic; stream rows
         # in batches if a group gets huge.
-        for key_1, key_2 in itertools.combinations(
-            sorted(group, key=names.__getitem__), 2
-        ):
+        for key_1, key_2 in itertools.combinations(sorted(group, key=names.__getitem__), 2):
             best = _best_order(
                 key_1,
                 key_2,
@@ -198,11 +196,7 @@ def _collect_sides(
     names: dict[_Key, str] = {}
     mismatched: set[_Key] = set()
     for row in contacts:
-        if (
-            row.seq_id_1 is None
-            or row.seq_id_2 is None
-            or row.chain_id_1 == row.chain_id_2
-        ):
+        if row.seq_id_1 is None or row.seq_id_2 is None or row.chain_id_1 == row.chain_id_2:
             counts["rows_ignored"] += 1
             continue
         entry = row.entry_id.upper()
@@ -216,9 +210,7 @@ def _collect_sides(
         ):
             sides[key][chain].add(seq_id)
             sequence = sequences.get((entry, chain))
-            if sequence is not None and not _residue_fits(
-                sequence, seq_id, comp_id
-            ):
+            if sequence is not None and not _residue_fits(sequence, seq_id, comp_id):
                 mismatched.add(key)
     counts["interfaces"] = len(sides)
     return sides, names, mismatched
@@ -289,17 +281,11 @@ def _align(query: str, target: str) -> tuple[dict[int, int], float]:
     return mapping, identical / len(mapping) if mapping else 0.0
 
 
-def _jaccard(
-    side_1: set[int], mapping: dict[int, int] | None, side_2: set[int]
-) -> float:
+def _jaccard(side_1: set[int], mapping: dict[int, int] | None, side_2: set[int]) -> float:
     """Jaccard of two sides; residues `mapping` can't place still count
     in the union."""
 
-    mapped = (
-        side_1
-        if mapping is None
-        else {mapping[i] for i in side_1 if i in mapping}
-    )
+    mapped = side_1 if mapping is None else {mapping[i] for i in side_1 if i in mapping}
     shared = len(mapped & side_2)
     union = len(side_1) + len(side_2) - shared
     return shared / union if union else 0.0

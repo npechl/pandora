@@ -79,9 +79,7 @@ _INTERFACE_RANK_KEYS = (
 )
 
 
-def _cluster_level(
-    args: argparse.Namespace, levels: list[SimilarityItems]
-) -> SimilarityItems:
+def _cluster_level(args: argparse.Namespace, levels: list[SimilarityItems]) -> SimilarityItems:
     """The level to cluster at: --items, or the layers' shared level.
     Chain layers roll up to entries or interfaces."""
 
@@ -93,19 +91,12 @@ def _cluster_level(
                 f"{command}: --items {items} does not fit a {level} layer; "
                 "only chain layers roll up (to entry or interface)"
             )
-    if (
-        items == "interface"
-        and "chain" not in levels
-        and args.structures is not None
-    ):
+    if items == "interface" and "chain" not in levels and args.structures is not None:
         raise SystemExit(
-            f"{command}: interface items come from --contacts; "
-            "--structures does not apply"
+            f"{command}: interface items come from --contacts; --structures does not apply"
         )
     if "entry" in levels and args.contacts is not None:
-        raise SystemExit(
-            f"{command}: --contacts does not apply to an entry layer"
-        )
+        raise SystemExit(f"{command}: --contacts does not apply to an entry layer")
     return items
 
 
@@ -134,8 +125,7 @@ def _interface_residues(
         structure = read_structure(path) if path else None
         if structure is None:
             raise SystemExit(
-                f"{command}: {contacts} names an entry missing from "
-                f"{structures}: {entry!r}"
+                f"{command}: {contacts} names an entry missing from {structures}: {entry!r}"
             )
         by_id = {row.entry_id: structure for row in entry_rows}
         result.update(interface_residues_from_annotation(by_id, entry_rows))
@@ -154,20 +144,14 @@ def _copy_links(chains_table: Path) -> Iterator[tuple[str, str]]:
             )
 
 
-def _chain_map(
-    command: str, path: Path, chains: Iterable[str]
-) -> dict[str, str]:
+def _chain_map(command: str, path: Path, chains: Iterable[str]) -> dict[str, str]:
     """Chain item id -> 90% representative from a representatives JSON;
     exits naming the first of `chains` in no members list."""
 
-    mapping = member_representatives(
-        load_json_list(command, RepresentativeCluster, path)
-    )
+    mapping = member_representatives(load_json_list(command, RepresentativeCluster, path))
     missing = next((c for c in sorted(chains) if c not in mapping), None)
     if missing is not None:
-        raise SystemExit(
-            f"{command}: chain {missing} is in no members list of {path}"
-        )
+        raise SystemExit(f"{command}: chain {missing} is in no members list of {path}")
     return mapping
 
 
@@ -191,12 +175,8 @@ def _build_chain_map(
         return None, None
     command = "clusters build"
     if items_level != "interface":
-        raise SystemExit(
-            f"{command}: --chain-representatives needs --items interface"
-        )
-    file = resolve_file(
-        command, Path(args.chain_representatives), "representatives.json"
-    )
+        raise SystemExit(f"{command}: --chain-representatives needs --items interface")
+    file = resolve_file(command, Path(args.chain_representatives), "representatives.json")
     return _chain_map(command, file, _interface_chains(item_ids)), file
 
 
@@ -231,10 +211,7 @@ def _cmd_build(args: argparse.Namespace) -> None:
     chain_map, map_file = _build_chain_map(args, items_level, item_ids)
 
     residues = None
-    if any(
-        i.items == "chain" and i.hit_filter.min_interface_coverage is not None
-        for i in inputs
-    ):
+    if any(i.items == "chain" and i.hit_filter.min_interface_coverage is not None for i in inputs):
         residues = _interface_residues(command, structures, contacts)
     counts: Counter[int] = Counter()
     same_level: list[Iterator[Any]] = []
@@ -278,9 +255,7 @@ def _cmd_build(args: argparse.Namespace) -> None:
                 )
                 for index, source in enumerate(inputs)
             ],
-            "chain_representatives": (
-                None if map_file is None else str(map_file.resolve())
-            ),
+            "chain_representatives": (None if map_file is None else str(map_file.resolve())),
         }
     )
 
@@ -302,9 +277,7 @@ def _cmd_build(args: argparse.Namespace) -> None:
     print(f"{len(clusters)} clusters from {prov.n_edges} edges -> {out}")
 
 
-def _chain_values(
-    table: Path, keys: set[str]
-) -> tuple[dict[str, dict[str, Any]], set[str]]:
+def _chain_values(table: Path, keys: set[str]) -> tuple[dict[str, dict[str, Any]], set[str]]:
     """Rank values per chain item from a chains table (missing_residues
     summed; n_hits left for later), and the non-copy chain items."""
 
@@ -340,8 +313,7 @@ def _interface_values(
         if key not in interfaces:
             continue
         sides = [
-            item_id("chain", row.entry_id, chain)
-            for chain in (row.chain_id_1, row.chain_id_2)
+            item_id("chain", row.entry_id, chain) for chain in (row.chain_id_1, row.chain_id_2)
         ]
         found = [chains.get(side, {}) for side in sides]
         missing = [f.get("missing_residues") for f in found]
@@ -356,9 +328,7 @@ def _interface_values(
     return values, eligible
 
 
-def _rank_policy(
-    command: str, args: argparse.Namespace, level: str
-) -> RepresentativePolicy:
+def _rank_policy(command: str, args: argparse.Namespace, level: str) -> RepresentativePolicy:
     """The ranking policy for `level`: --policy (or the default), with
     its rank keys checked."""
 
@@ -379,8 +349,7 @@ def _rank_policy(
     unknown = sorted({k.key for k in policy.rank} - allowed)
     if unknown:
         raise SystemExit(
-            f"{command}: unknown rank key {unknown[0]!r}; use "
-            + ", ".join(sorted(allowed))
+            f"{command}: unknown rank key {unknown[0]!r}; use " + ", ".join(sorted(allowed))
         )
     return policy
 
@@ -407,9 +376,7 @@ def _cmd_representatives(args: argparse.Namespace) -> None:
     keys = {rank_key.key for rank_key in policy.rank}
     inputs = similarity_inputs(command, args)
     if "n_hits" in keys and not inputs:
-        raise SystemExit(
-            f"{command}: rank key n_hits needs --similarity (and a hit filter)"
-        )
+        raise SystemExit(f"{command}: rank key n_hits needs --similarity (and a hit filter)")
     clusters_file = resolve_file(command, Path(args.clusters), "clusters.json")
     _, chains_table = require_tables(command, structures)
     if contacts is None:
@@ -468,9 +435,7 @@ def _cmd_representatives(args: argparse.Namespace) -> None:
         n_members_dropped=n_in - n_members,
         n_clusters_dropped=len(clusters_in) - len(clusters),
     )
-    prepare_output_dir(
-        command, out, ["representatives.json", SUMMARY], args.overwrite
-    )
+    prepare_output_dir(command, out, ["representatives.json", SUMMARY], args.overwrite)
     write_json_list(reps, out / "representatives.json")
     write_summary(
         out,
@@ -492,8 +457,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
     group = subparsers.add_parser(
         "clusters",
-        help="Cluster similarity layers and pick one representative per "
-        "cluster.",
+        help="Cluster similarity layers and pick one representative per cluster.",
     )
     commands = group.add_subparsers(dest="clusters_command", required=True)
 

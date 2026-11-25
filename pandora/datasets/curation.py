@@ -47,10 +47,7 @@ def _entry_methods(quality: QualityRecord | None) -> set[str]:
 def _resolution_limit(methods: set[str], rules: QualityRules) -> float | None:
     """The strictest per-method limit that applies, else max_resolution."""
 
-    by_method = {
-        _norm_method(m): limit
-        for m, limit in rules.max_resolution_by_method.items()
-    }
+    by_method = {_norm_method(m): limit for m, limit in rules.max_resolution_by_method.items()}
     limits = [by_method[m] for m in methods if m in by_method]
     return min(limits) if limits else rules.max_resolution
 
@@ -70,11 +67,7 @@ def _check_rfactors(
     r_sym = None
     if quality:
         r_sym = quality.r_sym if quality.r_sym is not None else quality.r_merge
-    gap = (
-        abs(r_free - r_work)
-        if r_free is not None and r_work is not None
-        else None
-    )
+    gap = abs(r_free - r_work) if r_free is not None and r_work is not None else None
     checks = [
         (rules.max_r_free, r_free, "RFREE_THRESHOLD", "r_free"),
         (rules.max_r_free_gap, gap, "RFREE_GAP_THRESHOLD", "|r_free - r_work|"),
@@ -88,8 +81,7 @@ def _check_rfactors(
                 return ExclusionRecord(
                     entry_id=entry_id,
                     reason_code="NULL_RFACTOR",
-                    message=f"{label} is null and "
-                    "null_rfactor_behavior='exclude'",
+                    message=f"{label} is null and null_rfactor_behavior='exclude'",
                 )
             continue
         if value > limit:
@@ -101,9 +93,7 @@ def _check_rfactors(
     return None
 
 
-def _check_composition(
-    structure: Structure, rules: QualityRules
-) -> ExclusionRecord | None:
+def _check_composition(structure: Structure, rules: QualityRules) -> ExclusionRecord | None:
     """ExclusionRecord if the entry has non-standard residues or too many
     atoms, else None."""
 
@@ -126,8 +116,7 @@ def _check_composition(
         return ExclusionRecord(
             entry_id=structure.entry_id,
             reason_code="TOO_MANY_ATOMS",
-            message=f"{len(structure.atoms)} atoms exceed "
-            f"max_atoms={rules.max_atoms}",
+            message=f"{len(structure.atoms)} atoms exceed max_atoms={rules.max_atoms}",
         )
     return None
 
@@ -148,8 +137,7 @@ def _check_quality(
             return ExclusionRecord(
                 entry_id=structure.entry_id,
                 reason_code="NULL_RESOLUTION",
-                message="resolution is null and "
-                "null_resolution_behavior='exclude'",
+                message="resolution is null and null_resolution_behavior='exclude'",
             )
     elif limit is not None and resolution > limit:
         return ExclusionRecord(
@@ -164,9 +152,7 @@ def _check_quality(
     # "X-RAY DIFFRACTION" vs "x-ray diffraction").
     include_methods = _upper_set(rules.include_experimental_methods)
     exclude_methods = _upper_set(rules.exclude_experimental_methods)
-    if (include_methods and not methods & include_methods) or (
-        methods & exclude_methods
-    ):
+    if (include_methods and not methods & include_methods) or (methods & exclude_methods):
         return ExclusionRecord(
             entry_id=structure.entry_id,
             reason_code="METHOD_EXCLUDED",
@@ -180,9 +166,7 @@ def _check_quality(
     return None
 
 
-def _chain_exclusions(
-    structure: Structure, rules: QualityRules
-) -> list[ExclusionRecord]:
+def _chain_exclusions(structure: Structure, rules: QualityRules) -> list[ExclusionRecord]:
     """One ExclusionRecord per polymer chain failing a chain rule."""
 
     failed: dict[str, ExclusionRecord] = {}
@@ -211,9 +195,7 @@ def _chain_exclusions(
     max_tail = rules.max_missing_tail_fraction
     max_middle = rules.max_missing_middle_fraction
     if max_tail is not None or max_middle is not None:
-        records, _ = chain_completeness(
-            structure, rules.missing_residue_definition
-        )
+        records, _ = chain_completeness(structure, rules.missing_residue_definition)
         by_chain = {r.chain_id: r for r in records}
         for chain_id in sorted(polymer_asym_ids(structure)):
             c = by_chain.get(chain_id)
@@ -246,17 +228,12 @@ def _chain_exclusions(
     return [failed[c] for c in sorted(failed)]
 
 
-def _polymer_type_exclusions(
-    structure: Structure, keep: list[str] | None
-) -> list[ExclusionRecord]:
+def _polymer_type_exclusions(structure: Structure, keep: list[str] | None) -> list[ExclusionRecord]:
     """One ExclusionRecord per polymer chain whose type is not in keep."""
 
     if keep is None:
         return []
-    poly_type = {
-        e.id: e.poly.type if e.poly is not None else None
-        for e in structure.entities
-    }
+    poly_type = {e.id: e.poly.type if e.poly is not None else None for e in structure.entities}
     polymer_ids = polymer_asym_ids(structure)
     return [
         ExclusionRecord(
@@ -277,30 +254,20 @@ def _drop_chains(structure: Structure, chain_ids: set[str]) -> Structure:
 
     dropped = structure.model_copy(
         update={
-            "atoms": [
-                a for a in structure.atoms if a.label_asym_id not in chain_ids
-            ],
-            "asym_units": [
-                u for u in structure.asym_units if u.id not in chain_ids
-            ],
+            "atoms": [a for a in structure.atoms if a.label_asym_id not in chain_ids],
+            "asym_units": [u for u in structure.asym_units if u.id not in chain_ids],
         }
     )
     return _drop_stale_references(structure, dropped)
 
 
-def _drop_stale_references(
-    original: Structure, filtered: Structure
-) -> Structure:
+def _drop_stale_references(original: Structure, filtered: Structure) -> Structure:
     """filtered without raw categories, bonds, SS spans, assembly chain
     lists and entities that refer to chains or residues original had and
     filtered lost (else its mmCIF export won't re-parse)."""
 
-    raw, _ = _drop_stale_raw_categories(
-        filtered.raw, original.atoms, filtered.atoms
-    )
-    return _drop_stale_chain_references(
-        filtered.model_copy(update={"raw": raw})
-    )
+    raw, _ = _drop_stale_raw_categories(filtered.raw, original.atoms, filtered.atoms)
+    return _drop_stale_chain_references(filtered.model_copy(update={"raw": raw}))
 
 
 def _check_chain_counts(
@@ -315,15 +282,12 @@ def _check_chain_counts(
             message="every polymer chain was removed by the chain rules",
         )
     if rules.min_chain_length is not None:
-        chain_lengths = [
-            record.residue_count for record in extract_chain_records(structure)
-        ]
+        chain_lengths = [record.residue_count for record in extract_chain_records(structure)]
         if max(chain_lengths, default=0) < rules.min_chain_length:
             return ExclusionRecord(
                 entry_id=structure.entry_id,
                 reason_code="CHAIN_TOO_SHORT",
-                message="no polymer chain reaches min_chain_length="
-                f"{rules.min_chain_length}",
+                message=f"no polymer chain reaches min_chain_length={rules.min_chain_length}",
             )
 
     if rules.min_polymer_chains is not None:
@@ -357,8 +321,7 @@ def _check_organism(
         return ExclusionRecord(
             entry_id=structure.entry_id,
             reason_code="MISSING_TAXONOMY",
-            message="organism filter is active but no taxonomy "
-            "metadata is available",
+            message="organism filter is active but no taxonomy metadata is available",
         )
 
     if taxa & set(rules.exclude_taxa) or (
@@ -373,9 +336,7 @@ def _check_organism(
     return None
 
 
-def _apply_content_rules(
-    structure: Structure, rules: ContentRules
-) -> Structure:
+def _apply_content_rules(structure: Structure, rules: ContentRules) -> Structure:
     """Filter ligands/waters/ions out of structure per the content rules."""
 
     if rules.keep_ligands and rules.keep_waters and rules.keep_ions:
@@ -493,9 +454,7 @@ def curate_structure(
 
     original_raw = structure.raw
     # Polymer types go first so composition is checked on kept chains only.
-    records = _polymer_type_exclusions(
-        structure, policy.content_rules.keep_polymer_types
-    )
+    records = _polymer_type_exclusions(structure, policy.content_rules.keep_polymer_types)
     if records:
         structure = _drop_chains(structure, {r.chain_id for r in records})
     exclusion = _check_composition(structure, rules)

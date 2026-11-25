@@ -19,9 +19,7 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
 
     structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/04/104m.cif")
 
-    policy = canonicalisationPolicy(
-        policy_id="p1", policy_name="Default", policy_version="1.0.0"
-    )
+    policy = canonicalisationPolicy(policy_id="p1", policy_name="Default", policy_version="1.0.0")
     canonical, mappings, provenance = canonicalise_structure(structure, policy)
 
     print(provenance.transforms)
@@ -71,9 +69,7 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
             policy_id="p",
             policy_name="p",
             policy_version="1.0.0",
-            identifier_rules=IdentifierRules(
-                chain_id=ChainIdRules(strategy=strategy)
-            ),
+            identifier_rules=IdentifierRules(chain_id=ChainIdRules(strategy=strategy)),
         )
         _, mappings, _ = canonicalise_structure(structure, policy)
         return ", ".join(
@@ -161,9 +157,7 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
             ),
         )
         canonical, mappings, _ = canonicalise_structure(structure, policy)
-        seq_ids = sorted(
-            {a.label_seq_id for a in canonical.atoms if a.label_asym_id == "A"}
-        )
+        seq_ids = sorted({a.label_seq_id for a in canonical.atoms if a.label_asym_id == "A"})
         print(f"{strategy}: first {seq_ids[:3]}, last {seq_ids[-1]}")
 
     item = mappings.residue_number_mapping.items[0]
@@ -240,9 +234,7 @@ An empty `canonicalisationPolicy` isn't a no-op: several rule groups default to 
 
     rules = [
         AltlocRules(strategy="preserve"),
-        AltlocRules(
-            strategy="select_best_occupancy", tie_breaker="lowest_b_factor"
-        ),
+        AltlocRules(strategy="select_best_occupancy", tie_breaker="lowest_b_factor"),
         AltlocRules(strategy="select_user_defined", user_defined_altloc="B"),
     ]
     for altloc_rules in rules:
@@ -487,9 +479,7 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
 
 
     def residues(structure, chain: str) -> int:
-        return len(
-            {a.label_seq_id for a in structure.atoms if a.label_asym_id == chain}
-        )
+        return len({a.label_seq_id for a in structure.atoms if a.label_asym_id == chain})
 
 
     def canonicalise(structure, rules: MissingDataRules):
@@ -507,9 +497,7 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
     structure, _, _ = mmcif_to_structure("datasets/dev/mmcif/a0/1a08.cif")
     dropped = canonicalise(
         structure,
-        MissingDataRules(
-            missing_atoms=MissingAtomsRules(strategy="drop_partial_residue")
-        ),
+        MissingDataRules(missing_atoms=MissingAtomsRules(strategy="drop_partial_residue")),
     )
     print(
         "drop_partial_residue, 1a08 chain B:",
@@ -524,9 +512,7 @@ In 13dg below, the asymmetric unit holds two copies of the complex: assembly 1 i
     truncated = canonicalise(
         structure,
         MissingDataRules(
-            incomplete_chains=IncompleteChainRules(
-                strategy="truncate_to_complete_regions"
-            )
+            incomplete_chains=IncompleteChainRules(strategy="truncate_to_complete_regions")
         ),
     )
     print(
@@ -612,9 +598,7 @@ To measure how much of each chain is missing against SEQRES, without changing th
         policy_id="p",
         policy_name="p",
         policy_version="1.0.0",
-        ligand_rules=LigandRules(
-            strategy="filter", keep_waters=False, keep_ions=False
-        ),
+        ligand_rules=LigandRules(strategy="filter", keep_waters=False, keep_ions=False),
     )
     canonical, _, _ = canonicalise_structure(structure, policy)
     print("in the policy:", len(structure.atoms), "->", len(canonical.atoms))
@@ -701,9 +685,7 @@ When a run changes which chains or residues exist or what they are called (renum
             residue_numbering=ResidueNumberingRules(strategy="renumber"),
         ),
         modified_residue_rules=ModifiedResidueRules(strategy="map_to_parent"),
-        provenance_rules=canonicalisationProvenanceRules(
-            emit_canonicalisation_report=True
-        ),
+        provenance_rules=canonicalisationProvenanceRules(emit_canonicalisation_report=True),
     )
     canonical, mappings, provenance = canonicalise_structure(structure, policy)
 

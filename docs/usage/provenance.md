@@ -20,9 +20,7 @@ from pandora.schemas.canonicalisation import canonicalisationPolicy
 from pandora.schemas.dataset import DatasetCurationPolicy
 
 output_dir = Path("./datasets/output/provenance/")
-policy = canonicalisationPolicy(
-    policy_id="p", policy_name="p", policy_version="1.0.0"
-)
+policy = canonicalisationPolicy(policy_id="p", policy_name="p", policy_version="1.0.0")
 curation_policy = DatasetCurationPolicy(
     policy_id="c", policy_name="Default", policy_version="1.0.0"
 )
@@ -32,9 +30,7 @@ curation_policy = DatasetCurationPolicy(
 structures, ingestion_prov, canon_prov = {}, {}, {}
 for entry_id in ["104m", "112m"]:
     ing = fetch_mmcif(entry_id, "pdbe", None, output_dir / "raw")
-    structure, _, _ = mmcif_to_structure(
-        str(output_dir / "raw" / f"{entry_id}.cif")
-    )
+    structure, _, _ = mmcif_to_structure(str(output_dir / "raw" / f"{entry_id}.cif"))
     canonical, _, prov = canonicalise_structure(structure, policy)
     structures[canonical.entry_id] = canonical
     ingestion_prov[canonical.entry_id] = ing
@@ -118,9 +114,7 @@ print(manifest.dataset_id, len(manifest.structures), "structures")
 ```python
 from pandora.provenance import reproduce_dataset
 
-reproduced, new_manifest = reproduce_dataset(
-    manifest, output_dir / "reproduced"
-)
+reproduced, new_manifest = reproduce_dataset(manifest, output_dir / "reproduced")
 print(len(reproduced), "structures reproduced")
 # 2 structures reproduced
 ```

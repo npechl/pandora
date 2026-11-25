@@ -84,8 +84,7 @@ A row naming something that isn't an item goes to `unmatched.parquet` with a `re
     sequences = {
         item_id("chain", c.entry_id, c.chain_id): c.sequence
         for c in chains
-        if c.sequence
-        and not c.copy_of  # symmetry copies would crowd out homologues
+        if c.sequence and not c.copy_of  # symmetry copies would crowd out homologues
     }
 
     description = compute_sequence_similarity(
@@ -510,17 +509,11 @@ Each cluster's own lexicographically smallest member is its key, so keys are sta
     )
     from pandora.similarity import cluster_hit_counts, pick_representatives
 
-    clusters = [
-        SimilarityCluster(
-            components=["1A3N_B", "1A3N_D", "1ABW_B", "1ABW_C"], n_components=4
-        )
-    ]
+    clusters = [SimilarityCluster(components=["1A3N_B", "1A3N_D", "1ABW_B", "1ABW_C"], n_components=4)]
     edges = [("1A3N_B", "1ABW_B"), ("1A3N_D", "1ABW_B"), ("1ABW_B", "1ABW_C")]
     missing = {"1A3N_B": 3, "1A3N_D": 3, "1ABW_B": 3, "1ABW_C": 5}
     hits = cluster_hit_counts(clusters, edges)
-    values = {
-        c: {"missing_residues": missing[c], "n_hits": hits[c]} for c in missing
-    }
+    values = {c: {"missing_residues": missing[c], "n_hits": hits[c]} for c in missing}
     reps = pick_representatives(clusters, values, RepresentativePolicy())
     print(hits)
     print(reps[0].representative)
@@ -615,16 +608,11 @@ The examples use `1a3n` (deoxyhemoglobin): chains A and B are α, C and D are β
     from pandora.schemas.similarity import SimilarityCluster
     from pandora.similarity import interface_similarity
 
-    contacts = read_records(
-        "annotations/interfaces/layer.parquet", ResidueContactRow
-    )
+    contacts = read_records("annotations/interfaces/layer.parquet", ResidueContactRow)
     with open("clusters/seq90.json") as f:
         clusters = [SimilarityCluster.model_validate(c) for c in json.load(f)]
     chains = pd.read_parquet("curated/chains.parquet")
-    sequences = {
-        (row.entry_id.upper(), row.chain_id): row.sequence
-        for row in chains.itertuples()
-    }
+    sequences = {(row.entry_id.upper(), row.chain_id): row.sequence for row in chains.itertuples()}
     rows, counts = interface_similarity(contacts, clusters, sequences)
     columns = ["item_id_1", "item_id_2", "jaccard_1", "jaccard_2", "score"]
     print(pd.DataFrame([row.model_dump() for row in rows])[columns].round(2))
@@ -722,13 +710,9 @@ Three commands build a protein–protein interaction set (PPI v2.1 Steps 7 and 8
         similarity_edges,
     )
 
-    groups = [
-        SimilarityCluster(**g)
-        for g in json.load(open("clusters/dimer_groups/clusters.json"))
-    ]
+    groups = [SimilarityCluster(**g) for g in json.load(open("clusters/dimer_groups/clusters.json"))]
     reps = member_representatives(
-        RepresentativeCluster(**r)
-        for r in json.load(open("clusters/seq90/representatives.json"))
+        RepresentativeCluster(**r) for r in json.load(open("clusters/seq90/representatives.json"))
     )
     seq90 = json.load(open("clusters/seq90/clusters.json"))
     cluster_of = {c: i for i, g in enumerate(seq90) for c in g["components"]}
@@ -738,8 +722,7 @@ Three commands build a protein–protein interaction set (PPI v2.1 Steps 7 and 8
     def same_protein(dimer):
         entry, chain_1, chain_2 = parse_item_id("interface", dimer)
         return (
-            cluster_of[item_id("chain", entry, chain_1)]
-            == cluster_of[item_id("chain", entry, chain_2)]
+            cluster_of[item_id("chain", entry, chain_1)] == cluster_of[item_id("chain", entry, chain_2)]
         )
 
 
@@ -816,8 +799,7 @@ It draws C from the rest and removes C from the pool for good. One generator see
 
     positives = read_records("work/positives/positives.jsonl", PositiveDimer)
     reps = member_representatives(
-        RepresentativeCluster(**r)
-        for r in json.load(open("clusters/seq90/representatives.json"))
+        RepresentativeCluster(**r) for r in json.load(open("clusters/seq90/representatives.json"))
     )
     tm = similarity_edges(
         read_similarity_table("layers/tm/layer.parquet"),
@@ -826,9 +808,7 @@ It draws C from the rest and removes C from the pool for good. One generator see
     contacts = pd.read_parquet("layers/contacts_any/layer.parquet")
     binding = {
         (item_id("chain", e, a), item_id("chain", e, b))
-        for e, a, b in zip(
-            contacts.entry_id, contacts.chain_id_1, contacts.chain_id_2
-        )
+        for e, a, b in zip(contacts.entry_id, contacts.chain_id_1, contacts.chain_id_2)
     }
     negatives, unpaired = sample_negatives(positives, reps, tm, binding, seed=0)
     print(negatives[0])
@@ -902,17 +882,13 @@ The groups go to train/val/test whole, so similar positives never straddle a spl
 
     positives = read_records("work/positives/positives.jsonl", PositiveDimer)
     negatives = read_records("work/negatives/negatives.jsonl", NegativePair)
-    groups = [
-        SimilarityCluster(**g)
-        for g in json.load(open("work/positives/clusters.json"))
-    ]
+    groups = [SimilarityCluster(**g) for g in json.load(open("work/positives/clusters.json"))]
     kinds = {p.dimer: p.kind for p in positives}
     splits, prov = partition_dataset(groups, labels=kinds, stratify=True)
     print(prov.label_counts)
 
     reps = member_representatives(
-        RepresentativeCluster(**r)
-        for r in json.load(open("clusters/seq90/representatives.json"))
+        RepresentativeCluster(**r) for r in json.load(open("clusters/seq90/representatives.json"))
     )
     tm = similarity_edges(
         read_similarity_table("layers/tm/layer.parquet"),
@@ -936,9 +912,7 @@ The groups go to train/val/test whole, so similar positives never straddle a spl
     ```python
     from pandora.similarity import partition_dataset
 
-    splits, provenance = partition_dataset(
-        clusters, pct_train=0.6, pct_val=0.2, pct_test=0.2
-    )
+    splits, provenance = partition_dataset(clusters, pct_train=0.6, pct_val=0.2, pct_test=0.2)
     print(splits)
     ```
 
@@ -1021,9 +995,7 @@ Symmetry copies sit in their source chain's cluster as items of their own, so la
     from pandora.schemas.similarity import SimilarityCluster
     from pandora.similarity import item_labels, partition_dataset
 
-    clusters = [
-        SimilarityCluster(**c) for c in json.load(open("clusters/chains.json"))
-    ]
+    clusters = [SimilarityCluster(**c) for c in json.load(open("clusters/chains.json"))]
     rows = read_records("annotations/kinds/layer.parquet", LayerRow)
     labels = item_labels(rows, "chain_labels")
     splits, provenance = partition_dataset(clusters, labels=labels)

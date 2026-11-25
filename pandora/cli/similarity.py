@@ -85,9 +85,7 @@ def _require_pyarrow(command: str) -> None:
     try:
         import pyarrow  # noqa: F401
     except ImportError as exc:
-        raise SystemExit(
-            f"{command}: similarity layers need pyarrow (the export extra)"
-        ) from exc
+        raise SystemExit(f"{command}: similarity layers need pyarrow (the export extra)") from exc
 
 
 _CONTACT_COLUMNS = (
@@ -116,11 +114,7 @@ def _item_set(
                 "(a residue_contacts layer folder or table)"
             )
         rows_file = contact_table(command, contacts)
-        rows = (
-            read_columns(rows_file, _CONTACT_COLUMNS)
-            if rows_file is not None
-            else iter(())
-        )
+        rows = read_columns(rows_file, _CONTACT_COLUMNS) if rows_file is not None else iter(())
         return interface_items(rows), input_summary(contacts)
     if structures is None:
         raise SystemExit(f"{command}: {level} items need --structures")
@@ -134,9 +128,7 @@ def _item_set(
     return chain_items((r["entry_id"], r["chain_id"]) for r in rows), previous
 
 
-def _write_layer(
-    batches: Iterable[Any], items: ItemSet, out: Path
-) -> Counter[str]:
+def _write_layer(batches: Iterable[Any], items: ItemSet, out: Path) -> Counter[str]:
     """Match `batches` against `items` into `out`'s layer and unmatched
     tables; returns the counts."""
 
@@ -149,9 +141,7 @@ def _write_layer(
             layer.write(matched)
             unmatched.write(rest)
             counts["rows_in"] += matched.num_rows + rest.num_rows
-            counts.update(
-                f"unmatched:{r}" for r in rest.column("reason").to_pylist()
-            )
+            counts.update(f"unmatched:{r}" for r in rest.column("reason").to_pylist())
         counts["rows_matched"] = layer.rows
         counts["rows_unmatched"] = unmatched.rows
     return counts
@@ -231,8 +221,7 @@ def _search(args: argparse.Namespace, command: str, engine: str) -> None:
     chain_files = getattr(args, "chain_files", None)
     if args.chains is not None and chain_files is not None:
         raise SystemExit(
-            f"{command}: --chains needs the chains cut from STRUCTURES; "
-            "drop --chain-files"
+            f"{command}: --chains needs the chains cut from STRUCTURES; drop --chain-files"
         )
     structures, out = Path(args.structures), Path(args.out)
     check_out(
@@ -249,10 +238,7 @@ def _search(args: argparse.Namespace, command: str, engine: str) -> None:
         listed = _chains_arg(command, Path(args.chains))
         unknown = next((c for c in listed if c not in known), None)
         if unknown is not None:
-            raise SystemExit(
-                f"{command}: --chains names {unknown}, not a chain "
-                f"of {structures}"
-            )
+            raise SystemExit(f"{command}: --chains names {unknown}, not a chain of {structures}")
         chains = set(listed)
     prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
     hits = out / "hits.tsv"
@@ -288,10 +274,7 @@ def _search(args: argparse.Namespace, command: str, engine: str) -> None:
         counts=counts,
         previous=previous,
     )
-    print(
-        f"searched: {counts['rows_matched']} hits, "
-        f"{counts['rows_unmatched']} unmatched -> {out}"
-    )
+    print(f"searched: {counts['rows_matched']} hits, {counts['rows_unmatched']} unmatched -> {out}")
 
 
 def _cmd_mmseqs(args: argparse.Namespace) -> None:
@@ -327,13 +310,9 @@ def _chain_files(
     files: dict[str, Path] = {}
     for structure in read_structures_dir(structures_dir):
         for key, chain_id in by_entry.pop(structure.entry_id, []):
-            files[key] = export_chain_mmcif(
-                structure, chain_id, out / f"{key}.cif"
-            )
+            files[key] = export_chain_mmcif(structure, chain_id, out / f"{key}.cif")
     if by_entry:
-        raise SystemExit(
-            f"{command}: {structures_dir} has no structure for {min(by_entry)}"
-        )
+        raise SystemExit(f"{command}: {structures_dir} has no structure for {min(by_entry)}")
     return dict(sorted(files.items()))
 
 
@@ -368,14 +347,11 @@ def _cmd_import(args: argparse.Namespace) -> None:
     structures = Path(args.structures) if args.structures else None
     contacts = Path(args.contacts) if args.contacts else None
     check_out(command, out, table, structures, contacts)
-    description = load_yaml_model(
-        command, LayerDescription, Path(args.description)
-    )
+    description = load_yaml_model(command, LayerDescription, Path(args.description))
     try:
         if description.template != "similarity":
             raise ValueError(
-                f"template is {description.template!r}; `similarity "
-                "import` takes similarity layers"
+                f"template is {description.template!r}; `similarity import` takes similarity layers"
             )
         batches = read_similarity_table(table)
         first = next(batches, None)
@@ -385,14 +361,10 @@ def _cmd_import(args: argparse.Namespace) -> None:
         raise _import_error(command, table, exc) from exc
 
     if description.items != "interface" and structures is None:
-        raise SystemExit(
-            f"{command}: {description.items} items need --structures"
-        )
+        raise SystemExit(f"{command}: {description.items} items need --structures")
     if structures is not None and description.items != "interface":
         require_tables(command, structures)
-    items, previous = _item_set(
-        command, description.items, structures, contacts
-    )
+    items, previous = _item_set(command, description.items, structures, contacts)
     prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
     if args.source_files:
         copy_source(Path(args.source_files), out / "source")
@@ -410,10 +382,7 @@ def _cmd_import(args: argparse.Namespace) -> None:
         counts=counts,
         previous=previous,
     )
-    print(
-        f"imported: {counts['rows_matched']} rows, "
-        f"{counts['rows_unmatched']} unmatched -> {out}"
-    )
+    print(f"imported: {counts['rows_matched']} rows, {counts['rows_unmatched']} unmatched -> {out}")
 
 
 def _cmd_interface_overlap(args: argparse.Namespace) -> None:
@@ -434,9 +403,7 @@ def _cmd_interface_overlap(args: argparse.Namespace) -> None:
         for chain in read_records(chains_table, DatasetChainRecord)
         if chain.sequence
     }
-    clusters_file = resolve_file(
-        command, Path(args.chain_clusters), "clusters.json"
-    )
+    clusters_file = resolve_file(command, Path(args.chain_clusters), "clusters.json")
     clusters = load_json_list(command, SimilarityCluster, clusters_file)
     try:
         for cluster in clusters:
@@ -444,8 +411,7 @@ def _cmd_interface_overlap(args: argparse.Namespace) -> None:
                 parse_item_id("chain", component)
     except ValueError as exc:
         raise SystemExit(
-            f"{command}: {clusters_file} must cluster chain items "
-            f"(ENTRY_CHAIN): {exc}"
+            f"{command}: {clusters_file} must cluster chain items (ENTRY_CHAIN): {exc}"
         ) from exc
     rows_in: Counter[str] = Counter()
     scored, counts = interface_similarity(
@@ -497,8 +463,7 @@ def _register_search(
     p = commands.add_parser(name, help=help)
     p.add_argument(
         "structures",
-        help="structures folder with entries and chains tables "
-        "(pandora structures curate)",
+        help="structures folder with entries and chains tables (pandora structures curate)",
     )
     add_out(p, tables=False)
     p.add_argument(
@@ -506,9 +471,7 @@ def _register_search(
         help="limit the search to these chains: a representatives folder "
         "or .json, or a text file of chain IDs (one per line, # comments)",
     )
-    p.add_argument(
-        "--bin", default=name, help=f"the {engine} executable (default {name})"
-    )
+    p.add_argument("--bin", default=name, help=f"the {engine} executable (default {name})")
     p.set_defaults(func=func)
     return p
 
@@ -521,9 +484,7 @@ def _register_interface_overlap(commands: argparse._SubParsersAction) -> None:
         help="Score pairs of interfaces of the same two proteins by "
         "per-side Jaccard of their interface residues.",
     )
-    p.add_argument(
-        "contacts", help="contact layer folder or .parquet/.jsonl table"
-    )
+    p.add_argument("contacts", help="contact layer folder or .parquet/.jsonl table")
     add_out(p, tables=False)
     p.add_argument(
         "--chain-clusters",
@@ -553,9 +514,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
         help="Similarity layers: search with MMseqs2 or Foldseek, score "
         "interface overlap, or import.",
     )
-    commands = similarity.add_subparsers(
-        dest="similarity_command", required=True
-    )
+    commands = similarity.add_subparsers(dest="similarity_command", required=True)
     p = _register_search(
         commands,
         "mmseqs",

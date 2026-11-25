@@ -143,9 +143,7 @@ def test_recognised_columns_are_cast():
 
 def test_self_hits_and_repeats_are_kept():
     items = chain_items([("104M", "A")])
-    batch = _batch(
-        item_id_1=["104M_A"] * 2, item_id_2=["104M_A"] * 2, score=[1.0, 1.0]
-    )
+    batch = _batch(item_id_1=["104M_A"] * 2, item_id_2=["104M_A"] * 2, score=[1.0, 1.0])
     matched, _ = _match(batch, items)
     assert matched.num_rows == 2
 
@@ -161,9 +159,7 @@ def _chain_label(entry, chain, label):
 
 
 def _interface_label(entry, chain_1, chain_2, label):
-    return LayerRow(
-        entry_id=entry, chain_id_1=chain_1, chain_id_2=chain_2, label=label
-    )
+    return LayerRow(entry_id=entry, chain_id_1=chain_1, chain_id_2=chain_2, label=label)
 
 
 def test_item_labels_chains():

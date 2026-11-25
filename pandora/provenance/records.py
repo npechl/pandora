@@ -79,9 +79,7 @@ def curation_entry_record(
         structure_path=_path(structure_path),
         experimental_method=quality.experimental_method if quality else None,
         resolution=quality.resolution if quality else None,
-        chain_count=sum(
-            1 for a in structure.asym_units if a.entity_id in polymer_entities
-        ),
+        chain_count=sum(1 for a in structure.asym_units if a.entity_id in polymer_entities),
         policy_id=provenance.policy_id,
         policy_name=provenance.policy_name,
         policy_version=provenance.policy_version,

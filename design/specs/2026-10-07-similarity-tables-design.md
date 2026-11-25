@@ -93,9 +93,7 @@ class HitFilter(BaseModel):
     min_coverage: float | None = None
     coverage_of: Literal["both", "query", "target", "either"] = "both"
     min_interface_coverage: float | None = None
-    tm_normalisation: Literal["alignment", "query", "target", "max"] = (
-        "alignment"
-    )
+    tm_normalisation: Literal["alignment", "query", "target", "max"] = "alignment"
 ```
 
 How the filter reads a hit:

@@ -57,14 +57,7 @@ from pandora.schemas.structure import (
     SSRecord,
 )
 
-MMCIF_PATH = (
-    Path(__file__).parent.parent
-    / "datasets"
-    / "dev"
-    / "mmcif"
-    / "ay"
-    / "1ayi.cif"
-)
+MMCIF_PATH = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif" / "ay" / "1ayi.cif"
 
 
 def _atom(
@@ -123,9 +116,7 @@ def test_normalize_chain_ids_remap_assigns_sequential_letters():
 
 
 def test_normalize_chain_ids_remap_continues_past_two_letters():
-    asym_units = [
-        AsymRecord(id=f"X{i}", entity_id="1") for i in range(26 + 26**2 + 2)
-    ]
+    asym_units = [AsymRecord(id=f"X{i}", entity_id="1") for i in range(26 + 26**2 + 2)]
     chain_map, _ = _normalize_chain_ids(asym_units, "remap", record=False)
 
     ids = list(chain_map.values())
@@ -137,13 +128,9 @@ def test_apply_chain_map_updates_atoms_and_asyms():
     atoms = [_atom(label_asym_id="C")]
     asym_units = [AsymRecord(id="C", entity_id="1", auth_id="C")]
     structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
-    structure = structure.model_copy(
-        update={"atoms": atoms, "asym_units": asym_units}
-    )
+    structure = structure.model_copy(update={"atoms": atoms, "asym_units": asym_units})
 
-    new_atoms, new_asyms, _ = _apply_chain_map(
-        atoms, asym_units, structure, {"C": "A"}
-    )
+    new_atoms, new_asyms, _ = _apply_chain_map(atoms, asym_units, structure, {"C": "A"})
 
     assert new_atoms[0].label_asym_id == "A"
     assert new_asyms[0].id == "A"
@@ -413,9 +400,7 @@ def test_drop_emptied_records_reports_emptied_chains():
             "1p58",
             {
                 "missing_data_rules": MissingDataRules(
-                    missing_atoms=MissingAtomsRules(
-                        strategy="drop_partial_residue"
-                    )
+                    missing_atoms=MissingAtomsRules(strategy="drop_partial_residue")
                 )
             },
         ),
@@ -432,24 +417,16 @@ def test_drop_emptied_records_reports_emptied_chains():
         ),
     ],
 )
-def test_canonicalise_structure_drops_asyms_and_entities_without_atoms(
-    entry_id, policy_update
-):
-    structure, _, _ = mmcif_to_structure(
-        str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif")
-    )
+def test_canonicalise_structure_drops_asyms_and_entities_without_atoms(entry_id, policy_update):
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif"))
     # Lenient: 1p58 loses every atom, which fails validation (#124).
     policy = _lenient_policy(**policy_update)
 
     canonical, _, _ = canonicalise_structure(structure, policy)
 
     assert len(canonical.entities) < len(structure.entities)
-    assert {u.id for u in canonical.asym_units} == {
-        a.label_asym_id for a in canonical.atoms
-    }
-    assert {e.id for e in canonical.entities} == {
-        a.label_entity_id for a in canonical.atoms
-    }
+    assert {u.id for u in canonical.asym_units} == {a.label_asym_id for a in canonical.atoms}
+    assert {e.id for e in canonical.entities} == {a.label_entity_id for a in canonical.atoms}
 
 
 # validation --------------------------------------------------------------
@@ -501,9 +478,7 @@ def test_validate_fails_when_fail_on_unresolved_issues():
 
 def test_validate_strict_promotes_warnings_to_errors():
     diagnostics = DiagnosticBundle()
-    diagnostics.warnings.append(
-        Diagnostic(code="SOME_WARNING", severity="warning", message="x")
-    )
+    diagnostics.warnings.append(Diagnostic(code="SOME_WARNING", severity="warning", message="x"))
     rules = ValidationRules(strictness="strict", fail_on_unresolved_issues=True)
 
     status = _validate([], [], rules, diagnostics, "test")
@@ -574,9 +549,7 @@ def testfilter_ligands_drops_waters_when_keep_waters_false():
     rules = LigandRules(strategy="filter", keep_waters=False)
     diagnostics = DiagnosticBundle()
 
-    new_atoms, new_asyms = filter_ligands(
-        atoms, asym_units, entities, rules, diagnostics, "test"
-    )
+    new_atoms, new_asyms = filter_ligands(atoms, asym_units, entities, rules, diagnostics, "test")
 
     assert {a.label_asym_id for a in new_atoms} == {"A"}
     assert {a.id for a in new_asyms} == {"A"}
@@ -605,9 +578,7 @@ def testfilter_ligands_annotate_only_removes_but_records_diagnostic():
     rules = LigandRules(strategy="annotate_only")
     diagnostics = DiagnosticBundle()
 
-    new_atoms, new_asyms = filter_ligands(
-        atoms, asym_units, entities, rules, diagnostics, "test"
-    )
+    new_atoms, new_asyms = filter_ligands(atoms, asym_units, entities, rules, diagnostics, "test")
 
     assert {a.label_asym_id for a in new_atoms} == {"A"}
     assert diagnostics.warnings[0].code == "LIGAND_ANNOTATED_ONLY"
@@ -682,9 +653,7 @@ def test_standardize_biological_assembly_identity_only_is_unchanged():
             id="1",
             author_determined=True,
             generators=[
-                AssemblyGenRecord(
-                    assembly_id="1", oper_expression="1", asym_id_list=["A"]
-                )
+                AssemblyGenRecord(assembly_id="1", oper_expression="1", asym_id_list=["A"])
             ],
             operators=[identity_op],
         )
@@ -731,9 +700,7 @@ def test_standardize_biological_assembly_expands_symmetry_copy():
             author_determined=True,
             oligomeric_count=1,
             generators=[
-                AssemblyGenRecord(
-                    assembly_id="1", oper_expression="2", asym_id_list=["A"]
-                )
+                AssemblyGenRecord(assembly_id="1", oper_expression="2", asym_id_list=["A"])
             ],
             operators=[translate_op],
         )
@@ -769,9 +736,7 @@ def test_standardize_biological_assembly_expands_symmetry_copy():
     # The deposited count already describes the whole assembly.
     assert result[0].oligomeric_count == 1
     assert mapping.items[0].chain_copies == [
-        AssemblyChainCopy(
-            canonical_chain_id="A-2", source_chain_id="A", operator_id="2"
-        )
+        AssemblyChainCopy(canonical_chain_id="A-2", source_chain_id="A", operator_id="2")
     ]
 
 
@@ -816,9 +781,7 @@ def _assembly_with_identity_and_copy(*, identity_chains, copied_chains):
 def test_standardize_biological_assembly_drops_chains_outside_assembly():
     # B isn't in any generator: its atoms, asym unit, its connection to A
     # and its secondary structure all go.
-    assemblies = _assembly_with_identity_and_copy(
-        identity_chains=["A"], copied_chains=[]
-    )
+    assemblies = _assembly_with_identity_and_copy(identity_chains=["A"], copied_chains=[])
     atoms = [
         _atom(label_asym_id="A", x=1.0, y=2.0, z=3.0),
         _atom(label_asym_id="B", id=2, x=4.0, y=5.0, z=6.0),
@@ -863,9 +826,7 @@ def test_standardize_biological_assembly_drops_chains_outside_assembly():
 
 
 def test_standardize_biological_assembly_expands_intra_chain_connection():
-    assemblies = _assembly_with_identity_and_copy(
-        identity_chains=["A"], copied_chains=["A"]
-    )
+    assemblies = _assembly_with_identity_and_copy(identity_chains=["A"], copied_chains=["A"])
     atoms = [_atom(label_asym_id="A", x=1.0, y=2.0, z=3.0)]
     asym_units = [AsymRecord(id="A", entity_id="1")]
     # a disulfide-style bond within chain A -- rigid-body copies of A
@@ -904,9 +865,7 @@ def test_standardize_biological_assembly_drops_inter_chain_connection_when_only_
     # A and B are in the assembly at identity, but only A also gets a copy
     # under operator 2 -- an A-2 to B connection has no valid single-operator
     # remap and must not be fabricated.
-    assemblies = _assembly_with_identity_and_copy(
-        identity_chains=["A", "B"], copied_chains=["A"]
-    )
+    assemblies = _assembly_with_identity_and_copy(identity_chains=["A", "B"], copied_chains=["A"])
     atoms = [
         _atom(label_asym_id="A", x=1.0, y=2.0, z=3.0),
         _atom(label_asym_id="B", id=2, x=4.0, y=5.0, z=6.0),
@@ -982,9 +941,7 @@ def test_standardize_biological_assembly_expands_inter_chain_connection_when_bot
 
 
 def test_standardize_biological_assembly_expands_secondary_structure():
-    assemblies = _assembly_with_identity_and_copy(
-        identity_chains=["A"], copied_chains=["A"]
-    )
+    assemblies = _assembly_with_identity_and_copy(identity_chains=["A"], copied_chains=["A"])
     atoms = [_atom(label_asym_id="A", x=1.0, y=2.0, z=3.0)]
     asym_units = [AsymRecord(id="A", entity_id="1")]
     helix = ConfRecord(
@@ -1066,9 +1023,7 @@ def test_first_assembly_source_ignores_author_flag():
         AssemblyRecord(id="1", software_determined=True),
         AssemblyRecord(id="2", author_determined=True),
     ]
-    picked = _select_biological_assembly(
-        assemblies, "first", DiagnosticBundle(), "test"
-    )
+    picked = _select_biological_assembly(assemblies, "first", DiagnosticBundle(), "test")
     assert picked.id == "1"
 
 
@@ -1079,9 +1034,7 @@ def test_author_assembly_source_still_prefers_author_flag():
         AssemblyRecord(id="1", software_determined=True),
         AssemblyRecord(id="2", author_determined=True),
     ]
-    picked = _select_biological_assembly(
-        assemblies, "author", DiagnosticBundle(), "test"
-    )
+    picked = _select_biological_assembly(assemblies, "author", DiagnosticBundle(), "test")
     assert picked.id == "2"
 
 
@@ -1152,9 +1105,7 @@ MMCIF_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
 
 
 def _load(entry_id: str):
-    structure, _, _ = mmcif_to_structure(
-        str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif")
-    )
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif"))
     return structure
 
 
@@ -1172,9 +1123,7 @@ def test_use_auth_chain_id_keeps_ligand_and_water_asym_units_distinct():
     # 104m: one protein chain plus ligands and waters, all with auth "A".
     structure = _load("104m")
     policy = _lenient_policy(
-        identifier_rules=IdentifierRules(
-            chain_id=ChainIdRules(strategy="use_auth_chain_id")
-        )
+        identifier_rules=IdentifierRules(chain_id=ChainIdRules(strategy="use_auth_chain_id"))
     )
 
     canonical, _, _ = canonicalise_structure(structure, policy)
@@ -1184,9 +1133,7 @@ def test_use_auth_chain_id_keeps_ligand_and_water_asym_units_distinct():
     assert len(set(asym_ids)) == len(asym_ids)
     assert asym_ids[0] == "A"
     assert asym_ids[1] == "A-2"
-    assert not any(
-        "_" in asym_id for asym_id in asym_ids
-    )  # item IDs split on _
+    assert not any("_" in asym_id for asym_id in asym_ids)  # item IDs split on _
     assert len(canonical.atoms) == len(structure.atoms)
 
 
@@ -1216,11 +1163,7 @@ def test_filter_ligands_does_not_treat_phosphate_ligand_as_ion():
 def test_drop_partial_residue_keeps_complete_nucleotides():
     # 11kb: protein plus a DNA chain; nucleotides have no N/CA/C/O.
     structure = _load("11kb")
-    dna_entities = {
-        e.id
-        for e in structure.entities
-        if e.poly and "nucleotide" in e.poly.type
-    }
+    dna_entities = {e.id for e in structure.entities if e.poly and "nucleotide" in e.poly.type}
     policy = _lenient_policy(
         missing_data_rules=MissingDataRules(
             missing_atoms=MissingAtomsRules(strategy="drop_partial_residue")
@@ -1251,38 +1194,26 @@ def test_renumber_does_not_hide_sequence_gaps():
 
     canonical, _, _ = canonicalise_structure(structure, policy)
 
-    polymer_chains = {
-        a.label_asym_id for a in canonical.atoms if a.group_PDB == "ATOM"
-    }
+    polymer_chains = {a.label_asym_id for a in canonical.atoms if a.group_PDB == "ATOM"}
     assert polymer_chains == {"A", "C"}
 
 
 def test_modified_residues_preserved_by_default():
     structure = _load("1b6w")
-    canonical, mappings, _ = canonicalise_structure(
-        structure, _lenient_policy()
-    )
+    canonical, mappings, _ = canonicalise_structure(structure, _lenient_policy())
     assert any(a.label_comp_id == "MSE" for a in canonical.atoms)
     assert mappings.modified_residue_mapping.items == []
 
 
 def test_mse_mapped_to_met():
     structure = _load("1b6w")
-    policy = _lenient_policy(
-        modified_residue_rules=ModifiedResidueRules(strategy="map_to_parent")
-    )
+    policy = _lenient_policy(modified_residue_rules=ModifiedResidueRules(strategy="map_to_parent"))
     canonical, mappings, provenance = canonicalise_structure(structure, policy)
 
     assert not any(a.label_comp_id == "MSE" for a in canonical.atoms)
-    residue_35 = [
-        a
-        for a in canonical.atoms
-        if a.label_asym_id == "A" and a.label_seq_id == 35
-    ]
+    residue_35 = [a for a in canonical.atoms if a.label_asym_id == "A" and a.label_seq_id == 35]
     assert residue_35
-    assert all(
-        a.label_comp_id == "MET" and a.auth_comp_id == "MET" for a in residue_35
-    )
+    assert all(a.label_comp_id == "MET" and a.auth_comp_id == "MET" for a in residue_35)
     assert {
         (i.chain_id, i.seq_id, i.original_comp_id, i.parent_comp_id)
         for i in mappings.modified_residue_mapping.items
@@ -1322,9 +1253,10 @@ def test_listed_modified_residue_mapped_from_mod_residue_table():
         structure.entry_id,
     )
     assert not any(a.label_comp_id == "FTY" for a in atoms)
-    assert {
-        (i.chain_id, i.seq_id, i.parent_comp_id) for i in mapping.items
-    } == {("B", 2, "TYR"), ("D", 2, "TYR")}
+    assert {(i.chain_id, i.seq_id, i.parent_comp_id) for i in mapping.items} == {
+        ("B", 2, "TYR"),
+        ("D", 2, "TYR"),
+    }
     # ACE and DIP were not asked for: untouched, no warning
     assert any(a.label_comp_id == "ACE" for a in atoms)
     assert diagnostics.warnings == []
@@ -1343,9 +1275,7 @@ def test_unmapped_modified_residue_gets_warning_not_guess():
     assert not any(a.label_comp_id == "FTY" for a in atoms)
     assert any(a.label_comp_id == "ACE" for a in atoms)
     unmapped = {
-        d.context["comp_id"]
-        for d in diagnostics.warnings
-        if d.code == "MODIFIED_RESIDUE_UNMAPPED"
+        d.context["comp_id"] for d in diagnostics.warnings if d.code == "MODIFIED_RESIDUE_UNMAPPED"
     }
     assert unmapped == {"ACE", "DIP"}
 
@@ -1360,9 +1290,7 @@ def test_assembly_expansion_keeps_only_assembly_chains():
     source_chains = {u.id.split("-")[0] for u in canonical.asym_units}
     assert source_chains == {"A", "B", "C", "D"}
     assert len(canonical.asym_units) == 12
-    assert {a.label_asym_id for a in canonical.atoms} == {
-        u.id for u in canonical.asym_units
-    }
+    assert {a.label_asym_id for a in canonical.atoms} == {u.id for u in canonical.asym_units}
     assert canonical.assemblies[0].oligomeric_count == 12
 
 
@@ -1371,9 +1299,7 @@ def test_policy_that_keeps_residues_keeps_raw_categories():
     # (MSE mapping renames SEQRES mon_ids; see
     # test_mse_mapping_updates_bonds_and_seqres.)
     structure = _load("1b6w")
-    policy = _lenient_policy(
-        modified_residue_rules=ModifiedResidueRules(strategy="map_to_parent")
-    )
+    policy = _lenient_policy(modified_residue_rules=ModifiedResidueRules(strategy="map_to_parent"))
     canonical, _, provenance = canonicalise_structure(structure, policy)
     assert canonical.raw.keys() == structure.raw.keys()
     for category, rows in structure.raw.items():
@@ -1408,29 +1334,21 @@ def test_entity_merge_rewrites_raw_entity_ids():
     seq = alpha.poly.pdbx_seq_one_letter_code_can
     entities = [
         e.model_copy(
-            update={
-                "poly": e.poly.model_copy(
-                    update={"pdbx_seq_one_letter_code_can": seq}
-                )
-            }
+            update={"poly": e.poly.model_copy(update={"pdbx_seq_one_letter_code_can": seq})}
         )
         if e.id == "2"
         else e
         for e in structure.entities
     ]
     structure = structure.model_copy(update={"entities": entities})
-    policy = _lenient_policy(
-        entity_rules=EntityRules(strategy="merge_equivalent_entities")
-    )
+    policy = _lenient_policy(entity_rules=EntityRules(strategy="merge_equivalent_entities"))
 
     canonical, _, _ = canonicalise_structure(structure, policy)
 
     entity_ids = {e.id for e in canonical.entities}
     rows = canonical.raw["_entity_poly_seq"]
     assert {r["entity_id"] for r in rows} <= entity_ids
-    assert rows == [
-        r for r in structure.raw["_entity_poly_seq"] if r["entity_id"] == "1"
-    ]
+    assert rows == [r for r in structure.raw["_entity_poly_seq"] if r["entity_id"] == "1"]
 
 
 def test_mse_mapping_updates_bonds_and_seqres():
@@ -1452,9 +1370,7 @@ def test_mse_mapping_updates_bonds_and_seqres():
         ),
     )
     structure = structure.model_copy(update={"connections": [bond]})
-    policy = _lenient_policy(
-        modified_residue_rules=ModifiedResidueRules(strategy="map_to_parent")
-    )
+    policy = _lenient_policy(modified_residue_rules=ModifiedResidueRules(strategy="map_to_parent"))
 
     canonical, _, _ = canonicalise_structure(structure, policy)
 
@@ -1484,16 +1400,12 @@ def test_residue_mapping_records_chain_ids_before_and_after_remap():
     _, mappings, _ = canonicalise_structure(structure, policy)
 
     chain_pairs = {
-        (i.original_chain_id, i.canonical_chain_id)
-        for i in mappings.chain_id_mapping.items
+        (i.original_chain_id, i.canonical_chain_id) for i in mappings.chain_id_mapping.items
     }
     assert ("C", "B") in chain_pairs
     # Each entry must name a residue that exists under its original chain
     # (C has 282 residues, B only 5, so a swapped chain id can't pass).
-    original_residues = {
-        (a.label_asym_id, a.label_seq_id, a.auth_seq_id)
-        for a in structure.atoms
-    }
+    original_residues = {(a.label_asym_id, a.label_seq_id, a.auth_seq_id) for a in structure.atoms}
     for item in mappings.residue_number_mapping.items:
         assert (item.original_chain_id, item.canonical_chain_id) in chain_pairs
         assert (
@@ -1510,17 +1422,8 @@ def _stale_chain_refs(structure) -> list[str]:
     kept = {u.id for u in structure.asym_units}
     ss = structure.secondary_structure
     refs = [
-        *(
-            c
-            for a in structure.assemblies
-            for g in a.generators
-            for c in g.asym_id_list
-        ),
-        *(
-            c
-            for b in structure.connections
-            for c in (b.ptnr1.label_asym_id, b.ptnr2.label_asym_id)
-        ),
+        *(c for a in structure.assemblies for g in a.generators for c in g.asym_id_list),
+        *(c for b in structure.connections for c in (b.ptnr1.label_asym_id, b.ptnr2.label_asym_id)),
         *(
             c
             for s in [*ss.conf_records, *ss.sheet_strands]
@@ -1568,9 +1471,7 @@ def test_removed_chains_leave_no_stale_references(entry_id, rules):
     structure = _load(entry_id)
     before = {u.id for u in structure.asym_units}
 
-    canonical, _, _ = canonicalise_structure(
-        structure, _lenient_policy(**rules)
-    )
+    canonical, _, _ = canonicalise_structure(structure, _lenient_policy(**rules))
 
     assert {u.id for u in canonical.asym_units} < before
     assert _stale_chain_refs(canonical) == []
@@ -1579,9 +1480,7 @@ def test_removed_chains_leave_no_stale_references(entry_id, rules):
 def test_no_atoms_left_fails_validation():
     # 1p58 is CA-only, so drop_partial_residue removes every atom.
     structure = _load("1p58")
-    rules = MissingDataRules(
-        missing_atoms=MissingAtomsRules(strategy="drop_partial_residue")
-    )
+    rules = MissingDataRules(missing_atoms=MissingAtomsRules(strategy="drop_partial_residue"))
     policy = canonicalisationPolicy(
         policy_id="test",
         policy_name="test",
@@ -1603,9 +1502,7 @@ def test_validate_reports_no_atoms_left():
 
 
 def _ppi_canon_policy(**overrides) -> canonicalisationPolicy:
-    return canonicalisationPolicy(
-        policy_id="c", policy_name="n", policy_version="1", **overrides
-    )
+    return canonicalisationPolicy(policy_id="c", policy_name="n", policy_version="1", **overrides)
 
 
 def test_chain_copy_records_from_expanded_assembly():
@@ -1661,9 +1558,7 @@ def _size_policy(strategy: str) -> canonicalisationPolicy:
         policy_id="t",
         policy_name="t",
         policy_version="1",
-        assembly_rules=AssemblyRules(
-            strategy=strategy, preferred_assembly_source="first"
-        ),
+        assembly_rules=AssemblyRules(strategy=strategy, preferred_assembly_source="first"),
         altloc_rules=AltlocRules(strategy="preserve"),
     )
 

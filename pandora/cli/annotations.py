@@ -112,11 +112,7 @@ def _compute(
     check_table_format(command, args.table_format)
     paths, previous = structure_inputs(command, source)
     prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
-    settings = {
-        dest: getattr(args, dest)
-        for dest in accepted
-        if getattr(args, dest) is not None
-    }
+    settings = {dest: getattr(args, dest) for dest in accepted if getattr(args, dest) is not None}
     entries = 0
     with TableWriter(out, "layer", args.table_format) as writer:
         for path in paths:
@@ -183,9 +179,7 @@ def _cmd_import(args: argparse.Namespace) -> None:
     source = Path(args.structures)
     check_out(command, out, table, source)
     check_table_format(command, args.table_format)
-    description = load_yaml_model(
-        command, LayerDescription, Path(args.description)
-    )
+    description = load_yaml_model(command, LayerDescription, Path(args.description))
     try:
         if description.template == "similarity":
             check_layer_columns((), "similarity")
@@ -272,10 +266,7 @@ def _cmd_count(args: argparse.Namespace) -> None:
         {"rows_in": rows_in["rows_in"], "rows_out": len(counted)},
         input_summary(contacts),
     )
-    print(
-        f"counted: {len(counted)} {args.level} rows from {rows_in['rows_in']} "
-        f"contacts -> {out}"
-    )
+    print(f"counted: {len(counted)} {args.level} rows from {rows_in['rows_in']} contacts -> {out}")
 
 
 def _write_labels(
@@ -442,16 +433,13 @@ def _label_tables(command: str, paths: list[Path]) -> list[Path | None]:
         table, template = labels_table(command, path)
         if template != "interface_labels":
             raise SystemExit(
-                f"{command}: {path} is a {template} layer; --labels needs "
-                "interface_labels"
+                f"{command}: {path} is a {template} layer; --labels needs interface_labels"
             )
         tables.append(table)
     return tables
 
 
-def _source_of(
-    summary: dict[str, Any], by_folder: dict[Path, dict[str, Any]]
-) -> Path | None:
+def _source_of(summary: dict[str, Any], by_folder: dict[Path, dict[str, Any]]) -> Path | None:
     """The input a layer's summary records; for a layer made from another
     given layer, that layer's input. None if not recorded."""
 
@@ -474,14 +462,8 @@ def _warn_if_sources_differ(
     """Warn when the layers do not record the same input; no check
     unless every layer has a summary with one (a bare table has none)."""
 
-    by_folder = {
-        f.resolve(): s
-        for f, s in zip(folders, summaries, strict=True)
-        if s is not None
-    }
-    sources = {
-        None if s is None else _source_of(s, by_folder) for s in summaries
-    }
+    by_folder = {f.resolve(): s for f, s in zip(folders, summaries, strict=True) if s is not None}
+    sources = {None if s is None else _source_of(s, by_folder) for s in summaries}
     if len(sources) > 1 and None not in sources:
         print(
             f"{command}: warning: the layers record different inputs "
@@ -518,21 +500,18 @@ def _cmd_filter(args: argparse.Namespace) -> None:
     drop = set(args.drop)
     # A label a layer can give (`parameters.labels`, recorded by Pandora's
     # labelling commands) is no typo even when no interface has it.
-    present = {
-        row["label"] for rows in labels_by_entry.values() for row in rows
-    }
+    present = {row["label"] for rows in labels_by_entry.values() for row in rows}
     known = {
         label
         for summary in summaries
-        for label in (
-            ((summary or {}).get("policy") or {}).get("parameters") or {}
-        ).get("labels", [])
+        for label in (((summary or {}).get("policy") or {}).get("parameters") or {}).get(
+            "labels", []
+        )
     }
     unknown = drop - present - known
     if unknown:
         raise SystemExit(
-            f"{command}: no interface has the label(s) {sorted(unknown)}; "
-            "check for typos"
+            f"{command}: no interface has the label(s) {sorted(unknown)}; check for typos"
         )
 
     prepare_output_dir(command, out, _LAYER_OUTPUTS, args.overwrite)
@@ -585,13 +564,9 @@ def _filter_entries(
             entry_rows = [ResidueContactRow.model_validate(r) for r in rows]
             entry_labels = labels_by_entry.pop(entry, [])
             given = {row["label"] for row in entry_labels}
-            for row in drop_labelled_interfaces(
-                entry_rows, entry_labels, drop & given
-            ):
+            for row in drop_labelled_interfaces(entry_rows, entry_labels, drop & given):
                 writer.write(row.model_dump())
-            counts.update(
-                count_interface_labels(entry_rows, entry_labels, drop)
-            )
+            counts.update(count_interface_labels(entry_rows, entry_labels, drop))
             counts["rows_in"] += len(rows)
     # Labels of entries with no contacts only add to labels_unmatched.
     leftover = [row for rows in labels_by_entry.values() for row in rows]
@@ -609,21 +584,16 @@ def _add_contacts(p: argparse.ArgumentParser) -> None:
     )
 
 
-def _register_contacts(
-    commands: argparse._SubParsersAction, anything: str
-) -> None:
+def _register_contacts(commands: argparse._SubParsersAction, anything: str) -> None:
     """Add the subcommands that compute contact layers."""
 
     p = commands.add_parser(
         "contacts",
-        help="Compute chain-interface residue contacts (a residue_contacts "
-        "layer).",
+        help="Compute chain-interface residue contacts (a residue_contacts layer).",
     )
     p.add_argument("structures", help=anything)
     add_out(p)
-    p.add_argument(
-        "--distance-cutoff", type=float, help="contact distance in angstrom"
-    )
+    p.add_argument("--distance-cutoff", type=float, help="contact distance in angstrom")
     p.add_argument(
         "--atom-set",
         choices=sorted(CONTACT_ATOM_SETS),
@@ -632,8 +602,7 @@ def _register_contacts(
     p.add_argument(
         "--polymer-types",
         action="append",
-        help="keep chains of this entity polymer type (repeatable), e.g. "
-        "polypeptide(L)",
+        help="keep chains of this entity polymer type (repeatable), e.g. polypeptide(L)",
     )
     p.set_defaults(func=_cmd_contacts)
 
@@ -643,9 +612,7 @@ def _register_contacts(
     )
     p.add_argument("structures", help=anything)
     add_out(p)
-    p.add_argument(
-        "--distance-cutoff", type=float, help="contact distance in angstrom"
-    )
+    p.add_argument("--distance-cutoff", type=float, help="contact distance in angstrom")
     p.add_argument(
         "--include-waters",
         action="store_const",
@@ -670,8 +637,7 @@ def _register_labels(commands: argparse._SubParsersAction) -> None:
         "--min-residues-per-chain",
         type=int,
         required=True,
-        help="label few_contacts when either chain has fewer residues in "
-        "contact with the other",
+        help="label few_contacts when either chain has fewer residues in contact with the other",
     )
     p.set_defaults(func=_cmd_interface_contacts)
 
@@ -691,8 +657,7 @@ def _register_labels(commands: argparse._SubParsersAction) -> None:
         "--max-total-residues",
         type=int,
         required=True,
-        help="label too_large when the two chains' sequence lengths add up "
-        "to more",
+        help="label too_large when the two chains' sequence lengths add up to more",
     )
     p.set_defaults(func=_cmd_dimer_length)
 
@@ -767,8 +732,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
     p = commands.add_parser(
         "import",
-        help="Link a table from an external tool to structures, as an "
-        "annotation layer.",
+        help="Link a table from an external tool to structures, as an annotation layer.",
     )
     p.add_argument("table", help="the tool's table (.parquet, .jsonl, .json)")
     add_out(p)

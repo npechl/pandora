@@ -54,13 +54,10 @@ def search_rcsb(
         resp.raise_for_status()
     except httpx.HTTPStatusError as exc:
         raise RuntimeError(
-            f"HTTP {exc.response.status_code} querying RCSB search API: "
-            f"{exc.response.text}"
+            f"HTTP {exc.response.status_code} querying RCSB search API: {exc.response.text}"
         ) from exc
     except httpx.RequestError as exc:
-        raise RuntimeError(
-            f"Network error querying RCSB search API: {exc}"
-        ) from exc
+        raise RuntimeError(f"Network error querying RCSB search API: {exc}") from exc
 
     if resp.status_code == 204:
         return []
@@ -115,13 +112,10 @@ def search_pdbe(
         resp.raise_for_status()
     except httpx.HTTPStatusError as exc:
         raise RuntimeError(
-            f"HTTP {exc.response.status_code} querying PDBe search API: "
-            f"{exc.response.text}"
+            f"HTTP {exc.response.status_code} querying PDBe search API: {exc.response.text}"
         ) from exc
     except httpx.RequestError as exc:
-        raise RuntimeError(
-            f"Network error querying PDBe search API: {exc}"
-        ) from exc
+        raise RuntimeError(f"Network error querying PDBe search API: {exc}") from exc
 
     docs = resp.json().get("response", {}).get("docs", [])
     # PDBe's Solr index can return the same pdb_id more than once (e.g.

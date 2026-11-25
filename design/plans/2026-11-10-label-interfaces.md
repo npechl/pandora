@@ -239,9 +239,7 @@ def _label_inputs(tmp_path, skip=()):
         for c in chains
         if c not in skip
     ]
-    (step / "chains.jsonl").write_text(
-        "".join(json.dumps(r) + "\n" for r in rows)
-    )
+    (step / "chains.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
     return step, contacts
 
 
@@ -251,14 +249,10 @@ def test_annotate_label_interfaces_writes_layer(tmp_path):
     _label(contacts, out, "--min-residues-per-chain", "5")
 
     rows = read_records(contacts / "layer.jsonl", ResidueContactRow)
-    lengths = {
-        ("1A2C", c): 100 for pair in _contact_pairs(contacts) for c in pair
-    }
+    lengths = {("1A2C", c): 100 for pair in _contact_pairs(contacts) for c in pair}
     written = read_records(out / "layer.jsonl", LayerRow)
     expected = label_interfaces(rows, lengths, 5, None)
-    assert [r.model_dump() for r in written] == [
-        r.model_dump() for r in expected
-    ]
+    assert [r.model_dump() for r in written] == [r.model_dump() for r in expected]
     summary = json.loads((out / "layer.json").read_text())
     assert summary["step"] == "annotation_label"
     assert summary["policy"]["template"] == "interface_labels"

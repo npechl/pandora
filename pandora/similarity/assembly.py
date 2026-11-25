@@ -93,10 +93,7 @@ def assemble_pairs(
     positive_reps: dict[str, set[str]] = defaultdict(set)
     rows: list[DatasetPair] = []
     for p in sorted(positives, key=lambda p: p.dimer):
-        chains = [
-            item_id("chain", p.entry_id, c)
-            for c in (p.chain_id_1, p.chain_id_2)
-        ]
+        chains = [item_id("chain", p.entry_id, c) for c in (p.chain_id_1, p.chain_id_2)]
         for chain in chains:
             positive_reps[split_of[p.dimer]].add(_rep(representative_of, chain))
         rows.append(

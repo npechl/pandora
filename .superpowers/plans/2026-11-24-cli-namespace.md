@@ -142,10 +142,7 @@ that fallback.
 ```python
 def test_resolve_file_accepts_folder_or_file(tmp_path):
     (tmp_path / "clusters.json").write_text("[]")
-    assert (
-        _io.resolve_file("x y", tmp_path, "clusters.json")
-        == tmp_path / "clusters.json"
-    )
+    assert _io.resolve_file("x y", tmp_path, "clusters.json") == tmp_path / "clusters.json"
     assert (
         _io.resolve_file("x y", tmp_path / "clusters.json", "clusters.json")
         == tmp_path / "clusters.json"
@@ -155,9 +152,7 @@ def test_resolve_file_accepts_folder_or_file(tmp_path):
 
 
 def test_require_tables_names_curate(tmp_path):
-    with pytest.raises(
-        SystemExit, match="run `pandora structures curate` first"
-    ):
+    with pytest.raises(SystemExit, match="run `pandora structures curate` first"):
         _io.require_tables("similarity mmseqs", tmp_path)
 
 
@@ -512,8 +507,7 @@ def test_pairs_positives_groups_match_clusters_build(tmp_path):
     kept = {p["dimer"] for p in _jsonl(pos / "positives.jsonl")}
     restricted = [sorted(set(c["components"]) & kept) for c in built]
     assert sorted(c for c in restricted if c) == sorted(
-        sorted(c["components"])
-        for c in json.loads((pos / "clusters.json").read_text())
+        sorted(c["components"]) for c in json.loads((pos / "clusters.json").read_text())
     )
 ```
 

@@ -76,15 +76,8 @@ def _apply_chain_map(
 
     new_atoms = [
         (
-            a.model_copy(
-                update={
-                    "label_asym_id": chain_map.get(
-                        a.label_asym_id, a.label_asym_id
-                    )
-                }
-            )
-            if chain_map.get(a.label_asym_id, a.label_asym_id)
-            != a.label_asym_id
+            a.model_copy(update={"label_asym_id": chain_map.get(a.label_asym_id, a.label_asym_id)})
+            if chain_map.get(a.label_asym_id, a.label_asym_id) != a.label_asym_id
             else a
         )
         for a in atoms
@@ -104,12 +97,8 @@ def _apply_chain_map(
     for asm in structure.assemblies:
         new_gens = []
         for gen in asm.generators:
-            new_asym_list = [
-                chain_map.get(aid, aid) for aid in gen.asym_id_list
-            ]
-            new_gens.append(
-                gen.model_copy(update={"asym_id_list": new_asym_list})
-            )
+            new_asym_list = [chain_map.get(aid, aid) for aid in gen.asym_id_list]
+            new_gens.append(gen.model_copy(update={"asym_id_list": new_asym_list}))
         new_assemblies.append(asm.model_copy(update={"generators": new_gens}))
 
     # Update connections
@@ -117,16 +106,12 @@ def _apply_chain_map(
     for conn in structure.connections:
         p1 = conn.ptnr1.model_copy(
             update={
-                "label_asym_id": chain_map.get(
-                    conn.ptnr1.label_asym_id, conn.ptnr1.label_asym_id
-                )
+                "label_asym_id": chain_map.get(conn.ptnr1.label_asym_id, conn.ptnr1.label_asym_id)
             }
         )
         p2 = conn.ptnr2.model_copy(
             update={
-                "label_asym_id": chain_map.get(
-                    conn.ptnr2.label_asym_id, conn.ptnr2.label_asym_id
-                )
+                "label_asym_id": chain_map.get(conn.ptnr2.label_asym_id, conn.ptnr2.label_asym_id)
             }
         )
         new_conns.append(conn.model_copy(update={"ptnr1": p1, "ptnr2": p2}))
@@ -135,12 +120,8 @@ def _apply_chain_map(
     new_conf = [
         r.model_copy(
             update={
-                "beg_label_asym_id": chain_map.get(
-                    r.beg_label_asym_id, r.beg_label_asym_id
-                ),
-                "end_label_asym_id": chain_map.get(
-                    r.end_label_asym_id, r.end_label_asym_id
-                ),
+                "beg_label_asym_id": chain_map.get(r.beg_label_asym_id, r.beg_label_asym_id),
+                "end_label_asym_id": chain_map.get(r.end_label_asym_id, r.end_label_asym_id),
             }
         )
         for r in structure.secondary_structure.conf_records
@@ -149,12 +130,8 @@ def _apply_chain_map(
     new_strands = [
         r.model_copy(
             update={
-                "beg_label_asym_id": chain_map.get(
-                    r.beg_label_asym_id, r.beg_label_asym_id
-                ),
-                "end_label_asym_id": chain_map.get(
-                    r.end_label_asym_id, r.end_label_asym_id
-                ),
+                "beg_label_asym_id": chain_map.get(r.beg_label_asym_id, r.beg_label_asym_id),
+                "end_label_asym_id": chain_map.get(r.end_label_asym_id, r.end_label_asym_id),
             }
         )
         for r in structure.secondary_structure.sheet_strands

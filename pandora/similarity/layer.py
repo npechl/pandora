@@ -62,10 +62,7 @@ def item_id(level: SimilarityItems, entry_id: str, *chain_ids: str) -> str:
     """
 
     if len(chain_ids) != _CHAINS[level]:
-        raise ValueError(
-            f"a {level} item needs {_CHAINS[level]} chain ID(s), got "
-            f"{len(chain_ids)}"
-        )
+        raise ValueError(f"a {level} item needs {_CHAINS[level]} chain ID(s), got {len(chain_ids)}")
     if any("_" in chain_id for chain_id in chain_ids):
         raise ValueError(
             f"chain ID(s) {list(chain_ids)} contain `_`, which item IDs use "
@@ -82,9 +79,7 @@ _LABEL_LEVELS: dict[str, tuple[SimilarityItems, tuple[str, ...]]] = {
 }
 
 
-def item_labels(
-    rows: Iterable[Mapping[str, Any] | LayerRow], template: str
-) -> dict[str, str]:
+def item_labels(rows: Iterable[Mapping[str, Any] | LayerRow], template: str) -> dict[str, str]:
     """Map a label layer's rows to item IDs, e.g. for `partition_dataset`.
 
     A `chain_labels` row labels the chain item `E_C`, an
@@ -107,8 +102,7 @@ def item_labels(
 
     if template not in _LABEL_LEVELS:
         raise ValueError(
-            f"a {template} layer can't label items; use chain_labels or "
-            "interface_labels"
+            f"a {template} layer can't label items; use chain_labels or interface_labels"
         )
     level, columns = _LABEL_LEVELS[template]
     found: dict[str, str] = {}
@@ -116,9 +110,7 @@ def item_labels(
         r = dict(row)  # a LayerRow or a dict
         item = item_id(level, r["entry_id"], *(r[c] for c in columns))
         if found.setdefault(item, r["label"]) != r["label"]:
-            raise ValueError(
-                f"{item} has two labels: {found[item]!r} and {r['label']!r}"
-            )
+            raise ValueError(f"{item} has two labels: {found[item]!r} and {r['label']!r}")
     return found
 
 
@@ -178,10 +170,7 @@ def chain_items(chains: Iterable[tuple[str, str]]) -> ItemSet:
     """
 
     pairs = list(chains)
-    ids = {
-        _key("chain", (entry, chain)): item_id("chain", entry, chain)
-        for entry, chain in pairs
-    }
+    ids = {_key("chain", (entry, chain)): item_id("chain", entry, chain) for entry, chain in pairs}
     return ItemSet(
         "chain",
         ids,
@@ -232,8 +221,7 @@ def check_similarity_columns(columns: Collection[str]) -> None:
     missing = [c for c in SIMILARITY_REQUIRED if c not in columns]
     if missing:
         raise ValueError(
-            f"table has no {', '.join(missing)} column(s), which the "
-            "similarity template requires"
+            f"table has no {', '.join(missing)} column(s), which the similarity template requires"
         )
 
 
@@ -280,9 +268,7 @@ def _match_batch(
     import pyarrow.compute as pc
 
     n_rows = batch.num_rows
-    ids = {
-        name: pc.cast(batch.column(name), pa.string()) for name in _ITEM_COLUMNS
-    }
+    ids = {name: pc.cast(batch.column(name), pa.string()) for name in _ITEM_COLUMNS}
     good = pc.fill_null(
         pc.and_(*(pc.is_in(ids[name], value_set=stored) for name in ids)),
         False,
@@ -310,23 +296,15 @@ def _match_batch(
         slow_mask = pa.array(slow)
         matched = pc.or_(good, slow_mask)
         ids = {
-            name: pc.replace_with_mask(
-                column, slow_mask, pa.array(replaced[name], pa.string())
-            )
+            name: pc.replace_with_mask(column, slow_mask, pa.array(replaced[name], pa.string()))
             for name, column in ids.items()
         }
 
-    columns = [
-        ids.get(name, numbers.get(name, batch.column(name)))
-        for name in batch.schema.names
-    ]
-    matched_batch = pa.RecordBatch.from_arrays(
-        columns, names=batch.schema.names
-    ).filter(matched)
+    columns = [ids.get(name, numbers.get(name, batch.column(name))) for name in batch.schema.names]
+    matched_batch = pa.RecordBatch.from_arrays(columns, names=batch.schema.names).filter(matched)
     rest = batch.filter(pc.invert(matched))
     unmatched_batch = pa.RecordBatch.from_arrays(
-        [pc.cast(c, pa.string()) for c in rest.columns]
-        + [pa.array(reasons, pa.string())],
+        [pc.cast(c, pa.string()) for c in rest.columns] + [pa.array(reasons, pa.string())],
         names=[*batch.schema.names, "reason"],
     )
     return matched_batch, unmatched_batch
@@ -370,9 +348,7 @@ def _row_reason(
     return resolved, None
 
 
-def _numbers(
-    column: pa.Array, kind: type, required: bool
-) -> tuple[pa.Array, pa.BooleanArray]:
+def _numbers(column: pa.Array, kind: type, required: bool) -> tuple[pa.Array, pa.BooleanArray]:
     """`column` as float64/int64, and per row whether its value is usable
     (a number, or empty unless `required`)."""
 
@@ -388,12 +364,7 @@ def _numbers(
         raw = column.to_pylist()
         values = [_number(v, kind) for v in raw]
         array = pa.array(values, target)
-        ok = pa.array(
-            [
-                v is not None or r is None
-                for v, r in zip(values, raw, strict=True)
-            ]
-        )
+        ok = pa.array([v is not None or r is None for v, r in zip(values, raw, strict=True)])
     if required:
         ok = pc.and_(ok, pc.is_valid(array))
     return array, ok

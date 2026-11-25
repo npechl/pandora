@@ -120,14 +120,9 @@ class LayerDescription(BaseModel):
         """`items` is required for `similarity` and nowhere else."""
 
         if self.template == "similarity" and self.items is None:
-            raise ValueError(
-                "similarity layers need `items`: entry, chain or interface"
-            )
+            raise ValueError("similarity layers need `items`: entry, chain or interface")
         if self.template != "similarity" and self.items is not None:
-            raise ValueError(
-                f"`items` applies only to similarity layers, not "
-                f"{self.template!r}"
-            )
+            raise ValueError(f"`items` applies only to similarity layers, not {self.template!r}")
         return self
 
 

@@ -11,9 +11,7 @@ from pandora.schemas.canonicalisation import canonicalisationPolicy
 from pandora.schemas.common import DiagnosticBundle
 
 
-def estimate_atom_count(
-    path: str | Path, policy: canonicalisationPolicy
-) -> int:
+def estimate_atom_count(path: str | Path, policy: canonicalisationPolicy) -> int:
     """Estimate how many atoms canonicalising an mmCIF file would produce.
 
     Reads the file with gemmi only (no pydantic records), so it is cheap
@@ -42,9 +40,7 @@ def estimate_atom_count(
     for chain in st[0]:
         for sub in chain.subchains():
             sid = sub.subchain_id()  # a subchain can come in several runs
-            per_subchain[sid] = per_subchain.get(sid, 0) + sum(
-                len(res) for res in sub
-            )
+            per_subchain[sid] = per_subchain.get(sid, 0) + sum(len(res) for res in sub)
     total = sum(per_subchain.values())
 
     rules = policy.assembly_rules

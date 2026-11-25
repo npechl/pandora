@@ -142,12 +142,8 @@ def test_layer_row_keeps_any_columns():
 
 
 def test_check_layer_columns_accepts_either_naming():
-    check_layer_columns(
-        {"entry_id", "chain_id", "seq_id", "value"}, "residue_values"
-    )
-    check_layer_columns(
-        {"entry_id", "auth_chain_id", "auth_seq_id", "value"}, "residue_values"
-    )
+    check_layer_columns({"entry_id", "chain_id", "seq_id", "value"}, "residue_values")
+    check_layer_columns({"entry_id", "auth_chain_id", "auth_seq_id", "value"}, "residue_values")
     check_layer_columns(
         {
             "entry_id",
@@ -349,10 +345,7 @@ def test_resolve_unmatched_reasons(row, reason):
 
 def test_resolve_ambiguous_author_id():
     # strip insertion codes, as preserve_insertion_codes=False does (#125)
-    atoms = [
-        a.model_copy(update={"pdbx_PDB_ins_code": None})
-        for a in S["1A2C"].atoms
-    ]
+    atoms = [a.model_copy(update={"pdbx_PDB_ins_code": None}) for a in S["1A2C"].atoms]
     s = S["1A2C"].model_copy(update={"atoms": atoms})
     _, u = resolve_layer_rows(
         [
@@ -434,9 +427,7 @@ def test_resolve_contacts_both_sides_and_repeats_kept():
         "ins_code_2": "G",
         "contact_type": "hbond",
     }
-    m, u = resolve_layer_rows(
-        [row, {**row, "contact_type": "vdw"}], "residue_contacts", S
-    )
+    m, u = resolve_layer_rows([row, {**row, "contact_type": "vdw"}], "residue_contacts", S)
     assert u == [] and len(m) == 2
     assert (m[0]["auth_chain_id_1"], m[0]["chain_id_2"], m[0]["seq_id_2"]) == (
         "L",
@@ -662,17 +653,12 @@ Behaviour, in order:
 
 ```python
 def test_annotate_import_writes_layer_folder(tmp_path):
-    args = _layer_inputs(
-        tmp_path
-    )  # list of CLI args incl. --source-files, jsonl
+    args = _layer_inputs(tmp_path)  # list of CLI args incl. --source-files, jsonl
     main(["annotate", "import", *args])
     out = tmp_path / "annotations" / "t"
     matched = read_records(out / "layer.jsonl", LayerRow)
     assert [r.model_dump()["seq_id"] for r in matched] == [1, 2]
-    unmatched = [
-        r.model_dump()["reason"]
-        for r in read_records(out / "unmatched.jsonl", LayerRow)
-    ]
+    unmatched = [r.model_dump()["reason"] for r in read_records(out / "unmatched.jsonl", LayerRow)]
     assert unmatched == ["no_coordinates", "entry_not_found"]
     summary = json.loads((out / "layer.json").read_text())
     assert summary["step"] == "annotation_import"
@@ -698,9 +684,7 @@ def test_annotate_import_refuses_existing_layer_without_overwrite(tmp_path):
 
 def test_annotate_import_missing_value_column_writes_nothing(tmp_path):
     args = _layer_inputs(tmp_path)
-    (tmp_path / "t.jsonl").write_text(
-        '{"entry_id":"1A2C","chain_id":"A","seq_id":1}\n'
-    )
+    (tmp_path / "t.jsonl").write_text('{"entry_id":"1A2C","chain_id":"A","seq_id":1}\n')
     with pytest.raises(SystemExit, match="value"):
         main(["annotate", "import", *args])
     assert not (tmp_path / "annotations" / "t").exists()
@@ -711,9 +695,7 @@ def test_annotate_import_empty_table(tmp_path):
     (tmp_path / "t.jsonl").write_text("")
     main(["annotate", "import", *args])
     out = tmp_path / "annotations" / "t"
-    assert (
-        json.loads((out / "layer.json").read_text())["counts"]["rows_in"] == 0
-    )
+    assert json.loads((out / "layer.json").read_text())["counts"]["rows_in"] == 0
     assert not (out / "layer.jsonl").exists()
 ```
 

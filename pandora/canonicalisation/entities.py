@@ -47,15 +47,11 @@ def _normalize_entities(
             entities, rules.preserve_original_entity_ids, record
         )
     elif rules.strategy == "merge_equivalent_entities":
-        new_entities, entity_id_map, mapping = _merge_equivalent_entities(
-            entities, record
-        )
+        new_entities, entity_id_map, mapping = _merge_equivalent_entities(entities, record)
     else:
         return entities, asym_units, atoms, EntityMapping(), {}
 
-    new_asyms, new_atoms = _propagate_entity_ids(
-        asym_units, atoms, entity_id_map
-    )
+    new_asyms, new_atoms = _propagate_entity_ids(asym_units, atoms, entity_id_map)
     return new_entities, new_asyms, new_atoms, mapping, entity_id_map
 
 
@@ -131,22 +127,15 @@ def _propagate_entity_ids(
     entity_id_map."""
 
     new_asyms = [
-        a.model_copy(
-            update={"entity_id": entity_id_map.get(a.entity_id, a.entity_id)}
-        )
+        a.model_copy(update={"entity_id": entity_id_map.get(a.entity_id, a.entity_id)})
         for a in asym_units
     ]
     new_atoms = [
         (
             a.model_copy(
-                update={
-                    "label_entity_id": entity_id_map.get(
-                        a.label_entity_id, a.label_entity_id
-                    )
-                }
+                update={"label_entity_id": entity_id_map.get(a.label_entity_id, a.label_entity_id)}
             )
-            if entity_id_map.get(a.label_entity_id, a.label_entity_id)
-            != a.label_entity_id
+            if entity_id_map.get(a.label_entity_id, a.label_entity_id) != a.label_entity_id
             else a
         )
         for a in atoms
@@ -176,7 +165,6 @@ def _remap_raw_entity_ids(
             else row
             for row in rows
             if row["entity_id"] not in entity_id_map
-            or first_original[entity_id_map[row["entity_id"]]]
-            == row["entity_id"]
+            or first_original[entity_id_map[row["entity_id"]]] == row["entity_id"]
         ]
     return remapped

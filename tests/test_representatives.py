@@ -21,9 +21,7 @@ def _v(missing, hits):
 
 
 def test_fewest_missing_residues_wins():
-    reps = pick_representatives(
-        [_c("A_A", "B_A")], {"A_A": _v(5, 9), "B_A": _v(1, 0)}, POLICY
-    )
+    reps = pick_representatives([_c("A_A", "B_A")], {"A_A": _v(5, 9), "B_A": _v(1, 0)}, POLICY)
     assert reps[0].representative == "B_A"
     assert reps[0].members == ["A_A", "B_A"] and reps[0].n_members == 2
 
@@ -42,17 +40,13 @@ def test_null_missing_residues_ranks_last():
 
 def test_copy_is_never_picked():
     values = {"A_A": _v(3, 0), "A_A-2": _v(0, 0)}
-    reps = pick_representatives(
-        [_c("A_A", "A_A-2")], values, POLICY, eligible={"A_A"}
-    )
+    reps = pick_representatives([_c("A_A", "A_A-2")], values, POLICY, eligible={"A_A"})
     assert reps[0].representative == "A_A"
     assert reps[0].members == ["A_A", "A_A-2"]
 
 
 def test_copies_only_cluster_falls_back_to_all_members():
-    reps = pick_representatives(
-        [_c("A_A-2")], {"A_A-2": _v(0, 0)}, POLICY, eligible=set()
-    )
+    reps = pick_representatives([_c("A_A-2")], {"A_A-2": _v(0, 0)}, POLICY, eligible=set())
     assert reps[0].representative == "A_A-2"
 
 

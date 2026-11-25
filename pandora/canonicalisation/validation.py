@@ -44,9 +44,7 @@ def _validate(
 
     if rules.strictness == "strict":
         for w in list(diagnostics.warnings):
-            diagnostics.errors.append(
-                w.model_copy(update={"severity": "error"})
-            )
+            diagnostics.errors.append(w.model_copy(update={"severity": "error"}))
 
     has_errors = bool(diagnostics.errors)
     has_warnings = bool(diagnostics.warnings)
@@ -79,10 +77,7 @@ def _check_residue_collisions(
             prior_comp_id = seen.get(rk)
             if prior_comp_id is None:
                 seen[rk] = a.label_comp_id
-            elif (
-                prior_comp_id != a.label_comp_id
-                and (a.label_asym_id, rk) not in flagged
-            ):
+            elif prior_comp_id != a.label_comp_id and (a.label_asym_id, rk) not in flagged:
                 flagged.add((a.label_asym_id, rk))
                 diagnostics.errors.append(
                     Diagnostic(

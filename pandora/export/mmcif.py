@@ -61,9 +61,7 @@ _TYPED_CATEGORIES = frozenset(
 )
 
 
-def _set_category(
-    block: gemmi.cif.Block, name: str, columns: dict[str, list]
-) -> None:
+def _set_category(block: gemmi.cif.Block, name: str, columns: dict[str, list]) -> None:
     """Write columns as one mmCIF category on block."""
 
     block.set_mmcif_category(name, columns)
@@ -95,9 +93,7 @@ def structure_to_mmcif(structure: Structure, path: str | Path) -> Path:
     """
 
     if not structure.atoms:
-        raise ValueError(
-            f"Structure {structure.entry_id!r} has no atoms to write"
-        )
+        raise ValueError(f"Structure {structure.entry_id!r} has no atoms to write")
 
     doc = gemmi.cif.Document()
     block = doc.add_new_block(structure.entry_id)
@@ -123,9 +119,7 @@ def structure_to_mmcif(structure: Structure, path: str | Path) -> Path:
     return out_path
 
 
-def export_chain_mmcif(
-    structure: Structure, chain_id: str, path: str | Path
-) -> Path:
+def export_chain_mmcif(structure: Structure, chain_id: str, path: str | Path) -> Path:
     """Write a single chain (`label_asym_id`) of a Structure out as its
     own mmCIF file.
 
@@ -153,16 +147,11 @@ def export_chain_mmcif(
 
     chain_only = structure.model_copy(
         update={
-            "atoms": [
-                atom
-                for atom in structure.atoms
-                if atom.label_asym_id == chain_id
-            ],
+            "atoms": [atom for atom in structure.atoms if atom.label_asym_id == chain_id],
             "connections": [
                 conn
                 for conn in structure.connections
-                if conn.ptnr1.label_asym_id == chain_id
-                and conn.ptnr2.label_asym_id == chain_id
+                if conn.ptnr1.label_asym_id == chain_id and conn.ptnr2.label_asym_id == chain_id
             ],
             "raw": {},
         }
@@ -211,9 +200,7 @@ def _write_entities(block: gemmi.cif.Block, structure: Structure) -> None:
             "entity_id": entity.id,
             "type": entity.poly.type,
             "pdbx_seq_one_letter_code": (entity.poly.pdbx_seq_one_letter_code),
-            "pdbx_seq_one_letter_code_can": (
-                entity.poly.pdbx_seq_one_letter_code_can
-            ),
+            "pdbx_seq_one_letter_code_can": (entity.poly.pdbx_seq_one_letter_code_can),
             "pdbx_strand_id": entity.poly.pdbx_strand_id,
         }
         for entity in structure.entities
@@ -331,9 +318,7 @@ def _write_assemblies(block: gemmi.cif.Block, structure: Structure) -> None:
         _set_category(block, "_pdbx_struct_oper_list", _columns(op_rows))
 
 
-def _write_secondary_structure(
-    block: gemmi.cif.Block, structure: Structure
-) -> None:
+def _write_secondary_structure(block: gemmi.cif.Block, structure: Structure) -> None:
     """Write the `_struct_conf`/`_struct_sheet_range` categories from
     structure.secondary_structure."""
 
@@ -342,17 +327,13 @@ def _write_secondary_structure(
         _set_category(
             block,
             "_struct_conf",
-            _columns_from_fields(
-                ss.conf_records, ["id", "conf_type_id", *_SS_FIELDS]
-            ),
+            _columns_from_fields(ss.conf_records, ["id", "conf_type_id", *_SS_FIELDS]),
         )
     if ss.sheet_strands:
         _set_category(
             block,
             "_struct_sheet_range",
-            _columns_from_fields(
-                ss.sheet_strands, ["sheet_id", "id", *_SS_FIELDS]
-            ),
+            _columns_from_fields(ss.sheet_strands, ["sheet_id", "id", *_SS_FIELDS]),
         )
 
 

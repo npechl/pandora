@@ -71,12 +71,7 @@ for part in parts[:k]:  # pre-ID levels
     pattern = part.replace("{mid}", "*")
     dirs = [c for d in dirs for c in d.glob(pattern) if c.is_dir()]
 id_re = re.compile(re.escape(parts[k]).replace(re.escape("{id}"), "(.+)"))
-ids = [
-    m.group(1)
-    for d in dirs
-    for name in os.listdir(d)
-    if (m := id_re.fullmatch(name))
-]
+ids = [m.group(1) for d in dirs for name in os.listdir(d) if (m := id_re.fullmatch(name))]
 ```
 
 - [ ] **Step 1: Write the failing tests** in `tests/test_ingestion.py`:

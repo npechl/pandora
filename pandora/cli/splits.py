@@ -51,9 +51,7 @@ def _cmd_assign(args: argparse.Namespace) -> None:
     started_at = now_iso()
     source = args.labels or args.stratify
     out = Path(args.out)
-    check_out(
-        command, out, Path(args.clusters), Path(source) if source else None
-    )
+    check_out(command, out, Path(args.clusters), Path(source) if source else None)
     labels, table = _partition_labels(command, source)
     clusters_file = resolve_file(command, Path(args.clusters), "clusters.json")
     clusters = load_json_list(command, SimilarityCluster, clusters_file)
@@ -72,9 +70,7 @@ def _cmd_assign(args: argparse.Namespace) -> None:
         prov = prov.model_copy(update={"labels_layer": str(table.resolve())})
 
     prepare_output_dir(command, out, ["splits.json", SUMMARY], args.overwrite)
-    (out / "splits.json").write_text(
-        json.dumps(splits, indent=2), encoding="utf-8"
-    )
+    (out / "splits.json").write_text(json.dumps(splits, indent=2), encoding="utf-8")
     write_summary(
         out,
         build_step_summary(
@@ -94,8 +90,7 @@ def _cmd_assign(args: argparse.Namespace) -> None:
         print(f"unlabelled items: {unlabelled} of {len(items)}")
         for split, missing in prov.missing_labels.items():
             print(
-                f"{command}: warning: {split} has no item labelled "
-                f"{', '.join(missing)}",
+                f"{command}: warning: {split} has no item labelled {', '.join(missing)}",
                 file=sys.stderr,
             )
 
@@ -103,14 +98,11 @@ def _cmd_assign(args: argparse.Namespace) -> None:
 def register(subparsers: argparse._SubParsersAction) -> None:
     """Add the `splits` group to the `pandora` parser."""
 
-    group = subparsers.add_parser(
-        "splits", help="Assign clusters to train/val/test splits."
-    )
+    group = subparsers.add_parser("splits", help="Assign clusters to train/val/test splits.")
     commands = group.add_subparsers(dest="splits_command", required=True)
     p = commands.add_parser(
         "assign",
-        help="Leakage-safe train/val/test split: each cluster goes whole "
-        "to one split.",
+        help="Leakage-safe train/val/test split: each cluster goes whole to one split.",
     )
     p.add_argument("clusters", help="clusters folder or clusters.json")
     add_out(p, tables=False)

@@ -57,14 +57,10 @@ def duplicate_line(path: Path, entry_id: str) -> str:
     """`failures.jsonl` line for an input whose entry an earlier input
     already had."""
 
-    return failure_line(
-        path, "DuplicateEntry", f"another input is also entry {entry_id}"
-    )
+    return failure_line(path, "DuplicateEntry", f"another input is also entry {entry_id}")
 
 
-def prepare_output_dir(
-    command: str, out: Path, outputs: Sequence[str], overwrite: bool
-) -> None:
+def prepare_output_dir(command: str, out: Path, outputs: Sequence[str], overwrite: bool) -> None:
     """Create `out`. Refuse if any of `outputs` (names of files or
     folders in `out`) exists unless `overwrite`; then delete only those."""
 
@@ -87,9 +83,7 @@ def prepare_step_dir(command: str, out: Path, overwrite: bool) -> None:
     holds step outputs unless `overwrite`; then delete only those."""
 
     outputs = ["structures", SUMMARY, *_STEP_FILES]
-    outputs += [
-        f"{table}.{fmt}" for table in _STEP_TABLES for fmt in TABLE_FORMATS
-    ]
+    outputs += [f"{table}.{fmt}" for table in _STEP_TABLES for fmt in TABLE_FORMATS]
     prepare_output_dir(command, out, outputs, overwrite)
 
 
@@ -145,8 +139,7 @@ def require_tables(command: str, folder: Path) -> tuple[Path, Path]:
     for name, table in zip(("entries", "chains"), tables, strict=True):
         if table is None:
             raise SystemExit(
-                f"{command}: {folder} has no {name} table; run "
-                "`pandora structures curate` first"
+                f"{command}: {folder} has no {name} table; run `pandora structures curate` first"
             )
     return tables[0], tables[1]
 
@@ -178,9 +171,7 @@ def add_similarity_inputs(p: ArgumentParser, *, positional: bool) -> None:
     if positional:
         p.add_argument("similarity", nargs="+", help=f"{what}(s)")
     else:
-        p.add_argument(
-            "--similarity", action="append", help=f"{what}; repeatable"
-        )
+        p.add_argument("--similarity", action="append", help=f"{what}; repeatable")
     p.add_argument(
         "--similarity-items",
         action="append",
@@ -220,9 +211,7 @@ def similarity_inputs(command: str, args: Namespace) -> list[SimilarityInput]:
     threshold."""
 
     paths = [Path(p) for p in args.similarity or []]
-    flags = per_layer(
-        "--similarity-items", args.similarity_items, len(paths), command
-    )
+    flags = per_layer("--similarity-items", args.similarity_items, len(paths), command)
     filters = hit_filters(args, len(paths), command)
     return [
         SimilarityInput(path, table, items, hit_filter)
@@ -249,26 +238,21 @@ def _similarity_source(
         policy = summary.get("policy") or {}
         if policy.get("template") != "similarity":
             raise SystemExit(
-                f"{command}: {path} is a {policy.get('template')} layer, "
-                "not a similarity layer"
+                f"{command}: {path} is a {policy.get('template')} layer, not a similarity layer"
             )
         level = policy.get("items")
     if level is not None and flag is not None and flag != level:
         raise SystemExit(
-            f"{command}: --similarity-items {flag} disagrees with {path}, "
-            f"a {level} layer"
+            f"{command}: --similarity-items {flag} disagrees with {path}, a {level} layer"
         )
     if level is None and flag is None:
         raise SystemExit(
-            f"{command}: {path} does not record its item level; pass "
-            "--similarity-items"
+            f"{command}: {path} does not record its item level; pass --similarity-items"
         )
     return table, level or flag
 
 
-def per_layer(
-    flag: str, values: list[Any] | None, n: int, command: str
-) -> list[Any]:
+def per_layer(flag: str, values: list[Any] | None, n: int, command: str) -> list[Any]:
     """`values` of a repeatable flag, one per similarity input: absent,
     given once for all inputs, or once per input in order."""
 
@@ -304,11 +288,7 @@ def hit_filters(args: Namespace, n: int, command: str) -> list[HitFilter]:
                 "for every layer; with no threshold every reported hit "
                 "becomes an edge"
             )
-        hit_filter = (
-            load_yaml_model(command, HitFilter, Path(path))
-            if path
-            else HitFilter()
-        )
+        hit_filter = load_yaml_model(command, HitFilter, Path(path)) if path else HitFilter()
         overrides = {
             field: value
             for field, value in (
@@ -379,9 +359,7 @@ def structure_files(folder: Path) -> list[Path]:
     )
 
 
-def structure_inputs(
-    command: str, path: Path
-) -> tuple[list[Path], Path | None]:
+def structure_inputs(command: str, path: Path) -> tuple[list[Path], Path | None]:
     """The mmCIF files `path` names (a structures folder, a flat or mirror
     folder, a folder holding an `entries.txt`, an `entries.txt` list or
     one file) and the summary to record as `previous_summary`; exits if
@@ -396,9 +374,7 @@ def structure_inputs(
         else:
             files = structure_files(path)
         if not files:
-            raise SystemExit(
-                f"{command}: {path} holds no .cif/.cif.gz files or entries.txt"
-            )
+            raise SystemExit(f"{command}: {path} holds no .cif/.cif.gz files or entries.txt")
         return files, input_summary(path)
     if path.suffix == ".txt":
         return read_entry_paths(path), input_summary(path.parent)
@@ -415,10 +391,7 @@ def check_out(command: str, out: Path, *inputs: Path | None) -> None:
             continue
         folder = source if source.is_dir() else source.parent
         if folder.resolve() == target:
-            raise SystemExit(
-                f"{command}: {out} is an input folder ({source}); choose "
-                "another OUT"
-            )
+            raise SystemExit(f"{command}: {out} is an input folder ({source}); choose another OUT")
 
 
 def find_table(folder: Path, name: str) -> Path | None:
@@ -431,9 +404,7 @@ def find_table(folder: Path, name: str) -> Path | None:
     return None
 
 
-def _layer_table(
-    command: str, path: Path, templates: tuple[str, ...]
-) -> tuple[Path | None, str]:
+def _layer_table(command: str, path: Path, templates: tuple[str, ...]) -> tuple[Path | None, str]:
     """The table and template of a layer given as a folder or a bare
     `.parquet`/`.jsonl` table; exits unless it is one of `templates`.
 
@@ -454,10 +425,7 @@ def _layer_table(
         return find_table(path, "layer"), template
     table = find_table(path, "layer") if path.is_dir() else path
     if table is None or not table.is_file() or table.suffix not in _LAYER:
-        raise SystemExit(
-            f"{command}: {path} is not a layer folder or a .parquet/.jsonl "
-            "table"
-        )
+        raise SystemExit(f"{command}: {path} is not a layer folder or a .parquet/.jsonl table")
     try:
         columns = table_columns(table)
         template = templates[0] if "chain_id_1" in columns else templates[-1]
@@ -493,9 +461,7 @@ def layer_name(path: Path) -> str | None:
     return ((read_summary(path) or {}).get("policy") or {}).get("name")
 
 
-def read_columns(
-    path: Path, columns: Sequence[str]
-) -> Iterator[dict[str, Any]]:
+def read_columns(path: Path, columns: Sequence[str]) -> Iterator[dict[str, Any]]:
     """Stream rows of a Parquet or JSON Lines table as dicts holding only
     `columns` (None where the file lacks one)."""
 
@@ -559,9 +525,7 @@ def copy_source(source: Path, dest: Path) -> None:
         shutil.copy2(source, dest / source.name)
 
 
-def write_table(
-    rows: list[BaseModel], folder: Path, name: str, table_format: str
-) -> None:
+def write_table(rows: list[BaseModel], folder: Path, name: str, table_format: str) -> None:
     """Write `rows` to `folder/<name>.<table_format>`; nothing if empty."""
 
     if rows:
@@ -595,10 +559,7 @@ def structure_index(folder: Path) -> dict[str, Path]:
     """Upper-cased entry ID (the file name up to its first dot) -> the
     structure file in `folder` (see `structure_files`)."""
 
-    return {
-        path.name.split(".")[0].upper(): path
-        for path in structure_files(folder)
-    }
+    return {path.name.split(".")[0].upper(): path for path in structure_files(folder)}
 
 
 def read_rows(path: Path) -> Iterator[dict[str, Any]]:
@@ -632,9 +593,7 @@ def table_columns(path: Path) -> set[str]:
     return {column for row in read_rows(path) for column in row}
 
 
-def contact_rows(
-    path: Path | None, counts: Counter[str]
-) -> Iterator[ResidueContactRow]:
+def contact_rows(path: Path | None, counts: Counter[str]) -> Iterator[ResidueContactRow]:
     """Stream a `residue_contacts` table one row at a time (nothing if
     `path` is None), counting rows in `counts["rows_in"]`."""
 
@@ -778,9 +737,7 @@ class TableWriter:
         with self._spool.open(encoding="utf-8") as handle:
             rows = (
                 {
-                    column: str(value)
-                    if column in mixed and value is not None
-                    else value
+                    column: str(value) if column in mixed and value is not None else value
                     for column, value in json.loads(line).items()
                 }
                 for line in handle
@@ -793,8 +750,7 @@ class TableWriter:
             import pyarrow as pa
 
             schema = pa.schema(
-                (column, self._type(column, column in mixed))
-                for column in self._kinds
+                (column, self._type(column, column in mixed)) for column in self._kinds
             )
             with ParquetSink(self.path) as sink:
                 while chunk := list(itertools.islice(rows, _CHUNK_ROWS)):

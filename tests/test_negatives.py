@@ -33,9 +33,7 @@ def test_partner_never_negative():
     reps = _reps_with({"9P_A": "1R_A", "9P_B": "2R_A"})
     positive = _dimer("9P", "A", "B", reps)
     for seed in range(20):
-        negatives, unpaired = sample_negatives(
-            [positive], reps, [], [("9P_A", "9P_B")], seed
-        )
+        negatives, unpaired = sample_negatives([positive], reps, [], [("9P_A", "9P_B")], seed)
         assert unpaired == []
         assert negatives[0].chain_2 not in {"1R_A", "2R_A"}
         assert negatives[0].chain_1 in {"9P_A", "9P_B"}
@@ -111,9 +109,7 @@ def test_tm_edge_outside_reps_mapped_through_members():
     reps = _reps_with({"9P_A": "1R_A", "9P_B": "1R_A", "8X_A": "3R_A"})
     positives = [_dimer("9P", "A", "B", reps)]
     for seed in range(20):
-        negatives, _ = sample_negatives(
-            positives, reps, [("9P_A", "8X_A")], [], seed
-        )
+        negatives, _ = sample_negatives(positives, reps, [("9P_A", "8X_A")], [], seed)
         assert negatives[0].chain_2 != "3R_A"
 
 

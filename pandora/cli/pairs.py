@@ -75,15 +75,11 @@ from pandora.similarity import (
 )
 
 _POSITIVES_OUTPUTS = [
-    f"{name}.{fmt}"
-    for name in ("positives", "dropped")
-    for fmt in TABLE_FORMATS
+    f"{name}.{fmt}" for name in ("positives", "dropped") for fmt in TABLE_FORMATS
 ] + ["clusters.json", "kinds", SUMMARY]
 
 
-def _positives_policy(
-    command: str, args: argparse.Namespace
-) -> RepresentativePolicy:
+def _positives_policy(command: str, args: argparse.Namespace) -> RepresentativePolicy:
     """The tie-break ranking: --policy, or the interface default; n_hits
     does not apply."""
 
@@ -102,9 +98,7 @@ def _homomers(command: str, path: Path, dimers: list[str]) -> set[str]:
 
     cluster_of = {
         member: index
-        for index, cluster in enumerate(
-            load_json_list(command, SimilarityCluster, path)
-        )
+        for index, cluster in enumerate(load_json_list(command, SimilarityCluster, path))
         for member in cluster.components
     }
     missing = next(
@@ -112,9 +106,7 @@ def _homomers(command: str, path: Path, dimers: list[str]) -> set[str]:
         None,
     )
     if missing is not None:
-        raise SystemExit(
-            f"{command}: chain {missing} is in no cluster of {path}"
-        )
+        raise SystemExit(f"{command}: chain {missing} is in no cluster of {path}")
     homomers = set()
     for dimer in dimers:
         entry, chain_1, chain_2 = parse_item_id("interface", dimer)
@@ -137,10 +129,7 @@ def _dimer_edges(
     an input at another level."""
 
     residues = None
-    if any(
-        i.items == "chain" and i.hit_filter.min_interface_coverage is not None
-        for i in inputs
-    ):
+    if any(i.items == "chain" and i.hit_filter.min_interface_coverage is not None for i in inputs):
         residues = _interface_residues(command, structures, contacts)
     chain_edges: list[Any] = []
     dimer_edges: list[Any] = []
@@ -190,31 +179,19 @@ def _cmd_positives(args: argparse.Namespace) -> None:
     items, _ = _item_set(command, "interface", None, contacts)
     dimers = sorted(set(items.ids.values()))
     values, _ = _interface_values(command, contacts, chains_table)
-    chain_clusters = resolve_file(
-        command, Path(args.chain_clusters), "clusters.json"
-    )
+    chain_clusters = resolve_file(command, Path(args.chain_clusters), "clusters.json")
     homomers = _homomers(command, chain_clusters, dimers)
     reps_file = (
-        resolve_file(
-            command, Path(args.chain_representatives), "representatives.json"
-        )
+        resolve_file(command, Path(args.chain_representatives), "representatives.json")
         if args.chain_representatives
         else None
     )
-    chain_map = (
-        _chain_map(command, reps_file, _interface_chains(dimers))
-        if reps_file
-        else None
-    )
+    chain_map = _chain_map(command, reps_file, _interface_chains(dimers)) if reps_file else None
     counts: Counter[int] = Counter()
-    chain_edges, dimer_edges = _dimer_edges(
-        command, inputs, structures, contacts, counts
-    )
+    chain_edges, dimer_edges = _dimer_edges(command, inputs, structures, contacts, counts)
     try:
         adjacency = dimer_adjacency(dimers, chain_edges, dimer_edges, chain_map)
-        groups, _ = cluster_edges(
-            dimers, ((a, b) for a, ns in adjacency.items() for b in ns)
-        )
+        groups, _ = cluster_edges(dimers, ((a, b) for a, ns in adjacency.items() for b in ns))
         positives, dropped = rebalance(
             groups,
             adjacency,
@@ -241,9 +218,7 @@ def _cmd_positives(args: argparse.Namespace) -> None:
         contacts=str(contacts.resolve()),
         structures_dir=str(structures.resolve()),
         chain_clusters=str(chain_clusters.resolve()),
-        chain_representatives=None
-        if reps_file is None
-        else str(reps_file.resolve()),
+        chain_representatives=None if reps_file is None else str(reps_file.resolve()),
     )
     tallies = Counter(f"positives:{p.kind}" for p in positives)
     tallies.update(f"dropped:{d.reason}" for d in dropped)
@@ -264,9 +239,7 @@ def _cmd_positives(args: argparse.Namespace) -> None:
             previous_summary=input_summary(first) if first.is_dir() else None,
         ),
     )
-    _write_clusters_and_kinds(
-        groups, positives, out, args.table_format, started_at
-    )
+    _write_clusters_and_kinds(groups, positives, out, args.table_format, started_at)
     print(f"{len(positives)} positives from {len(dimers)} dimers -> {out}")
 
 
@@ -326,25 +299,19 @@ def _step_rows(
     if path.is_dir():
         summary = read_summary(path)
         empty = (summary or {}).get("step") == step
-        if empty and not any(
-            (path / f"{name}.{fmt}").exists() for fmt in TABLE_FORMATS
-        ):
+        if empty and not any((path / f"{name}.{fmt}").exists() for fmt in TABLE_FORMATS):
             return [], path, path
     table = resolve_table(command, path, name)
     return read_records(table, model), table, table.parent
 
 
-def _one_chain_input(
-    command: str, args: argparse.Namespace, what: str
-) -> SimilarityInput:
+def _one_chain_input(command: str, args: argparse.Namespace, what: str) -> SimilarityInput:
     """The one chain similarity input of `args`; exits otherwise."""
 
     _require_pyarrow(command)
     inputs = similarity_inputs(command, args)
     if len(inputs) != 1 or inputs[0].items != "chain":
-        raise SystemExit(
-            f"{command}: --similarity takes one chain layer ({what})"
-        )
+        raise SystemExit(f"{command}: --similarity takes one chain layer ({what})")
     return inputs[0]
 
 
@@ -393,15 +360,11 @@ def _cmd_negatives(args: argparse.Namespace) -> None:
         *(Path(p) for p in args.similarity or []),
     )
     check_table_format(command, args.table_format)
-    source = _one_chain_input(
-        command, args, "structure similarity, e.g. Foldseek"
-    )
+    source = _one_chain_input(command, args, "structure similarity, e.g. Foldseek")
     positives, pos_path, pos_folder = _step_rows(
         command, Path(args.positives), "positives", "rebalance", PositiveDimer
     )
-    representative_of, reps_file = _representatives(
-        command, args.representatives
-    )
+    representative_of, reps_file = _representatives(command, args.representatives)
     counts: Counter[int] = Counter()
     tm_edges = list(
         layer_edges(
@@ -477,9 +440,7 @@ def _layer_file(path: Path) -> Path:
     return path / "layer.parquet" if path.is_dir() else path
 
 
-def _warn_other_inputs(
-    command: str, folder: Path, reps_file: Path, similarity: Path
-) -> None:
+def _warn_other_inputs(command: str, folder: Path, reps_file: Path, similarity: Path) -> None:
     """Warn when the representatives or similarity input differ from
     what the `pairs negatives` run in `folder` recorded; skip without
     its summary."""
@@ -529,9 +490,7 @@ def _cmd_assemble(args: argparse.Namespace) -> None:
     negatives, neg_path, neg_folder = _step_rows(
         command, Path(args.negatives), "negatives", "negatives", NegativePair
     )
-    representative_of, reps_file = _representatives(
-        command, args.representatives
-    )
+    representative_of, reps_file = _representatives(command, args.representatives)
     _warn_other_inputs(command, neg_folder, reps_file, source.path)
     splits_file = resolve_file(command, Path(args.splits), "splits.json")
     splits = load_json(command, splits_file)
@@ -547,9 +506,7 @@ def _cmd_assemble(args: argparse.Namespace) -> None:
         )
     )
     try:
-        rows = assemble_pairs(
-            positives, negatives, splits, representative_of, tm_edges
-        )
+        rows = assemble_pairs(positives, negatives, splits, representative_of, tm_edges)
     except ValueError as exc:
         raise SystemExit(f"{command}: {exc}") from exc
 
@@ -576,12 +533,8 @@ def _cmd_assemble(args: argparse.Namespace) -> None:
             started_at=started_at,
             counts={
                 **dict(sorted(tallies.items())),
-                "negatives_c_leak_positive": sum(
-                    bool(r.c_leak_positive) for r in rows
-                ),
-                "negatives_c_leak_negative": sum(
-                    bool(r.c_leak_negative) for r in rows
-                ),
+                "negatives_c_leak_positive": sum(bool(r.c_leak_positive) for r in rows),
+                "negatives_c_leak_negative": sum(bool(r.c_leak_negative) for r in rows),
                 "positives_unpaired": len(positives) - len(paired),
             },
             previous_summary=input_summary(pos_folder),
@@ -618,8 +571,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument(
         "--contacts",
         required=True,
-        help="residue_contacts layer folder or table: its interfaces are "
-        "the dimers",
+        help="residue_contacts layer folder or table: its interfaces are the dimers",
     )
     p.add_argument(
         "--structures",
@@ -694,8 +646,7 @@ def register(subparsers: argparse._SubParsersAction) -> None:
     p.add_argument(
         "--representatives",
         required=True,
-        help="representatives folder or representatives.json (the one "
-        "`pairs negatives` used)",
+        help="representatives folder or representatives.json (the one `pairs negatives` used)",
     )
     add_similarity_inputs(p, positional=False)
     p.set_defaults(func=_cmd_assemble)

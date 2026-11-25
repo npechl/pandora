@@ -123,16 +123,13 @@ def extract_taxonomies(structure: Structure) -> list[TaxonomyRecord]:
     """
 
     taxonomies = [
-        _taxonomy_from_generated_source(row)
-        for row in raw_rows(structure, "_entity_src_gen")
+        _taxonomy_from_generated_source(row) for row in raw_rows(structure, "_entity_src_gen")
     ]
     taxonomies.extend(
-        _taxonomy_from_natural_source(row)
-        for row in raw_rows(structure, "_entity_src_nat")
+        _taxonomy_from_natural_source(row) for row in raw_rows(structure, "_entity_src_nat")
     )
     taxonomies.extend(
-        _taxonomy_from_synthetic_source(row)
-        for row in raw_rows(structure, "_pdbx_entity_src_syn")
+        _taxonomy_from_synthetic_source(row) for row in raw_rows(structure, "_pdbx_entity_src_syn")
     )
     return taxonomies
 
@@ -179,9 +176,7 @@ def extract_quality(structure: Structure) -> QualityRecord | None:
         return None
 
     methods = [
-        method
-        for method in (clean(row.get("method")) for row in exptl_rows)
-        if method is not None
+        method for method in (clean(row.get("method")) for row in exptl_rows) if method is not None
     ]
 
     categories = "_exptl,_refine,_reflns"
@@ -238,15 +233,9 @@ def extract_entity_metadata(structure: Structure) -> list[EntityMetadataRecord]:
                 mutation=clean(raw.get("pdbx_mutation")),
                 fragment=clean(raw.get("pdbx_fragment")),
                 polymer_type=poly.type if poly else None,
-                sequence=(
-                    clean_sequence(poly.pdbx_seq_one_letter_code)
-                    if poly
-                    else None
-                ),
+                sequence=(clean_sequence(poly.pdbx_seq_one_letter_code) if poly else None),
                 canonical_sequence=(
-                    clean_sequence(poly.pdbx_seq_one_letter_code_can)
-                    if poly
-                    else None
+                    clean_sequence(poly.pdbx_seq_one_letter_code_can) if poly else None
                 ),
                 chain_ids=chain_ids_by_entity.get(entity.id, []),
                 provenance=provenance("_entity", entity.id),
@@ -274,9 +263,7 @@ def extract_ligand_metadata(
         A `LigandMetadataRecord` per distinct ligand entity.
     """
 
-    chem_comp = {
-        row.get("id"): row for row in raw_rows(structure, "_chem_comp")
-    }
+    chem_comp = {row.get("id"): row for row in raw_rows(structure, "_chem_comp")}
     nonpoly_rows = raw_rows(structure, "_pdbx_entity_nonpoly")
 
     chain_ids_by_entity: dict[str, list[str]] = defaultdict(list)
@@ -338,9 +325,7 @@ def extract_uniprot_mappings(
     records: list[UniProtMappingRecord] = []
     seen: set[tuple[Any, ...]] = set()
 
-    struct_ref = {
-        row.get("id"): row for row in raw_rows(structure, "_struct_ref")
-    }
+    struct_ref = {row.get("id"): row for row in raw_rows(structure, "_struct_ref")}
 
     for row in raw_rows(structure, "_struct_ref_seq"):
         ref = struct_ref.get(row.get("ref_id"), {})
@@ -378,9 +363,7 @@ def extract_uniprot_mappings(
             uniprot_start=as_int(row.get("unp_start")),
             uniprot_end=as_int(row.get("unp_end")),
             identity=as_float(row.get("identity")),
-            provenance=provenance(
-                "_pdbx_sifts_unp_segments", row.get("segment_id")
-            ),
+            provenance=provenance("_pdbx_sifts_unp_segments", row.get("segment_id")),
         )
         _append_mapping(records, seen, record)
 

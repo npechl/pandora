@@ -167,16 +167,12 @@ def rebalance(
         remaining = set(heteromers)
         # ponytail: O(n^2) per group; a heap if groups reach thousands.
         while remaining:
-            degree = {
-                d: len(adjacency.get(d, set()) & remaining) for d in remaining
-            }
+            degree = {d: len(adjacency.get(d, set()) & remaining) for d in remaining}
             kept = min(remaining, key=lambda d: (degree[d], sort_key(d)))
             positives.append(_positive(kept, group, "heteromer", degree[kept]))
             neighbours = adjacency.get(kept, set()) & remaining
             dropped += [
-                DroppedDimer(
-                    dimer=d, group=group, reason="similar_to_kept", kept=kept
-                )
+                DroppedDimer(dimer=d, group=group, reason="similar_to_kept", kept=kept)
                 for d in sorted(neighbours)
             ]
             remaining -= neighbours | {kept}

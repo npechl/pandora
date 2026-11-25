@@ -50,16 +50,10 @@ def _previous(out: Path) -> tuple[dict[str, Path], dict[str, object]]:
     """The entry paths and provenance a fetch folder already holds."""
 
     listed = out / "entries.txt"
-    paths = (
-        {_entry_key(p): p for p in read_entry_paths(listed)}
-        if listed.is_file()
-        else {}
-    )
+    paths = {_entry_key(p): p for p in read_entry_paths(listed)} if listed.is_file() else {}
     recorded = out / _PROVENANCE
     try:
-        provenance = (
-            json.loads(recorded.read_text()) if recorded.is_file() else {}
-        )
+        provenance = json.loads(recorded.read_text()) if recorded.is_file() else {}
     except ValueError as exc:
         raise SystemExit(f"entries fetch: {recorded}: {exc}") from exc
     return paths, provenance
@@ -80,29 +74,21 @@ def _cmd_fetch(args: argparse.Namespace) -> None:
         raise SystemExit("entries fetch: give entry IDs or --ids FILE")
 
     out = Path(args.out)
-    options = FetchOptions(
-        use_cache=not args.no_cache, allow_partial=args.allow_partial
-    )
+    options = FetchOptions(use_cache=not args.no_cache, allow_partial=args.allow_partial)
     fetched: dict[str, IngestionProvenance] = {}
     for entry_id in ids:
         try:
-            fetched[entry_id] = fetch_mmcif(
-                entry_id, args.provider, None, out, options
-            )
+            fetched[entry_id] = fetch_mmcif(entry_id, args.provider, None, out, options)
         except (RuntimeError, ValueError) as exc:
             if not args.allow_partial:
                 raise SystemExit(f"entries fetch: {entry_id}: {exc}") from exc
-            print(
-                f"warning: failed to fetch {entry_id}: {exc}", file=sys.stderr
-            )
+            print(f"warning: failed to fetch {entry_id}: {exc}", file=sys.stderr)
 
     paths, provenance = _previous(out)
     root = out.resolve()
     for entry_id in fetched:
         gz = root / f"{entry_id.lower()}.cif.gz"
-        paths[entry_id] = (
-            gz if gz.exists() else root / f"{entry_id.lower()}.cif"
-        )
+        paths[entry_id] = gz if gz.exists() else root / f"{entry_id.lower()}.cif"
     provenance.update({k: v.model_dump() for k, v in fetched.items()})
 
     out.mkdir(parents=True, exist_ok=True)
@@ -154,9 +140,7 @@ def _cmd_scan(args: argparse.Namespace) -> None:
     out = Path(args.out)
     check_out("entries scan", out, root)
     paths = _scan_paths(args, root)
-    prepare_output_dir(
-        "entries scan", out, ["entries.txt", SUMMARY], args.overwrite
-    )
+    prepare_output_dir("entries scan", out, ["entries.txt", SUMMARY], args.overwrite)
 
     write_entry_paths(paths, out / "entries.txt")
     discovery = IngestionDiscovery(
@@ -220,15 +204,12 @@ def register(subparsers: argparse._SubParsersAction) -> None:
 
     p = commands.add_parser(
         "scan",
-        help="List an archive's mmCIF files into entries.txt, without "
-        "opening them.",
+        help="List an archive's mmCIF files into entries.txt, without opening them.",
     )
     p.add_argument("root", help="the archive's root folder")
     add_out(p, tables=False)
     find = p.add_mutually_exclusive_group(required=True)
-    find.add_argument(
-        "--glob", help="glob pattern relative to ROOT, e.g. '*/*.cif'"
-    )
+    find.add_argument("--glob", help="glob pattern relative to ROOT, e.g. '*/*.cif'")
     find.add_argument(
         "--path-template",
         help="path relative to ROOT with {id} and {mid}, e.g. "

@@ -178,16 +178,8 @@ def label_interfaces(
         count_2 = len(residues[(upper, chain_2, chain_1)])
         length_1 = lengths.get((upper, chain_1))
         length_2 = lengths.get((upper, chain_2))
-        total = (
-            None
-            if length_1 is None or length_2 is None
-            else length_1 + length_2
-        )
-        if (
-            max_total_residues is not None
-            and total is not None
-            and (total > max_total_residues)
-        ):
+        total = None if length_1 is None or length_2 is None else length_1 + length_2
+        if max_total_residues is not None and total is not None and (total > max_total_residues):
             label = "too_large"
         elif min_residues_per_chain is not None and (
             min(count_1, count_2) < min_residues_per_chain
@@ -250,11 +242,7 @@ def label_interface_gaps(
     entry: dict[str, str] = {}
     auth: dict[tuple[str, str], str | None] = {}
     for row in contacts:
-        if (
-            row.seq_id_1 is None
-            or row.seq_id_2 is None
-            or row.chain_id_1 == row.chain_id_2
-        ):
+        if row.seq_id_1 is None or row.seq_id_2 is None or row.chain_id_1 == row.chain_id_2:
             continue
         upper = row.entry_id.upper()
         entry.setdefault(upper, row.entry_id)

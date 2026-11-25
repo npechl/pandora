@@ -20,9 +20,7 @@ def _strict(representative_of: Mapping[str, str], chain: str) -> str:
         raise ValueError(f"chain {chain} has no representative") from None
 
 
-def _neighbours(
-    pairs: Iterable[tuple[str, str]], loops: bool
-) -> dict[str, set[str]]:
+def _neighbours(pairs: Iterable[tuple[str, str]], loops: bool) -> dict[str, set[str]]:
     """Undirected adjacency of `pairs`; self-pairs kept only if `loops`."""
 
     graph: dict[str, set[str]] = defaultdict(set)
@@ -73,14 +71,9 @@ def sample_negatives(
     def loose(chain: str) -> str:
         return representative_of.get(chain, chain)
 
-    tm = _neighbours(
-        ((loose(e[0]), loose(e[1])) for e in tm_edges), loops=False
-    )
+    tm = _neighbours(((loose(e[0]), loose(e[1])) for e in tm_edges), loops=False)
     binders = _neighbours(
-        (
-            (_strict(representative_of, a), _strict(representative_of, b))
-            for a, b in binding_pairs
-        ),
+        ((_strict(representative_of, a), _strict(representative_of, b)) for a, b in binding_pairs),
         loops=True,
     )
     ordered = sorted(positives, key=lambda p: p.dimer)
@@ -110,9 +103,5 @@ def sample_negatives(
             continue
         chain_c = rng.choice(candidates)
         pool.discard(chain_c)
-        negatives.append(
-            NegativePair(
-                chain_1=chain_a, chain_2=chain_c, positive=positive.dimer
-            )
-        )
+        negatives.append(NegativePair(chain_1=chain_a, chain_2=chain_c, positive=positive.dimer))
     return negatives, unpaired

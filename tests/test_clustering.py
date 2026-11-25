@@ -102,9 +102,7 @@ def test_interface_edges_chain_map_links_members() -> None:
 def test_interface_edges_chain_map_maps_edge_ends() -> None:
     chain_map = {"1AAA_A": "9R_X", "2BBB_D": "8R_Y"}
     rolled = list(
-        interface_edges(
-            [("9R_X", "8R_Y")], ["1AAA_A_B", "2BBB_C_D", "3CCC_E_F"], chain_map
-        )
+        interface_edges([("9R_X", "8R_Y")], ["1AAA_A_B", "2BBB_C_D", "3CCC_E_F"], chain_map)
     )
     assert rolled == [("1AAA_A_B", "2BBB_C_D")]
 
@@ -115,7 +113,5 @@ def test_interface_edges_chain_map_lower_case_entries() -> None:
         "pdb_00001abc_A": "pdb_00009zzz_X",
         "pdb_00002xyz_C": "pdb_00009zzz_X",
     }
-    rolled = list(
-        interface_edges([], ["pdb_00001abc_A_B", "pdb_00002xyz_C_D"], chain_map)
-    )
+    rolled = list(interface_edges([], ["pdb_00001abc_A_B", "pdb_00002xyz_C_D"], chain_map))
     assert rolled == [("pdb_00001abc_A_B", "pdb_00002xyz_C_D")]

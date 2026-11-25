@@ -54,12 +54,9 @@ def write_records(records: Sequence[BaseModel], path: str | Path) -> Path:
             import pandas as pd
         except ImportError as exc:
             raise RuntimeError(
-                "writing .parquet requires pandas/pyarrow "
-                "(install the `export` extra)"
+                "writing .parquet requires pandas/pyarrow (install the `export` extra)"
             ) from exc
-        pd.DataFrame([record.model_dump() for record in records]).to_parquet(
-            out_path
-        )
+        pd.DataFrame([record.model_dump() for record in records]).to_parquet(out_path)
         return out_path
 
     raise ValueError(f"unsupported record file suffix: {suffix!r}")
@@ -99,14 +96,11 @@ def read_records(path: str | Path, model: type[M]) -> list[M]:
             import pandas as pd
         except ImportError as exc:
             raise RuntimeError(
-                "reading .parquet requires pandas/pyarrow "
-                "(install the `export` extra)"
+                "reading .parquet requires pandas/pyarrow (install the `export` extra)"
             ) from exc
         table = pd.read_parquet(in_path)
         return [
-            model.model_validate(
-                {k: _plain(v, pd.isna) for k, v in row.items()}
-            )
+            model.model_validate({k: _plain(v, pd.isna) for k, v in row.items()})
             for row in table.to_dict("records")
         ]
 
