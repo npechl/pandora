@@ -77,7 +77,7 @@ only need one piece. See [Metadata](../usage/metadata.md).
 | `drop_labelled_interfaces()` | `list[ResidueContactRow]`, `interface_labels` rows, drop labels | `list[ResidueContactRow]` (the kept rows) |
 | `count_interface_labels()` | the same | `dict[str, int]` (interfaces in, dropped, unlabelled; labels unmatched) |
 
-The contact functions return the same `ResidueContactRow` rows that `annotate import` stores for another tool's contacts, so everything that reads contacts takes either; see [Annotation](../usage/annotation.md#contacts-are-one-layer).
+The contact functions return the same `ResidueContactRow` rows that `annotations import` stores for another tool's contacts, so everything that reads contacts takes either; see [Annotation](../usage/annotation.md#contacts-are-one-layer).
 
 ### Datasets
 
@@ -197,5 +197,5 @@ referenced by — any other schema:
   `fetch_mmcif()` call and isn't retained afterward — only its result,
   `IngestionProvenance`, is.
 - **`IngestionDiscovery`** (`pandora.schemas.ingestion`) records how
-  `pandora ingest` found an archive's files; it is stored only as the
-  `policy` of the `ingestion.json` step summary.
+  `pandora entries scan` found an archive's files; it is stored only as the
+  `policy` of the `summary.json` of `entries scan`.

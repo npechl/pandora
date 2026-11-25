@@ -37,9 +37,7 @@ def test_search_keeps_hit_file_and_records_parameters(tmp_path):
     ]
     hits_path = tmp_path / "out" / "hits.tsv"  # parent doesn't exist yet
 
-    search = compute_sequence_similarity(
-        records, hits_path, mmseqs_bin=str(mmseqs), max_seqs=500
-    )
+    search = compute_sequence_similarity(records, hits_path, mmseqs_bin=str(mmseqs), max_seqs=500)
 
     assert (tmp_path / "query.fasta").read_text() == ">a_A\nMKV\n>b_A\nMKL\n"
     assert hits_path.read_text().count("\n") == 2
@@ -56,17 +54,13 @@ def test_search_keeps_hit_file_and_records_parameters(tmp_path):
     }
     args = (tmp_path / "args.txt").read_text().split()
     assert args[args.index("--max-seqs") + 1] == "500"
-    assert args[args.index("--format-output") + 1] == ",".join(
-        HIT_COLUMNS["MMseqs2"]
-    )
+    assert args[args.index("--format-output") + 1] == ",".join(HIT_COLUMNS["MMseqs2"])
 
 
 def test_search_writes_relative_hits_path(tmp_path, monkeypatch):
     mmseqs = _fake_mmseqs(tmp_path)
     monkeypatch.chdir(tmp_path)
 
-    compute_sequence_similarity(
-        {"a_A": "MKV"}, "hits.tsv", mmseqs_bin=str(mmseqs)
-    )
+    compute_sequence_similarity({"a_A": "MKV"}, "hits.tsv", mmseqs_bin=str(mmseqs))
 
     assert (tmp_path / "hits.tsv").read_text().count("\n") == 2

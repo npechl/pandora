@@ -15,9 +15,7 @@ from pandora.schemas.structure import Structure
 def _seqres_by_entity(structure: Structure) -> dict[str, dict[int, set[str]]]:
     """mon_ids per SEQRES position, per entity, from `_entity_poly_seq`."""
 
-    seqres: dict[str, dict[int, set[str]]] = defaultdict(
-        lambda: defaultdict(set)
-    )
+    seqres: dict[str, dict[int, set[str]]] = defaultdict(lambda: defaultdict(set))
     for row in structure.raw.get("_entity_poly_seq", []):
         num, entity_id = row.get("num"), row.get("entity_id")
         if entity_id and num and num.isdigit():
@@ -77,8 +75,7 @@ def _present_positions(
                 Diagnostic(
                     code=code,
                     severity="warning",
-                    message=f"Chain {asym.id}: completeness not measured "
-                    f"({code})",
+                    message=f"Chain {asym.id}: completeness not measured ({code})",
                     entry_id=structure.entry_id,
                     context={"chain": asym.id},
                 )

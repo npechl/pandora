@@ -98,9 +98,7 @@ def test_list_mirror_files_sorted_and_missing_root(tmp_path):
 
 ```python
 def test_build_step_summary_embeds_policy_and_versions(tmp_path):
-    policy = DatasetCurationPolicy(
-        policy_id="p", policy_name="n", policy_version="1"
-    )
+    policy = DatasetCurationPolicy(policy_id="p", policy_name="n", policy_version="1")
     summary = build_step_summary(
         "curation",
         policy,
@@ -150,33 +148,23 @@ def test_build_step_summary_embeds_policy_and_versions(tmp_path):
 ```python
 def test_entry_records_write_to_parquet(tmp_path):
     structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / "ay" / "1ayi.cif"))
-    canon, _, cprov = canonicalise_structure(
-        structure, canonicalisationPolicy()
-    )
+    canon, _, cprov = canonicalise_structure(structure, canonicalisationPolicy())
     metadata = collect_metadata(canon)
-    curated, _, kprov = curate_structure(
-        canon, metadata, DatasetCurationPolicy()
-    )
-    c_row = canonicalisation_entry_record(
-        canon, cprov, tmp_path / "ay/1ayi.cif"
-    )
+    curated, _, kprov = curate_structure(canon, metadata, DatasetCurationPolicy())
+    c_row = canonicalisation_entry_record(canon, cprov, tmp_path / "ay/1ayi.cif")
     k_row = curation_entry_record(curated, metadata, kprov)
     assert c_row.entry_id == canon.entry_id
     assert c_row.structure_path == str(tmp_path / "ay/1ayi.cif")
     assert c_row.policy_id == cprov.policy_id
     assert k_row.chain_count == len(extract_chain_records(curated))
     assert k_row.resolution == metadata.quality.resolution
-    write_records(
-        [c_row], tmp_path / "c.parquet"
-    )  # report={} must not break it
+    write_records([c_row], tmp_path / "c.parquet")  # report={} must not break it
     write_records([k_row], tmp_path / "k.parquet")
 
 
 def test_provenance_bundle_carries_curation():
     structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / "ay" / "1ayi.cif"))
-    _, _, kprov = curate_structure(
-        structure, collect_metadata(structure), DatasetCurationPolicy()
-    )
+    _, _, kprov = curate_structure(structure, collect_metadata(structure), DatasetCurationPolicy())
     assert build_provenance_bundle(structure, curation=kprov).curation == kprov
 ```
 
@@ -255,9 +243,7 @@ def test_dataset_chain_records_join_completeness_quality_copies(tmp_path):
         structure_path=tmp_path / "x.cif",
     )
     by_id = {r.chain_id: r for r in rows}
-    assert [r.chain_id for r in rows] == [
-        r.chain_id for r in extract_chain_records(s)
-    ]
+    assert [r.chain_id for r in rows] == [r.chain_id for r in extract_chain_records(s)]
     assert by_id["A"].seqres_length is not None
     assert by_id["A"].copy_of is None and by_id["B"].copy_of == "A"
     assert by_id["A"].structure_path == str(tmp_path / "x.cif")
@@ -267,9 +253,7 @@ def test_dataset_chain_records_join_completeness_quality_copies(tmp_path):
 def test_dataset_chain_records_without_seqres_or_quality():
     s = _load("1ayi")
     no_seqres = s.model_copy(
-        update={
-            "raw": {k: v for k, v in s.raw.items() if k != "_entity_poly_seq"}
-        }
+        update={"raw": {k: v for k, v in s.raw.items() if k != "_entity_poly_seq"}}
     )
     rows = dataset_chain_records(no_seqres, None)
     assert rows and all(
@@ -292,18 +276,16 @@ def test_curating_reread_canonical_mmcif_matches_in_memory(tmp_path):
             }
         ),
     )
-    reread, _, _ = mmcif_to_structure(
-        str(structure_to_mmcif(canon, tmp_path / "1ayi.cif"))
-    )
+    reread, _, _ = mmcif_to_structure(str(structure_to_mmcif(canon, tmp_path / "1ayi.cif")))
     policy = _policy()
     a = curate_structure(canon, collect_metadata(canon), policy)
     b = curate_structure(reread, collect_metadata(reread), policy)
     assert [(e.chain_id, e.reason_code) for e in a[1]] == [
         (e.chain_id, e.reason_code) for e in b[1]
     ]
-    assert dataset_chain_records(
-        a[0], collect_metadata(canon)
-    ) == dataset_chain_records(b[0], collect_metadata(reread))
+    assert dataset_chain_records(a[0], collect_metadata(canon)) == dataset_chain_records(
+        b[0], collect_metadata(reread)
+    )
 ```
 
 (1ayi has chains A and B; `copy_of={"B": "A"}` is a synthetic mapping, used only to check the join.)

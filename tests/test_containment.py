@@ -15,10 +15,7 @@ def _counts(**entries):
 def _run(counts, res=None):
     res = res or {}
     values = {e: {"resolution": res.get(e)} for e in counts}
-    return {
-        r.entry_id: (r.contained_in, r.equal)
-        for r in find_contained(counts, values, RES)
-    }
+    return {r.entry_id: (r.contained_in, r.equal) for r in find_contained(counts, values, RES)}
 
 
 def test_monomer_contained_in_homodimer():

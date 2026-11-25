@@ -25,9 +25,7 @@ _IDENTITY_MATRIX = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
 _TOLERANCE = 1e-6
 
 
-def _is_identity_transform(
-    matrix: list[list[float]] | None, vector: list[float] | None
-) -> bool:
+def _is_identity_transform(matrix: list[list[float]] | None, vector: list[float] | None) -> bool:
     """Whether a symmetry operator is the identity (no-op) transform."""
 
     if matrix is None or vector is None:
@@ -75,12 +73,8 @@ def _expand_connections(
     expanded: list[ConnRecord] = []
     for conn in connections:
         for op_id in operator_ids:
-            new_chain_1 = copy_by_source_and_op.get(
-                (conn.ptnr1.label_asym_id, op_id)
-            )
-            new_chain_2 = copy_by_source_and_op.get(
-                (conn.ptnr2.label_asym_id, op_id)
-            )
+            new_chain_1 = copy_by_source_and_op.get((conn.ptnr1.label_asym_id, op_id))
+            new_chain_2 = copy_by_source_and_op.get((conn.ptnr2.label_asym_id, op_id))
             if new_chain_1 is None or new_chain_2 is None:
                 continue
             expanded.append(
@@ -136,16 +130,10 @@ def _expand_span_records(
     return expanded
 
 
-def _spans_within(
-    records: list[_SpanRecordT], chains: set[str]
-) -> list[_SpanRecordT]:
+def _spans_within(records: list[_SpanRecordT], chains: set[str]) -> list[_SpanRecordT]:
     """Spans whose start and end chains are both in chains."""
 
-    return [
-        r
-        for r in records
-        if r.beg_label_asym_id in chains and r.end_label_asym_id in chains
-    ]
+    return [r for r in records if r.beg_label_asym_id in chains and r.end_label_asym_id in chains]
 
 
 def _drop_stale_chain_references(structure: Structure) -> Structure:
@@ -161,9 +149,7 @@ def _drop_stale_chain_references(structure: Structure) -> Structure:
         for gen in asm.generators:
             chains = [c for c in gen.asym_id_list if c in kept]
             if chains:
-                generators.append(
-                    gen.model_copy(update={"asym_id_list": chains})
-                )
+                generators.append(gen.model_copy(update={"asym_id_list": chains}))
         assemblies.append(asm.model_copy(update={"generators": generators}))
     return structure.model_copy(
         update={
@@ -172,8 +158,7 @@ def _drop_stale_chain_references(structure: Structure) -> Structure:
             "connections": [
                 c
                 for c in structure.connections
-                if c.ptnr1.label_asym_id in kept
-                and c.ptnr2.label_asym_id in kept
+                if c.ptnr1.label_asym_id in kept and c.ptnr2.label_asym_id in kept
             ],
             "secondary_structure": ss.model_copy(
                 update={
@@ -312,28 +297,19 @@ def _expand_biological_assembly(
     kept = seen_identity_chains
     all_atoms = [a for a in atoms if a.label_asym_id in kept] + new_atoms
     all_asym_units = [a for a in asym_units if a.id in kept] + new_asym_units
-    materialized = selected.model_copy(
-        update={"generators": [], "operators": []}
-    )
+    materialized = selected.model_copy(update={"generators": [], "operators": []})
 
     copy_by_source_and_op = {
-        (copy.source_chain_id, copy.operator_id): copy.canonical_chain_id
-        for copy in chain_copies
+        (copy.source_chain_id, copy.operator_id): copy.canonical_chain_id for copy in chain_copies
     }
     all_connections = [
-        c
-        for c in connections
-        if c.ptnr1.label_asym_id in kept and c.ptnr2.label_asym_id in kept
+        c for c in connections if c.ptnr1.label_asym_id in kept and c.ptnr2.label_asym_id in kept
     ] + _expand_connections(connections, copy_by_source_and_op)
     all_secondary_structure = SSRecord(
         conf_records=_spans_within(secondary_structure.conf_records, kept)
-        + _expand_span_records(
-            secondary_structure.conf_records, copy_by_source_and_op
-        ),
+        + _expand_span_records(secondary_structure.conf_records, copy_by_source_and_op),
         sheet_strands=_spans_within(secondary_structure.sheet_strands, kept)
-        + _expand_span_records(
-            secondary_structure.sheet_strands, copy_by_source_and_op
-        ),
+        + _expand_span_records(secondary_structure.sheet_strands, copy_by_source_and_op),
     )
 
     reported_chain_copies = chain_copies if record else []
@@ -409,9 +385,7 @@ def _normalize_assemblies(
                     AssemblyMappingItem(
                         canonical_assembly_id=asm.id,
                         original_assembly_id=asm.id,
-                        chain_copies=chain_copies_by_assembly_id.get(
-                            asm.id, []
-                        ),
+                        chain_copies=chain_copies_by_assembly_id.get(asm.id, []),
                     )
                 )
         return (
@@ -447,9 +421,7 @@ def _normalize_assemblies(
     )
 
 
-def chain_copy_records(
-    structure: Structure, mappings: CanonicalMappings
-) -> list[ChainCopyRecord]:
+def chain_copy_records(structure: Structure, mappings: CanonicalMappings) -> list[ChainCopyRecord]:
     """List the symmetry-copy chains of a canonical structure.
 
     Standard mmCIF has no field for "this chain is a copy of that one",

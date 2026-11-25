@@ -119,9 +119,7 @@ def test_similarity_edges_coverage_of(tmp_path, coverage_of, expected):
 def test_similarity_edges_score_column(tmp_path):
     rows = [_foldseek_row("a", "b", alntm=0.1, qtm=0.7)]
 
-    (edge,) = _edges(
-        tmp_path, rows, HitFilter(min_score=0.6, score_column="qtmscore")
-    )
+    (edge,) = _edges(tmp_path, rows, HitFilter(min_score=0.6, score_column="qtmscore"))
 
     assert edge.score == 0.7
 
@@ -184,9 +182,7 @@ def test_similarity_edges_null_coverage_fails_threshold():
         (HitFilter(min_score=0.1, score_column="qtmscore"), "qtmscore"),
     ],
 )
-def test_similarity_edges_threshold_on_absent_column_raises(
-    hit_filter, missing
-):
+def test_similarity_edges_threshold_on_absent_column_raises(hit_filter, missing):
     batch = _table(item_id_1=["a"], item_id_2=["b"], score=[0.9])
 
     with pytest.raises(ValueError, match=missing):
@@ -204,11 +200,7 @@ def test_similarity_edges_interface_residues_need_ranges():
     batch = _table(item_id_1=["a"], item_id_2=["b"], score=[0.9])
 
     with pytest.raises(ValueError, match="start_1"):
-        next(
-            similarity_edges(
-                [batch], HitFilter(), interface_residues={"a": {1}}
-            )
-        )
+        next(similarity_edges([batch], HitFilter(), interface_residues={"a": {1}}))
 
 
 @pytest.mark.parametrize(
@@ -230,9 +222,7 @@ def test_similarity_edges_nan_fails_threshold(field, column):
     )
     columns[column] = [float("nan")]
 
-    edges = list(
-        similarity_edges([_table(**columns)], HitFilter(**{field: 0.1}))
-    )
+    edges = list(similarity_edges([_table(**columns)], HitFilter(**{field: 0.1})))
 
     assert edges == []
 
@@ -243,9 +233,7 @@ def test_similarity_edges_batching_does_not_change_edges(tmp_path):
     one = list(similarity_edges(_batches(tmp_path, rows), hit_filter))
     table = pa.Table.from_batches(_batches(tmp_path, rows))
 
-    three = list(
-        similarity_edges(table.to_batches(max_chunksize=3), hit_filter)
-    )
+    three = list(similarity_edges(table.to_batches(max_chunksize=3), hit_filter))
 
     assert one == three
     assert len(one) == 6
@@ -325,10 +313,7 @@ def test_read_similarity_table_bad_extra_column_is_named(tmp_path):
 
 def test_read_similarity_table_tsv_na_and_empty_are_null(tmp_path):
     path = tmp_path / "edges.tsv"
-    path.write_text(
-        "item_id_1\titem_id_2\tscore\tidentity\tcoverage_1\n"
-        "104M\t112M\t0.5\tNA\t\n"
-    )
+    path.write_text("item_id_1\titem_id_2\tscore\tidentity\tcoverage_1\n104M\t112M\t0.5\tNA\t\n")
 
     row = next(read_similarity_table(path)).to_pylist()[0]
 

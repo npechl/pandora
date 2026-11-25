@@ -15,9 +15,7 @@ from pandora.similarity.hits import HIT_COLUMNS
 def _foldseek_version(foldseek_bin: str) -> str | None:
     """Installed Foldseek version string, or None if it can't be determined."""
 
-    result = subprocess.run(
-        [foldseek_bin, "version"], capture_output=True, text=True, check=False
-    )
+    result = subprocess.run([foldseek_bin, "version"], capture_output=True, text=True, check=False)
     return result.stdout.strip() or None
 
 
@@ -31,9 +29,7 @@ def _structure_suffix(path: Path) -> str:
     return path.suffix
 
 
-def _link_structures(
-    structures: dict[str, str | Path], directory: Path
-) -> None:
+def _link_structures(structures: dict[str, str | Path], directory: Path) -> None:
     """Symlink (or copy, if symlinking fails) each structure file into
     directory, named by its item id."""
 
@@ -123,14 +119,10 @@ def interface_residues_from_annotation(
             chain_id, seq = residue_id.rsplit(":", 1)
             key = (entry_id, chain_id)
             if key not in positions_by_chain:
-                positions_by_chain[key] = residue_positions(
-                    structures[entry_id], chain_id
-                )
+                positions_by_chain[key] = residue_positions(structures[entry_id], chain_id)
             position = positions_by_chain[key].get(int(seq))
             if position is not None:
-                result.setdefault(chain_item_id(entry_id, chain_id), set()).add(
-                    position
-                )
+                result.setdefault(chain_item_id(entry_id, chain_id), set()).add(position)
     return result
 
 
@@ -188,8 +180,7 @@ def compute_structure_similarity(
 
     if shutil.which(foldseek_bin) is None:
         raise RuntimeError(
-            f"foldseek binary {foldseek_bin!r} not found (required for "
-            "structure similarity)"
+            f"foldseek binary {foldseek_bin!r} not found (required for structure similarity)"
         )
 
     options = list(foldseek_options or [])
@@ -224,9 +215,7 @@ def compute_structure_similarity(
         ]
         if exhaustive_search:
             command += ["--exhaustive-search", "1"]
-        subprocess.run(
-            command + options, check=True, capture_output=True, text=True
-        )
+        subprocess.run(command + options, check=True, capture_output=True, text=True)
 
     return LayerDescription(
         name="foldseek",

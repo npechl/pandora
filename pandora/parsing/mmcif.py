@@ -96,8 +96,7 @@ def _extract_raw(block: object) -> dict[str, list[dict[str, str | None]]]:
             col_names = [t.rsplit(".", 1)[1] for t in loop.tags]
             n_cols = len(col_names)
             raw[category] = [
-                {col_names[j]: _cs(loop[i, j]) for j in range(n_cols)}
-                for i in range(loop.length())
+                {col_names[j]: _cs(loop[i, j]) for j in range(n_cols)} for i in range(loop.length())
             ]
             continue
 
@@ -118,9 +117,7 @@ def _load(
     in diag) if it can't be read or has no model."""
 
     def _fail(code: str, message: str) -> None:
-        diag.errors.append(
-            Diagnostic(code=code, severity="error", message=message)
-        )
+        diag.errors.append(Diagnostic(code=code, severity="error", message=message))
 
     if not path_to_mmcif.strip():
         return _fail("EMPTY_CONTENT", "mmCIF content is empty")
@@ -137,9 +134,7 @@ def _load(
     return st, block
 
 
-def _select_model(
-    st: gemmi.Structure, model_num: int, diag: DiagnosticBundle
-) -> gemmi.Model:
+def _select_model(st: gemmi.Structure, model_num: int, diag: DiagnosticBundle) -> gemmi.Model:
     """Model model_num of st, or its first model with a warning."""
 
     model = next((m for m in st if m.num == model_num), None)
@@ -149,10 +144,7 @@ def _select_model(
             Diagnostic(
                 code="MODEL_NOT_FOUND",
                 severity="warning",
-                message=(
-                    f"Model {model_num} not found; falling back "
-                    f"to model {model.num}"
-                ),
+                message=(f"Model {model_num} not found; falling back to model {model.num}"),
                 entry_id=st.name,
             )
         )
@@ -180,9 +172,7 @@ def _read_rows(
             out.append(build(row))
     except _MALFORMED_CIF_ERRORS as exc:
         diag.warnings.append(
-            Diagnostic(
-                code=code, severity="warning", message=str(exc), entry_id=eid
-            )
+            Diagnostic(code=code, severity="warning", message=str(exc), entry_id=eid)
         )
     return out
 
@@ -283,9 +273,7 @@ def _atoms(
                         type_symbol=atom.element.name,
                         label_atom_id=atom.name,
                         label_alt_id=(
-                            atom.altloc
-                            if atom.altloc not in ("\x00", " ", "")
-                            else None
+                            atom.altloc if atom.altloc not in ("\x00", " ", "") else None
                         ),
                         label_comp_id=res.name,
                         label_asym_id=sc or "",
@@ -307,9 +295,7 @@ def _atoms(
     return atoms, asym_auth_map
 
 
-def _asym_units(
-    st: gemmi.Structure, asym_auth_map: dict[str, str]
-) -> list[AsymRecord]:
+def _asym_units(st: gemmi.Structure, asym_auth_map: dict[str, str]) -> list[AsymRecord]:
     """One AsymRecord per subchain, in entity order."""
 
     seen: set[str] = set()
@@ -477,17 +463,13 @@ def _ss_range(row: gemmi.cif.Table.Row) -> dict:
 def _conf_row(row: gemmi.cif.Table.Row) -> ConfRecord:
     """ConfRecord of a _struct_conf row."""
 
-    return ConfRecord(
-        id=_cs(row[0]) or "", conf_type_id=_cs(row[1]) or "", **_ss_range(row)
-    )
+    return ConfRecord(id=_cs(row[0]) or "", conf_type_id=_cs(row[1]) or "", **_ss_range(row))
 
 
 def _sheet_row(row: gemmi.cif.Table.Row) -> SheetStrandRecord:
     """SheetStrandRecord of a _struct_sheet_range row."""
 
-    return SheetStrandRecord(
-        sheet_id=_cs(row[0]) or "", id=_cs(row[1]) or "", **_ss_range(row)
-    )
+    return SheetStrandRecord(sheet_id=_cs(row[0]) or "", id=_cs(row[1]) or "", **_ss_range(row))
 
 
 # mmcif_to_structure ----------------------------------
@@ -525,11 +507,7 @@ def mmcif_to_structure(
     read = partial(_read_rows, block, eid, diag)
 
     # Read in this order so warnings come out in category order.
-    entity_desc = dict(
-        read(
-            "_entity.", _ENTITY_TAGS, _entity_row, "ENTITY_METADATA_PARSE_ERROR"
-        )
-    )
+    entity_desc = dict(read("_entity.", _ENTITY_TAGS, _entity_row, "ENTITY_METADATA_PARSE_ERROR"))
     entity_poly = dict(
         read(
             "_entity_poly.",
@@ -539,9 +517,7 @@ def mmcif_to_structure(
         )
     )
 
-    subchain_to_entity = {
-        sc: ent.name for ent in st.entities for sc in ent.subchains
-    }
+    subchain_to_entity = {sc: ent.name for ent in st.entities for sc in ent.subchains}
     atoms, asym_auth_map = _atoms(model, subchain_to_entity)
     if not atoms:
         diag.warnings.append(
@@ -553,9 +529,7 @@ def mmcif_to_structure(
             )
         )
 
-    connections = read(
-        "_struct_conn.", _CONN_TAGS, _conn_row, "CONN_PARSE_ERROR"
-    )
+    connections = read("_struct_conn.", _CONN_TAGS, _conn_row, "CONN_PARSE_ERROR")
     asm_meta = dict(
         read(
             "_pdbx_struct_assembly.",
@@ -581,20 +555,13 @@ def mmcif_to_structure(
     return (
         Structure(
             entry_id=eid,
-            entry=EntryRecord(
-                id=eid, title=_cs(raw_title) if raw_title else None
-            ),
+            entry=EntryRecord(id=eid, title=_cs(raw_title) if raw_title else None),
             entities=_entities(st, entity_desc, entity_poly),
             asym_units=_asym_units(st, asym_auth_map),
             atoms=atoms,
             connections=connections,
-            assemblies=[
-                _assembly(asm, asm_meta.get(asm.name, {}))
-                for asm in st.assemblies
-            ],
-            secondary_structure=SSRecord(
-                conf_records=conf_records, sheet_strands=sheet_strands
-            ),
+            assemblies=[_assembly(asm, asm_meta.get(asm.name, {})) for asm in st.assemblies],
+            secondary_structure=SSRecord(conf_records=conf_records, sheet_strands=sheet_strands),
             raw=_extract_raw(block),
         ),
         diag,

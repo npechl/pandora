@@ -30,9 +30,7 @@ MMCIF_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
 
 
 def _load(entry_id: str):
-    structure, _, _ = mmcif_to_structure(
-        str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif")
-    )
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif"))
     return structure
 
 
@@ -50,22 +48,16 @@ def test_curate_structure_pass_and_fail():
     metadata = collect_metadata(structure)
     policy = _policy()
 
-    curated, exclusions, provenance = curate_structure(
-        structure, metadata, policy
-    )
+    curated, exclusions, provenance = curate_structure(structure, metadata, policy)
     assert curated is not None
     assert exclusions == []
     assert provenance.policy_id == "test"
     assert provenance.policy_version == "1.0.0"
 
     tight_policy = _policy(
-        quality_rules=QualityRules(
-            max_resolution=metadata.quality.resolution - 0.01
-        )
+        quality_rules=QualityRules(max_resolution=metadata.quality.resolution - 0.01)
     )
-    curated, exclusions, provenance = curate_structure(
-        structure, metadata, tight_policy
-    )
+    curated, exclusions, provenance = curate_structure(structure, metadata, tight_policy)
     assert curated is None
     assert [e.reason_code for e in exclusions] == ["RESOLUTION_THRESHOLD"]
     # provenance is populated on exclusion too, so callers always know
@@ -91,11 +83,7 @@ def test_missing_metadata_treated_as_unknown_not_skipped():
     curated, exclusions, _ = curate_structure(
         structure,
         None,
-        _policy(
-            quality_rules=QualityRules(
-                max_resolution=0.1, null_resolution_behavior="include"
-            )
-        ),
+        _policy(quality_rules=QualityRules(max_resolution=0.1, null_resolution_behavior="include")),
     )
     assert curated is not None
     assert exclusions == []
@@ -135,9 +123,7 @@ def test_content_rules_strip_ligands():
     assert has_hetatm, "fixture must contain ligand atoms for this test"
 
     policy = _policy(
-        content_rules=ContentRules(
-            keep_ligands=False, keep_waters=False, keep_ions=False
-        )
+        content_rules=ContentRules(keep_ligands=False, keep_waters=False, keep_ions=False)
     )
 
     curated, exclusions, _ = curate_structure(structure, None, policy)
@@ -180,11 +166,7 @@ if __name__ == "__main__":
 def test_experimental_method_filter_matches_mmcif_method_values():
     structure = _load("104m")  # X-ray diffraction
     metadata = collect_metadata(structure)
-    policy = _policy(
-        quality_rules=QualityRules(
-            include_experimental_methods=["X-RAY DIFFRACTION"]
-        )
-    )
+    policy = _policy(quality_rules=QualityRules(include_experimental_methods=["X-RAY DIFFRACTION"]))
 
     curated, exclusions, _ = curate_structure(structure, metadata, policy)
 
@@ -199,9 +181,7 @@ def test_entry_exclusion_has_no_chain_id():
         None,
         _policy(quality_rules=QualityRules(max_resolution=0.1)),
     )
-    assert [(e.reason_code, e.chain_id) for e in exclusions] == [
-        ("NULL_RESOLUTION", None)
-    ]
+    assert [(e.reason_code, e.chain_id) for e in exclusions] == [("NULL_RESOLUTION", None)]
 
 
 def _meta(entry_id: str, **quality) -> MetadataRecord:
@@ -227,9 +207,7 @@ def test_cryo_em_entry_passes_resolution_rule_with_real_metadata():
         max_resolution=3.5,
         max_resolution_by_method={"ELECTRON MICROSCOPY": 2.0},
     )
-    curated, exclusions, _ = curate_structure(
-        structure, metadata, _policy(quality_rules=strict)
-    )
+    curated, exclusions, _ = curate_structure(structure, metadata, _policy(quality_rules=strict))
     assert curated is None
     assert _codes(exclusions) == ["RESOLUTION_THRESHOLD"]
 
@@ -240,12 +218,8 @@ def test_resolution_by_method_falls_back_to_max_resolution():
         max_resolution=3.0,
         max_resolution_by_method={"Electron Microscopy": 2.0},
     )
-    meta = _meta(
-        "1ayi", experimental_method="X-ray diffraction", resolution=2.4
-    )
-    curated, exclusions, _ = curate_structure(
-        structure, meta, _policy(quality_rules=rules)
-    )
+    meta = _meta("1ayi", experimental_method="X-ray diffraction", resolution=2.4)
+    curated, exclusions, _ = curate_structure(structure, meta, _policy(quality_rules=rules))
     assert curated is not None and exclusions == []
 
 
@@ -262,9 +236,7 @@ def test_resolution_by_method_strictest_wins():
         experimental_method="X-ray diffraction; Neutron diffraction",
         resolution=2.4,
     )
-    _, exclusions, _ = curate_structure(
-        structure, meta, _policy(quality_rules=rules)
-    )
+    _, exclusions, _ = curate_structure(structure, meta, _policy(quality_rules=rules))
     assert _codes(exclusions) == ["RESOLUTION_THRESHOLD"]
 
 
@@ -287,21 +259,15 @@ def test_rfactor_rules():
         ),
     ]
     for rules, expected in cases:
-        _, exclusions, _ = curate_structure(
-            structure, meta, _policy(quality_rules=rules)
-        )
+        _, exclusions, _ = curate_structure(structure, meta, _policy(quality_rules=rules))
         assert _codes(exclusions) == expected, rules
 
 
 def test_rfactor_rules_skip_cryo_em():
     structure = _load("1ayi")
-    meta = _meta(
-        "1ayi", experimental_method="Electron Microscopy", resolution=2.0
-    )
+    meta = _meta("1ayi", experimental_method="Electron Microscopy", resolution=2.0)
     rules = QualityRules(max_r_free=0.25, null_rfactor_behavior="exclude")
-    curated, exclusions, _ = curate_structure(
-        structure, meta, _policy(quality_rules=rules)
-    )
+    curated, exclusions, _ = curate_structure(structure, meta, _policy(quality_rules=rules))
     assert curated is not None and exclusions == []
 
 
@@ -315,11 +281,7 @@ def test_null_rfactor_behavior():
     _, exclusions, _ = curate_structure(
         structure,
         meta,
-        _policy(
-            quality_rules=QualityRules(
-                max_r_free=0.25, null_rfactor_behavior="exclude"
-            )
-        ),
+        _policy(quality_rules=QualityRules(max_r_free=0.25, null_rfactor_behavior="exclude")),
     )
     assert _codes(exclusions) == ["NULL_RFACTOR"]
 
@@ -327,9 +289,7 @@ def test_null_rfactor_behavior():
 def test_rfactor_rules_skip_entries_without_metadata():
     structure = _load("1ayi")
     rules = QualityRules(max_r_free=0.25, null_rfactor_behavior="exclude")
-    curated, exclusions, _ = curate_structure(
-        structure, None, _policy(quality_rules=rules)
-    )
+    curated, exclusions, _ = curate_structure(structure, None, _policy(quality_rules=rules))
     assert curated is not None and exclusions == []
 
 
@@ -442,11 +402,7 @@ def test_chain_counts_checked_after_drop():
     curated, exclusions, _ = curate_structure(
         structure,
         None,
-        _policy(
-            quality_rules=QualityRules(
-                max_missing_middle_fraction=0.1, min_polymer_chains=2
-            )
-        ),
+        _policy(quality_rules=QualityRules(max_missing_middle_fraction=0.1, min_polymer_chains=2)),
     )
     assert curated is None
     assert _chain_codes(exclusions) == [
@@ -471,11 +427,7 @@ def test_chain_failing_two_rules_gets_one_record():
     _, exclusions, _ = curate_structure(
         structure,
         None,
-        _policy(
-            quality_rules=QualityRules(
-                max_chain_length=200, max_missing_middle_fraction=0.1
-            )
-        ),
+        _policy(quality_rules=QualityRules(max_chain_length=200, max_missing_middle_fraction=0.1)),
     )
     assert [e.chain_id for e in exclusions] == ["A"]
 
@@ -526,20 +478,14 @@ def test_method_names_ignore_internal_whitespace():
     _, exclusions, _ = curate_structure(
         structure,
         meta,
-        _policy(
-            quality_rules=QualityRules(
-                max_resolution_by_method={"X-RAY  DIFFRACTION": 2.0}
-            )
-        ),
+        _policy(quality_rules=QualityRules(max_resolution_by_method={"X-RAY  DIFFRACTION": 2.0})),
     )
     assert _codes(exclusions) == ["RESOLUTION_THRESHOLD"]
     _, exclusions, _ = curate_structure(
         structure,
         meta,
         _policy(
-            quality_rules=QualityRules(
-                rfactor_methods=["x-ray\tdiffraction"], max_r_free=0.25
-            )
+            quality_rules=QualityRules(rfactor_methods=["x-ray\tdiffraction"], max_r_free=0.25)
         ),
     )
     assert _codes(exclusions) == ["RFREE_THRESHOLD"]
@@ -547,27 +493,17 @@ def test_method_names_ignore_internal_whitespace():
 
 def test_method_lists_match_multi_method_entries():
     structure = _load("1ayi")
-    meta = _meta(
-        "1ayi", experimental_method="X-ray diffraction; Neutron diffraction"
-    )
+    meta = _meta("1ayi", experimental_method="X-ray diffraction; Neutron diffraction")
     curated, exclusions, _ = curate_structure(
         structure,
         meta,
-        _policy(
-            quality_rules=QualityRules(
-                include_experimental_methods=["X-RAY DIFFRACTION"]
-            )
-        ),
+        _policy(quality_rules=QualityRules(include_experimental_methods=["X-RAY DIFFRACTION"])),
     )
     assert curated is not None and exclusions == []
     _, exclusions, _ = curate_structure(
         structure,
         meta,
-        _policy(
-            quality_rules=QualityRules(
-                exclude_experimental_methods=["neutron diffraction"]
-            )
-        ),
+        _policy(quality_rules=QualityRules(exclude_experimental_methods=["neutron diffraction"])),
     )
     assert _codes(exclusions) == ["METHOD_EXCLUDED"]
 
@@ -611,17 +547,13 @@ def test_curated_structure_exports_to_valid_mmcif(tmp_path):
     assert exclusions
     dropped = {e.chain_id for e in exclusions}
     assert not any(
-        dropped & set(gen.asym_id_list)
-        for asm in curated.assemblies
-        for gen in asm.generators
+        dropped & set(gen.asym_id_list) for asm in curated.assemblies for gen in asm.generators
     )
     reparsed, _, status = mmcif_to_structure(
         str(structure_to_mmcif(curated, tmp_path / "curated.cif"))
     )
     assert status != "failed"
-    assert {u.id for u in reparsed.asym_units} == {
-        u.id for u in curated.asym_units
-    }
+    assert {u.id for u in reparsed.asym_units} == {u.id for u in curated.asym_units}
 
 
 def test_curation_provenance_lists_dropped_raw_categories():
@@ -632,9 +564,7 @@ def test_curation_provenance_lists_dropped_raw_categories():
         _policy(quality_rules=QualityRules(max_chain_length=100)),
     )
     assert "_pdbx_poly_seq_scheme" in provenance.dropped_raw_categories
-    assert provenance.dropped_raw_categories == sorted(
-        set(structure.raw) - set(curated.raw)
-    )
+    assert provenance.dropped_raw_categories == sorted(set(structure.raw) - set(curated.raw))
     _, _, untouched = curate_structure(structure, None, _policy())
     assert untouched.dropped_raw_categories == []
 
@@ -666,9 +596,7 @@ def test_keep_polymer_types_excludes_entry_with_none_left():
     curated, exclusions, _ = curate_structure(
         structure,
         None,
-        _policy(
-            content_rules=ContentRules(keep_polymer_types=["polypeptide(L)"])
-        ),
+        _policy(content_rules=ContentRules(keep_polymer_types=["polypeptide(L)"])),
     )
     assert curated is None
     assert _chain_codes(exclusions) == [
@@ -685,17 +613,8 @@ def _stale_chain_refs(structure) -> list[str]:
     kept = {u.id for u in structure.asym_units}
     ss = structure.secondary_structure
     refs = [
-        *(
-            c
-            for a in structure.assemblies
-            for g in a.generators
-            for c in g.asym_id_list
-        ),
-        *(
-            c
-            for b in structure.connections
-            for c in (b.ptnr1.label_asym_id, b.ptnr2.label_asym_id)
-        ),
+        *(c for a in structure.assemblies for g in a.generators for c in g.asym_id_list),
+        *(c for b in structure.connections for c in (b.ptnr1.label_asym_id, b.ptnr2.label_asym_id)),
         *(
             c
             for s in [*ss.conf_records, *ss.sheet_strands]
@@ -711,9 +630,7 @@ def _stale_chain_refs(structure) -> list[str]:
 def test_content_rules_leave_no_stale_references():
     # 104m: heme bonds to the protein and has its own entity.
     policy = _policy(
-        content_rules=ContentRules(
-            keep_ligands=False, keep_waters=False, keep_ions=False
-        )
+        content_rules=ContentRules(keep_ligands=False, keep_waters=False, keep_ions=False)
     )
 
     curated, _, _ = curate_structure(_load("104m"), None, policy)
@@ -724,9 +641,7 @@ def test_content_rules_leave_no_stale_references():
 def test_content_rules_that_remove_every_atom_exclude_entry():
     # 22ag has no polymer chain, only ligands.
     policy = _policy(
-        content_rules=ContentRules(
-            keep_ligands=False, keep_waters=False, keep_ions=False
-        )
+        content_rules=ContentRules(keep_ligands=False, keep_waters=False, keep_ions=False)
     )
 
     curated, exclusions, _ = curate_structure(_load("22ag"), None, policy)
@@ -758,26 +673,20 @@ def test_dataset_chain_records_join_completeness_quality_copies(tmp_path):
         s, metadata, copy_of={"A-2": "A"}, structure_path=tmp_path / "x.cif"
     )
     by_id = {r.chain_id: r for r in rows}
-    assert [r.chain_id for r in rows] == [
-        r.chain_id for r in extract_chain_records(s)
-    ]
+    assert [r.chain_id for r in rows] == [r.chain_id for r in extract_chain_records(s)]
     assert by_id["A"].seqres_length is not None
     assert by_id["A"].missing_middle is not None
     assert by_id["A"].copy_of is None
     assert by_id["A-2"].copy_of == "A"
     assert by_id["A"].structure_path == str(tmp_path / "x.cif")
     assert by_id["A"].resolution == metadata.quality.resolution
-    assert by_id["A"].experimental_method == (
-        metadata.quality.experimental_method
-    )
+    assert by_id["A"].experimental_method == (metadata.quality.experimental_method)
 
 
 def test_dataset_chain_records_without_seqres_or_quality():
     s = _load("1ayi")
     no_seqres = s.model_copy(
-        update={
-            "raw": {k: v for k, v in s.raw.items() if k != "_entity_poly_seq"}
-        }
+        update={"raw": {k: v for k, v in s.raw.items() if k != "_entity_poly_seq"}}
     )
     rows = dataset_chain_records(no_seqres, None)
     assert rows
@@ -792,9 +701,7 @@ def test_dataset_chain_records_without_seqres_or_quality():
 
 def test_curating_reread_canonical_mmcif_matches_in_memory(tmp_path):
     canon = _expand_assembly(_load("1ayi"))
-    reread, _, _ = mmcif_to_structure(
-        str(structure_to_mmcif(canon, tmp_path / "1ayi.cif"))
-    )
+    reread, _, _ = mmcif_to_structure(str(structure_to_mmcif(canon, tmp_path / "1ayi.cif")))
     policy = _policy()
     a = curate_structure(canon, collect_metadata(canon), policy)
     b = curate_structure(reread, collect_metadata(reread), policy)
@@ -802,9 +709,9 @@ def test_curating_reread_canonical_mmcif_matches_in_memory(tmp_path):
     assert [(e.chain_id, e.reason_code) for e in a[1]] == [
         (e.chain_id, e.reason_code) for e in b[1]
     ]
-    assert dataset_chain_records(
-        a[0], collect_metadata(canon)
-    ) == dataset_chain_records(b[0], collect_metadata(reread))
+    assert dataset_chain_records(a[0], collect_metadata(canon)) == dataset_chain_records(
+        b[0], collect_metadata(reread)
+    )
 
 
 def test_residue_records_carry_author_keys():
@@ -820,7 +727,5 @@ def test_residue_records_carry_author_keys():
 
 
 def test_residue_record_without_author_keys_still_loads():
-    record = ResidueRecord(
-        entry_id="1abc", chain_id="A", seq_id=1, comp_id="ALA", atoms=[]
-    )
+    record = ResidueRecord(entry_id="1abc", chain_id="A", seq_id=1, comp_id="ALA", atoms=[])
     assert record.auth_chain_id is None and record.ins_code is None

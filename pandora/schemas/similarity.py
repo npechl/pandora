@@ -83,8 +83,9 @@ class ClusteredLayer(BaseModel):
     """One similarity layer read by a clustering run.
 
     Attributes:
-        similarity_layer: The layer's `layer.json`, or None when the
-            edges came from elsewhere (e.g. a hit TSV).
+        similarity_layer: The similarity input as given (a layer folder
+            or a bare table), as an absolute path; None when the edges
+            came from elsewhere (e.g. a hit TSV).
         items: The layer's item level; chain layers can be rolled up
             to entries or interfaces.
         hit_filter: The filter that turned the layer's rows into edges.
@@ -145,8 +146,8 @@ class PartitionProvenance(BaseModel):
         missing_labels: With labels: split -> sorted labels with no item
             in that split. Splits missing none, and splits with a 0
             fraction, are left out. Empty otherwise.
-        labels_layer: The labels layer's `layer.json` (it records the
-            layer's name), when the CLI was given one.
+        labels_layer: The labels layer's table, as an absolute path,
+            when the CLI was given a labels layer with rows.
         stratify: Whether each label's clusters were split on their own,
             keeping the label mix in every split.
     """
@@ -181,9 +182,7 @@ class RepresentativePolicy(BaseModel):
     """
 
     items: SimilarityItems = "chain"
-    rank: list[RankKey] = Field(
-        default_factory=lambda data: _DEFAULT_RANK[data["items"]]()
-    )
+    rank: list[RankKey] = Field(default_factory=lambda data: _DEFAULT_RANK[data["items"]]())
 
 
 _DEFAULT_RANK = {
@@ -287,21 +286,22 @@ class DroppedDimer(BaseModel):
 
     dimer: str
     group: str
-    reason: Literal[
-        "homomer_in_mixed_group", "similar_to_kept", "not_most_connected"
-    ]
+    reason: Literal["homomer_in_mixed_group", "similar_to_kept", "not_most_connected"]
     kept: str | None = None
 
 
 class RebalanceSettings(BaseModel):
-    """What one `rebalance` run used, recorded as its summary's policy.
+    """What one `pairs positives` run used, recorded as its summary's
+    policy.
 
     Attributes:
         rank: The ranking that breaks ties between equally connected
             dimers.
         layers: The similarity layers and hit filters of the dimer
-            graph (the same as the Step 5 `cluster` run).
-        clusters: The dimer groups file.
+            graph, whose connected components are the dimer groups.
+        contacts: The residue_contacts layer folder (the dimers).
+        structures_dir: The structures folder whose chains table gave
+            the rank values.
         chain_clusters: The 90% chain clusters file (homomer test).
         chain_representatives: The representatives JSON mapping chains
             to their representative, if any.
@@ -309,7 +309,8 @@ class RebalanceSettings(BaseModel):
 
     rank: RepresentativePolicy
     layers: list[ClusteredLayer] = Field(default_factory=list)
-    clusters: str
+    contacts: str
+    structures_dir: str
     chain_clusters: str
     chain_representatives: str | None = None
 
@@ -330,13 +331,14 @@ class NegativePair(BaseModel):
 
 
 class NegativeSamplingSettings(BaseModel):
-    """What one `negatives` run used, recorded as its summary's policy.
+    """What one `pairs negatives` run used, recorded as its summary's
+    policy.
 
     Attributes:
         seed: Seed of the random generator (A's and C's draws).
         hit_filter: The filter that makes a structure-similarity hit
             count as "similar" (e.g. TM-score >= 0.5).
-        similarity_layer: The chain similarity layer's `layer.json`.
+        similarity_layer: The chain similarity layer folder or table.
         contacts: The "any contact" residue_contacts layer folder.
         representatives: The representatives JSON (pool and chain
             mapping).
@@ -383,14 +385,15 @@ class DatasetPair(BaseModel):
 
 
 class AssemblySettings(BaseModel):
-    """What one `assemble` run used, recorded as its summary's policy.
+    """What one `pairs assemble` run used, recorded as its summary's
+    policy.
 
     Attributes:
-        positives: The `rebalance` step folder.
-        negatives: The `negatives` step folder.
-        splits: The `partition` splits file.
+        positives: The `pairs positives` table.
+        negatives: The `pairs negatives` table.
+        splits: The `splits assign` splits file.
         representatives: The representatives JSON (chain mapping).
-        similarity_layer: The chain similarity layer's `layer.json`.
+        similarity_layer: The chain similarity layer folder or table.
         hit_filter: The filter that makes a hit count as "similar".
     """
 

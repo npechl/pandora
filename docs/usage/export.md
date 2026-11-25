@@ -13,15 +13,13 @@ signatures.
 `mmcif_to_structure()` returns a 3-tuple: the parsed `Structure` (or
 `None` if parsing failed outright), a `DiagnosticBundle` of warnings
 encountered, and a status string. No CLI subcommand exposes parsing on
-its own — `pandora export` (below) and every other stage's `--input-dir`
-call it internally.
+its own — `pandora structures convert` (below) and every other command
+that reads structures call it internally.
 
 ```python
 from pandora.parsing import mmcif_to_structure
 
-structure, diagnostics, status = mmcif_to_structure(
-    "datasets/dev/mmcif/04/104m.cif"
-)
+structure, diagnostics, status = mmcif_to_structure("datasets/dev/mmcif/04/104m.cif")
 print(
     status,
     len(structure.atoms),
@@ -54,9 +52,7 @@ result reparses cleanly:
     from pandora.export import structure_to_mmcif
     from pandora.schemas.canonicalisation import canonicalisationPolicy
 
-    policy = canonicalisationPolicy(
-        policy_id="p", policy_name="p", policy_version="1.0.0"
-    )
+    policy = canonicalisationPolicy(policy_id="p", policy_name="p", policy_version="1.0.0")
     canonical, _, _ = canonicalise_structure(structure, policy)
 
     output_dir = Path("./datasets/output/export/")
@@ -70,7 +66,7 @@ result reparses cleanly:
 === "`cli`"
 
     ```bash
-    pandora export --input canonical/structures/04/104m.cif --output 104m.export.cif
+    pandora structures convert canonical/structures/04/104m.cif 104m.export.cif
     # exported -> 104m.export.cif
     ```
 
@@ -96,11 +92,11 @@ as pretty-printed JSON.
 === "`cli`"
 
     ```bash
-    pandora export --input canonical/structures/04/104m.cif --output 104m.json
+    pandora structures convert canonical/structures/04/104m.cif 104m.json
     # exported -> 104m.json
     ```
 
-    `pandora export` only ever writes the parsed `Structure` itself as
+    `pandora structures convert` only ever writes the parsed `Structure` itself as
     JSON this way — for provenance records, `AnnotationLayer`s, or
     anything else `write_json()` accepts, use the library form.
 
@@ -108,7 +104,7 @@ as pretty-printed JSON.
 
 `write_records()` writes a list of record models — `ChainRecord`,
 `ResidueRecord`, `InterfaceRecord` from [Datasets](datasets.md) — and
-dispatches on the output path's suffix. `pandora export` only handles a
+dispatches on the output path's suffix. `pandora structures convert` only handles a
 single `Structure`, so there's no CLI equivalent for record lists:
 
 ```python
@@ -117,13 +113,9 @@ from pandora.export import write_records
 
 chain_records = extract_chain_records(canonical)
 
-write_records(
-    chain_records, output_dir / "chains.jsonl"
-)  # one JSON object per line
+write_records(chain_records, output_dir / "chains.jsonl")  # one JSON object per line
 write_records(chain_records, output_dir / "chains.json")  # a JSON array
-write_records(
-    chain_records, output_dir / "chains.parquet"
-)  # columnar, needs the `export` extra
+write_records(chain_records, output_dir / "chains.parquet")  # columnar, needs the `export` extra
 ```
 
 `.parquet` needs `pandas`/`pyarrow` (`uv sync --extra export`) and

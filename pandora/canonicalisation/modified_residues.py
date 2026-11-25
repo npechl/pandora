@@ -38,19 +38,14 @@ def _map_modified_residues(
     parents = {
         (row.get("label_asym_id"), row.get("label_seq_id"), comp): parent
         for row in mod_rows
-        if (comp := row.get("label_comp_id"))
-        and (parent := row.get("parent_comp_id"))
+        if (comp := row.get("label_comp_id")) and (parent := row.get("parent_comp_id"))
     }
     wanted = set(rules.comp_ids)
     seen: set[tuple[str, str, str]] = set()
     result: list[AtomSiteRecord] = []
     for a in atoms:
         comp = a.label_comp_id
-        if (
-            a.label_seq_id is None
-            or comp in STANDARD_RESIDUES
-            or (wanted and comp not in wanted)
-        ):
+        if a.label_seq_id is None or comp in STANDARD_RESIDUES or (wanted and comp not in wanted):
             result.append(a)
             continue
 
@@ -133,8 +128,7 @@ def _map_connections(
         return partner.model_copy(update=update)
 
     return [
-        c.model_copy(update={"ptnr1": side(c.ptnr1), "ptnr2": side(c.ptnr2)})
-        for c in connections
+        c.model_copy(update={"ptnr1": side(c.ptnr1), "ptnr2": side(c.ptnr2)}) for c in connections
     ]
 
 
@@ -150,18 +144,12 @@ def _map_entity_poly_seq(
         return raw
     entity_of = {a.id: a.entity_id for a in asym_units}
     parent_at = {
-        (entity_of.get(i.chain_id), str(i.seq_id), i.original_comp_id): (
-            i.parent_comp_id
-        )
+        (entity_of.get(i.chain_id), str(i.seq_id), i.original_comp_id): (i.parent_comp_id)
         for i in mapping.items
     }
     mapped = [
         {**row, "mon_id": parent}
-        if (
-            parent := parent_at.get(
-                (row.get("entity_id"), row.get("num"), row.get("mon_id"))
-            )
-        )
+        if (parent := parent_at.get((row.get("entity_id"), row.get("num"), row.get("mon_id"))))
         else row
         for row in rows
     ]

@@ -8,7 +8,7 @@ signatures, and [Schemas](../reference/schemas.md) for every record's
 fields.
 
 There's no `pandora metadata` CLI subcommand — `collect_metadata()` only
-runs internally, inside [`pandora curate`](cli.md#curate). Everything
+runs internally, inside [`pandora structures curate`](cli.md#structures-curate). Everything
 below is library-only.
 
 ## Collect everything at once

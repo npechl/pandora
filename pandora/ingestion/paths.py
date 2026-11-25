@@ -22,11 +22,7 @@ def read_entry_paths(path: str | Path) -> list[Path]:
 
     list_path = Path(path)
     lines = (line.strip() for line in list_path.read_text().splitlines())
-    return [
-        list_path.parent / line
-        for line in lines
-        if line and not line.startswith("#")
-    ]
+    return [list_path.parent / line for line in lines if line and not line.startswith("#")]
 
 
 def mirror_path(root: str | Path, stem: str, suffix: str = ".cif") -> Path:
@@ -120,18 +116,12 @@ def template_entry_paths(
     if "{mid}" in parts[k]:
         raise ValueError(f"template segment {parts[k]!r} mixes {{mid}}, {{id}}")
     if ids is not None:
-        return sorted(
-            root / template.format(id=i.lower(), mid=i.lower()[1:3])
-            for i in ids
-        )
+        return sorted(root / template.format(id=i.lower(), mid=i.lower()[1:3]) for i in ids)
     dirs = [root]
     for part in parts[:k]:
         pattern = part.replace("{mid}", "*")
         dirs = [
-            c
-            for d in dirs
-            for c in d.glob(pattern)
-            if c.is_dir() and not c.name.startswith(".")
+            c for d in dirs for c in d.glob(pattern) if c.is_dir() and not c.name.startswith(".")
         ]
     id_re = re.compile(re.escape(parts[k]).replace(r"\{id\}", "(.+)"))
     rest = parts[k + 1 :]

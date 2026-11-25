@@ -149,13 +149,9 @@ from pandora.metadata import collect_metadata
 from pandora.parsing import mmcif_to_structure
 from pandora.schemas.canonicalisation import canonicalisationPolicy
 
-structure, diagnostics, status = mmcif_to_structure(
-    "datasets/dev/mmcif/04/104m.cif"
-)
+structure, diagnostics, status = mmcif_to_structure("datasets/dev/mmcif/04/104m.cif")
 
-policy = canonicalisationPolicy(
-    policy_id="default", policy_name="Default", policy_version="1.0.0"
-)
+policy = canonicalisationPolicy(policy_id="default", policy_name="Default", policy_version="1.0.0")
 canonical, mappings, provenance = canonicalise_structure(structure, policy)
 
 metadata = collect_metadata(canonical)

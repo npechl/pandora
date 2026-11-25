@@ -27,11 +27,7 @@ def member_representatives(
         representative maps to itself).
     """
 
-    return {
-        member: cluster.representative
-        for cluster in clusters
-        for member in cluster.members
-    }
+    return {member: cluster.representative for cluster in clusters for member in cluster.members}
 
 
 def restrict_clusters(
@@ -52,9 +48,7 @@ def restrict_clusters(
     for cluster in clusters:
         members = [m for m in cluster.components if m in item_ids]
         if members:
-            kept.append(
-                SimilarityCluster(components=members, n_components=len(members))
-            )
+            kept.append(SimilarityCluster(components=members, n_components=len(members)))
     return kept
 
 
@@ -76,9 +70,7 @@ def cluster_hit_counts(
     """
 
     cluster_of = {
-        member: index
-        for index, cluster in enumerate(clusters)
-        for member in cluster.components
+        member: index for index, cluster in enumerate(clusters) for member in cluster.components
     }
     partners: dict[str, set[str]] = {item: set() for item in cluster_of}
     for edge in edges:
@@ -126,9 +118,7 @@ def pick_representatives(
                 key=lambda m: rank_sort_key(m, values[m], policy.rank),
             )
         except KeyError as exc:
-            raise ValueError(
-                f"rank key or item {exc.args[0]!r} has no value"
-            ) from exc
+            raise ValueError(f"rank key or item {exc.args[0]!r} has no value") from exc
         picked.append(
             RepresentativeCluster(
                 representative=best,

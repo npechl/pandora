@@ -45,9 +45,7 @@ def annotate_ligand_contacts(
     """
 
     polymers = polymer_asym_ids(structure)
-    polymer_atoms = [
-        atom for atom in structure.atoms if atom.label_asym_id in polymers
-    ]
+    polymer_atoms = [atom for atom in structure.atoms if atom.label_asym_id in polymers]
     ligand_atoms = [
         atom
         for atom in structure.atoms
@@ -94,8 +92,7 @@ def polymer_asym_ids(structure: Structure) -> set[str]:
     return {
         asym.id
         for asym in structure.asym_units
-        if (entity := entities_by_id.get(asym.entity_id)) is not None
-        and entity.type == "polymer"
+        if (entity := entities_by_id.get(asym.entity_id)) is not None and entity.type == "polymer"
     }
 
 
@@ -151,26 +148,16 @@ def annotate_chain_interfaces(
             f"[{polymer_types!r}], not a single string"
         )
     if atom_set not in CONTACT_ATOM_SETS:
-        raise ValueError(
-            f"atom_set must be one of {sorted(CONTACT_ATOM_SETS)}, "
-            f"got {atom_set!r}"
-        )
+        raise ValueError(f"atom_set must be one of {sorted(CONTACT_ATOM_SETS)}, got {atom_set!r}")
 
     selected = _select_contact_atoms(structure, atom_set, polymer_types)
-    boxes = {
-        chain_id: _bounding_box(atoms) for chain_id, atoms in selected.items()
-    }
+    boxes = {chain_id: _bounding_box(atoms) for chain_id, atoms in selected.items()}
     grids = {
-        chain_id: _spatial_grid(atoms, distance_cutoff)
-        for chain_id, atoms in selected.items()
+        chain_id: _spatial_grid(atoms, distance_cutoff) for chain_id, atoms in selected.items()
     }
     cutoff_sq = distance_cutoff * distance_cutoff
 
-    residues = {
-        _residue_key(atom): atom
-        for atoms in selected.values()
-        for atom in reversed(atoms)
-    }
+    residues = {_residue_key(atom): atom for atoms in selected.values() for atom in reversed(atoms)}
     rows = []
     for chain_a, chain_b in combinations(sorted(selected), 2):
         if _boxes_apart(boxes[chain_a], boxes[chain_b], distance_cutoff):
@@ -182,9 +169,7 @@ def annotate_chain_interfaces(
             distance_cutoff,
             cutoff_sq,
         )
-        for (key_a, key_b), dist_sq in sorted(
-            pairs.items(), key=lambda item: _sort_key(item[0])
-        ):
+        for (key_a, key_b), dist_sq in sorted(pairs.items(), key=lambda item: _sort_key(item[0])):
             rows.append(
                 _contact_row(
                     structure.entry_id,
@@ -221,8 +206,7 @@ def _sort_key(pair: tuple[tuple, tuple]) -> tuple:
     """Sort residue pairs by chain, then residue number (None first)."""
 
     return tuple(
-        (chain, seq is not None, seq or 0, auth or "", ins)
-        for chain, seq, auth, ins in pair
+        (chain, seq is not None, seq or 0, auth or "", ins) for chain, seq, auth, ins in pair
     )
 
 
@@ -287,9 +271,7 @@ def _select_contact_atoms(
     return dict(selected)
 
 
-def _in_atom_set(
-    atom: AtomSiteRecord, atom_set: ContactAtomSet, backbone: frozenset[str]
-) -> bool:
+def _in_atom_set(atom: AtomSiteRecord, atom_set: ContactAtomSet, backbone: frozenset[str]) -> bool:
     """Whether atom belongs to atom_set (backbone: its chain's names)."""
 
     if atom_set == "all":
@@ -351,8 +333,7 @@ def _boxes_apart(
     """Whether the two boxes are more than cutoff apart on any axis."""
 
     return any(
-        box_a[axis] - box_b[axis + 3] > cutoff
-        or box_b[axis] - box_a[axis + 3] > cutoff
+        box_a[axis] - box_b[axis + 3] > cutoff or box_b[axis] - box_a[axis + 3] > cutoff
         for axis in range(3)
     )
 

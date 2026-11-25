@@ -6,14 +6,7 @@ import pytest
 from pandora.datasets import extract_chain_records
 from pandora.parsing import mmcif_to_structure
 
-MMCIF_PATH = (
-    Path(__file__).parent.parent
-    / "datasets"
-    / "dev"
-    / "mmcif"
-    / "04"
-    / "104m.cif"
-)
+MMCIF_PATH = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif" / "04" / "104m.cif"
 
 
 def test_parses_core_fields_against_gemmi():
@@ -59,9 +52,7 @@ def test_missing_model_falls_back_with_warning():
     assert structure is not None
 
 
-@pytest.mark.parametrize(
-    ("path", "code"), [("", "EMPTY_CONTENT"), ("missing.cif", "PARSE_ERROR")]
-)
+@pytest.mark.parametrize(("path", "code"), [("", "EMPTY_CONTENT"), ("missing.cif", "PARSE_ERROR")])
 def test_unreadable_input_fails(path, code):
     structure, diag, status = mmcif_to_structure(path)
 
@@ -73,9 +64,7 @@ def test_unreadable_input_fails(path, code):
 def test_quoted_values_are_unquoted():
     structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
 
-    assert structure.entry.title == (
-        "SPERM WHALE MYOGLOBIN N-BUTYL ISOCYANIDE AT PH 7.0"
-    )
+    assert structure.entry.title == ("SPERM WHALE MYOGLOBIN N-BUTYL ISOCYANIDE AT PH 7.0")
 
 
 def test_chain_sequence_has_no_text_field_delimiters():

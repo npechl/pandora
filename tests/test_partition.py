@@ -17,33 +17,23 @@ CLUSTERS = [
 
 
 def test_keep_similar_items_hits_target_sizes() -> None:
-    result, provenance = partition_dataset(
-        CLUSTERS, 0.6, 0.2, 0.2, keep_similar_items=True
-    )
+    result, provenance = partition_dataset(CLUSTERS, 0.6, 0.2, 0.2, keep_similar_items=True)
     assert [len(result[k]) for k in ("train", "val", "test")] == [18, 6, 6]
     assert provenance.split_sizes == {"train": 18, "val": 6, "test": 6}
     assert provenance.keep_similar_items is True
 
 
 def test_keep_similar_items_never_splits_a_cluster() -> None:
-    result, _ = partition_dataset(
-        CLUSTERS, 0.6, 0.2, 0.2, keep_similar_items=True
-    )
+    result, _ = partition_dataset(CLUSTERS, 0.6, 0.2, 0.2, keep_similar_items=True)
     for cluster in CLUSTERS:
-        hits = [
-            k for k, v in result.items() if set(cluster.components) & set(v)
-        ]
+        hits = [k for k, v in result.items() if set(cluster.components) & set(v)]
         assert len(hits) == 1
 
 
 def test_no_keep_similar_items_splits_proportionally_and_flat() -> None:
-    result, _ = partition_dataset(
-        CLUSTERS, 0.6, 0.2, 0.2, keep_similar_items=False
-    )
+    result, _ = partition_dataset(CLUSTERS, 0.6, 0.2, 0.2, keep_similar_items=False)
     assert all(isinstance(item, str) for item in result["train"])
-    assert sum(len(v) for v in result.values()) == sum(
-        c.n_components for c in CLUSTERS
-    )
+    assert sum(len(v) for v in result.values()) == sum(c.n_components for c in CLUSTERS)
 
 
 def test_no_keep_similar_items_hits_targets_with_small_clusters() -> None:
@@ -55,9 +45,7 @@ def test_no_keep_similar_items_hits_targets_with_small_clusters() -> None:
             )
             for i in range(100 // size)
         ]
-        result, _ = partition_dataset(
-            clusters, 0.6, 0.2, 0.2, keep_similar_items=False
-        )
+        result, _ = partition_dataset(clusters, 0.6, 0.2, 0.2, keep_similar_items=False)
         assert [len(result[k]) for k in ("train", "val", "test")] == [
             60,
             20,
@@ -92,9 +80,7 @@ KIND_LABELS = {i: "homomer" for c in KINDS for i in c} | {
 
 
 def _clusters(groups: list[list[str]]) -> list[SimilarityCluster]:
-    return [
-        SimilarityCluster(components=g, n_components=len(g)) for g in groups
-    ]
+    return [SimilarityCluster(components=g, n_components=len(g)) for g in groups]
 
 
 def _kinds_in(items: list[str], labels: dict[str, str]) -> set[str]:
@@ -104,17 +90,13 @@ def _kinds_in(items: list[str], labels: dict[str, str]) -> set[str]:
 def test_labels_reach_every_split() -> None:
     clusters = _clusters(KINDS)
     plain, _ = partition_dataset(clusters)
-    assert any(
-        "heteromer" not in _kinds_in(v, KIND_LABELS) for v in plain.values()
-    )
+    assert any("heteromer" not in _kinds_in(v, KIND_LABELS) for v in plain.values())
 
     result, provenance = partition_dataset(clusters, labels=KIND_LABELS)
     for items in result.values():
         assert _kinds_in(items, KIND_LABELS) == {"homomer", "heteromer"}
     for cluster in clusters:
-        hits = [
-            k for k, v in result.items() if set(cluster.components) & set(v)
-        ]
+        hits = [k for k, v in result.items() if set(cluster.components) & set(v)]
         assert len(hits) == 1
     assert sum(len(v) for v in result.values()) == 32
     assert provenance.missing_labels == {}
@@ -123,9 +105,7 @@ def test_labels_reach_every_split() -> None:
 
 def test_rare_label_missing_is_reported() -> None:
     groups = [*KINDS[:3], ["h0", "h1"], *KINDS[6:]]
-    result, provenance = partition_dataset(
-        _clusters(groups), labels=KIND_LABELS
-    )
+    result, provenance = partition_dataset(_clusters(groups), labels=KIND_LABELS)
     assert len(provenance.missing_labels) == 2
     assert all(v == ["heteromer"] for v in provenance.missing_labels.values())
 
@@ -147,9 +127,7 @@ def test_no_labels_is_unchanged() -> None:
 
 
 def test_zero_fraction_split_skipped() -> None:
-    result, provenance = partition_dataset(
-        _clusters(KINDS), 0.8, 0.0, 0.2, labels=KIND_LABELS
-    )
+    result, provenance = partition_dataset(_clusters(KINDS), 0.8, 0.0, 0.2, labels=KIND_LABELS)
     assert provenance.split_sizes["val"] == 0
     assert "val" not in provenance.missing_labels
     for split in ("train", "test"):
@@ -158,9 +136,7 @@ def test_zero_fraction_split_skipped() -> None:
 
 def test_labels_need_keep_similar_items() -> None:
     with pytest.raises(ValueError, match="keep_similar_items"):
-        partition_dataset(
-            _clusters(KINDS), labels=KIND_LABELS, keep_similar_items=False
-        )
+        partition_dataset(_clusters(KINDS), labels=KIND_LABELS, keep_similar_items=False)
 
 
 def test_labels_input_not_mutated() -> None:
@@ -190,10 +166,7 @@ if __name__ == "__main__":
 
 
 def _singles(prefix, n):
-    return [
-        SimilarityCluster(components=[f"{prefix}{i}"], n_components=1)
-        for i in range(n)
-    ]
+    return [SimilarityCluster(components=[f"{prefix}{i}"], n_components=1) for i in range(n)]
 
 
 def test_stratify_keeps_label_ratio() -> None:
@@ -245,7 +218,5 @@ def test_zero_fraction_split_stays_empty() -> None:
 def test_stratify_zero_fraction_split_stays_empty() -> None:
     clusters = _singles("h", 5) + _singles("x", 3)
     labels = {c.components[0]: c.components[0][0] for c in clusters}
-    splits, _ = partition_dataset(
-        clusters, 0.0, 0.5, 0.5, labels=labels, stratify=True
-    )
+    splits, _ = partition_dataset(clusters, 0.0, 0.5, 0.5, labels=labels, stratify=True)
     assert splits["train"] == []

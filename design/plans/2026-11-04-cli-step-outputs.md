@@ -66,9 +66,7 @@ def test_read_records_round_trips_with_nulls_and_lists(tmp_path, suffix):
 
 
 def test_read_records_list_column_parquet(tmp_path):
-    row = ChainCopyRecord(
-        entry_id="1", chain_id="A_2", source_chain_id="A", operator_id="2"
-    )
+    row = ChainCopyRecord(entry_id="1", chain_id="A_2", source_chain_id="A", operator_id="2")
     entry = CanonicalisationEntryRecord(
         entry_id="1",
         policy_id="p",
@@ -105,23 +103,11 @@ def test_read_records_rejects_bad_suffix(tmp_path):
 - [ ] **Step 1: Failing test** — round trip: build `cprov`/`kprov` exactly as in `test_entry_records_write_to_parquet`, then
 
 ```python
-assert (
-    canonicalisation_provenance_from_record(
-        canonicalisation_entry_record(canon, cprov)
-    )
-    == cprov
-)
-assert (
-    curation_provenance_from_record(
-        curation_entry_record(curated, metadata, kprov)
-    )
-    == kprov
-)
+assert canonicalisation_provenance_from_record(canonicalisation_entry_record(canon, cprov)) == cprov
+assert curation_provenance_from_record(curation_entry_record(curated, metadata, kprov)) == kprov
 reported = cprov.model_copy(update={"report": {"warnings": 2, "errors": 0}})
 assert (
-    canonicalisation_provenance_from_record(
-        canonicalisation_entry_record(canon, reported)
-    )
+    canonicalisation_provenance_from_record(canonicalisation_entry_record(canon, reported))
     == reported
 )
 ```
@@ -206,21 +192,12 @@ def test_canonicalise_writes_step_folder(tmp_path):
         ]
     )
     assert (out / "structures" / "04" / "104m.cif").exists()
-    entries = [
-        json.loads(l) for l in (out / "entries.jsonl").read_text().splitlines()
-    ]
+    entries = [json.loads(l) for l in (out / "entries.jsonl").read_text().splitlines()]
     assert [e["entry_id"] for e in entries] == ["104M"]
     assert entries[0]["structure_path"] == "structures/04/104m.cif"
-    mappings = [
-        json.loads(l) for l in (out / "mappings.jsonl").read_text().splitlines()
-    ]
-    assert (
-        mappings[0]["entry_id"] == "104M"
-        and mappings[0]["chain_id_mapping"]["items"]
-    )
-    failures = [
-        json.loads(l) for l in (out / "failures.jsonl").read_text().splitlines()
-    ]
+    mappings = [json.loads(l) for l in (out / "mappings.jsonl").read_text().splitlines()]
+    assert mappings[0]["entry_id"] == "104M" and mappings[0]["chain_id_mapping"]["items"]
+    failures = [json.loads(l) for l in (out / "failures.jsonl").read_text().splitlines()]
     assert [Path(f["path"]).name for f in failures] == ["22ag.cif"]
     summary = json.loads((out / "canonicalisation.json").read_text())
     assert summary["counts"] == {
@@ -247,12 +224,7 @@ def test_canonicalise_reads_entries_file_and_writes_parquet(tmp_path):
             str(out),
         ]
     )
-    assert (
-        read_records(out / "entries.parquet", CanonicalisationEntryRecord)[
-            0
-        ].entry_id
-        == "104M"
-    )
+    assert read_records(out / "entries.parquet", CanonicalisationEntryRecord)[0].entry_id == "104M"
 ```
 
 (If `22ag` stops failing — its validation failure is a known open issue — swap in a file that does not parse, e.g. a `.cif` with the text `garbage`, and keep the assertions.)
@@ -282,8 +254,7 @@ def test_curate_flat_folder_and_everything_excluded(tmp_path):
     shutil.copy(FIXTURES_DIR / "04" / "104m.cif", raw / "104m.cif")
     strict = tmp_path / "strict.yaml"
     strict.write_text(
-        "policy_id: s\npolicy_name: s\npolicy_version: 1\n"
-        "quality_rules:\n  max_resolution: 1.0\n"
+        "policy_id: s\npolicy_name: s\npolicy_version: 1\nquality_rules:\n  max_resolution: 1.0\n"
     )
     out = tmp_path / "strict"
     main(
@@ -299,20 +270,11 @@ def test_curate_flat_folder_and_everything_excluded(tmp_path):
             "jsonl",
         ]
     )
-    assert (
-        not (out / "entries.jsonl").exists()
-        and not (out / "chains.jsonl").exists()
-    )
-    ex = [
-        json.loads(l)
-        for l in (out / "exclusions.jsonl").read_text().splitlines()
-    ]
+    assert not (out / "entries.jsonl").exists() and not (out / "chains.jsonl").exists()
+    ex = [json.loads(l) for l in (out / "exclusions.jsonl").read_text().splitlines()]
     assert ex[0]["reason_code"] == "RESOLUTION_THRESHOLD"
     summary = json.loads((out / "curation.json").read_text())
-    assert (
-        summary["counts"]["entries_kept"] == 0
-        and summary["previous_summary"] is None
-    )
+    assert summary["counts"]["entries_kept"] == 0 and summary["previous_summary"] is None
 
 
 def test_curate_fills_copy_of_from_canonicalise_folder(tmp_path):
@@ -407,10 +369,7 @@ main(
 m = json.loads((tmp_path / "manifest.json").read_text())
 bundle = m["structures"][0]
 assert bundle["entry_id"] == "104M"
-assert (
-    bundle["canonicalisation"]["policy_id"]
-    and bundle["curation"]["policy_id"] == "test"
-)
+assert bundle["canonicalisation"]["policy_id"] and bundle["curation"]["policy_id"] == "test"
 ```
 
 (Use a curation policy that excludes a chain or nothing; if `exclusions.jsonl` is not written because nothing was excluded, drop `--exclusions` from this call and add a separate assertion that `--exclusions` reads an `exclusions.jsonl` from Task 5's strict run.)

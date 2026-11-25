@@ -88,9 +88,7 @@ def test_positive_in_no_split_raises():
 
 def test_positive_in_two_splits_raises():
     with pytest.raises(ValueError, match="1P_A_B"):
-        _rows(
-            splits={"train": ["1P_A_B"], "val": ["1P_A_B"], "test": ["2Q_A_B"]}
-        )
+        _rows(splits={"train": ["1P_A_B"], "val": ["1P_A_B"], "test": ["2Q_A_B"]})
 
 
 def test_split_item_not_a_positive_raises():

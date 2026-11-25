@@ -91,9 +91,7 @@ def _structure(atoms, entities, asym_units) -> Structure:
 
 
 def _load(entry_id: str) -> Structure:
-    structure, _, _ = mmcif_to_structure(
-        str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif")
-    )
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif"))
     return structure
 
 
@@ -102,9 +100,7 @@ def _reference_pairs(structure, cutoff, keep=lambda atom: True):
 
     chains = sorted(polymer_asym_ids(structure))
     by_chain = {
-        chain: [
-            a for a in structure.atoms if a.label_asym_id == chain and keep(a)
-        ]
+        chain: [a for a in structure.atoms if a.label_asym_id == chain and keep(a)]
         for chain in chains
     }
     result = {}
@@ -212,10 +208,9 @@ def test_ligand_contacts_reports_nearest_polymer_residue():
 def test_ligand_contacts_fixture():
     rows = annotate_ligand_contacts(_load("1a2c"))
 
-    assert {
-        (r.chain_id_2, r.auth_chain_id_2, r.auth_seq_id_2, r.comp_id_2)
-        for r in rows
-    } == {("E", "H", "626", "NA")}
+    assert {(r.chain_id_2, r.auth_chain_id_2, r.auth_seq_id_2, r.comp_id_2) for r in rows} == {
+        ("E", "H", "626", "NA")
+    }
     assert len(rows) == 2
 
 
@@ -250,10 +245,7 @@ def test_ligand_contacts_hetatm_in_polymer_chain_is_not_a_ligand():
         EntityRecord(id="2", type="polymer"),
         EntityRecord(id="3", type="non-polymer"),
     ]
-    asym_units = [
-        AsymRecord(id=c, entity_id=e)
-        for c, e in (("A", "1"), ("B", "2"), ("C", "3"))
-    ]
+    asym_units = [AsymRecord(id=c, entity_id=e) for c, e in (("A", "1"), ("B", "2"), ("C", "3"))]
 
     rows = annotate_ligand_contacts(_structure(atoms, entities, asym_units))
 
@@ -265,9 +257,7 @@ def test_ligand_contacts_hetatm_in_polymer_chain_is_not_a_ligand():
 def test_chain_interfaces_match_reference_on_fixture():
     structure = _load("1a7f")
 
-    layer = annotate_chain_interfaces(
-        structure, distance_cutoff=4.0, atom_set="all"
-    )
+    layer = annotate_chain_interfaces(structure, distance_cutoff=4.0, atom_set="all")
 
     assert _layer_pairs(layer) == _reference_pairs(structure, 4.0)
 
@@ -283,10 +273,7 @@ def test_chain_interfaces_skip_far_chains_and_near_miss_boxes():
         _atom(id=5, label_asym_id="D", entity_id="4", x=3.0, y=6.0),
     ]
     entities = [EntityRecord(id=str(n), type="polymer") for n in range(1, 5)]
-    asym_units = [
-        AsymRecord(id=chain, entity_id=str(n))
-        for n, chain in enumerate("ABCD", start=1)
-    ]
+    asym_units = [AsymRecord(id=chain, entity_id=str(n)) for n, chain in enumerate("ABCD", start=1)]
     structure = _structure(atoms, entities, asym_units)
 
     layer = annotate_chain_interfaces(structure, distance_cutoff=4.0)
@@ -303,12 +290,8 @@ def test_interface_records_residue_pairs_agree_with_sides():
     for record in records:
         pairs = record.residue_pairs
         assert pairs == sorted(pairs)
-        assert sorted({a for a, _ in pairs}) == (
-            record.interface_residues_chain_1
-        )
-        assert sorted({b for _, b in pairs}) == (
-            record.interface_residues_chain_2
-        )
+        assert sorted({a for a, _ in pairs}) == (record.interface_residues_chain_1)
+        assert sorted({b for _, b in pairs}) == (record.interface_residues_chain_2)
 
 
 def test_chain_interfaces_altloc_atoms_give_one_residue_pair():
@@ -414,9 +397,7 @@ def test_chain_interfaces_ca_ignores_other_backbone_atoms():
 def test_chain_interfaces_polymer_types_filters_chains():
     structure = _load("1a02")
 
-    layer = annotate_chain_interfaces(
-        structure, polymer_types=["polypeptide(L)"]
-    )
+    layer = annotate_chain_interfaces(structure, polymer_types=["polypeptide(L)"])
 
     chains = {chain for r in layer for chain in (r.chain_id_1, r.chain_id_2)}
     assert chains == {"C", "D", "E"}
@@ -468,17 +449,17 @@ def test_chain_interfaces_distance_is_closest_atom_pair():
 def test_interface_records_from_rows_match_fixture():
     rows = annotate_chain_interfaces(_load("1a2c"))
 
-    records = extract_interface_records(
-        rows, distance_cutoff=4.0, atom_set="heavy"
-    )
+    records = extract_interface_records(rows, distance_cutoff=4.0, atom_set="heavy")
 
-    assert [
-        (r.chain_id_1, r.chain_id_2, len(r.residue_pairs)) for r in records
-    ] == [("A", "B", 74), ("B", "C", 21), ("B", "D", 25)]
+    assert [(r.chain_id_1, r.chain_id_2, len(r.residue_pairs)) for r in records] == [
+        ("A", "B", 74),
+        ("B", "C", 21),
+        ("B", "D", 25),
+    ]
     assert (records[0].distance_cutoff, records[0].atom_set) == (4.0, "heavy")
-    assert records[0].contact_count == len(
-        records[0].interface_residues_chain_1
-    ) + len(records[0].interface_residues_chain_2)
+    assert records[0].contact_count == len(records[0].interface_residues_chain_1) + len(
+        records[0].interface_residues_chain_2
+    )
 
 
 def test_interface_records_unordered_repeats_ligands_same_chain():
@@ -557,9 +538,7 @@ def test_layer_row_keeps_any_columns():
 
 
 def test_check_layer_columns_accepts_either_naming():
-    check_layer_columns(
-        {"entry_id", "chain_id", "seq_id", "value"}, "residue_values"
-    )
+    check_layer_columns({"entry_id", "chain_id", "seq_id", "value"}, "residue_values")
     check_layer_columns(
         {"entry_id", "auth_chain_id", "auth_seq_id", "value"},
         "residue_values",
@@ -704,9 +683,7 @@ def test_resolve_unmatched_reasons(row, reason):
 
 def test_resolve_ambiguous_author_id():
     # strip insertion codes, as preserve_insertion_codes=False does (#125)
-    atoms = [
-        a.model_copy(update={"pdbx_PDB_ins_code": None}) for a in _1A2C.atoms
-    ]
+    atoms = [a.model_copy(update={"pdbx_PDB_ins_code": None}) for a in _1A2C.atoms]
     s = _1A2C.model_copy(update={"atoms": atoms})
     _, u = resolve_layer_rows(
         [
@@ -744,9 +721,7 @@ def test_resolve_contacts_both_sides_and_repeats_kept():
         "ins_code_2": "G",
         "contact_type": "hbond",
     }
-    m, u = resolve_layer_rows(
-        [row, {**row, "contact_type": "vdw"}], "residue_contacts", S
-    )
+    m, u = resolve_layer_rows([row, {**row, "contact_type": "vdw"}], "residue_contacts", S)
     assert u == [] and len(m) == 2
     assert (m[0]["auth_chain_id_1"], m[0]["chain_id_2"], m[0]["seq_id_2"]) == (
         "L",
@@ -955,9 +930,7 @@ def test_resolve_microheterogeneity_is_one_residue():
         "auth_seq_id_2": "7",
     }
 
-    matched, unmatched = resolve_layer_rows(
-        [row], "residue_contacts", {"test": structure}
-    )
+    matched, unmatched = resolve_layer_rows([row], "residue_contacts", {"test": structure})
 
     assert unmatched == []
     assert matched[0]["comp_id_1"] == "SER"  # first atom, as the built-ins
@@ -1012,23 +985,17 @@ def test_ligand_contacts_keep_insertion_codes_apart():
 def test_similarity_description_needs_items():
     with pytest.raises(ValidationError, match="items"):
         LayerDescription(name="g", template="similarity", tool="R")
-    description = LayerDescription(
-        name="g", template="similarity", tool="R", items="chain"
-    )
+    description = LayerDescription(name="g", template="similarity", tool="R", items="chain")
     assert description.items == "chain"
 
 
 def test_items_rejected_for_other_templates():
     with pytest.raises(ValidationError, match="items"):
-        LayerDescription(
-            name="c", template="residue_contacts", tool="x", items="chain"
-        )
+        LayerDescription(name="c", template="residue_contacts", tool="x", items="chain")
 
 
 def test_similarity_row_coerces_int_score():
-    row = SimilarityRow(
-        item_id_1="1ABC_A", item_id_2="2XYZ_B", score=3, extra_col="k"
-    )
+    row = SimilarityRow(item_id_1="1ABC_A", item_id_2="2XYZ_B", score=3, extra_col="k")
     assert row.score == 3.0
     assert isinstance(row.score, float)
     assert row.model_dump()["extra_col"] == "k"
@@ -1059,9 +1026,7 @@ def test_count_residue_contacts_counts_distinct_partners():
         _contact("B", 5, "A", 1),
         _contact("A", 1, "B", 6),
     ]
-    out = {
-        (r.chain_id, r.seq_id): r.value for r in count_residue_contacts(rows)
-    }
+    out = {(r.chain_id, r.seq_id): r.value for r in count_residue_contacts(rows)}
     assert out == {("A", 1): 2, ("B", 5): 1, ("B", 6): 1}
 
 
@@ -1114,12 +1079,8 @@ def test_count_chain_contacts_counts_distinct_residues():
 
 def test_count_layers_pass_their_template_check():
     rows = [_contact("A", 1, "B", 5)]
-    check_layer_columns(
-        count_residue_contacts(rows)[0].model_dump(), "residue_values"
-    )
-    check_layer_columns(
-        count_chain_contacts(rows)[0].model_dump(), "chain_values"
-    )
+    check_layer_columns(count_residue_contacts(rows)[0].model_dump(), "residue_values")
+    check_layer_columns(count_chain_contacts(rows)[0].model_dump(), "chain_values")
 
 
 def test_count_functions_do_not_mutate_input():
@@ -1131,9 +1092,7 @@ def test_count_functions_do_not_mutate_input():
 
 
 def _label(c1, c2, label, entry_id="1abc") -> LayerRow:
-    return LayerRow(
-        entry_id=entry_id, chain_id_1=c1, chain_id_2=c2, label=label
-    )
+    return LayerRow(entry_id=entry_id, chain_id_1=c1, chain_id_2=c2, label=label)
 
 
 def _pairs(rows):
@@ -1143,9 +1102,7 @@ def _pairs(rows):
 def test_drop_labelled_interfaces_drops_both_orders():
     rows = [_contact("A", 1, "B", 5), _contact("B", 6, "A", 2)]
     rows.append(_contact("A", 1, "C", 3))
-    kept = drop_labelled_interfaces(
-        rows, [_label("B", "A", "low_hbond")], {"low_hbond"}
-    )
+    kept = drop_labelled_interfaces(rows, [_label("B", "A", "low_hbond")], {"low_hbond"})
     assert _pairs(kept) == [("A", 1, "C", 3)]
 
 
@@ -1169,12 +1126,8 @@ def test_drop_labelled_interfaces_any_label_drops():
 def test_drop_labelled_interfaces_self_pair_and_ligand():
     rows = [_contact("A", 1, "A", 9), _contact("A", 1, "J", None)]
     labels = [_label("A", "A", "x"), _label("A", "J", "y")]
-    assert _pairs(drop_labelled_interfaces(rows, labels, {"x"})) == [
-        ("A", 1, "J", None)
-    ]
-    assert _pairs(drop_labelled_interfaces(rows, labels, {"y"})) == [
-        ("A", 1, "A", 9)
-    ]
+    assert _pairs(drop_labelled_interfaces(rows, labels, {"x"})) == [("A", 1, "J", None)]
+    assert _pairs(drop_labelled_interfaces(rows, labels, {"y"})) == [("A", 1, "A", 9)]
 
 
 def test_drop_labelled_interfaces_entry_case():
@@ -1187,9 +1140,7 @@ def test_drop_labelled_interfaces_entry_case():
 def test_drop_labelled_interfaces_unknown_label_raises():
     rows = [_contact("A", 1, "B", 2)]
     with pytest.raises(ValueError, match="typo"):
-        drop_labelled_interfaces(
-            rows, [_label("A", "B", "bad")], {"bad", "typo"}
-        )
+        drop_labelled_interfaces(rows, [_label("A", "B", "bad")], {"bad", "typo"})
 
 
 def test_count_interface_labels():
@@ -1226,9 +1177,7 @@ def test_drop_labelled_interfaces_accepts_resolved_dicts():
     labels = [_label("A", "B", "bad").model_dump()]
     kept = drop_labelled_interfaces(rows, labels, {"bad"})
     assert _pairs(kept) == [("A", 1, "C", 2)]
-    assert (
-        count_interface_labels(rows, labels, {"bad"})["interfaces_dropped"] == 1
-    )
+    assert count_interface_labels(rows, labels, {"bad"})["interfaces_dropped"] == 1
 
 
 def _lengths(**chains):

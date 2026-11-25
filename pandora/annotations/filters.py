@@ -65,9 +65,7 @@ def drop_labelled_interfaces(
     by_interface = _labels_by_interface(labels)
     unknown = set(drop) - set().union(*by_interface.values())
     if unknown:
-        raise ValueError(
-            f"no interface has the label(s) {sorted(unknown)}; check for typos"
-        )
+        raise ValueError(f"no interface has the label(s) {sorted(unknown)}; check for typos")
     dropped = {key for key, found in by_interface.items() if found & set(drop)}
     return [row for row in contacts if _contact_interface(row) not in dropped]
 

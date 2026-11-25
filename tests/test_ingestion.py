@@ -20,9 +20,7 @@ from pandora.ingestion.search import search_pdbe, search_rcsb
 from pandora.schemas.dataset import DatasetCurationPolicy
 
 FIXTURES_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
-POLICY_PATH = (
-    Path(__file__).parent.parent / "datasets" / "canonicalisation.yaml"
-)
+POLICY_PATH = Path(__file__).parent.parent / "datasets" / "canonicalisation.yaml"
 
 
 def test_load_policy():
@@ -140,9 +138,7 @@ def test_search_rcsb_returns_identifiers(monkeypatch):
 
     def fake_post(url, json=None, timeout=None):
         captured["json"] = json
-        return _FakeResponse(
-            json_data={"result_set": [{"identifier": "104M", "score": 1.0}]}
-        )
+        return _FakeResponse(json_data={"result_set": [{"identifier": "104M", "score": 1.0}]})
 
     monkeypatch.setattr(httpx, "post", fake_post)
     ids = search_rcsb({"type": "terminal"}, rows=10, start=0)
@@ -155,9 +151,7 @@ def test_search_rcsb_returns_identifiers(monkeypatch):
 
 
 def test_search_rcsb_no_matches_returns_empty(monkeypatch):
-    monkeypatch.setattr(
-        httpx, "post", lambda *a, **k: _FakeResponse(status_code=204)
-    )
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: _FakeResponse(status_code=204))
     assert search_rcsb({"type": "terminal"}) == []
 
 
@@ -176,9 +170,7 @@ def test_search_pdbe_returns_identifiers(monkeypatch):
 
     def fake_get(url, params=None, timeout=None):
         captured["params"] = params
-        return _FakeResponse(
-            json_data={"response": {"docs": [{"pdb_id": "8wa8"}]}}
-        )
+        return _FakeResponse(json_data={"response": {"docs": [{"pdb_id": "8wa8"}]}})
 
     monkeypatch.setattr(httpx, "get", fake_get)
     ids = search_pdbe("resolution:[0 TO 1.5]", rows=5)
@@ -220,9 +212,7 @@ def test_search_pdbe_bad_request_raises(monkeypatch):
 def test_mirror_path_keeps_case(tmp_path):
     assert mirror_path(tmp_path, "10kz") == tmp_path / "0k" / "10kz.cif"
     assert mirror_path(tmp_path, "10KZ") == tmp_path / "0K" / "10KZ.cif"
-    assert mirror_path(tmp_path, "1ayi_A_2") == (
-        tmp_path / "ay" / "1ayi_A_2.cif"
-    )
+    assert mirror_path(tmp_path, "1ayi_A_2") == (tmp_path / "ay" / "1ayi_A_2.cif")
 
 
 def test_list_mirror_files_sorted_and_missing_root(tmp_path):
@@ -273,9 +263,7 @@ def test_template_entry_paths_on_plain_mirror():
 
 def test_template_entry_paths_keeps_listed_case(tmp_path):
     (tmp_path / "AB" / "1ABC").mkdir(parents=True)
-    assert template_entry_paths(tmp_path, "{mid}/{id}") == [
-        tmp_path / "AB" / "1ABC"
-    ]
+    assert template_entry_paths(tmp_path, "{mid}/{id}") == [tmp_path / "AB" / "1ABC"]
 
 
 @pytest.mark.parametrize("template", ["{mid}/x.cif", "{mid}{id}.cif"])

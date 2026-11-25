@@ -74,17 +74,13 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
     # 1b. Curate + deduplicate.
     exclusions = []
     for entry_id in list(structures):
-        curated, records, _ = curate_structure(
-            structures[entry_id], None, curation_policy
-        )
+        curated, records, _ = curate_structure(structures[entry_id], None, curation_policy)
         exclusions.extend(records)
         if curated is None:
             del structures[entry_id]
         else:
             structures[entry_id] = curated
-    retained, removed, dedup_prov = deduplicate_structures(
-        list(structures.values()), dedup_rules
-    )
+    retained, removed, dedup_prov = deduplicate_structures(list(structures.values()), dedup_rules)
     exclusions.extend(removed)
     structures = {s.entry_id: s for s in retained}
     print(
@@ -117,26 +113,18 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     compute_sequence_similarity(chains, OUTPUT_DIR / "hits.tsv")
     hit_filter = HitFilter(min_score=IDENTITY_THRESHOLD)
-    edges = similarity_edges(
-        read_hit_tsv(OUTPUT_DIR / "hits.tsv", "MMseqs2"), hit_filter
-    )
+    edges = similarity_edges(read_hit_tsv(OUTPUT_DIR / "hits.tsv", "MMseqs2"), hit_filter)
     clusters, cluster_prov = cluster_edges(sorted(structures), entry_edges(edges))
     cluster_prov = cluster_prov.model_copy(
         update={"layers": [ClusteredLayer(items="chain", hit_filter=hit_filter)]}
     )
-    print(
-        f"{len(clusters)} sequence-identity cluster(s) at {IDENTITY_THRESHOLD:.0%}"
-    )
+    print(f"{len(clusters)} sequence-identity cluster(s) at {IDENTITY_THRESHOLD:.0%}")
 
     # 4. Leakage-safe split: whole clusters move together, so no two
     #    complexes above the identity threshold land in different splits.
-    splits, partition_prov = partition_dataset(
-        clusters, pct_train=0.7, pct_val=0.15, pct_test=0.15
-    )
+    splits, partition_prov = partition_dataset(clusters, pct_train=0.7, pct_val=0.15, pct_test=0.15)
     entry_split = {
-        entry_id: split_name
-        for split_name, entry_ids in splits.items()
-        for entry_id in entry_ids
+        entry_id: split_name for split_name, entry_ids in splits.items() for entry_id in entry_ids
     }
     for split_name, entry_ids in splits.items():
         print(f"  {split_name}: {len(entry_ids)} structures")
@@ -146,14 +134,10 @@ Runs against the local fixtures in `datasets/dev/mmcif/`, so no network access i
     #    the schema).
     for split_name in splits:
         split_interfaces = [
-            record
-            for record in interfaces
-            if entry_split.get(record.entry_id) == split_name
+            record for record in interfaces if entry_split.get(record.entry_id) == split_name
         ]
         if split_interfaces:
-            write_records(
-                split_interfaces, OUTPUT_DIR / f"interfaces_{split_name}.json"
-            )
+            write_records(split_interfaces, OUTPUT_DIR / f"interfaces_{split_name}.json")
 
     manifest = build_dataset_manifest(
         dataset_id="ppi-dev-dataset",
@@ -217,17 +201,13 @@ Both default policies here — an empty `DatasetCurationPolicy` and `Deduplicati
 ```python linenums="1"
 exclusions = []
 for entry_id in list(structures):
-    curated, records, _ = curate_structure(
-        structures[entry_id], None, curation_policy
-    )
+    curated, records, _ = curate_structure(structures[entry_id], None, curation_policy)
     exclusions.extend(records)
     if curated is None:
         del structures[entry_id]
     else:
         structures[entry_id] = curated
-retained, removed, dedup_prov = deduplicate_structures(
-    list(structures.values()), dedup_rules
-)
+retained, removed, dedup_prov = deduplicate_structures(list(structures.values()), dedup_rules)
 exclusions.extend(removed)
 structures = {s.entry_id: s for s in retained}
 print(
@@ -260,16 +240,12 @@ Every polymer chain's sequence goes into one all-vs-all [`compute_sequence_simil
 chains = [c for s in structures.values() for c in extract_chain_records(s)]
 compute_sequence_similarity(chains, OUTPUT_DIR / "hits.tsv")
 hit_filter = HitFilter(min_score=IDENTITY_THRESHOLD)
-edges = similarity_edges(
-    read_hit_tsv(OUTPUT_DIR / "hits.tsv", "MMseqs2"), hit_filter
-)
+edges = similarity_edges(read_hit_tsv(OUTPUT_DIR / "hits.tsv", "MMseqs2"), hit_filter)
 clusters, cluster_prov = cluster_edges(sorted(structures), entry_edges(edges))
 cluster_prov = cluster_prov.model_copy(
     update={"layers": [ClusteredLayer(items="chain", hit_filter=hit_filter)]}
 )
-splits, partition_prov = partition_dataset(
-    clusters, pct_train=0.7, pct_val=0.15, pct_test=0.15
-)
+splits, partition_prov = partition_dataset(clusters, pct_train=0.7, pct_val=0.15, pct_test=0.15)
 ```
 
 ### 5. Build manifest & write outputs
@@ -280,14 +256,10 @@ splits, partition_prov = partition_dataset(
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 for split_name in splits:
     split_interfaces = [
-        record
-        for record in interfaces
-        if entry_split.get(record.entry_id) == split_name
+        record for record in interfaces if entry_split.get(record.entry_id) == split_name
     ]
     if split_interfaces:
-        write_records(
-            split_interfaces, OUTPUT_DIR / f"interfaces_{split_name}.json"
-        )
+        write_records(split_interfaces, OUTPUT_DIR / f"interfaces_{split_name}.json")
 
 manifest = build_dataset_manifest(
     dataset_id="ppi-dev-dataset",

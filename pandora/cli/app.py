@@ -7,26 +7,24 @@ import argparse
 
 from pandora import __version__
 from pandora.cli import (
-    annotate,
-    canonicalisation,
-    datasets,
-    export,
-    ingestion,
-    provenance,
-    sampling,
+    annotations,
+    clusters,
+    entries,
+    pairs,
     similarity,
+    splits,
+    structures,
 )
 
 # Order of the subcommands in `pandora --help`.
 _MODULES = (
-    ingestion,
-    canonicalisation,
-    datasets,
+    entries,
+    structures,
+    annotations,
     similarity,
-    sampling,
-    annotate,
-    provenance,
-    export,
+    clusters,
+    splits,
+    pairs,
 )
 
 
@@ -40,9 +38,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "-v", "--version", 
-        help="show Pandora's version number and exit", 
-        action="version", version=f"pandora {__version__}"
+        "-v",
+        "--version",
+        help="show Pandora's version number and exit",
+        action="version",
+        version=f"pandora {__version__}",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -64,12 +64,11 @@ def app() -> None:
     """Pandora CLI entry point (the `pandora` console script).
 
     Parses arguments from `sys.argv` and dispatches to the selected
-    subcommand's handler (`fetch`, `canonicalise`, `curate`, `dedup`,
-    `similarity`, `cluster`, `partition`, `annotate`, `manifest`,
-    `reproduce`, or `export`); see `pandora/cli/README.md` for the
-    I/O convention between subcommands. Takes no arguments and returns
-    nothing — each subcommand handler writes its output to disk and
-    prints a summary.
+    group's handler (`entries`, `structures`, `annotations`,
+    `similarity`, `clusters`, `splits`, `pairs`); see
+    `pandora/cli/README.md` for the I/O convention between subcommands.
+    Takes no arguments and returns nothing: each handler writes its
+    output to disk and prints a summary.
     """
 
     main()

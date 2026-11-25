@@ -92,8 +92,6 @@ def find_contained(
         kept = [o for o in containers[entry] if o not in removed]
         assert kept, f"no kept container for {entry}"
         records.append(
-            ContainmentRecord(
-                entry_id=entry, contained_in=kept[0], equal=removed[entry]
-            )
+            ContainmentRecord(entry_id=entry, contained_in=kept[0], equal=removed[entry])
         )
     return records

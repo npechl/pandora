@@ -71,11 +71,7 @@ def _transforms(policy: canonicalisationPolicy) -> list[str]:
         ("entity", policy.entity_rules.strategy),
         ("ligands", policy.ligand_rules.strategy),
     ]
-    return [
-        f"{step}:{strategy}"
-        for step, strategy in steps
-        if strategy != "preserve"
-    ]
+    return [f"{step}:{strategy}" for step, strategy in steps if strategy != "preserve"]
 
 
 def canonicalise_structure(
@@ -142,23 +138,13 @@ def canonicalise_structure(
     # Bonds and SEQRES name the same residues, so they follow. The bonds
     # are read back from `structure` after the chain map below.
     structure = structure.model_copy(
-        update={
-            "connections": _map_connections(
-                structure.connections, modified_residue_mapping
-            )
-        }
+        update={"connections": _map_connections(structure.connections, modified_residue_mapping)}
     )
-    original_raw = _map_entity_poly_seq(
-        original_raw, modified_residue_mapping, asym_units
-    )
+    original_raw = _map_entity_poly_seq(original_raw, modified_residue_mapping, asym_units)
 
     # normalize_chain_ids --------------------------------
-    chain_map, chain_id_mapping = _normalize_chain_ids(
-        asym_units, ir.chain_id.strategy, record
-    )
-    atoms, asym_units, structure = _apply_chain_map(
-        atoms, asym_units, structure, chain_map
-    )
+    chain_map, chain_id_mapping = _normalize_chain_ids(asym_units, ir.chain_id.strategy, record)
+    atoms, asym_units, structure = _apply_chain_map(atoms, asym_units, structure, chain_map)
     assemblies = list(structure.assemblies)
     connections = list(structure.connections)
     secondary_structure = structure.secondary_structure
@@ -190,14 +176,10 @@ def canonicalise_structure(
     )
 
     # handle_missing_residues ---------------------------------------
-    atoms = _handle_missing_residues(
-        atoms, mdr.missing_residues, diagnostics, structure.entry_id
-    )
+    atoms = _handle_missing_residues(atoms, mdr.missing_residues, diagnostics, structure.entry_id)
 
     # handle_incomplete_chains -------------------------------------
-    atoms, asym_units = _handle_incomplete_chains(
-        atoms, asym_units, mdr.incomplete_chains
-    )
+    atoms, asym_units = _handle_incomplete_chains(atoms, asym_units, mdr.incomplete_chains)
 
     # resolve_altlocs ------------------------------
     atoms, altloc_selection_mapping = _resolve_altlocs(atoms, ar)
@@ -214,8 +196,8 @@ def canonicalise_structure(
     )
 
     # normalize_entities ---------------------------------------
-    entities, asym_units, atoms, entity_mapping, entity_id_map = (
-        _normalize_entities(entities, asym_units, atoms, er, record)
+    entities, asym_units, atoms, entity_mapping, entity_id_map = _normalize_entities(
+        entities, asym_units, atoms, er, record
     )
 
     # filter_ligands ---------------------------------------
@@ -242,9 +224,7 @@ def canonicalise_structure(
 
     # Verbatim categories that index chains or residues would contradict
     # the new atoms, so they go (and are listed in the provenance).
-    raw, dropped_raw_categories = _drop_stale_raw_categories(
-        original_raw, original_atoms, atoms
-    )
+    raw, dropped_raw_categories = _drop_stale_raw_categories(original_raw, original_atoms, atoms)
     # Verbatim `entity_id` columns follow the canonical entity ids.
     raw = _remap_raw_entity_ids(raw, entity_id_map)
 

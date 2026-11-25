@@ -16,22 +16,16 @@ _FASTA_GLOBS = ("*.fasta", "*.fa", "*.fna", "*.faa")
 def _mmseqs_version(mmseqs_bin: str) -> str | None:
     """Installed MMseqs2 version string, or None if it can't be determined."""
 
-    result = subprocess.run(
-        [mmseqs_bin, "version"], capture_output=True, text=True, check=False
-    )
+    result = subprocess.run([mmseqs_bin, "version"], capture_output=True, text=True, check=False)
     return result.stdout.strip() or None
 
 
 def _concat_fasta_dir(directory: Path, path: Path) -> None:
     """Concatenate every FASTA file in directory into a single file at path."""
 
-    fasta_files = sorted(
-        f for pattern in _FASTA_GLOBS for f in directory.glob(pattern)
-    )
+    fasta_files = sorted(f for pattern in _FASTA_GLOBS for f in directory.glob(pattern))
     if not fasta_files:
-        raise ValueError(
-            f"no FASTA files ({'/'.join(_FASTA_GLOBS)}) found in {directory}"
-        )
+        raise ValueError(f"no FASTA files ({'/'.join(_FASTA_GLOBS)}) found in {directory}")
 
     with path.open("w") as out:
         for fasta_file in fasta_files:
@@ -86,8 +80,7 @@ def compute_sequence_similarity(
 
     if shutil.which(mmseqs_bin) is None:
         raise RuntimeError(
-            f"mmseqs binary {mmseqs_bin!r} not found (required for "
-            "sequence similarity)"
+            f"mmseqs binary {mmseqs_bin!r} not found (required for sequence similarity)"
         )
 
     if isinstance(sequences, list):

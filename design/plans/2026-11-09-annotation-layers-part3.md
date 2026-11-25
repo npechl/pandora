@@ -117,9 +117,7 @@ Delete `test_reproduce_reruns_computed_search`,
 ```python
 def test_reproduce_does_not_replay_clustering(tmp_path, monkeypatch):
     # same fetch monkeypatching as test_reproduce_dataset
-    manifest = _manifest_with_clustering(
-        ClusteringProvenance(clustered_at="2026-01-01T00:00:00Z")
-    )
+    manifest = _manifest_with_clustering(ClusteringProvenance(clustered_at="2026-01-01T00:00:00Z"))
     _, new_manifest = reproduce_dataset(manifest, tmp_path / "out")
     assert new_manifest.clustering is None
     assert new_manifest.partition is None
@@ -179,23 +177,17 @@ git commit -am "refactor!: remove pairwise sequence identity and reproduce's sim
 def test_similarity_description_needs_items():
     with pytest.raises(ValidationError, match="items"):
         LayerDescription(name="g", template="similarity", tool="R")
-    d = LayerDescription(
-        name="g", template="similarity", tool="R", items="chain"
-    )
+    d = LayerDescription(name="g", template="similarity", tool="R", items="chain")
     assert d.items == "chain"
 
 
 def test_items_rejected_for_other_templates():
     with pytest.raises(ValidationError, match="items"):
-        LayerDescription(
-            name="c", template="residue_contacts", tool="x", items="chain"
-        )
+        LayerDescription(name="c", template="residue_contacts", tool="x", items="chain")
 
 
 def test_similarity_row_coerces_int_score():
-    row = SimilarityRow(
-        item_id_1="1ABC_A", item_id_2="2XYZ_B", score=3, extra_col="k"
-    )
+    row = SimilarityRow(item_id_1="1ABC_A", item_id_2="2XYZ_B", score=3, extra_col="k")
     assert row.score == 3.0 and isinstance(row.score, float)
     assert row.model_dump()["extra_col"] == "k"
 
@@ -356,9 +348,7 @@ def test_entry_items_and_bad_value():
 
 def test_self_hits_and_repeats_are_kept():
     items = chain_items([("104M", "A")])
-    batch = _batch(
-        item_id_1=["104M_A"] * 2, item_id_2=["104M_A"] * 2, score=[1.0, 1.0]
-    )
+    batch = _batch(item_id_1=["104M_A"] * 2, item_id_2=["104M_A"] * 2, score=[1.0, 1.0])
     matched, _ = next(match_similarity_batches([batch], items))
     assert matched.num_rows == 2
 
@@ -474,9 +464,7 @@ def test_read_hit_tsv_maps_foldseek_columns(tmp_path):
 def test_read_similarity_table_bad_extra_column_names_file(tmp_path):
     path = tmp_path / "edges.tsv"
     lines = ["item_id_1\titem_id_2\tscore\tnote_num"]
-    lines += [f"104M_A\t112M_A\t0.5\t{i}" for i in range(5000)] + [
-        "104M_A\t112M_A\t0.5\tn/a"
-    ]
+    lines += [f"104M_A\t112M_A\t0.5\t{i}" for i in range(5000)] + ["104M_A\t112M_A\t0.5\tn/a"]
     path.write_text("\n".join(lines) + "\n")
     with pytest.raises(ValueError, match="edges.tsv"):
         list(read_similarity_table(path))
@@ -510,12 +498,10 @@ def test_similarity_search_mmseqs_writes_layer_without_copies(tmp_path):
     ...
     assert ">112M_B" not in query_fasta
     rows = pq.read_table(out / "layer.parquet").to_pylist()
-    assert [(r["item_id_1"], r["item_id_2"]) for r in rows] == [
-        ("104M_A", "112M_A")
+    assert [(r["item_id_1"], r["item_id_2"]) for r in rows] == [("104M_A", "112M_A")]
+    assert pq.read_table(out / "unmatched.parquet").column("reason").to_pylist() == [
+        "entry_not_found"
     ]
-    assert pq.read_table(out / "unmatched.parquet").column(
-        "reason"
-    ).to_pylist() == ["entry_not_found"]
     assert not (out / "hits.tsv").exists()
     summary = json.loads((out / "layer.json").read_text())
     assert summary["step"] == "similarity_search"

@@ -53,12 +53,8 @@ def test_build_provenance_bundle():
 def test_build_dataset_manifest():
     structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
     bundle = build_provenance_bundle(structure)
-    policy = DatasetCurationPolicy(
-        policy_id="p", policy_name="p", policy_version="1.0.0"
-    )
-    dedup_prov = DeduplicationProvenance(
-        deduplicated_at="2026-01-01T00:00:00+00:00", enabled=True
-    )
+    policy = DatasetCurationPolicy(policy_id="p", policy_name="p", policy_version="1.0.0")
+    dedup_prov = DeduplicationProvenance(deduplicated_at="2026-01-01T00:00:00+00:00", enabled=True)
 
     manifest = build_dataset_manifest(
         dataset_id="d1",
@@ -82,21 +78,15 @@ def test_reproduce_dataset(tmp_path, monkeypatch):
     structure, _, _ = mmcif_to_structure(str(MMCIF_PATH))
     entry_id = structure.entry_id
 
-    def fake_fetch_mmcif(
-        entry_id, provider, source_uri, output_dir, fetch_options=None
-    ):
+    def fake_fetch_mmcif(entry_id, provider, source_uri, output_dir, fetch_options=None):
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(MMCIF_PATH, output_dir / f"{entry_id.lower()}.cif")
         return IngestionProvenance(provider=provider, source_uri=source_uri)
 
-    monkeypatch.setattr(
-        "pandora.provenance.reproduce.fetch_mmcif", fake_fetch_mmcif
-    )
+    monkeypatch.setattr("pandora.provenance.reproduce.fetch_mmcif", fake_fetch_mmcif)
 
-    policy = DatasetCurationPolicy(
-        policy_id="p", policy_name="p", policy_version="1.0.0"
-    )
+    policy = DatasetCurationPolicy(policy_id="p", policy_name="p", policy_version="1.0.0")
     manifest = build_dataset_manifest(
         dataset_id="d1",
         dataset_name="Dataset One",
@@ -147,17 +137,13 @@ printf '104M\\t104M\\t1.0\\t10\\t1.0\\t1.0\\n' > "$4"
 
 
 def _patch_fetch(monkeypatch):
-    def fake_fetch_mmcif(
-        entry_id, provider, source_uri, output_dir, fetch_options=None
-    ):
+    def fake_fetch_mmcif(entry_id, provider, source_uri, output_dir, fetch_options=None):
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(MMCIF_PATH, output_dir / f"{entry_id.lower()}.cif")
         return IngestionProvenance(provider=provider, source_uri=source_uri)
 
-    monkeypatch.setattr(
-        "pandora.provenance.reproduce.fetch_mmcif", fake_fetch_mmcif
-    )
+    monkeypatch.setattr("pandora.provenance.reproduce.fetch_mmcif", fake_fetch_mmcif)
 
 
 def _manifest_with_clustering(clustering):
@@ -195,9 +181,7 @@ def test_reproduce_does_not_replay_clustering(tmp_path, monkeypatch):
 
 
 def test_build_step_summary_embeds_policy_and_versions(tmp_path):
-    policy = DatasetCurationPolicy(
-        policy_id="p", policy_name="n", policy_version="1"
-    )
+    policy = DatasetCurationPolicy(policy_id="p", policy_name="n", policy_version="1")
     summary = build_step_summary(
         "curation",
         policy,
@@ -220,25 +204,19 @@ def test_build_step_summary_embeds_policy_and_versions(tmp_path):
 
 
 def _curation_policy() -> DatasetCurationPolicy:
-    return DatasetCurationPolicy(
-        policy_id="p", policy_name="n", policy_version="1"
-    )
+    return DatasetCurationPolicy(policy_id="p", policy_name="n", policy_version="1")
 
 
 def test_entry_records_write_to_parquet(tmp_path):
     structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / "ay" / "1ayi.cif"))
     canon, _, cprov = canonicalise_structure(
         structure,
-        canonicalisationPolicy(
-            policy_id="c", policy_name="n", policy_version="1"
-        ),
+        canonicalisationPolicy(policy_id="c", policy_name="n", policy_version="1"),
     )
     metadata = collect_metadata(canon)
     curated, _, kprov = curate_structure(canon, metadata, _curation_policy())
     assert curated is not None
-    c_row = canonicalisation_entry_record(
-        canon, cprov, tmp_path / "ay" / "1ayi.cif"
-    )
+    c_row = canonicalisation_entry_record(canon, cprov, tmp_path / "ay" / "1ayi.cif")
     k_row = curation_entry_record(curated, metadata, kprov)
     assert c_row.entry_id == canon.entry_id
     assert c_row.structure_path == str(tmp_path / "ay" / "1ayi.cif")
@@ -255,9 +233,7 @@ def test_entry_records_write_to_parquet(tmp_path):
 
 def test_provenance_bundle_carries_curation():
     structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / "ay" / "1ayi.cif"))
-    _, _, kprov = curate_structure(
-        structure, collect_metadata(structure), _curation_policy()
-    )
+    _, _, kprov = curate_structure(structure, collect_metadata(structure), _curation_policy())
     bundle = build_provenance_bundle(structure, curation=kprov)
     assert bundle.curation == kprov
 
@@ -266,28 +242,17 @@ def test_provenance_from_record_round_trips():
     structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / "ay" / "1ayi.cif"))
     canon, _, cprov = canonicalise_structure(
         structure,
-        canonicalisationPolicy(
-            policy_id="c", policy_name="n", policy_version="1"
-        ),
+        canonicalisationPolicy(policy_id="c", policy_name="n", policy_version="1"),
     )
     metadata = collect_metadata(canon)
     curated, _, kprov = curate_structure(canon, metadata, _curation_policy())
     assert (
-        canonicalisation_provenance_from_record(
-            canonicalisation_entry_record(canon, cprov)
-        )
+        canonicalisation_provenance_from_record(canonicalisation_entry_record(canon, cprov))
         == cprov
     )
-    assert (
-        curation_provenance_from_record(
-            curation_entry_record(curated, metadata, kprov)
-        )
-        == kprov
-    )
+    assert curation_provenance_from_record(curation_entry_record(curated, metadata, kprov)) == kprov
     reported = cprov.model_copy(update={"report": {"warnings": 2, "errors": 0}})
     assert (
-        canonicalisation_provenance_from_record(
-            canonicalisation_entry_record(canon, reported)
-        )
+        canonicalisation_provenance_from_record(canonicalisation_entry_record(canon, reported))
         == reported
     )

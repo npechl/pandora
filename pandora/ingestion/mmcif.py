@@ -29,9 +29,7 @@ def _revision_date_from_cif_file(path: Path) -> str | None:
 
     try:
         block = gemmi.cif.read(str(path)).sole_block()
-        dates = list(
-            block.find_loop("_pdbx_audit_revision_history.revision_date")
-        )
+        dates = list(block.find_loop("_pdbx_audit_revision_history.revision_date"))
     except (RuntimeError, ValueError):
         return None
     return dates[-1] if dates and dates[-1] not in _NULL_CIF else None
@@ -45,9 +43,7 @@ def _pdbe_revision_date(entry_id: str) -> str | None:
 
     httpx = require("httpx", "ingestion")
     try:
-        resp = httpx.get(
-            _PDBE_SUMMARY_URL.format(id=entry_id.lower()), timeout=30.0
-        )
+        resp = httpx.get(_PDBE_SUMMARY_URL.format(id=entry_id.lower()), timeout=30.0)
         resp.raise_for_status()
         entry = resp.json()[entry_id.lower()][0]
         raw_date = entry["revision_date"]
@@ -65,8 +61,7 @@ def _resolve_url(entry_id: str, provider: str, source_uri: str | None) -> str:
         fmt_id = entry_id.lower() if provider == "pdbe" else entry_id.upper()
         return _PROVIDER_URLS[provider].format(id=fmt_id)
     raise ValueError(
-        f"provider={provider!r} requires an explicit source_uri "
-        f"or one of 'pdbe' or 'pdb'"
+        f"provider={provider!r} requires an explicit source_uri or one of 'pdbe' or 'pdb'"
     )
 
 
@@ -78,9 +73,7 @@ def _download(url: str) -> bytes:
         resp = httpx.get(url, follow_redirects=True, timeout=60.0)
         resp.raise_for_status()
     except httpx.HTTPStatusError as exc:
-        raise RuntimeError(
-            f"HTTP {exc.response.status_code} fetching {url}"
-        ) from exc
+        raise RuntimeError(f"HTTP {exc.response.status_code} fetching {url}") from exc
     except httpx.RequestError as exc:
         raise RuntimeError(f"Network error fetching {url}: {exc}") from exc
     return resp.content
@@ -102,9 +95,7 @@ def _write_mmcif(
         try:
             raw_bytes = gzip.decompress(raw_bytes)
         except gzip.BadGzipFile as exc:
-            raise RuntimeError(
-                f"Failed to decompress response from {url}"
-            ) from exc
+            raise RuntimeError(f"Failed to decompress response from {url}") from exc
         is_gzipped = False
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -117,9 +108,7 @@ def _write_mmcif(
         content = raw_bytes.decode("utf-8")
     except UnicodeDecodeError as exc:
         decompressed = "decompressed " if decompress else ""
-        raise RuntimeError(
-            f"Failed to decode {decompressed}response from {url} as UTF-8"
-        ) from exc
+        raise RuntimeError(f"Failed to decode {decompressed}response from {url} as UTF-8") from exc
     out_path = output_dir / f"{entry_id.lower()}.cif"
     out_path.write_text(content, encoding="utf-8")
     return out_path
@@ -180,16 +169,10 @@ def fetch_mmcif(
                 source_uri=url,
                 retrieved_at=mtime_iso(cached),
                 from_cache=True,
-                revision_date=(
-                    _revision_date_from_cif_file(cached)
-                    if provider == "pdb"
-                    else None
-                ),
+                revision_date=(_revision_date_from_cif_file(cached) if provider == "pdb" else None),
             )
 
-    out_path = _write_mmcif(
-        _download(url), url, entry_id, output_dir, fetch_options.decompress
-    )
+    out_path = _write_mmcif(_download(url), url, entry_id, output_dir, fetch_options.decompress)
 
     if provider == "pdb":
         revision_date = _revision_date_from_cif_file(out_path)
@@ -256,9 +239,7 @@ def fetch_list_mmcif(
             provenance = fetch_mmcif(
                 entry_id=entry_id,
                 provider=provider,
-                source_uri=(
-                    source_uri.format(id=entry_id) if source_uri else None
-                ),
+                source_uri=(source_uri.format(id=entry_id) if source_uri else None),
                 output_dir=output_dir,
                 fetch_options=fetch_options,
             )

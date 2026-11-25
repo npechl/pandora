@@ -84,9 +84,7 @@ def _resolve_altlocs(
     # produce a residue-number collision downstream (validation.py) that
     # was never actually ambiguous — the file already resolved it via
     # label_alt_id, we just weren't reading it that way.
-    by_site: dict[tuple, dict[str, list[AtomSiteRecord]]] = defaultdict(
-        lambda: defaultdict(list)
-    )
+    by_site: dict[tuple, dict[str, list[AtomSiteRecord]]] = defaultdict(lambda: defaultdict(list))
     for a in atoms:
         if _has_altloc(a):
             by_site[_site(a)][a.label_alt_id].append(a)
@@ -105,9 +103,7 @@ def _resolve_altlocs(
                     residue_id=f"{seq_id}:{selected_comp_id}",
                     selected_altloc=selected,
                     available_altlocs=sorted(alt_groups),
-                    selection_reason=_SELECTION_REASON.get(
-                        rules.strategy, "first_alphabetical"
-                    ),
+                    selection_reason=_SELECTION_REASON.get(rules.strategy, "first_alphabetical"),
                 )
             )
 

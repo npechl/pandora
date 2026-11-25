@@ -74,9 +74,7 @@ def test_first_assembly_source_ignores_author_flag():
         AssemblyRecord(id="1", software_determined=True),
         AssemblyRecord(id="2", author_determined=True),
     ]
-    picked = _select_biological_assembly(
-        assemblies, "first", DiagnosticBundle(), "test"
-    )
+    picked = _select_biological_assembly(assemblies, "first", DiagnosticBundle(), "test")
     assert picked.id == "1"
 
 
@@ -85,9 +83,7 @@ def test_author_assembly_source_still_prefers_author_flag():
         AssemblyRecord(id="1", software_determined=True),
         AssemblyRecord(id="2", author_determined=True),
     ]
-    picked = _select_biological_assembly(
-        assemblies, "author", DiagnosticBundle(), "test"
-    )
+    picked = _select_biological_assembly(assemblies, "author", DiagnosticBundle(), "test")
     assert picked.id == "2"
 ```
 
@@ -175,9 +171,7 @@ def test_non_protein_chains_dropped(policies):
 def test_chain_filter_reason(policies):
     r = _mod().prepare_entry(FIX / "1a3e.cif", *policies)
     assert [c["chain_id"] for c in r.chains] == ["A", "B"]
-    assert ("C", "MISSING_TAILS") in {
-        (e["chain_id"], e["reason_code"]) for e in r.exclusions
-    }
+    assert ("C", "MISSING_TAILS") in {(e["chain_id"], e["reason_code"]) for e in r.exclusions}
 
 
 @pytest.mark.parametrize(
@@ -187,15 +181,11 @@ def test_chain_filter_reason(policies):
 def test_entry_filter_reason(policies, entry, code):
     r = _mod().prepare_entry(FIX / f"{entry}.cif", *policies)
     assert r.chains == [] and r.structure is None
-    assert [(e["chain_id"], e["reason_code"]) for e in r.exclusions] == [
-        (None, code)
-    ]
+    assert [(e["chain_id"], e["reason_code"]) for e in r.exclusions] == [(None, code)]
 
 
 def test_fasta_sequences_have_no_whitespace():
-    rec = _mod().fasta_record(
-        {"entry_id": "1abc", "chain_id": "A", "sequence": "MK\nTA Y\n"}
-    )
+    rec = _mod().fasta_record({"entry_id": "1abc", "chain_id": "A", "sequence": "MK\nTA Y\n"})
     assert rec == ">1abc_A\nMKTAY\n"
 
 
@@ -292,17 +282,10 @@ def test_shard_outputs(tmp_path):
     d = tmp_path / "out/shards/0-of-1"
     chains = _jsonl(d / "chains.jsonl")
     ids = [f"{c['entry_id']}_{c['chain_id']}" for c in chains]
-    headers = [
-        l[1:]
-        for l in (d / "chains.fasta").read_text().splitlines()
-        if l.startswith(">")
-    ]
+    headers = [l[1:] for l in (d / "chains.fasta").read_text().splitlines() if l.startswith(">")]
     assert headers == ids
     assert sorted((d / "done.txt").read_text().split()) == sorted(ENTRIES)
-    assert any(
-        e["reason_code"] == "METHOD_EXCLUDED"
-        for e in _jsonl(d / "exclusions.jsonl")
-    )
+    assert any(e["reason_code"] == "METHOD_EXCLUDED" for e in _jsonl(d / "exclusions.jsonl"))
     manifest = json.loads((d / "manifest.json").read_text())
     assert manifest["counts"]["entries_done"] == 3
 
@@ -393,9 +376,7 @@ def test_two_shards_merge_like_one(tmp_path):
         "exclusions.jsonl",
         "counts.tsv",
     ):
-        assert _sorted_lines(one / "out" / name) == _sorted_lines(
-            two / "out" / name
-        )
+        assert _sorted_lines(one / "out" / name) == _sorted_lines(two / "out" / name)
 
 
 def test_counts_table(tmp_path):

@@ -57,9 +57,7 @@ def _handle_missing_atoms(
     drop_residues: set[tuple] = set()
     for key, res_atoms in polymer_by_residue.items():
         present = {a.label_atom_id for a in res_atoms}
-        backbone = backbone_by_entity.get(
-            res_atoms[0].label_entity_id, _PROTEIN_BACKBONE
-        )
+        backbone = backbone_by_entity.get(res_atoms[0].label_entity_id, _PROTEIN_BACKBONE)
         missing = backbone - present
         if missing:
             asym_id, _auth_seq_id, seq_id, comp_id = key
@@ -69,8 +67,7 @@ def _handle_missing_atoms(
                         code="MISSING_ATOMS",
                         severity="warning",
                         message=(
-                            f"Residue {comp_id} {seq_id} in chain "
-                            f"{asym_id} missing backbone atoms"
+                            f"Residue {comp_id} {seq_id} in chain {asym_id} missing backbone atoms"
                         ),
                         entry_id=entry_id,
                         context={
@@ -187,14 +184,11 @@ def _handle_incomplete_chains(
 
     # truncate_to_complete_regions: keep longest contiguous run per
     # incomplete chain
-    keep_ids = {
-        chain: _longest_run(chain_seq_ids[chain]) for chain in incomplete
-    }
+    keep_ids = {chain: _longest_run(chain_seq_ids[chain]) for chain in incomplete}
     return [
         a
         for a in atoms
-        if a.label_asym_id not in incomplete
-        or a.label_seq_id in keep_ids[a.label_asym_id]
+        if a.label_asym_id not in incomplete or a.label_seq_id in keep_ids[a.label_asym_id]
     ], asym_units
 
 

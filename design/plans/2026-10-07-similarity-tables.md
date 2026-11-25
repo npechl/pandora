@@ -179,15 +179,11 @@ def _foldseek_row(
 def _search(tmp_path, rows, engine="Foldseek", newline="\n"):
     path = tmp_path / "hits.tsv"
     path.write_text("".join(row + newline for row in rows), newline="")
-    return SimilaritySearch(
-        engine=engine, hits_path=str(path), columns=list(HIT_COLUMNS[engine])
-    )
+    return SimilaritySearch(engine=engine, hits_path=str(path), columns=list(HIT_COLUMNS[engine]))
 
 
 def test_iter_edges_sorts_pair_and_skips_self_hits(tmp_path):
-    search = _search(
-        tmp_path, [_foldseek_row("b", "a"), _foldseek_row("a", "a")]
-    )
+    search = _search(tmp_path, [_foldseek_row("b", "a"), _foldseek_row("a", "a")])
 
     edges = list(iter_edges(search, HitFilter()))
 
@@ -195,9 +191,7 @@ def test_iter_edges_sorts_pair_and_skips_self_hits(tmp_path):
 
 
 def test_iter_edges_keeps_every_passing_row(tmp_path):
-    search = _search(
-        tmp_path, [_foldseek_row("a", "b"), _foldseek_row("b", "a")]
-    )
+    search = _search(tmp_path, [_foldseek_row("a", "b"), _foldseek_row("b", "a")])
 
     edges = list(iter_edges(search, HitFilter()))
 
@@ -257,9 +251,7 @@ def test_iter_edges_coverage_of(tmp_path, coverage_of, expected):
     [("alignment", 0.5), ("query", 0.7), ("target", 0.6), ("max", 0.7)],
 )
 def test_iter_edges_tm_normalisation(tmp_path, normalisation, expected):
-    search = _search(
-        tmp_path, [_foldseek_row("a", "b", alntm=0.5, qtm=0.7, ttm=0.6)]
-    )
+    search = _search(tmp_path, [_foldseek_row("a", "b", alntm=0.5, qtm=0.7, ttm=0.6)])
 
     (edge,) = iter_edges(search, HitFilter(tm_normalisation=normalisation))
 
@@ -361,9 +353,7 @@ def test_load_similarity_search_wraps_existing_file(tmp_path):
     path.write_text("a\tb\t0.95\t100\t0.9\t0.8\n")
     parameters = {"max_seqs": 300}
 
-    search = load_similarity_search(
-        path, "MMseqs2", version="18.8cc5c", parameters=parameters
-    )
+    search = load_similarity_search(path, "MMseqs2", version="18.8cc5c", parameters=parameters)
     parameters["max_seqs"] = 1  # caller's dict must not be aliased
 
     assert search.origin == "precomputed"
@@ -377,10 +367,7 @@ def test_load_similarity_search_accepts_empty_file(tmp_path):
     path = tmp_path / "hits.tsv"
     path.write_text("")
 
-    assert (
-        load_similarity_search(path, "Foldseek").columns
-        == (HIT_COLUMNS["Foldseek"])
-    )
+    assert load_similarity_search(path, "Foldseek").columns == (HIT_COLUMNS["Foldseek"])
 
 
 def test_load_similarity_search_rejects_wrong_columns(tmp_path):
@@ -489,9 +476,7 @@ class HitFilter(BaseModel):
     min_coverage: float | None = None
     coverage_of: Literal["both", "query", "target", "either"] = "both"
     min_interface_coverage: float | None = None
-    tm_normalisation: Literal["alignment", "query", "target", "max"] = (
-        "alignment"
-    )
+    tm_normalisation: Literal["alignment", "query", "target", "max"] = "alignment"
 
 
 class Edge(NamedTuple):
@@ -594,9 +579,7 @@ def load_similarity_search(
     """
 
     if engine not in HIT_COLUMNS:
-        raise ValueError(
-            f"engine must be one of {sorted(HIT_COLUMNS)}, got {engine!r}"
-        )
+        raise ValueError(f"engine must be one of {sorted(HIT_COLUMNS)}, got {engine!r}")
     path = Path(hits_path)
     columns = HIT_COLUMNS[engine]
     with path.open() as handle:
@@ -647,9 +630,7 @@ def iter_edges(
             (the message names `<path>:<line>`).
     """
 
-    if search.engine == "MMseqs2" and hit_filter.tm_normalisation != (
-        "alignment"
-    ):
+    if search.engine == "MMseqs2" and hit_filter.tm_normalisation != ("alignment"):
         raise ValueError(
             "tm_normalisation must be 'alignment' for an MMseqs2 search "
             f"(it has no TM-scores), got {hit_filter.tm_normalisation!r}"
@@ -659,10 +640,7 @@ def iter_edges(
             "interface_residues needs Foldseek alignment ranges "
             "(qstart/qend/tstart/tend); an MMseqs2 search has none"
         )
-    if (
-        hit_filter.min_interface_coverage is not None
-        and interface_residues is None
-    ):
+    if hit_filter.min_interface_coverage is not None and interface_residues is None:
         raise ValueError(
             "min_interface_coverage is set but no interface_residues were "
             "given, so every edge would be dropped"
@@ -687,18 +665,14 @@ def _iter_edges(
             if fields[index["query"]] == fields[index["target"]]:
                 continue
             try:
-                edge = _edge(
-                    fields, index, search.engine, hit_filter, interface_residues
-                )
+                edge = _edge(fields, index, search.engine, hit_filter, interface_residues)
             except ValueError as exc:
                 raise ValueError(f"{path}:{line_number}: {exc}") from exc
             if edge is not None:
                 yield edge
 
 
-def _split_row(
-    line: str, path: Path, line_number: int, columns: list[str]
-) -> list[str]:
+def _split_row(line: str, path: Path, line_number: int, columns: list[str]) -> list[str]:
     """Tab-split one row, raising ValueError on a wrong column count."""
 
     fields = line.rstrip("\r\n").split("\t")
@@ -728,9 +702,7 @@ def _edge(
     if engine == "MMseqs2":
         score = identity
     elif hit_filter.tm_normalisation == "max":
-        score = max(
-            float(fields[index["qtmscore"]]), float(fields[index["ttmscore"]])
-        )
+        score = max(float(fields[index["qtmscore"]]), float(fields[index["ttmscore"]]))
     else:
         score = float(fields[index[_TM_COLUMN[hit_filter.tm_normalisation]]])
 
@@ -752,9 +724,7 @@ def _edge(
     if not _passes(hit_filter, score, identity, coverage, interface_coverage):
         return None
     source_id, target_id = sorted((query, target))
-    return Edge(
-        source_id, target_id, score, identity, coverage, interface_coverage
-    )
+    return Edge(source_id, target_id, score, identity, coverage, interface_coverage)
 
 
 def _passes(
@@ -768,17 +738,12 @@ def _passes(
 
     if hit_filter.min_score is not None and score < hit_filter.min_score:
         return False
-    if hit_filter.min_identity is not None and (
-        identity < hit_filter.min_identity
-    ):
+    if hit_filter.min_identity is not None and (identity < hit_filter.min_identity):
         return False
-    if hit_filter.min_coverage is not None and (
-        coverage < hit_filter.min_coverage
-    ):
+    if hit_filter.min_coverage is not None and (coverage < hit_filter.min_coverage):
         return False
     if hit_filter.min_interface_coverage is not None and (
-        interface_coverage is None
-        or interface_coverage < hit_filter.min_interface_coverage
+        interface_coverage is None or interface_coverage < hit_filter.min_interface_coverage
     ):
         return False
     return True
@@ -900,9 +865,7 @@ def test_duplicate_edges_do_not_change_clusters() -> None:
 def test_cluster_similar_items_filters_hits_and_records_search(tmp_path):
     path = tmp_path / "hits.tsv"
     path.write_text(
-        "a\tb\t0.95\t100\t0.9\t0.9\n"
-        "b\tc\t0.95\t100\t0.9\t0.9\n"
-        "d\te\t0.10\t100\t0.9\t0.9\n"
+        "a\tb\t0.95\t100\t0.9\t0.9\nb\tc\t0.95\t100\t0.9\t0.9\nd\te\t0.10\t100\t0.9\t0.9\n"
     )
     search = SimilaritySearch(
         engine="MMseqs2",
@@ -993,9 +956,7 @@ def test_cluster_with_pairs(tmp_path):
         ]
     )
 
-    cluster_pairs = json.loads(
-        (output.parent / "cluster_pairs.json").read_text()
-    )
+    cluster_pairs = json.loads((output.parent / "cluster_pairs.json").read_text())
     by_pair = {(p["item_id_1"], p["item_id_2"]): p for p in cluster_pairs}
     same = by_pair[("104M", "112M")]
     assert same["cluster_id_1"] == same["cluster_id_2"]
@@ -1025,9 +986,7 @@ def test_cluster_reads_hit_filter_yaml_and_records_it(tmp_path):
 
     clusters = json.loads(output.read_text())
     assert all(c["n_components"] == 1 for c in clusters)  # 0.95 < 0.99
-    provenance = json.loads(
-        (output.parent / "cluster_provenance.json").read_text()
-    )
+    provenance = json.loads((output.parent / "cluster_provenance.json").read_text())
     assert provenance["hit_filter"]["min_score"] == 0.99
     assert provenance["hit_filter"]["min_coverage"] == 0.5
     assert provenance["search"]["engine"] == "MMseqs2"
@@ -1222,9 +1181,7 @@ def cluster_similar_items(
         item_ids,
         iter_edges(search, hit_filter, interface_residues=interface_residues),
     )
-    return clusters, provenance.model_copy(
-        update={"hit_filter": hit_filter, "search": search}
-    )
+    return clusters, provenance.model_copy(update={"hit_filter": hit_filter, "search": search})
 ```
 
 The previous code sorted clusters by `members[0]`. Members are added in
@@ -1250,38 +1207,32 @@ In `pandora/cli/app.py`:
    `print(...)` line with:
 
 ```python
-    input_dir = Path(args.input_dir)
-    search = _load_json_model(SimilaritySearch, Path(args.search))
-    hit_filter = (
-        _load_yaml_model(HitFilter, Path(args.hit_filter))
-        if args.hit_filter
-        else HitFilter()
+input_dir = Path(args.input_dir)
+search = _load_json_model(SimilaritySearch, Path(args.search))
+hit_filter = _load_yaml_model(HitFilter, Path(args.hit_filter)) if args.hit_filter else HitFilter()
+overrides = {
+    field: value
+    for field, value in (
+        ("min_score", args.min_score),
+        ("min_coverage", args.min_coverage),
     )
-    overrides = {
-        field: value
-        for field, value in (
-            ("min_score", args.min_score),
-            ("min_coverage", args.min_coverage),
-        )
-        if value is not None
-    }
-    if overrides:
-        hit_filter = hit_filter.model_copy(update=overrides)
-    interface_residues = (
-        _load_interface_residues(Path(args.interface_residues))
-        if args.interface_residues
-        else None
-    )
-    item_ids = sorted(path.stem.upper() for path in input_dir.glob("*.cif"))
+    if value is not None
+}
+if overrides:
+    hit_filter = hit_filter.model_copy(update=overrides)
+interface_residues = (
+    _load_interface_residues(Path(args.interface_residues)) if args.interface_residues else None
+)
+item_ids = sorted(path.stem.upper() for path in input_dir.glob("*.cif"))
 
-    clusters, prov = cluster_similar_items(
-        item_ids, search, hit_filter, interface_residues=interface_residues
-    )
+clusters, prov = cluster_similar_items(
+    item_ids, search, hit_filter, interface_residues=interface_residues
+)
 
-    output = Path(args.output)
-    write_records(clusters, output)
-    write_json(prov, output.parent / "cluster_provenance.json")
-    print(f"{len(clusters)} clusters from {prov.n_edges} edges -> {output}")
+output = Path(args.output)
+write_records(clusters, output)
+write_json(prov, output.parent / "cluster_provenance.json")
+print(f"{len(clusters)} clusters from {prov.n_edges} edges -> {output}")
 ```
 
    Keep the rest of the function (the `if args.pairs:` block) as it is.
@@ -1412,9 +1363,7 @@ def test_search_keeps_hit_file_and_records_parameters(tmp_path):
     ]
     hits_path = tmp_path / "out" / "hits.tsv"  # parent doesn't exist yet
 
-    search = compute_sequence_similarity(
-        records, hits_path, mmseqs_bin=str(mmseqs), max_seqs=500
-    )
+    search = compute_sequence_similarity(records, hits_path, mmseqs_bin=str(mmseqs), max_seqs=500)
 
     assert (tmp_path / "query.fasta").read_text() == ">a_A\nMKV\n>b_A\nMKL\n"
     assert hits_path.read_text().count("\n") == 2
@@ -1432,9 +1381,7 @@ def test_search_keeps_hit_file_and_records_parameters(tmp_path):
     }
     args = (tmp_path / "args.txt").read_text().split()
     assert args[args.index("--max-seqs") + 1] == "500"
-    assert args[args.index("--format-output") + 1] == ",".join(
-        HIT_COLUMNS["MMseqs2"]
-    )
+    assert args[args.index("--format-output") + 1] == ",".join(HIT_COLUMNS["MMseqs2"])
 ```
 
 Append to `tests/test_structure_similarity.py` (add `import stat` and
@@ -1476,9 +1423,7 @@ def test_structure_search_passes_caps_and_keeps_hits(tmp_path):
     assert args[args.index("--max-seqs") + 1] == "2000"
     assert args[args.index("--exhaustive-search") + 1] == "1"
     assert args[args.index("--alignment-type") + 1] == "1"
-    assert args[args.index("--format-output") + 1] == ",".join(
-        HIT_COLUMNS["Foldseek"]
-    )
+    assert args[args.index("--format-output") + 1] == ",".join(HIT_COLUMNS["Foldseek"])
     assert hits_path.read_text().count("\n") == 1
     assert search.engine == "Foldseek"
     assert search.version == "10.941cd33"
@@ -1498,9 +1443,7 @@ def test_structure_search_omits_exhaustive_flag_by_default(tmp_path):
     struct_dir = tmp_path / "structures"
     struct_dir.mkdir()
 
-    compute_structure_similarity(
-        struct_dir, tmp_path / "hits.tsv", foldseek_bin=str(foldseek)
-    )
+    compute_structure_similarity(struct_dir, tmp_path / "hits.tsv", foldseek_bin=str(foldseek))
 
     args = (tmp_path / "args.txt").read_text().split()
     assert "--exhaustive-search" not in args
@@ -1660,8 +1603,7 @@ def compute_sequence_similarity(
 
     if shutil.which(mmseqs_bin) is None:
         raise RuntimeError(
-            f"mmseqs binary {mmseqs_bin!r} not found (required for "
-            "sequence similarity)"
+            f"mmseqs binary {mmseqs_bin!r} not found (required for sequence similarity)"
         )
 
     if isinstance(sequences, list):
@@ -1793,8 +1735,7 @@ def compute_structure_similarity(
 
     if shutil.which(foldseek_bin) is None:
         raise RuntimeError(
-            f"foldseek binary {foldseek_bin!r} not found (required for "
-            "structure similarity)"
+            f"foldseek binary {foldseek_bin!r} not found (required for structure similarity)"
         )
 
     options = list(foldseek_options or [])
@@ -1829,9 +1770,7 @@ def compute_structure_similarity(
         ]
         if exhaustive_search:
             command += ["--exhaustive-search", "1"]
-        subprocess.run(
-            command + options, check=True, capture_output=True, text=True
-        )
+        subprocess.run(command + options, check=True, capture_output=True, text=True)
 
     return SimilaritySearch(
         engine="Foldseek",
@@ -1876,14 +1815,9 @@ def _cmd_similarity(args: argparse.Namespace) -> None:
     output = Path(args.output)
 
     if args.precomputed_hits:
-        search = load_similarity_search(
-            args.precomputed_hits, _CLI_ENGINES[args.engine]
-        )
+        search = load_similarity_search(args.precomputed_hits, _CLI_ENGINES[args.engine])
     elif args.input_dir is None:
-        raise SystemExit(
-            "similarity: --input-dir is required unless --precomputed-hits "
-            "is given"
-        )
+        raise SystemExit("similarity: --input-dir is required unless --precomputed-hits is given")
     elif args.engine == "mmseqs2":
         structures = _read_structures_dir(Path(args.input_dir))
         sequences = entry_sequences(structures)
@@ -1903,9 +1837,7 @@ def _cmd_similarity(args: argparse.Namespace) -> None:
             kwargs["sensitivity"] = args.sensitivity
         if args.max_seqs is not None:
             kwargs["max_seqs"] = args.max_seqs
-        search = compute_structure_similarity(
-            Path(args.input_dir), output, **kwargs
-        )
+        search = compute_structure_similarity(Path(args.input_dir), output, **kwargs)
 
     record = output.with_name(output.name + ".search.json")
     write_json(search, record)
@@ -1919,31 +1851,28 @@ def _cmd_similarity(args: argparse.Namespace) -> None:
    `--sensitivity` and `--alignment-type`:
 
 ```python
-    p.add_argument(
-        "--input-dir", help="required unless --precomputed-hits is given"
-    )
-    p.add_argument(
-        "--max-seqs",
-        type=int,
-        default=None,
-        help="hits kept per query (default: the tool's own, MMseqs2 300 "
-        "/ Foldseek 1000; raise it for leakage control)",
-    )
-    p.add_argument(
-        "--exhaustive-search",
-        action="store_true",
-        help="foldseek only: skip the prefilter",
-    )
-    p.add_argument(
-        "--precomputed-hits",
-        help="wrap an existing hit TSV (Pandora's --format-output "
-        "columns) instead of running a search",
-    )
-    p.add_argument(
-        "--output",
-        required=True,
-        help="hit TSV path; the search record goes to <output>.search.json",
-    )
+p.add_argument("--input-dir", help="required unless --precomputed-hits is given")
+p.add_argument(
+    "--max-seqs",
+    type=int,
+    default=None,
+    help="hits kept per query (default: the tool's own, MMseqs2 300 "
+    "/ Foldseek 1000; raise it for leakage control)",
+)
+p.add_argument(
+    "--exhaustive-search",
+    action="store_true",
+    help="foldseek only: skip the prefilter",
+)
+p.add_argument(
+    "--precomputed-hits",
+    help="wrap an existing hit TSV (Pandora's --format-output columns) instead of running a search",
+)
+p.add_argument(
+    "--output",
+    required=True,
+    help="hit TSV path; the search record goes to <output>.search.json",
+)
 ```
 
 Run `uv run ruff format pandora`.
@@ -2011,17 +1940,13 @@ printf '104M\\t104M\\t1.0\\t10\\t1.0\\t1.0\\n' > "$4"
 
 
 def _patch_fetch(monkeypatch):
-    def fake_fetch_mmcif(
-        entry_id, provider, source_uri, output_dir, fetch_options=None
-    ):
+    def fake_fetch_mmcif(entry_id, provider, source_uri, output_dir, fetch_options=None):
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy(MMCIF_PATH, output_dir / f"{entry_id.lower()}.cif")
         return IngestionProvenance(provider=provider, source_uri=source_uri)
 
-    monkeypatch.setattr(
-        "pandora.provenance.reproduce.fetch_mmcif", fake_fetch_mmcif
-    )
+    monkeypatch.setattr("pandora.provenance.reproduce.fetch_mmcif", fake_fetch_mmcif)
 
 
 def _manifest_with_clustering(clustering):
@@ -2071,9 +1996,7 @@ def test_reproduce_reruns_computed_search(tmp_path, monkeypatch):
     )
     out = tmp_path / "out"
 
-    _, new_manifest = reproduce_dataset(
-        _manifest_with_clustering(_clustering(search)), out
-    )
+    _, new_manifest = reproduce_dataset(_manifest_with_clustering(_clustering(search)), out)
 
     assert (out / "hits.tsv").exists()
     assert new_manifest.clustering.search.hits_path == str(out / "hits.tsv")
@@ -2109,9 +2032,7 @@ def test_reproduce_precomputed_hits_missing_raises(tmp_path, monkeypatch):
     )
 
     with pytest.raises(ValueError, match="precomputed"):
-        reproduce_dataset(
-            _manifest_with_clustering(_clustering(search)), tmp_path / "out"
-        )
+        reproduce_dataset(_manifest_with_clustering(_clustering(search)), tmp_path / "out")
 
 
 def test_reproduce_old_manifest_clustering_raises(tmp_path, monkeypatch):
@@ -2139,9 +2060,7 @@ def test_reproduce_interface_filter_raises(tmp_path, monkeypatch):
     clustering = _clustering(search, HitFilter(min_interface_coverage=0.5))
 
     with pytest.raises(ValueError, match="interface"):
-        reproduce_dataset(
-            _manifest_with_clustering(clustering), tmp_path / "out"
-        )
+        reproduce_dataset(_manifest_with_clustering(clustering), tmp_path / "out")
 ```
 
 Run `uv run ruff format tests/test_provenance.py`.
@@ -2186,9 +2105,7 @@ def _reproduce_similarity(
         )
     paths: dict[str, Path] = {}
     for entry_id, structure in structures.items():
-        paths[entry_id] = structure_to_mmcif(
-            structure, output_dir / f"{entry_id}.reproduced.cif"
-        )
+        paths[entry_id] = structure_to_mmcif(structure, output_dir / f"{entry_id}.reproduced.cif")
     return compute_structure_similarity(paths, hits_path, **search.parameters)
 ```
 
@@ -2212,9 +2129,7 @@ if manifest.clustering is not None:
             "was computed with are not recorded in the manifest"
         )
     search = _reproduce_similarity(recorded.search, structures, output_dir)
-    clusters, cluster_prov = cluster_similar_items(
-        list(structures), search, recorded.hit_filter
-    )
+    clusters, cluster_prov = cluster_similar_items(list(structures), search, recorded.hit_filter)
 ```
 
    The `if manifest.partition is not None:` block that follows is
@@ -2270,9 +2185,7 @@ Replace:
 ```python
 relationships = compute_sequence_similarity(sequences)
 item_ids = sorted(sequences)  # same ids compute_sequence_similarity used
-clusters, cluster_prov = cluster_similar_items(
-    item_ids, relationships, IDENTITY_THRESHOLD
-)
+clusters, cluster_prov = cluster_similar_items(item_ids, relationships, IDENTITY_THRESHOLD)
 ```
 
 with:
@@ -2299,9 +2212,7 @@ partition_dataset` to
 Replace:
 
 ```python
-clusters, cluster_prov = cluster_similar_items(
-    ENTRY_IDS, relationships, IDENTITY_THRESHOLD
-)
+clusters, cluster_prov = cluster_similar_items(ENTRY_IDS, relationships, IDENTITY_THRESHOLD)
 ```
 
 with:
@@ -2309,11 +2220,7 @@ with:
 ```python
 clusters, cluster_prov = cluster_edges(
     ENTRY_IDS,
-    (
-        (r.source_id, r.target_id)
-        for r in relationships
-        if r.score >= IDENTITY_THRESHOLD
-    ),
+    ((r.source_id, r.target_id) for r in relationships if r.score >= IDENTITY_THRESHOLD),
 )
 ```
 
@@ -2348,9 +2255,7 @@ paragraph as one line (docs-build convention).
    from pandora.similarity import compute_sequence_similarity
 
    sequences = entry_sequences(structures)
-   search = compute_sequence_similarity(
-       sequences, "datasets/output/hits/mmseqs.tsv", max_seqs=300
-   )
+   search = compute_sequence_similarity(sequences, "datasets/output/hits/mmseqs.tsv", max_seqs=300)
    print(search.engine, search.hits_path, search.parameters["max_seqs"])
    ```
 
@@ -2526,10 +2431,7 @@ if not path.exists():
         for _ in range(n_rows):
             q, t = rng.randrange(n_items), rng.randrange(n_items)
             tm = 0.99 if rng.random() < 0.01 else 0.3  # ~1% pass
-            handle.write(
-                f"I{q}\tI{t}\t0.5\t100\t0.9\t0.9\t{tm}\t{tm}\t{tm}"
-                "\t1\t100\t1\t100\n"
-            )
+            handle.write(f"I{q}\tI{t}\t0.5\t100\t0.9\t0.9\t{tm}\t{tm}\t{tm}\t1\t100\t1\t100\n")
 search = SimilaritySearch(
     engine="Foldseek",
     hits_path=str(path),
@@ -2537,9 +2439,7 @@ search = SimilaritySearch(
 )
 item_ids = [f"I{i}" for i in range(n_items)]
 start = time.perf_counter()
-clusters, prov = cluster_similar_items(
-    item_ids, search, HitFilter(min_score=0.5)
-)
+clusters, prov = cluster_similar_items(item_ids, search, HitFilter(min_score=0.5))
 print(
     f"{n_rows} rows, {n_items} items: {prov.n_edges} edges, "
     f"{len(clusters)} clusters, {time.perf_counter() - start:.1f}s, "

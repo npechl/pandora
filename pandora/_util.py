@@ -23,9 +23,7 @@ def require(module: str, extra: str) -> ModuleType:
     try:
         return importlib.import_module(module)
     except ImportError as exc:
-        raise RuntimeError(
-            f"{module} is required here (install the `{extra}` extra)"
-        ) from exc
+        raise RuntimeError(f"{module} is required here (install the `{extra}` extra)") from exc
 
 
 def rank_sort_key(

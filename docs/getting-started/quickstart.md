@@ -17,9 +17,7 @@ from pathlib import Path
 from pandora.parsing import mmcif_to_structure
 
 mmcif_dir = Path("datasets/dev/mmcif")
-structure, diagnostics, status = mmcif_to_structure(
-    str(mmcif_dir / "04" / "104m.cif")
-)
+structure, diagnostics, status = mmcif_to_structure(str(mmcif_dir / "04" / "104m.cif"))
 
 print(status, len(structure.atoms))
 # success 1450
@@ -92,9 +90,7 @@ from pandora.annotations import annotate_ligand_contacts
 from pandora.schemas.canonicalisation import canonicalisationPolicy
 
 mmcif_dir = Path("datasets/dev/mmcif")
-structure, diagnostics, status = mmcif_to_structure(
-    str(mmcif_dir / "04" / "104m.cif")
-)
+structure, diagnostics, status = mmcif_to_structure(str(mmcif_dir / "04" / "104m.cif"))
 
 policy = canonicalisationPolicy(
     policy_id="getting-started",
@@ -177,9 +173,7 @@ curation_policy = DatasetCurationPolicy(
 )
 exclusions = []
 for entry_id in list(structures):
-    curated, records, _ = curate_structure(
-        structures[entry_id], None, curation_policy
-    )
+    curated, records, _ = curate_structure(structures[entry_id], None, curation_policy)
     exclusions.extend(records)
     if curated is None:
         del structures[entry_id]

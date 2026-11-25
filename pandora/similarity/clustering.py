@@ -141,9 +141,7 @@ def interface_edges(
 
     # Key the map like `_chain_key` does, so the entry's case can't miss.
     mapped = {
-        _chain_key(*parse_item_id("chain", k)): _chain_key(
-            *parse_item_id("chain", v)
-        )
+        _chain_key(*parse_item_id("chain", k)): _chain_key(*parse_item_id("chain", v))
         for k, v in (chain_map or {}).items()
     }
 
@@ -194,11 +192,6 @@ def pair_cluster_keys(
     """
 
     cluster_of: dict[str, str] = {
-        item_id: cluster.components[0]
-        for cluster in clusters
-        for item_id in cluster.components
+        item_id: cluster.components[0] for cluster in clusters for item_id in cluster.components
     }
-    return {
-        (item_1, item_2): (cluster_of[item_1], cluster_of[item_2])
-        for item_1, item_2 in pairs
-    }
+    return {(item_1, item_2): (cluster_of[item_1], cluster_of[item_2]) for item_1, item_2 in pairs}

@@ -148,10 +148,7 @@ def test_resolve_fills_comp_id():
         {"1A2C": _load("1a2c")},
     )
     expected = _load("1a2c")  # read the comp ids from the atoms
-    comp = {
-        (a.label_asym_id, a.label_seq_id): a.label_comp_id
-        for a in expected.atoms
-    }
+    comp = {(a.label_asym_id, a.label_seq_id): a.label_comp_id for a in expected.atoms}
     assert matched[0]["comp_id_1"] == comp[("A", 1)]
     assert matched[0]["comp_id_2"] == comp[("B", 1)]
 
@@ -304,17 +301,16 @@ def test_chain_interfaces_distance_is_closest_atom_pair():
 
 def test_interface_records_from_rows_match_fixture():
     rows = annotate_chain_interfaces(_load("1a2c"))
-    records = extract_interface_records(
-        rows, distance_cutoff=4.0, atom_set="heavy"
-    )
-    assert [
-        (r.chain_id_1, r.chain_id_2, len(r.residue_pairs)) for r in records
-    ] == [("A", "B", 74), ("B", "C", 21), ("B", "D", 25)]
+    records = extract_interface_records(rows, distance_cutoff=4.0, atom_set="heavy")
+    assert [(r.chain_id_1, r.chain_id_2, len(r.residue_pairs)) for r in records] == [
+        ("A", "B", 74),
+        ("B", "C", 21),
+        ("B", "D", 25),
+    ]
     assert records[0].distance_cutoff == 4.0
     assert records[0].atom_set == "heavy"
     assert records[0].contact_count == (
-        len(records[0].interface_residues_chain_1)
-        + len(records[0].interface_residues_chain_2)
+        len(records[0].interface_residues_chain_1) + len(records[0].interface_residues_chain_2)
     )
 
 
@@ -485,10 +481,9 @@ Rewrite `test_ligand_contacts_reports_nearest_polymer_residue` for rows
 ```python
 def test_ligand_contacts_fixture():
     rows = annotate_ligand_contacts(_load("1a2c"))
-    assert {
-        (r.chain_id_2, r.auth_chain_id_2, r.auth_seq_id_2, r.comp_id_2)
-        for r in rows
-    } == {("E", "H", "626", "NA")}
+    assert {(r.chain_id_2, r.auth_chain_id_2, r.auth_seq_id_2, r.comp_id_2) for r in rows} == {
+        ("E", "H", "626", "NA")
+    }
     assert len(rows) == 2
 
 
@@ -523,15 +518,10 @@ def test_ligand_contacts_hetatm_in_polymer_chain_is_not_a_ligand():
         EntityRecord(id="2", type="polymer"),
         EntityRecord(id="3", type="non-polymer"),
     ]
-    asym_units = [
-        AsymRecord(id=c, entity_id=e)
-        for c, e in (("A", "1"), ("B", "2"), ("C", "3"))
-    ]
+    asym_units = [AsymRecord(id=c, entity_id=e) for c, e in (("A", "1"), ("B", "2"), ("C", "3"))]
     rows = annotate_ligand_contacts(_structure(atoms, entities, asym_units))
     assert {r.chain_id_2 for r in rows} == {"C"}  # MSE not a ligand
-    assert ("A", 2) in {
-        (r.chain_id_1, r.seq_id_1) for r in rows
-    }  # MSE as polymer
+    assert ("A", 2) in {(r.chain_id_1, r.seq_id_1) for r in rows}  # MSE as polymer
     assert extract_interface_records(rows) == []
 ```
 
@@ -721,9 +711,7 @@ def test_compute_and_import_give_same_interface_records(tmp_path):
             for r in read_records(computed / "layer.jsonl", ResidueContactRow)
         )
     )
-    (tmp_path / "d.yaml").write_text(
-        "name: tool\ntemplate: residue_contacts\ntool: T\n"
-    )
+    (tmp_path / "d.yaml").write_text("name: tool\ntemplate: residue_contacts\ntool: T\n")
     imported = tmp_path / "imported"
     main(
         [
@@ -741,12 +729,8 @@ def test_compute_and_import_give_same_interface_records(tmp_path):
             "jsonl",
         ]
     )
-    a = extract_interface_records(
-        read_records(computed / "layer.jsonl", ResidueContactRow)
-    )
-    b = extract_interface_records(
-        read_records(imported / "layer.jsonl", ResidueContactRow)
-    )
+    a = extract_interface_records(read_records(computed / "layer.jsonl", ResidueContactRow))
+    b = extract_interface_records(read_records(imported / "layer.jsonl", ResidueContactRow))
     assert a == b and len(a) == 3
 ```
 
@@ -825,9 +809,7 @@ def test_cluster_reads_contact_layer(tmp_path, monkeypatch):
         captured["residues"] = interface_residues
         return [], ClusterProvenance(...)  # build the minimal valid one
 
-    monkeypatch.setattr(
-        "pandora.cli.similarity.cluster_similar_items", fake_cluster
-    )
+    monkeypatch.setattr("pandora.cli.similarity.cluster_similar_items", fake_cluster)
     input_dir, search = _cluster_inputs(tmp_path)
     main(
         [
@@ -852,9 +834,7 @@ def test_cluster_reads_contact_layer(tmp_path, monkeypatch):
 def test_cluster_rejects_non_contact_layer(tmp_path):
     layer = tmp_path / "labels"
     layer.mkdir()
-    (layer / "layer.json").write_text(
-        json.dumps({"policy": {"template": "chain_labels"}})
-    )
+    (layer / "layer.json").write_text(json.dumps({"policy": {"template": "chain_labels"}}))
     input_dir, search = _cluster_inputs(tmp_path)
     with pytest.raises(SystemExit, match="residue_contacts"):
         main(

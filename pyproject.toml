@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pandora"
-version = "0.7.7"
+version = "0.8.1"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.0",
@@ -46,7 +46,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 # Set the maximum line length to 80.
-line-length = 80
+line-length = 100
 extend-exclude = ["archive"]
 
 [tool.ruff.lint]

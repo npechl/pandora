@@ -15,9 +15,7 @@ MMCIF_DIR = Path(__file__).parent.parent / "datasets" / "dev" / "mmcif"
 
 
 def _load(entry_id: str):
-    structure, _, _ = mmcif_to_structure(
-        str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif")
-    )
+    structure, _, _ = mmcif_to_structure(str(MMCIF_DIR / entry_id[1:3] / f"{entry_id}.cif"))
     return structure
 
 
@@ -71,9 +69,7 @@ def test_incomplete_backbone_counts_ca_only_residues_as_missing():
 def test_chain_without_seqres_gets_diagnostic_not_record():
     structure = _load("10mv")
     raw = {k: v for k, v in structure.raw.items() if k != "_entity_poly_seq"}
-    records, diagnostics = chain_completeness(
-        structure.model_copy(update={"raw": raw})
-    )
+    records, diagnostics = chain_completeness(structure.model_copy(update={"raw": raw}))
     assert records == []
     assert [d.code for d in diagnostics.warnings] == ["NO_SEQRES"]
 
@@ -114,8 +110,6 @@ def test_missing_positions_agree_with_completeness():
 def test_missing_positions_skip_unmeasured_chains():
     structure = _load("10mv")
     raw = {k: v for k, v in structure.raw.items() if k != "_entity_poly_seq"}
-    missing, diagnostics = missing_positions(
-        structure.model_copy(update={"raw": raw})
-    )
+    missing, diagnostics = missing_positions(structure.model_copy(update={"raw": raw}))
     assert missing == {}
     assert [d.code for d in diagnostics.warnings] == ["NO_SEQRES"]

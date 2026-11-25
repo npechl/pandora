@@ -78,10 +78,7 @@ def test_estimate_atom_count_expands_assembly():
 
 def test_estimate_atom_count_sixty_operators():
     path = FIXTURES / "au" / "1auy.cif"  # 4045 AU atoms × 60
-    assert (
-        estimate_atom_count(path, _policy("standardize_biological_assembly"))
-        == 242700
-    )
+    assert estimate_atom_count(path, _policy("standardize_biological_assembly")) == 242700
 
 
 def test_estimate_atom_count_without_expansion_is_asymmetric_unit():
